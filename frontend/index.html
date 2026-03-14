@@ -4,116 +4,171 @@
   <meta charset="utf-8" />
   <title>Steel Pipe DB</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { font-size: 24px; }
-    #form { margin-bottom: 20px; }
-    input, select { margin-right: 8px; padding: 6px; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
-    tr:hover { background: #f0f0f0; cursor: pointer; }
-    #msg { color: red; }
+    :root{ --bg:#f7f8fa; --card:#fff; --muted:#6b7280; --accent:#3b82f6; }
+    *{box-sizing:border-box}
+    body{ font-family: system-ui, Arial, sans-serif; margin:0; background:var(--bg); color:#111; }
+    .container{ max-width:1100px; margin:20px auto; padding:0 16px; }
+    h1{ font-size:28px; margin:8px 0 12px; }
+    .toolbar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; background:var(--card); padding:12px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.05); margin-bottom:12px; }
+    input, select{ padding:8px 10px; border:1px solid #ddd; border-radius:6px; min-width:120px; }
+    button{ padding:8px 12px; border-radius:6px; border:1px solid #ddd; background:#fff; cursor:pointer; }
+    button.primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
+    #pipesTable{ width:100%; border-collapse:collapse; margin-top:6px; }
+    #pipesTable th, #pipesTable td{ border:1px solid #e5e7eb; padding:8px; text-align:center; }
+    #pipesTable th{ background:#f3f4f6; cursor:pointer; }
+    #pipesTable tr:hover{ background:#f9fafb; }
+    #toast{ position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#111; color:#fff; padding:8px 12px; border-radius:6px; display:none; }
+    .row{ animation: fadein 0.25s ease; }
+    @keyframes fadein{ from{opacity:0; transform:translateY(-4px)} to{opacity:1; transform:none} }
   </style>
   </head>
   <body>
-  <h1>Steel Pipe Inventory</h1>
-  <div id="form">
-    <input id="diameter" placeholder="Diameter (mm)" type="number" step="0.01" />
-    <input id="thickness" placeholder="Thickness (mm)" type="number" step="0.01" />
-    <input id="length" placeholder="Length (m)" type="number" step="0.01" />
-    <select id="material">
-      <option value="">Material</option>
-      <option value="Carbon Steel">Carbon Steel</option>
-      <option value="Stainless Steel">Stainless Steel</option>
-      <option value="Alloy Steel">Alloy Steel</option>
+  <div class="container">
+  <h1>Steel Pipe Inventory (Web UI)</h1>
+  <div class="toolbar">
+    <input id="search" placeholder="Search material..." />
+    <select id="materialFilter"><option value="">All materials</option><option value="Carbon Steel">Carbon Steel</option><option value="Stainless Steel">Stainless Steel</option><option value="Alloy Steel">Alloy Steel</option></select>
+    <span>Diameter:</span>
+    <input id="minDiameter" placeholder="min" type="number" step="0.01" style="width:90px"/>
+    <input id="maxDiameter" placeholder="max" type="number" step="0.01" style="width:90px"/>
+    <span>Length:</span>
+    <input id="minLength" placeholder="min" type="number" step="0.01" style="width:90px"/>
+    <input id="maxLength" placeholder="max" type="number" step="0.01" style="width:90px"/>
+    <span>Sort by:</span>
+    <select id="sortBy">
+      <option value="id">ID</option>
+      <option value="diameter">Diameter</option>
+      <option value="thickness">Thickness</option>
+      <option value="length">Length</option>
+      <option value="material">Material</option>
+      <option value="quantity">Quantity</option>
     </select>
-    <input id="quantity" placeholder="Quantity" type="number" />
-    <button id="addBtn">Add</button>
-    <button id="updateBtn" disabled>Update</button>
-    <button id="deleteBtn" disabled>Delete</button>
+    <select id="sortDir"><option value="asc">Asc</option><option value="desc">Desc</option></select>
+    <span>Per page:</span>
+    <select id="perPage"><option value="5">5</option><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option></select>
+    <button id="exportBtn" class="primary">Export CSV</button>
+    <input type="file" id="importFile" accept=".csv"/>
+    <button id="importBtn">Import CSV</button>
   </div>
-  <div id="msg"></div>
-  <table id="pipesTable">
+  <div style="margin:6px 0 6px;color:var(--muted);">Total: <span id="totalCount">0</span></div>
+  <table id="pipesTable" aria-label="pipes table">
     <thead>
-      <tr><th>ID</th><th>Diameter</th><th>Thickness</th><th>Length</th><th>Material</th><th>Quantity</th></tr>
+      <tr>
+        <th data-field="id">ID</th>
+        <th data-field="diameter">Diameter</th>
+        <th data-field="thickness">Thickness</th>
+        <th data-field="length">Length</th>
+        <th data-field="material">Material</th>
+        <th data-field="quantity">Quantity</th>
+      </tr>
     </thead>
     <tbody></tbody>
   </table>
-
+  <div style="margin-top:8px;">
+    <button id="prevPage">Prev</button>
+    <span id="pageInfo"></span>
+    <button id="nextPage">Next</button>
+  </div>
+  </div>
+  <div id="toast"></div>
   <script>
+    let page = 1;
+    let perPage = 10;
+    let sortBy = 'id';
+    let sortDir = 'asc';
+    let total = 0;
     let selectedId = null;
-    async function loadPipes(){
-      const res = await fetch('/pipes');
+
+    async function fetchPipes(){
+      const q = document.getElementById('search').value;
+      const material = document.getElementById('materialFilter').value;
+      const minD = document.getElementById('minDiameter').value;
+      const maxD = document.getElementById('maxDiameter').value;
+      const minL = document.getElementById('minLength').value;
+      const maxL = document.getElementById('maxLength').value;
+      const url = new URL('/pipes', location.origin);
+      url.searchParams.set('q', q || '');
+      if (material) url.searchParams.set('material', material);
+      if (minD) url.searchParams.set('min_diameter', minD);
+      if (maxD) url.searchParams.set('max_diameter', maxD);
+      if (minL) url.searchParams.set('min_length', minL);
+      if (maxL) url.searchParams.set('max_length', maxL);
+      url.searchParams.set('sort_by', sortBy);
+      url.searchParams.set('sort_dir', sortDir);
+      url.searchParams.set('page', page);
+      url.searchParams.set('per_page', perPage);
+      const res = await fetch(url);
       const data = await res.json();
+      total = data.total || 0;
+      document.getElementById('totalCount').textContent = total;
+      renderTable(data.pipes || []);
+      updatePageInfo();
+    }
+
+    function renderTable(rows){
       const tbody = document.querySelector('#pipesTable tbody');
       tbody.innerHTML = '';
-      data.forEach(p => {
+      rows.forEach(p => {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td>${p.id}</td><td>${p.diameter}</td><td>${p.thickness}</td><td>${p.length}</td><td>${p.material}</td><td>${p.quantity}</td>`;
-        tr.addEventListener('click', () => { selectPipe(p); });
         tbody.appendChild(tr);
       });
     }
-    function selectPipe(p){
-      selectedId = p.id;
-      document.getElementById('diameter').value = p.diameter;
-      document.getElementById('thickness').value = p.thickness;
-      document.getElementById('length').value = p.length;
-      document.getElementById('material').value = p.material;
-      document.getElementById('quantity').value = p.quantity;
-      document.getElementById('updateBtn').disabled = false;
-      document.getElementById('deleteBtn').disabled = false;
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const q = document.getElementById('search').value;
+      const material = document.getElementById('materialFilter').value;
+      const minD = document.getElementById('minDiameter').value;
+      const maxD = document.getElementById('maxDiameter').value;
+      const minL = document.getElementById('minLength').value;
+      const maxL = document.getElementById('maxLength').value;
+      const url = new URL('/pipes/export', location.origin);
+      if (q) url.searchParams.set('q', q);
+      if (material) url.searchParams.set('material', material);
+      if (minD) url.searchParams.set('min_diameter', minD);
+      if (maxD) url.searchParams.set('max_diameter', maxD);
+      if (minL) url.searchParams.set('min_length', minL);
+      if (maxL) url.searchParams.set('max_length', maxL);
+      url.searchParams.set('format', 'csv');
+      window.location = url.toString();
+    });
+
+    document.getElementById('importBtn').addEventListener('click', () => {
+      const fileInput = document.getElementById('importFile');
+      if (fileInput.files.length === 0) { showToast('Please select a CSV file to import'); return; }
+      const form = new FormData();
+      form.append('file', fileInput.files[0]);
+      fetch('/pipes/import', { method: 'POST', body: form }).then(r => r.json()).then(res => {
+        showToast('Imported: ' + res.imported + ', errors: ' + res.errors.length);
+        fetchPipes();
+      }).catch(() => showToast('Import failed'));
+    });
+
+    document.getElementById('prevPage').addEventListener('click', ()=> { if (page > 1) { page--; fetchPipes(); } });
+    document.getElementById('nextPage').addEventListener('click', ()=> { const maxPage = Math.max(1, Math.ceil(total / perPage)); if (page < maxPage) { page++; fetchPipes(); } });
+
+    document.querySelectorAll('#pipesTable th').forEach(th => {
+      const field = th.getAttribute('data-field') || th.textContent.toLowerCase();
+      th.addEventListener('click', () => {
+        if (field){
+          if (sortBy === field) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+          else { sortBy = field; sortDir = 'asc'; }
+          page = 1;
+          fetchPipes();
+        }
+      });
+    });
+
+    function updatePageInfo(){
+      const maxPage = Math.max(1, Math.ceil(total / perPage));
+      const info = `Page ${page} of ${maxPage}`;
+      const el = document.getElementById('pageInfo') || (function(){ const s = document.createElement('span'); s.id='pageInfo'; s.textContent = info; document.querySelector('.toolbar').appendChild(s); return s;})();
+      el.textContent = info;
     }
-    async function addPipe(){
-      const d = parseFloat(document.getElementById('diameter').value);
-      const t = parseFloat(document.getElementById('thickness').value);
-      const l = parseFloat(document.getElementById('length').value);
-      const m = document.getElementById('material').value;
-      const q = parseInt(document.getElementById('quantity').value);
-      if (!isFinite(d) || !isFinite(t) || !isFinite(l) || !m || !isFinite(q)){
-        showMsg('Please fill all fields with valid numbers.');
-        return;
-      }
-      const body = { diameter: d, thickness: t, length: l, material: m, quantity: q };
-      const res = await fetch('/pipes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (res.ok){ loadPipes(); clearForm(); showMsg('Added', false); } else { showMsg('Error adding'); }
-    }
-    async function updatePipe(){
-      if (!selectedId){ showMsg('No pipe selected for update'); return; }
-      const d = parseFloat(document.getElementById('diameter').value);
-      const t = parseFloat(document.getElementById('thickness').value);
-      const l = parseFloat(document.getElementById('length').value);
-      const m = document.getElementById('material').value;
-      const q = parseInt(document.getElementById('quantity').value);
-      if (!isFinite(d) || !isFinite(t) || !isFinite(l) || !m || !isFinite(q)){
-        showMsg('Please fill all fields with valid numbers.');
-        return;
-      }
-      const body = { diameter: d, thickness: t, length: l, material: m, quantity: q };
-      const res = await fetch('/pipes/' + selectedId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (res.ok){ loadPipes(); clearForm(); showMsg('Updated', false); } else { showMsg('Error updating'); }
-    }
-    async function deletePipe(){
-      if (!selectedId){ showMsg('No pipe selected for delete'); return; }
-      if (!confirm('Delete selected pipe?')) return;
-      const res = await fetch('/pipes/' + selectedId, { method: 'DELETE' });
-      if (res.ok){ loadPipes(); clearForm(); showMsg('Deleted', false); } else { showMsg('Error deleting'); }
-    }
-    function clearForm(){
-      selectedId = null;
-      document.getElementById('diameter').value = '';
-      document.getElementById('thickness').value = '';
-      document.getElementById('length').value = '';
-      document.getElementById('material').value = '';
-      document.getElementById('quantity').value = '';
-      document.getElementById('updateBtn').disabled = true;
-      document.getElementById('deleteBtn').disabled = true;
-    }
-    function showMsg(text, ok=true){ const m = document.getElementById('msg'); m.style.color = ok ? 'green' : 'red'; m.textContent = text; setTimeout(()=>m.textContent='', 1500); }
-    document.getElementById('addBtn').addEventListener('click', addPipe);
-    document.getElementById('updateBtn').addEventListener('click', updatePipe);
-    document.getElementById('deleteBtn').addEventListener('click', deletePipe);
-    // initial load
-    loadPipes();
+    function showToast(text){ const t = document.getElementById('toast'); t.textContent = text; t.style.display = 'block'; setTimeout(()=> t.style.display='none', 1500); }
+
+    // Initial load
+    fetchPipes();
   </script>
 </body>
 </html>
