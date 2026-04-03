@@ -1,7 +1,6 @@
-
 use serde::{Deserialize, Serialize};
 use std::fs;
-use anyhow::Result;
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -91,14 +90,32 @@ impl Default for Config {
 
 impl Config {
     pub fn load(path: &str) -> Result<Self> {
-        let content = fs::read_to_string(path)?;
-        let config: Config = toml::from_str(&content)?;
+        let content =
+            fs::read_to_string(path).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+        let config: Config =
+            toml::from_str(&content).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+        config.validate()?;
         Ok(config)
     }
 
+    #[allow(dead_code)]
     pub fn save(&self, path: &str) -> Result<()> {
-        let content = toml::to_string_pretty(self)?;
-        fs::write(path, content)?;
+        let content =
+            toml::to_string_pretty(self).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+        fs::write(path, content).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+        Ok(())
+    }
+
+    fn validate(&self) -> Result<()> {
+        if self.database.path.trim().is_empty() {
+            return Err("数据库路径不能为空".into());
+        }
+        if self.ui.window_width < 400 || self.ui.window_height < 300 {
+            return Err("窗口尺寸过小，请确保宽度>=400，高度>=300".into());
+        }
+        if self.ui.window_title.trim().is_empty() {
+            return Err("窗口标题不能为空".into());
+        }
         Ok(())
     }
 }
