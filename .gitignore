@@ -21,6 +21,7 @@ wheels/
 .installed.cfg
 *.egg
 
+
 # 虚拟环境
 venv/
 ENV/
@@ -32,11 +33,15 @@ env/
 *.swp
 *.swo
 *~
+*debug/
+debug/
+*target/debug/
 
 # 数据库文件
 *.db
 *.sqlite
 *.sqlite3
+*.db*
 
 # 日志文件
 *.log
