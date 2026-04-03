@@ -1,0 +1,24 @@
+
+[package]
+name = "steel_pipe_db"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# 数据库相关
+rusqlite = "0.29"
+# GUI相关
+egui = "0.22"
+eframe = "0.22"
+# 日期时间处理
+chrono = "0.4"
+# 序列化/反序列化
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# 配置文件解析
+toml = "0.7"
+# 错误处理
+thiserror = "1.0"
+# 日志
+tracing = "0.1"
+tracing-subscriber = "0.3"
