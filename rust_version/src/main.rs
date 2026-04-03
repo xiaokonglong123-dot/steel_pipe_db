@@ -42,6 +42,34 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         &window_title,
         options,
-        Box::new(|cc| Box::new(app::SteelPipeApp::new(cc, app_state))),
+        Box::new(|cc| {
+            setup_fonts(&cc.egui_ctx);
+            Box::new(app::SteelPipeApp::new(cc, app_state))
+        }),
     )
+}
+
+fn setup_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+
+    fonts.font_data.insert(
+        "noto_sans_cjk".to_owned(),
+        egui::FontData::from_static(include_bytes!(
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc"
+        )),
+    );
+
+    fonts
+        .families
+        .entry(egui::FontFamily::Proportional)
+        .or_default()
+        .insert(0, "noto_sans_cjk".to_owned());
+
+    fonts
+        .families
+        .entry(egui::FontFamily::Monospace)
+        .or_default()
+        .push("noto_sans_cjk".to_owned());
+
+    ctx.set_fonts(fonts);
 }

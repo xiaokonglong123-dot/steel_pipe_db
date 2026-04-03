@@ -599,7 +599,10 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let tx = conn.unchecked_transaction()?;
 
-        tx.execute("DELETE FROM inventory_records WHERE pipe_id = ?", params![pipe_id])?;
+        tx.execute(
+            "DELETE FROM inventory_records WHERE pipe_id = ?",
+            params![pipe_id],
+        )?;
         tx.execute("DELETE FROM pipes WHERE pipe_id = ?", params![pipe_id])?;
 
         tx.commit()?;
@@ -619,9 +622,16 @@ impl Database {
                 last_update = ?, status = ? 
              WHERE pipe_id = ?",
             params![
-                pipe.diameter, pipe.thickness, pipe.length, pipe.material,
-                pipe.quantity, pipe.location, pipe.supplier,
-                now, pipe.status, pipe.pipe_id
+                pipe.diameter,
+                pipe.thickness,
+                pipe.length,
+                pipe.material,
+                pipe.quantity,
+                pipe.location,
+                pipe.supplier,
+                now,
+                pipe.status,
+                pipe.pipe_id
             ],
         )?;
 
@@ -756,14 +766,30 @@ impl Database {
         Ok(())
     }
 
-    pub fn export_records_to_file(&self, path: &str, pipe_id: Option<&str>, operation_type: Option<&str>, start_date: Option<&str>, end_date: Option<&str>) -> Result<()> {
+    pub fn export_records_to_file(
+        &self,
+        path: &str,
+        pipe_id: Option<&str>,
+        operation_type: Option<&str>,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+    ) -> Result<()> {
         let csv = self.export_records_to_csv(pipe_id, operation_type, start_date, end_date)?;
         std::fs::write(path, csv)?;
         Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn log_operation(&self, operation_type: &str, target_type: &str, target_id: &str, snapshot_before: &str, snapshot_after: &str, operator: &str, remarks: &str) -> Result<()> {
+    pub fn log_operation(
+        &self,
+        operation_type: &str,
+        target_type: &str,
+        target_id: &str,
+        snapshot_before: &str,
+        snapshot_after: &str,
+        operator: &str,
+        remarks: &str,
+    ) -> Result<()> {
         let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let conn = self.conn.lock().unwrap();
         conn.execute(
@@ -817,7 +843,8 @@ impl Database {
             }
             ("delete_pipe", "pipe") => {
                 if !snapshot_before.is_empty() {
-                    let pipe: SteelPipe = serde_json::from_str(&snapshot_before).map_err(|e| DbError::Validation(format!("恢复数据解析失败: {}", e)))?;
+                    let pipe: SteelPipe = serde_json::from_str(&snapshot_before)
+                        .map_err(|e| DbError::Validation(format!("恢复数据解析失败: {}", e)))?;
                     tx.execute(
                         "INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, last_update, status)
                          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
@@ -827,7 +854,8 @@ impl Database {
             }
             ("update_pipe", "pipe") => {
                 if !snapshot_before.is_empty() {
-                    let pipe: SteelPipe = serde_json::from_str(&snapshot_before).map_err(|e| DbError::Validation(format!("恢复数据解析失败: {}", e)))?;
+                    let pipe: SteelPipe = serde_json::from_str(&snapshot_before)
+                        .map_err(|e| DbError::Validation(format!("恢复数据解析失败: {}", e)))?;
                     tx.execute(
                         "UPDATE pipes SET diameter = ?, thickness = ?, length = ?, material = ?, quantity = ?, location = ?, supplier = ?, last_update = ?, status = ? WHERE pipe_id = ?",
                         params![pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, pipe.last_update, pipe.status, pipe.pipe_id],
@@ -847,7 +875,10 @@ impl Database {
                 }
             }
             _ => {
-                return Err(DbError::Validation(format!("不支持撤回的操作: {} - {}", operation_type, target_type)));
+                return Err(DbError::Validation(format!(
+                    "不支持撤回的操作: {} - {}",
+                    operation_type, target_type
+                )));
             }
         }
 
@@ -858,11 +889,13 @@ impl Database {
 
     pub fn undo_last_operation(&self) -> Result<String> {
         let conn = self.conn.lock().unwrap();
-        let log_id: Option<i64> = conn.query_row(
-            "SELECT id FROM operation_logs ORDER BY timestamp DESC LIMIT 1",
-            [],
-            |row| row.get(0),
-        ).ok();
+        let log_id: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM operation_logs ORDER BY timestamp DESC LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
 
         if let Some(id) = log_id {
             drop(conn);
@@ -872,7 +905,11 @@ impl Database {
         }
     }
 
-    pub fn import_pipes_from_csv(&self, csv_content: &str, operator: &str) -> Result<(usize, usize)> {
+    pub fn import_pipes_from_csv(
+        &self,
+        csv_content: &str,
+        operator: &str,
+    ) -> Result<(usize, usize)> {
         let mut success_count = 0;
         let mut fail_count = 0;
         let mut error_msgs = Vec::new();
@@ -895,30 +932,59 @@ impl Database {
             let pipe_id = fields[0].trim().to_string();
             let diameter: f64 = match fields[1].trim().parse() {
                 Ok(v) => v,
-                Err(_) => { fail_count += 1; error_msgs.push(format!("第{}行: 直径无效", i + 1)); continue; }
+                Err(_) => {
+                    fail_count += 1;
+                    error_msgs.push(format!("第{}行: 直径无效", i + 1));
+                    continue;
+                }
             };
             let thickness: f64 = match fields[2].trim().parse() {
                 Ok(v) => v,
-                Err(_) => { fail_count += 1; error_msgs.push(format!("第{}行: 壁厚无效", i + 1)); continue; }
+                Err(_) => {
+                    fail_count += 1;
+                    error_msgs.push(format!("第{}行: 壁厚无效", i + 1));
+                    continue;
+                }
             };
             let length: f64 = match fields[3].trim().parse() {
                 Ok(v) => v,
-                Err(_) => { fail_count += 1; error_msgs.push(format!("第{}行: 长度无效", i + 1)); continue; }
+                Err(_) => {
+                    fail_count += 1;
+                    error_msgs.push(format!("第{}行: 长度无效", i + 1));
+                    continue;
+                }
             };
             let material = fields[4].trim().to_string();
             let quantity: i32 = match fields[5].trim().parse() {
                 Ok(v) => v,
-                Err(_) => { fail_count += 1; error_msgs.push(format!("第{}行: 数量无效", i + 1)); continue; }
+                Err(_) => {
+                    fail_count += 1;
+                    error_msgs.push(format!("第{}行: 数量无效", i + 1));
+                    continue;
+                }
             };
 
-            let location = if fields.len() > 6 && !fields[6].trim().is_empty() { Some(fields[6].trim().to_string()) } else { None };
-            let supplier = if fields.len() > 7 && !fields[7].trim().is_empty() { Some(fields[7].trim().to_string()) } else { None };
+            let location = if fields.len() > 6 && !fields[6].trim().is_empty() {
+                Some(fields[6].trim().to_string())
+            } else {
+                None
+            };
+            let supplier = if fields.len() > 7 && !fields[7].trim().is_empty() {
+                Some(fields[7].trim().to_string())
+            } else {
+                None
+            };
 
             let pipe = SteelPipe {
                 id: None,
                 pipe_id: pipe_id.clone(),
-                diameter, thickness, length, material, quantity,
-                location, supplier,
+                diameter,
+                thickness,
+                length,
+                material,
+                quantity,
+                location,
+                supplier,
                 entry_date: String::new(),
                 last_update: None,
                 status: "在库".to_string(),
@@ -946,18 +1012,31 @@ impl Database {
         }
 
         if !error_msgs.is_empty() {
-            let msg = error_msgs.iter().take(10).cloned().collect::<Vec<_>>().join("; ");
-            Err(DbError::Validation(format!("导入完成，成功{}条，失败{}条。部分错误: {}", success_count, fail_count, msg)))
+            let msg = error_msgs
+                .iter()
+                .take(10)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("; ");
+            Err(DbError::Validation(format!(
+                "导入完成，成功{}条，失败{}条。部分错误: {}",
+                success_count, fail_count, msg
+            )))
         } else {
             Ok((success_count, fail_count))
         }
     }
 
-    pub fn import_pipes_from_excel(&self, file_path: &str, operator: &str) -> Result<(usize, usize)> {
+    pub fn import_pipes_from_excel(
+        &self,
+        file_path: &str,
+        operator: &str,
+    ) -> Result<(usize, usize)> {
         let mut workbook = calamine::open_workbook_auto(file_path)
             .map_err(|e| DbError::Validation(format!("无法打开Excel文件: {}", e)))?;
 
-        let range = workbook.worksheet_range_at(0)
+        let range = workbook
+            .worksheet_range_at(0)
             .ok_or_else(|| DbError::Validation("Excel文件中没有工作表".to_string()))?
             .map_err(|e| DbError::Validation(format!("读取工作表失败: {}", e)))?;
 
@@ -977,41 +1056,80 @@ impl Database {
 
             let pipe_id = match row[0].as_string() {
                 Some(s) if !s.trim().is_empty() => s.trim().to_string(),
-                _ => { fail_count += 1; error_msgs.push(format!("第{}行: 钢管编号无效", row_idx + 1)); continue; }
+                _ => {
+                    fail_count += 1;
+                    error_msgs.push(format!("第{}行: 钢管编号无效", row_idx + 1));
+                    continue;
+                }
             };
             let diameter: f64 = match row[1].as_f64() {
                 Some(v) if v > 0.0 => v,
-                _ => { fail_count += 1; error_msgs.push(format!("第{}行: 直径无效", row_idx + 1)); continue; }
+                _ => {
+                    fail_count += 1;
+                    error_msgs.push(format!("第{}行: 直径无效", row_idx + 1));
+                    continue;
+                }
             };
             let thickness: f64 = match row[2].as_f64() {
                 Some(v) if v > 0.0 => v,
-                _ => { fail_count += 1; error_msgs.push(format!("第{}行: 壁厚无效", row_idx + 1)); continue; }
+                _ => {
+                    fail_count += 1;
+                    error_msgs.push(format!("第{}行: 壁厚无效", row_idx + 1));
+                    continue;
+                }
             };
             let length: f64 = match row[3].as_f64() {
                 Some(v) if v > 0.0 => v,
-                _ => { fail_count += 1; error_msgs.push(format!("第{}行: 长度无效", row_idx + 1)); continue; }
+                _ => {
+                    fail_count += 1;
+                    error_msgs.push(format!("第{}行: 长度无效", row_idx + 1));
+                    continue;
+                }
             };
             let material = match row[4].as_string() {
                 Some(s) if !s.trim().is_empty() => s.trim().to_string(),
-                _ => { fail_count += 1; error_msgs.push(format!("第{}行: 材质无效", row_idx + 1)); continue; }
+                _ => {
+                    fail_count += 1;
+                    error_msgs.push(format!("第{}行: 材质无效", row_idx + 1));
+                    continue;
+                }
             };
             let quantity: i32 = match row[5].as_i64() {
                 Some(v) if v > 0 => v as i32,
-                _ => { fail_count += 1; error_msgs.push(format!("第{}行: 数量无效", row_idx + 1)); continue; }
+                _ => {
+                    fail_count += 1;
+                    error_msgs.push(format!("第{}行: 数量无效", row_idx + 1));
+                    continue;
+                }
             };
 
             let location = if row.len() > 6 {
-                row[6].as_string().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
-            } else { None };
+                row[6]
+                    .as_string()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            } else {
+                None
+            };
             let supplier = if row.len() > 7 {
-                row[7].as_string().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
-            } else { None };
+                row[7]
+                    .as_string()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            } else {
+                None
+            };
 
             let pipe = SteelPipe {
                 id: None,
                 pipe_id: pipe_id.clone(),
-                diameter, thickness, length, material, quantity,
-                location, supplier,
+                diameter,
+                thickness,
+                length,
+                material,
+                quantity,
+                location,
+                supplier,
                 entry_date: String::new(),
                 last_update: None,
                 status: "在库".to_string(),
@@ -1039,8 +1157,16 @@ impl Database {
         }
 
         if !error_msgs.is_empty() {
-            let msg = error_msgs.iter().take(10).cloned().collect::<Vec<_>>().join("; ");
-            Err(DbError::Validation(format!("导入完成，成功{}条，失败{}条。部分错误: {}", success_count, fail_count, msg)))
+            let msg = error_msgs
+                .iter()
+                .take(10)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("; ");
+            Err(DbError::Validation(format!(
+                "导入完成，成功{}条，失败{}条。部分错误: {}",
+                success_count, fail_count, msg
+            )))
         } else {
             Ok((success_count, fail_count))
         }
@@ -1057,36 +1183,62 @@ impl Database {
             .set_font_color(Color::White)
             .set_border(FormatBorder::Thin);
         let cell_fmt = Format::new().set_border(FormatBorder::Thin);
-        let num_fmt = Format::new().set_border(FormatBorder::Thin).set_num_format("0.00");
-        let int_fmt = Format::new().set_border(FormatBorder::Thin).set_num_format("0");
+        let num_fmt = Format::new()
+            .set_border(FormatBorder::Thin)
+            .set_num_format("0.00");
+        let int_fmt = Format::new()
+            .set_border(FormatBorder::Thin)
+            .set_num_format("0");
 
-        let headers = ["钢管编号", "直径(mm)", "壁厚(mm)", "长度(m)", "材质", "数量", "存放位置", "供应商", "入库日期", "状态"];
+        let headers = [
+            "钢管编号",
+            "直径(mm)",
+            "壁厚(mm)",
+            "长度(m)",
+            "材质",
+            "数量",
+            "存放位置",
+            "供应商",
+            "入库日期",
+            "状态",
+        ];
         for (col, &header) in headers.iter().enumerate() {
-            worksheet.write_string_with_format(0, col as u16, header, &header_fmt)
+            worksheet
+                .write_string_with_format(0, col as u16, header, &header_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
         }
 
         for (row_idx, pipe) in pipes.iter().enumerate() {
             let row = (row_idx + 1) as u32;
-            worksheet.write_string_with_format(row, 0, &pipe.pipe_id, &cell_fmt)
+            worksheet
+                .write_string_with_format(row, 0, &pipe.pipe_id, &cell_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_number_with_format(row, 1, pipe.diameter, &num_fmt)
+            worksheet
+                .write_number_with_format(row, 1, pipe.diameter, &num_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_number_with_format(row, 2, pipe.thickness, &num_fmt)
+            worksheet
+                .write_number_with_format(row, 2, pipe.thickness, &num_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_number_with_format(row, 3, pipe.length, &num_fmt)
+            worksheet
+                .write_number_with_format(row, 3, pipe.length, &num_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_string_with_format(row, 4, &pipe.material, &cell_fmt)
+            worksheet
+                .write_string_with_format(row, 4, &pipe.material, &cell_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_number_with_format(row, 5, pipe.quantity as f64, &int_fmt)
+            worksheet
+                .write_number_with_format(row, 5, pipe.quantity as f64, &int_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_string_with_format(row, 6, pipe.location.as_deref().unwrap_or(""), &cell_fmt)
+            worksheet
+                .write_string_with_format(row, 6, pipe.location.as_deref().unwrap_or(""), &cell_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_string_with_format(row, 7, pipe.supplier.as_deref().unwrap_or(""), &cell_fmt)
+            worksheet
+                .write_string_with_format(row, 7, pipe.supplier.as_deref().unwrap_or(""), &cell_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_string_with_format(row, 8, &pipe.entry_date, &cell_fmt)
+            worksheet
+                .write_string_with_format(row, 8, &pipe.entry_date, &cell_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_string_with_format(row, 9, &pipe.status, &cell_fmt)
+            worksheet
+                .write_string_with_format(row, 9, &pipe.status, &cell_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
         }
 
@@ -1101,11 +1253,20 @@ impl Database {
         worksheet.set_column_width(8, 22.0).ok();
         worksheet.set_column_width(9, 10.0).ok();
 
-        workbook.save(path).map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
+        workbook
+            .save(path)
+            .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
         Ok(())
     }
 
-    pub fn export_records_to_excel(&self, path: &str, pipe_id: Option<&str>, operation_type: Option<&str>, start_date: Option<&str>, end_date: Option<&str>) -> Result<()> {
+    pub fn export_records_to_excel(
+        &self,
+        path: &str,
+        pipe_id: Option<&str>,
+        operation_type: Option<&str>,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+    ) -> Result<()> {
         let records = self.get_inventory_records(pipe_id, operation_type, start_date, end_date)?;
         let mut workbook = Workbook::new();
         let worksheet = workbook.add_worksheet();
@@ -1116,27 +1277,41 @@ impl Database {
             .set_font_color(Color::White)
             .set_border(FormatBorder::Thin);
         let cell_fmt = Format::new().set_border(FormatBorder::Thin);
-        let int_fmt = Format::new().set_border(FormatBorder::Thin).set_num_format("0");
+        let int_fmt = Format::new()
+            .set_border(FormatBorder::Thin)
+            .set_num_format("0");
 
         let headers = ["钢管编号", "操作类型", "数量", "操作日期", "操作员", "备注"];
         for (col, &header) in headers.iter().enumerate() {
-            worksheet.write_string_with_format(0, col as u16, header, &header_fmt)
+            worksheet
+                .write_string_with_format(0, col as u16, header, &header_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
         }
 
         for (row_idx, record) in records.iter().enumerate() {
             let row = (row_idx + 1) as u32;
-            worksheet.write_string_with_format(row, 0, &record.pipe_id, &cell_fmt)
+            worksheet
+                .write_string_with_format(row, 0, &record.pipe_id, &cell_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_string_with_format(row, 1, &record.operation_type, &cell_fmt)
+            worksheet
+                .write_string_with_format(row, 1, &record.operation_type, &cell_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_number_with_format(row, 2, record.quantity as f64, &int_fmt)
+            worksheet
+                .write_number_with_format(row, 2, record.quantity as f64, &int_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_string_with_format(row, 3, &record.operation_date, &cell_fmt)
+            worksheet
+                .write_string_with_format(row, 3, &record.operation_date, &cell_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_string_with_format(row, 4, &record.operator, &cell_fmt)
+            worksheet
+                .write_string_with_format(row, 4, &record.operator, &cell_fmt)
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
-            worksheet.write_string_with_format(row, 5, record.remarks.as_deref().unwrap_or(""), &cell_fmt)
+            worksheet
+                .write_string_with_format(
+                    row,
+                    5,
+                    record.remarks.as_deref().unwrap_or(""),
+                    &cell_fmt,
+                )
                 .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
         }
 
@@ -1147,7 +1322,9 @@ impl Database {
         worksheet.set_column_width(4, 12.0).ok();
         worksheet.set_column_width(5, 20.0).ok();
 
-        workbook.save(path).map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
+        workbook
+            .save(path)
+            .map_err(|e: XlsxError| DbError::Validation(e.to_string()))?;
         Ok(())
     }
 }

@@ -1,5 +1,7 @@
 use crate::config::Config;
-use crate::database::{Database, InventoryRecord, MaterialStats, OperationLog, Statistics, SteelPipe};
+use crate::database::{
+    Database, InventoryRecord, MaterialStats, OperationLog, Statistics, SteelPipe,
+};
 use eframe::egui;
 use std::sync::Arc;
 
@@ -207,7 +209,11 @@ impl SteelPipeApp {
         if let Ok(records) = self.state.db.get_recent_records(10) {
             self.recent_records = records;
         }
-        if let Ok(low_stock) = self.state.db.get_low_stock_pipes(LOW_STOCK_DEFAULT_THRESHOLD) {
+        if let Ok(low_stock) = self
+            .state
+            .db
+            .get_low_stock_pipes(LOW_STOCK_DEFAULT_THRESHOLD)
+        {
             self.low_stock_items = low_stock;
         }
         if let Ok(count) = self.state.db.get_pipes_count() {
@@ -304,7 +310,11 @@ impl SteelPipeApp {
                 ui.label("导出格式:");
                 ui.horizontal(|ui| {
                     ui.radio_value(&mut self.export_format, "CSV".to_string(), "CSV");
-                    ui.radio_value(&mut self.export_format, "Excel".to_string(), "Excel (.xlsx)");
+                    ui.radio_value(
+                        &mut self.export_format,
+                        "Excel".to_string(),
+                        "Excel (.xlsx)",
+                    );
                 });
 
                 ui.add_space(10.0);
@@ -339,7 +349,11 @@ impl SteelPipeApp {
     }
 
     fn export_inventory(&mut self) {
-        let ext = if self.export_format == "Excel" { "xlsx" } else { "csv" };
+        let ext = if self.export_format == "Excel" {
+            "xlsx"
+        } else {
+            "csv"
+        };
         let path = format!(
             "inventory_export_{}.{}",
             chrono::Local::now().format("%Y%m%d_%H%M%S"),
@@ -352,10 +366,7 @@ impl SteelPipeApp {
         };
         match res {
             Ok(()) => {
-                self.show_message(
-                    format!("库存数据已导出到: {}", path),
-                    MessageType::Success,
-                );
+                self.show_message(format!("库存数据已导出到: {}", path), MessageType::Success);
             }
             Err(e) => {
                 self.show_message(format!("导出失败：{}", e), MessageType::Error);
@@ -364,7 +375,11 @@ impl SteelPipeApp {
     }
 
     fn export_records(&mut self) {
-        let ext = if self.export_format == "Excel" { "xlsx" } else { "csv" };
+        let ext = if self.export_format == "Excel" {
+            "xlsx"
+        } else {
+            "csv"
+        };
         let path = format!(
             "records_export_{}.{}",
             chrono::Local::now().format("%Y%m%d_%H%M%S"),
@@ -392,9 +407,21 @@ impl SteelPipeApp {
         };
 
         let res = if self.export_format == "Excel" {
-            self.state.db.export_records_to_excel(&path, pipe_id, operation_type, start_date, end_date)
+            self.state.db.export_records_to_excel(
+                &path,
+                pipe_id,
+                operation_type,
+                start_date,
+                end_date,
+            )
         } else {
-            self.state.db.export_records_to_file(&path, pipe_id, operation_type, start_date, end_date)
+            self.state.db.export_records_to_file(
+                &path,
+                pipe_id,
+                operation_type,
+                start_date,
+                end_date,
+            )
         };
         match res {
             Ok(()) => {
@@ -412,7 +439,10 @@ impl SteelPipeApp {
     fn open_confirm_delete(&mut self, pipe_id: String) {
         self.confirm_dialog = Some(ConfirmDialog {
             title: "确认删除".to_string(),
-            content: format!("确定要删除钢管 '{}' 吗？此操作将同时删除相关的出入库记录，且不可撤销！", pipe_id),
+            content: format!(
+                "确定要删除钢管 '{}' 吗？此操作将同时删除相关的出入库记录，且不可撤销！",
+                pipe_id
+            ),
             action: ConfirmAction::DeletePipe(pipe_id),
         });
     }
@@ -428,8 +458,13 @@ impl SteelPipeApp {
                 Ok(()) => {
                     let before_json = serde_json::to_string(pipe).unwrap_or_default();
                     let _ = self.state.db.log_operation(
-                        "update_pipe", "pipe", &pipe.pipe_id,
-                        &before_json, "", "system", "编辑更新",
+                        "update_pipe",
+                        "pipe",
+                        &pipe.pipe_id,
+                        &before_json,
+                        "",
+                        "system",
+                        "编辑更新",
                     );
                     self.show_message("钢管信息更新成功！".to_string(), MessageType::Success);
                     self.show_edit_dialog = false;
@@ -471,32 +506,69 @@ impl eframe::App for SteelPipeApp {
             .show(ctx, |ui| {
                 ui.add_space(12.0);
                 ui.vertical_centered_justified(|ui| {
-                    if Self::nav_button(ui, "📊 首页概览", egui::Color32::from_rgb(52, 152, 219), matches!(self.current_view, CurrentView::Dashboard)) {
+                    if Self::nav_button(
+                        ui,
+                        "📊 首页概览",
+                        egui::Color32::from_rgb(52, 152, 219),
+                        matches!(self.current_view, CurrentView::Dashboard),
+                    ) {
                         self.current_view = CurrentView::Dashboard;
                         self.refresh_dashboard_data();
                     }
-                    if Self::nav_button(ui, "📦 钢管入库", egui::Color32::from_rgb(46, 204, 113), matches!(self.current_view, CurrentView::Entry)) {
+                    if Self::nav_button(
+                        ui,
+                        "📦 钢管入库",
+                        egui::Color32::from_rgb(46, 204, 113),
+                        matches!(self.current_view, CurrentView::Entry),
+                    ) {
                         self.current_view = CurrentView::Entry;
                     }
-                    if Self::nav_button(ui, "🚚 钢管出库", egui::Color32::from_rgb(231, 76, 60), matches!(self.current_view, CurrentView::Exit)) {
+                    if Self::nav_button(
+                        ui,
+                        "🚚 钢管出库",
+                        egui::Color32::from_rgb(231, 76, 60),
+                        matches!(self.current_view, CurrentView::Exit),
+                    ) {
                         self.current_view = CurrentView::Exit;
                     }
-                    if Self::nav_button(ui, "🔍 库存查询", egui::Color32::from_rgb(52, 73, 94), matches!(self.current_view, CurrentView::Inventory)) {
+                    if Self::nav_button(
+                        ui,
+                        "🔍 库存查询",
+                        egui::Color32::from_rgb(52, 73, 94),
+                        matches!(self.current_view, CurrentView::Inventory),
+                    ) {
                         self.current_view = CurrentView::Inventory;
                         if let Ok(count) = self.state.db.get_pipes_count() {
                             self.inventory_total = count;
                         }
                     }
-                    if Self::nav_button(ui, "📋 出入库记录", egui::Color32::from_rgb(243, 156, 18), matches!(self.current_view, CurrentView::Records)) {
+                    if Self::nav_button(
+                        ui,
+                        "📋 出入库记录",
+                        egui::Color32::from_rgb(243, 156, 18),
+                        matches!(self.current_view, CurrentView::Records),
+                    ) {
                         self.current_view = CurrentView::Records;
                     }
-                    if Self::nav_button(ui, "📈 数据统计", egui::Color32::from_rgb(155, 89, 182), matches!(self.current_view, CurrentView::Statistics)) {
+                    if Self::nav_button(
+                        ui,
+                        "📈 数据统计",
+                        egui::Color32::from_rgb(155, 89, 182),
+                        matches!(self.current_view, CurrentView::Statistics),
+                    ) {
                         self.current_view = CurrentView::Statistics;
                         self.refresh_dashboard_data();
                     }
-                    if Self::nav_button(ui, "⚠️ 库存预警", egui::Color32::from_rgb(230, 126, 34), matches!(self.current_view, CurrentView::LowStock)) {
+                    if Self::nav_button(
+                        ui,
+                        "⚠️ 库存预警",
+                        egui::Color32::from_rgb(230, 126, 34),
+                        matches!(self.current_view, CurrentView::LowStock),
+                    ) {
                         self.current_view = CurrentView::LowStock;
-                        if let Ok(items) = self.state.db.get_low_stock_pipes(self.low_stock_threshold) {
+                        if let Ok(items) =
+                            self.state.db.get_low_stock_pipes(self.low_stock_threshold)
+                        {
                             self.low_stock_items = items;
                         }
                     }
@@ -522,7 +594,14 @@ impl eframe::App for SteelPipeApp {
                         }
                     }
                     ui.add_space(6.0);
-                    if ui.button(if self.dark_mode { "☀ 浅色模式" } else { "🌙 深色模式" }).clicked() {
+                    if ui
+                        .button(if self.dark_mode {
+                            "☀ 浅色模式"
+                        } else {
+                            "🌙 深色模式"
+                        })
+                        .clicked()
+                    {
                         self.dark_mode = !self.dark_mode;
                         self.update_theme(ctx);
                     }
@@ -597,8 +676,13 @@ impl eframe::App for SteelPipeApp {
                     if let Ok(Some(pipe)) = self.state.db.get_pipe_by_id(pipe_id) {
                         let snapshot = serde_json::to_string(&pipe).unwrap_or_default();
                         let _ = self.state.db.log_operation(
-                            "delete_pipe", "pipe", pipe_id,
-                            &snapshot, "", "system", "删除钢管",
+                            "delete_pipe",
+                            "pipe",
+                            pipe_id,
+                            &snapshot,
+                            "",
+                            "system",
+                            "删除钢管",
                         );
                     }
                     match self.state.db.delete_pipe(pipe_id) {
@@ -672,12 +756,19 @@ impl SteelPipeApp {
             if !self.low_stock_items.is_empty() {
                 egui::Frame::group(ui.style())
                     .fill(egui::Color32::from_rgb(230, 126, 34).linear_multiply(0.08))
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(230, 126, 34).linear_multiply(0.3)))
+                    .stroke(egui::Stroke::new(
+                        1.0,
+                        egui::Color32::from_rgb(230, 126, 34).linear_multiply(0.3),
+                    ))
                     .rounding(8.0)
                     .inner_margin(12.0)
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("⚠ 库存预警").color(egui::Color32::from_rgb(230, 126, 34)).strong());
+                            ui.label(
+                                egui::RichText::new("⚠ 库存预警")
+                                    .color(egui::Color32::from_rgb(230, 126, 34))
+                                    .strong(),
+                            );
                             ui.label(format!("({} 项低于阈值)", self.low_stock_items.len()));
                             if ui.button("查看详情").clicked() {
                                 self.current_view = CurrentView::LowStock;
@@ -702,8 +793,15 @@ impl SteelPipeApp {
                                     egui::Color32::from_rgb(231, 76, 60)
                                 };
                                 ui.horizontal(|ui| {
-                                    ui.label(egui::RichText::new(&record.operation_type).color(op_color).strong());
-                                    ui.label(format!("| {} | 数量: {}", record.pipe_id, record.quantity));
+                                    ui.label(
+                                        egui::RichText::new(&record.operation_type)
+                                            .color(op_color)
+                                            .strong(),
+                                    );
+                                    ui.label(format!(
+                                        "| {} | 数量: {}",
+                                        record.pipe_id, record.quantity
+                                    ));
                                     ui.label(egui::RichText::new(&record.operation_date).weak());
                                 });
                             }
@@ -726,7 +824,10 @@ impl SteelPipeApp {
                                 for ms in &self.material_stats {
                                     ui.horizontal(|ui| {
                                         ui.label(egui::RichText::new(&ms.material).strong());
-                                        ui.label(format!("| 种类: {} | 数量: {}", ms.type_count, ms.total_quantity));
+                                        ui.label(format!(
+                                            "| 种类: {} | 数量: {}",
+                                            ms.type_count, ms.total_quantity
+                                        ));
                                     });
                                 }
                             });
@@ -762,8 +863,13 @@ impl SteelPipeApp {
                                 &self.entry_material
                             })
                             .show_ui(ui, |ui| {
-                                for mat in &["碳钢", "不锈钢", "合金钢", "无缝钢管", "焊接钢管"] {
-                                    ui.selectable_value(&mut self.entry_material, mat.to_string(), *mat);
+                                for mat in &["碳钢", "不锈钢", "合金钢", "无缝钢管", "焊接钢管"]
+                                {
+                                    ui.selectable_value(
+                                        &mut self.entry_material,
+                                        mat.to_string(),
+                                        *mat,
+                                    );
                                 }
                             });
                         ui.end_row();
@@ -801,7 +907,10 @@ impl SteelPipeApp {
 
                 ui.add_space(8.0);
                 ui.label("备注:");
-                ui.add(egui::TextEdit::multiline(&mut self.entry_remarks).min_size(egui::vec2(ui.available_width(), 50.0)));
+                ui.add(
+                    egui::TextEdit::multiline(&mut self.entry_remarks)
+                        .min_size(egui::vec2(ui.available_width(), 50.0)),
+                );
             });
 
         ui.add_space(16.0);
@@ -822,7 +931,11 @@ impl SteelPipeApp {
                 || self.entry_quantity.is_empty()
                 || self.entry_operator.is_empty()
             {
-                self.show_message("请填写所有必填字段（钢管编号、直径、壁厚、长度、材质、数量、操作员）！".to_string(), MessageType::Error);
+                self.show_message(
+                    "请填写所有必填字段（钢管编号、直径、壁厚、长度、材质、数量、操作员）！"
+                        .to_string(),
+                    MessageType::Error,
+                );
                 return;
             }
 
@@ -863,8 +976,16 @@ impl SteelPipeApp {
                 length,
                 material: self.entry_material.clone(),
                 quantity,
-                location: if self.entry_location.is_empty() { None } else { Some(self.entry_location.clone()) },
-                supplier: if self.entry_supplier.is_empty() { None } else { Some(self.entry_supplier.clone()) },
+                location: if self.entry_location.is_empty() {
+                    None
+                } else {
+                    Some(self.entry_location.clone())
+                },
+                supplier: if self.entry_supplier.is_empty() {
+                    None
+                } else {
+                    Some(self.entry_supplier.clone())
+                },
                 entry_date: String::new(),
                 last_update: None,
                 status: "在库".to_string(),
@@ -873,9 +994,13 @@ impl SteelPipeApp {
             match self.state.db.add_pipe(&pipe) {
                 Ok(()) => {
                     let _ = self.state.db.log_operation(
-                        "add_pipe", "pipe", &self.entry_pipe_id,
-                        "", &format!("{{\"qty\": {}}}", quantity),
-                        &self.entry_operator, &self.entry_remarks,
+                        "add_pipe",
+                        "pipe",
+                        &self.entry_pipe_id,
+                        "",
+                        &format!("{{\"qty\": {}}}", quantity),
+                        &self.entry_operator,
+                        &self.entry_remarks,
                     );
                     let record = InventoryRecord {
                         id: None,
@@ -884,7 +1009,11 @@ impl SteelPipeApp {
                         quantity,
                         operation_date: String::new(),
                         operator: self.entry_operator.clone(),
-                        remarks: if self.entry_remarks.is_empty() { None } else { Some(self.entry_remarks.clone()) },
+                        remarks: if self.entry_remarks.is_empty() {
+                            None
+                        } else {
+                            Some(self.entry_remarks.clone())
+                        },
                     };
                     if let Err(e) = self.state.db.add_inventory_record(&record) {
                         self.show_message(format!("记录入库操作失败：{}", e), MessageType::Error);
@@ -928,7 +1057,10 @@ impl SteelPipeApp {
 
                 ui.add_space(10.0);
                 ui.label("备注:");
-                ui.add(egui::TextEdit::multiline(&mut self.exit_remarks).min_size(egui::vec2(ui.available_width(), 50.0)));
+                ui.add(
+                    egui::TextEdit::multiline(&mut self.exit_remarks)
+                        .min_size(egui::vec2(ui.available_width(), 50.0)),
+                );
             });
 
         ui.add_space(16.0);
@@ -941,7 +1073,10 @@ impl SteelPipeApp {
             )
             .clicked()
         {
-            if self.exit_pipe_id.is_empty() || self.exit_quantity.is_empty() || self.exit_operator.is_empty() {
+            if self.exit_pipe_id.is_empty()
+                || self.exit_quantity.is_empty()
+                || self.exit_operator.is_empty()
+            {
                 self.show_message("请填写所有必填字段！".to_string(), MessageType::Error);
                 return;
             }
@@ -965,16 +1100,23 @@ impl SteelPipeApp {
                     }
 
                     let before_qty = pipe.quantity;
-                    if let Err(e) = self.state.db.update_pipe_quantity(&self.exit_pipe_id, -quantity) {
+                    if let Err(e) = self
+                        .state
+                        .db
+                        .update_pipe_quantity(&self.exit_pipe_id, -quantity)
+                    {
                         self.show_message(format!("更新库存失败：{}", e), MessageType::Error);
                         return;
                     }
 
                     let _ = self.state.db.log_operation(
-                        "exit_pipe", "pipe", &self.exit_pipe_id,
+                        "exit_pipe",
+                        "pipe",
+                        &self.exit_pipe_id,
                         &format!("{{\"qty\": {}}}", before_qty),
                         &format!("{{\"qty\": {}}}", before_qty - quantity),
-                        &self.exit_operator, &self.exit_remarks,
+                        &self.exit_operator,
+                        &self.exit_remarks,
                     );
 
                     let record = InventoryRecord {
@@ -984,7 +1126,11 @@ impl SteelPipeApp {
                         quantity,
                         operation_date: String::new(),
                         operator: self.exit_operator.clone(),
-                        remarks: if self.exit_remarks.is_empty() { None } else { Some(self.exit_remarks.clone()) },
+                        remarks: if self.exit_remarks.is_empty() {
+                            None
+                        } else {
+                            Some(self.exit_remarks.clone())
+                        },
                     };
 
                     if let Err(e) = self.state.db.add_inventory_record(&record) {
@@ -1012,7 +1158,9 @@ impl SteelPipeApp {
 
         ui.horizontal(|ui| {
             ui.label("搜索:");
-            ui.add(egui::TextEdit::singleline(&mut self.search_text).hint_text("输入关键词搜索..."));
+            ui.add(
+                egui::TextEdit::singleline(&mut self.search_text).hint_text("输入关键词搜索..."),
+            );
             if ui.button("刷新").clicked() {
                 self.search_text.clear();
                 self.filter_material.clear();
@@ -1043,20 +1191,32 @@ impl SteelPipeApp {
                 });
                 ui.horizontal(|ui| {
                     ui.label("直径范围(mm):");
-                    ui.add(egui::TextEdit::singleline(&mut self.filter_min_diameter).hint_text("最小"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.filter_min_diameter).hint_text("最小"),
+                    );
                     ui.label("-");
-                    ui.add(egui::TextEdit::singleline(&mut self.filter_max_diameter).hint_text("最大"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.filter_max_diameter).hint_text("最大"),
+                    );
                     ui.label("长度范围(m):");
-                    ui.add(egui::TextEdit::singleline(&mut self.filter_min_length).hint_text("最小"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.filter_min_length).hint_text("最小"),
+                    );
                     ui.label("-");
-                    ui.add(egui::TextEdit::singleline(&mut self.filter_max_length).hint_text("最大"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.filter_max_length).hint_text("最大"),
+                    );
                 });
             });
 
         ui.add_space(10.0);
 
         let offset = self.inventory_page * self.inventory_page_size;
-        if let Ok(pipes) = self.state.db.get_pipes_paginated(offset, self.inventory_page_size) {
+        if let Ok(pipes) = self
+            .state
+            .db
+            .get_pipes_paginated(offset, self.inventory_page_size)
+        {
             let search_lower = self.search_text.to_lowercase();
             let filter_material = self.filter_material.trim();
             let min_diameter = self.filter_min_diameter.parse::<f64>().ok();
@@ -1085,16 +1245,24 @@ impl SteelPipeApp {
                         return false;
                     }
                     if let Some(min_d) = min_diameter {
-                        if pipe.diameter < min_d { return false; }
+                        if pipe.diameter < min_d {
+                            return false;
+                        }
                     }
                     if let Some(max_d) = max_diameter {
-                        if pipe.diameter > max_d { return false; }
+                        if pipe.diameter > max_d {
+                            return false;
+                        }
                     }
                     if let Some(min_l) = min_length {
-                        if pipe.length < min_l { return false; }
+                        if pipe.length < min_l {
+                            return false;
+                        }
                     }
                     if let Some(max_l) = max_length {
-                        if pipe.length > max_l { return false; }
+                        if pipe.length > max_l {
+                            return false;
+                        }
                     }
                     if self.filter_status != "全部" && pipe.status != self.filter_status {
                         return false;
@@ -1145,7 +1313,9 @@ impl SteelPipeApp {
                             ui.label(format!("{:.2}", pipe.thickness));
                             ui.label(format!("{:.2}", pipe.length));
                             ui.label(&pipe.material);
-                            ui.label(egui::RichText::new(format!("{}", pipe.quantity)).color(qty_color));
+                            ui.label(
+                                egui::RichText::new(format!("{}", pipe.quantity)).color(qty_color),
+                            );
                             ui.label(pipe.location.as_ref().unwrap_or(&String::new()));
                             ui.label(pipe.supplier.as_ref().unwrap_or(&String::new()));
                             ui.label(&pipe.entry_date);
@@ -1159,13 +1329,19 @@ impl SteelPipeApp {
             ui.horizontal(|ui| {
                 ui.label(format!("共 {} 条记录", self.inventory_total));
                 ui.add_space(20.0);
-                let total_pages = (self.inventory_total as f64 / self.inventory_page_size as f64).ceil() as i64;
+                let total_pages =
+                    (self.inventory_total as f64 / self.inventory_page_size as f64).ceil() as i64;
                 if total_pages > 0 {
                     if self.inventory_page > 0 && ui.button("◀ 上一页").clicked() {
                         self.inventory_page -= 1;
                     }
-                    ui.label(format!("第 {} / {} 页", self.inventory_page + 1, total_pages));
-                    if self.inventory_page < total_pages - 1 && ui.button("下一页 ▶").clicked() {
+                    ui.label(format!(
+                        "第 {} / {} 页",
+                        self.inventory_page + 1,
+                        total_pages
+                    ));
+                    if self.inventory_page < total_pages - 1 && ui.button("下一页 ▶").clicked()
+                    {
                         self.inventory_page += 1;
                     }
                 }
@@ -1191,9 +1367,13 @@ impl SteelPipeApp {
             ui.text_edit_singleline(&mut self.filter_pipe_id);
 
             ui.label("日期范围:");
-            ui.add(egui::TextEdit::singleline(&mut self.export_date_range_start).hint_text("开始日期"));
+            ui.add(
+                egui::TextEdit::singleline(&mut self.export_date_range_start).hint_text("开始日期"),
+            );
             ui.label("-");
-            ui.add(egui::TextEdit::singleline(&mut self.export_date_range_end).hint_text("结束日期"));
+            ui.add(
+                egui::TextEdit::singleline(&mut self.export_date_range_end).hint_text("结束日期"),
+            );
 
             let _ = ui.button("筛选");
             if ui.button("重置").clicked() {
@@ -1218,12 +1398,33 @@ impl SteelPipeApp {
                     ui.strong("备注");
                     ui.end_row();
 
-                    let pipe_id = if self.filter_pipe_id.is_empty() { None } else { Some(self.filter_pipe_id.as_str()) };
-                    let operation_type = if self.filter_type == "全部" { None } else { Some(self.filter_type.as_str()) };
-                    let start_date = if self.export_date_range_start.is_empty() { None } else { Some(self.export_date_range_start.as_str()) };
-                    let end_date = if self.export_date_range_end.is_empty() { None } else { Some(self.export_date_range_end.as_str()) };
+                    let pipe_id = if self.filter_pipe_id.is_empty() {
+                        None
+                    } else {
+                        Some(self.filter_pipe_id.as_str())
+                    };
+                    let operation_type = if self.filter_type == "全部" {
+                        None
+                    } else {
+                        Some(self.filter_type.as_str())
+                    };
+                    let start_date = if self.export_date_range_start.is_empty() {
+                        None
+                    } else {
+                        Some(self.export_date_range_start.as_str())
+                    };
+                    let end_date = if self.export_date_range_end.is_empty() {
+                        None
+                    } else {
+                        Some(self.export_date_range_end.as_str())
+                    };
 
-                    if let Ok(records) = self.state.db.get_inventory_records(pipe_id, operation_type, start_date, end_date) {
+                    if let Ok(records) = self.state.db.get_inventory_records(
+                        pipe_id,
+                        operation_type,
+                        start_date,
+                        end_date,
+                    ) {
                         for record in &records {
                             let op_color = if record.operation_type == "入库" {
                                 egui::Color32::from_rgb(46, 204, 113)
@@ -1249,13 +1450,33 @@ impl SteelPipeApp {
 
         if let Some(ref stats) = self.statistics {
             ui.horizontal(|ui| {
-                self.card_frame(ui, "总种类", &stats.total_types.to_string(), egui::Color32::from_rgb(52, 152, 219));
+                self.card_frame(
+                    ui,
+                    "总种类",
+                    &stats.total_types.to_string(),
+                    egui::Color32::from_rgb(52, 152, 219),
+                );
                 ui.add_space(12.0);
-                self.card_frame(ui, "总数量", &stats.total_quantity.to_string(), egui::Color32::from_rgb(46, 204, 113));
+                self.card_frame(
+                    ui,
+                    "总数量",
+                    &stats.total_quantity.to_string(),
+                    egui::Color32::from_rgb(46, 204, 113),
+                );
                 ui.add_space(12.0);
-                self.card_frame(ui, "入库总数", &stats.total_in.to_string(), egui::Color32::from_rgb(52, 73, 94));
+                self.card_frame(
+                    ui,
+                    "入库总数",
+                    &stats.total_in.to_string(),
+                    egui::Color32::from_rgb(52, 73, 94),
+                );
                 ui.add_space(12.0);
-                self.card_frame(ui, "出库总数", &stats.total_out.to_string(), egui::Color32::from_rgb(231, 76, 60));
+                self.card_frame(
+                    ui,
+                    "出库总数",
+                    &stats.total_out.to_string(),
+                    egui::Color32::from_rgb(231, 76, 60),
+                );
             });
 
             ui.add_space(16.0);
@@ -1281,7 +1502,10 @@ impl SteelPipeApp {
                                     ui.label(format!("{}", ms.type_count));
                                     ui.label(format!("{}", ms.total_quantity));
                                     let pct = ms.total_quantity as f32 / total_qty * 100.0;
-                                    ui.add(egui::ProgressBar::new(pct / 100.0).text(format!("{:.1}%", pct)));
+                                    ui.add(
+                                        egui::ProgressBar::new(pct / 100.0)
+                                            .text(format!("{:.1}%", pct)),
+                                    );
                                     ui.end_row();
                                 }
                             });
@@ -1327,11 +1551,20 @@ impl SteelPipeApp {
         } else {
             egui::Frame::group(ui.style())
                 .fill(egui::Color32::from_rgb(230, 126, 34).linear_multiply(0.08))
-                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(230, 126, 34).linear_multiply(0.3)))
+                .stroke(egui::Stroke::new(
+                    1.0,
+                    egui::Color32::from_rgb(230, 126, 34).linear_multiply(0.3),
+                ))
                 .rounding(8.0)
                 .inner_margin(12.0)
                 .show(ui, |ui| {
-                    ui.label(egui::RichText::new(format!("共 {} 项低于预警阈值", self.low_stock_items.len())).strong());
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "共 {} 项低于预警阈值",
+                            self.low_stock_items.len()
+                        ))
+                        .strong(),
+                    );
                     ui.add_space(8.0);
                     egui::Grid::new("low_stock_grid")
                         .striped(true)
@@ -1345,7 +1578,11 @@ impl SteelPipeApp {
                             for pipe in &self.low_stock_items {
                                 ui.label(&pipe.pipe_id);
                                 ui.label(&pipe.material);
-                                ui.label(egui::RichText::new(format!("{}", pipe.quantity)).color(egui::Color32::RED).strong());
+                                ui.label(
+                                    egui::RichText::new(format!("{}", pipe.quantity))
+                                        .color(egui::Color32::RED)
+                                        .strong(),
+                                );
                                 ui.label(pipe.location.as_ref().unwrap_or(&String::new()));
                                 ui.label(&pipe.status);
                                 ui.end_row();
@@ -1390,8 +1627,10 @@ impl SteelPipeApp {
                     let out_ratio = stats.total_out as f32 / total;
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
-                            ui.label(egui::RichText::new(format!("入库: {:.1}%", in_ratio * 100.0))
-                                .color(egui::Color32::from_rgb(46, 204, 113)));
+                            ui.label(
+                                egui::RichText::new(format!("入库: {:.1}%", in_ratio * 100.0))
+                                    .color(egui::Color32::from_rgb(46, 204, 113)),
+                            );
                             ui.add_sized(
                                 [200.0, 20.0],
                                 egui::ProgressBar::new(in_ratio)
@@ -1399,8 +1638,10 @@ impl SteelPipeApp {
                             );
                         });
                         ui.vertical(|ui| {
-                            ui.label(egui::RichText::new(format!("出库: {:.1}%", out_ratio * 100.0))
-                                .color(egui::Color32::from_rgb(231, 76, 60)));
+                            ui.label(
+                                egui::RichText::new(format!("出库: {:.1}%", out_ratio * 100.0))
+                                    .color(egui::Color32::from_rgb(231, 76, 60)),
+                            );
                             ui.add_sized(
                                 [200.0, 20.0],
                                 egui::ProgressBar::new(out_ratio)
@@ -1456,14 +1697,23 @@ impl SteelPipeApp {
                             egui::ComboBox::from_id_source("edit_material_combo")
                                 .selected_text(&pipe.material)
                                 .show_ui(ui, |ui| {
-                                    for mat in &["碳钢", "不锈钢", "合金钢", "无缝钢管", "焊接钢管"] {
-                                        ui.selectable_value(&mut pipe.material, mat.to_string(), *mat);
+                                    for mat in &["碳钢", "不锈钢", "合金钢", "无缝钢管", "焊接钢管"]
+                                    {
+                                        ui.selectable_value(
+                                            &mut pipe.material,
+                                            mat.to_string(),
+                                            *mat,
+                                        );
                                     }
                                 });
                             ui.end_row();
 
                             ui.label("数量:");
-                            ui.add(egui::DragValue::new(&mut pipe.quantity).speed(1.0).clamp_range(0..=100000));
+                            ui.add(
+                                egui::DragValue::new(&mut pipe.quantity)
+                                    .speed(1.0)
+                                    .clamp_range(0..=100000),
+                            );
                             ui.end_row();
 
                             ui.label("存放位置:");
@@ -1596,9 +1846,14 @@ impl SteelPipeApp {
             self.show_message("请粘贴CSV内容！".to_string(), MessageType::Error);
             return;
         }
-        match self.state.db.import_pipes_from_csv(&self.import_csv_content, &self.import_operator) {
+        match self
+            .state
+            .db
+            .import_pipes_from_csv(&self.import_csv_content, &self.import_operator)
+        {
             Ok((success, fail)) => {
-                self.import_result = Some(format!("导入完成！成功: {} 条，失败: {} 条", success, fail));
+                self.import_result =
+                    Some(format!("导入完成！成功: {} 条，失败: {} 条", success, fail));
                 self.show_message(self.import_result.clone().unwrap(), MessageType::Success);
                 self.refresh_dashboard_data();
             }
@@ -1618,9 +1873,14 @@ impl SteelPipeApp {
             self.show_message("请填写Excel文件路径！".to_string(), MessageType::Error);
             return;
         }
-        match self.state.db.import_pipes_from_excel(&self.import_file_path, &self.import_operator) {
+        match self
+            .state
+            .db
+            .import_pipes_from_excel(&self.import_file_path, &self.import_operator)
+        {
             Ok((success, fail)) => {
-                self.import_result = Some(format!("导入完成！成功: {} 条，失败: {} 条", success, fail));
+                self.import_result =
+                    Some(format!("导入完成！成功: {} 条，失败: {} 条", success, fail));
                 self.show_message(self.import_result.clone().unwrap(), MessageType::Success);
                 self.refresh_dashboard_data();
             }
@@ -1645,54 +1905,71 @@ impl SteelPipeApp {
                 ui.label("最近操作记录（点击撤回可撤销对应操作）:");
                 ui.add_space(8.0);
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    egui::Grid::new("undo_grid")
-                        .striped(true)
-                        .show(ui, |ui| {
-                            ui.strong("操作");
-                            ui.strong("目标类型");
-                            ui.strong("目标ID");
-                            ui.strong("操作员");
-                            ui.strong("时间");
-                            ui.strong("备注");
-                            ui.strong("操作");
-                            ui.end_row();
+                    egui::Grid::new("undo_grid").striped(true).show(ui, |ui| {
+                        ui.strong("操作");
+                        ui.strong("目标类型");
+                        ui.strong("目标ID");
+                        ui.strong("操作员");
+                        ui.strong("时间");
+                        ui.strong("备注");
+                        ui.strong("操作");
+                        ui.end_row();
 
-                            let logs_copy: Vec<_> = self.operation_logs.iter().map(|l| (l.id, l.operation_type.clone(), l.target_type.clone(), l.target_id.clone(), l.operator.clone(), l.timestamp.clone(), l.remarks.clone())).collect();
-                            for (id, op_type, target_type, target_id, operator, timestamp, remarks) in &logs_copy {
-                                let op_color = match op_type.as_str() {
-                                    "add_pipe" | "入库" => egui::Color32::from_rgb(46, 204, 113),
-                                    "delete_pipe" | "出库" => egui::Color32::from_rgb(231, 76, 60),
-                                    "update_pipe" => egui::Color32::from_rgb(52, 152, 219),
-                                    _ => ui.style().visuals.text_color(),
-                                };
-                                ui.label(egui::RichText::new(op_type).color(op_color));
-                                ui.label(target_type);
-                                ui.label(target_id);
-                                ui.label(operator);
-                                ui.label(timestamp);
-                                ui.label(remarks);
-                                if ui.small_button("撤回").clicked() {
-                                    match self.state.db.undo_operation(*id) {
-                                        Ok(msg) => {
-                                            self.show_message(msg, MessageType::Success);
-                                            if let Ok(logs) = self.state.db.get_operation_logs(50) {
-                                                self.operation_logs = logs;
-                                            }
-                                            self.refresh_dashboard_data();
+                        let logs_copy: Vec<_> = self
+                            .operation_logs
+                            .iter()
+                            .map(|l| {
+                                (
+                                    l.id,
+                                    l.operation_type.clone(),
+                                    l.target_type.clone(),
+                                    l.target_id.clone(),
+                                    l.operator.clone(),
+                                    l.timestamp.clone(),
+                                    l.remarks.clone(),
+                                )
+                            })
+                            .collect();
+                        for (id, op_type, target_type, target_id, operator, timestamp, remarks) in
+                            &logs_copy
+                        {
+                            let op_color = match op_type.as_str() {
+                                "add_pipe" | "入库" => egui::Color32::from_rgb(46, 204, 113),
+                                "delete_pipe" | "出库" => egui::Color32::from_rgb(231, 76, 60),
+                                "update_pipe" => egui::Color32::from_rgb(52, 152, 219),
+                                _ => ui.style().visuals.text_color(),
+                            };
+                            ui.label(egui::RichText::new(op_type).color(op_color));
+                            ui.label(target_type);
+                            ui.label(target_id);
+                            ui.label(operator);
+                            ui.label(timestamp);
+                            ui.label(remarks);
+                            if ui.small_button("撤回").clicked() {
+                                match self.state.db.undo_operation(*id) {
+                                    Ok(msg) => {
+                                        self.show_message(msg, MessageType::Success);
+                                        if let Ok(logs) = self.state.db.get_operation_logs(50) {
+                                            self.operation_logs = logs;
                                         }
-                                        Err(e) => {
-                                            self.show_message(format!("撤回失败：{}", e), MessageType::Error);
-                                        }
+                                        self.refresh_dashboard_data();
+                                    }
+                                    Err(e) => {
+                                        self.show_message(
+                                            format!("撤回失败：{}", e),
+                                            MessageType::Error,
+                                        );
                                     }
                                 }
-                                ui.end_row();
                             }
+                            ui.end_row();
+                        }
 
-                            if self.operation_logs.is_empty() {
-                                ui.label(egui::RichText::new("暂无操作记录").weak());
-                                ui.end_row();
-                            }
-                        });
+                        if self.operation_logs.is_empty() {
+                            ui.label(egui::RichText::new("暂无操作记录").weak());
+                            ui.end_row();
+                        }
+                    });
                 });
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
