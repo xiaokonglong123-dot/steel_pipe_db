@@ -7,7 +7,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use db::{Database, SteelPipe, InventoryRecord, DbError};
+use db::{Database, SteelPipe, InventoryRecord, DbError, Production};
 use serde::Deserialize;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -122,6 +122,7 @@ async fn main() {
         .route("/api/statistics", get(get_statistics))
         .route("/api/material-stats", get(get_material_stats))
         .route("/api/low-stock", get(get_low_stock))
+        .route("/api/productions", get(list_productions).post(create_production))
         .route("/api/records", get(list_records).post(create_record))
         .route("/api/logs", get(get_logs))
         .route("/api/export/inventory", get(export_inventory))
@@ -373,6 +374,47 @@ async fn create_record(
 ) -> impl IntoResponse {
     match state.db.add_inventory_record(&record).await {
         Ok(()) => (StatusCode::CREATED, Json::<serde_json::Value>(serde_json::json!({"status": "created"}))).into_response(),
+        Err(e) => error_response(e),
+    }
+}
+
+#[derive(Deserialize)]
+struct ProductionRequest {
+    furnace_number: String,
+    heat_treatment_batch: Option<String>,
+    material_batch: Option<String>,
+    production_count: i32,
+    sample: Option<String>,
+    supplier: Option<String>,
+    operator: String,
+    remarks: Option<String>,
+}
+
+async fn list_productions(State(state): State<AppState>) -> impl IntoResponse {
+    match state.db.get_productions().await {
+        Ok(productions) => Json::<Vec<db::Production>>(productions).into_response(),
+        Err(e) => error_response(e),
+    }
+}
+
+async fn create_production(
+    State(state): State<AppState>,
+    Json(req): Json<ProductionRequest>,
+) -> impl IntoResponse {
+    let production = Production {
+        id: None,
+        furnace_number: req.furnace_number,
+        heat_treatment_batch: req.heat_treatment_batch,
+        material_batch: req.material_batch,
+        production_count: req.production_count,
+        sample: req.sample,
+        supplier: req.supplier,
+        operator: req.operator,
+        production_date: String::new(),
+        remarks: req.remarks,
+    };
+    match state.db.add_production(&production).await {
+        Ok(id) => (StatusCode::CREATED, Json::<serde_json::Value>(serde_json::json!({"id": id, "status": "created"}))).into_response(),
         Err(e) => error_response(e),
     }
 }

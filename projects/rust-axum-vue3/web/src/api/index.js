@@ -31,6 +31,11 @@ export const recordsAPI = {
   create: (data) => api.post('/records', data),
 }
 
+export const productionAPI = {
+  list: (params = {}) => api.get('/productions', { params }),
+  create: (data) => api.post('/productions', data),
+}
+
 export const statsAPI = {
   overview: () => api.get('/statistics'),
   byMaterial: () => api.get('/material-stats'),

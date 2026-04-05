@@ -107,6 +107,20 @@ pub struct OperationLog {
     pub remarks: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Production {
+    pub id: Option<i64>,
+    pub furnace_number: String,
+    pub heat_treatment_batch: Option<String>,
+    pub material_batch: Option<String>,
+    pub production_count: i32,
+    pub sample: Option<String>,
+    pub supplier: Option<String>,
+    pub operator: String,
+    pub production_date: String,
+    pub remarks: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct Database {
     conn: std::sync::Arc<Mutex<Connection>>,
@@ -126,6 +140,12 @@ fn row_to_pipe(row: &rusqlite::Row) -> rusqlite::Result<SteelPipe> {
         entry_date: row.get(9)?,
         last_update: row.get(10)?,
         status: row.get(11)?,
+        furnace_number: row.get(12)?,
+        heat_treatment_batch: row.get(13)?,
+        sample_number: row.get(14)?,
+        production_count: row.get(15)?,
+        material_rack: row.get(16)?,
+        remarks: row.get(17)?,
     })
 }
 
@@ -210,6 +230,18 @@ impl Database {
                 timestamp TEXT NOT NULL,
                 remarks TEXT NOT NULL DEFAULT ''
             );
+            CREATE TABLE IF NOT EXISTS productions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                furnace_number TEXT NOT NULL,
+                heat_treatment_batch TEXT,
+                material_batch TEXT,
+                production_count INTEGER NOT NULL,
+                sample TEXT,
+                supplier TEXT,
+                operator TEXT NOT NULL,
+                production_date TEXT NOT NULL,
+                remarks TEXT
+            );
             CREATE INDEX IF NOT EXISTS idx_pipes_pipe_id ON pipes(pipe_id);
             CREATE INDEX IF NOT EXISTS idx_records_pipe_id ON inventory_records(pipe_id);
             CREATE INDEX IF NOT EXISTS idx_records_date ON inventory_records(operation_date);
@@ -230,14 +262,14 @@ impl Database {
         match existing {
             Ok(_) => {
                 tx.execute(
-                    "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, location=?, supplier=?, last_update=? WHERE pipe_id=?",
-                    params![pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, pipe.pipe_id],
+                    "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, location=?, supplier=?, last_update=?, furnace_number=?, heat_treatment_batch=?, sample_number=?, production_count=?, material_rack=?, remarks=? WHERE pipe_id=?",
+                    params![pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, pipe.furnace_number, pipe.heat_treatment_batch, pipe.sample_number, pipe.production_count, pipe.material_rack, pipe.remarks, pipe.pipe_id],
                 )?;
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => {
                 tx.execute(
-                    "INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-                    params![pipe.pipe_id, pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, "在库"],
+                    "INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
+                    params![pipe.pipe_id, pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, "在库", pipe.furnace_number, pipe.heat_treatment_batch, pipe.sample_number, pipe.production_count, pipe.material_rack, pipe.remarks],
                 )?;
             }
             Err(e) => return Err(e.into()),
@@ -320,7 +352,7 @@ impl Database {
             query_params.push(Box::new(offset));
 
             let query_sql = format!(
-                "SELECT id, pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, last_update, status FROM pipes{} ORDER BY entry_date DESC LIMIT ? OFFSET ?",
+                "SELECT id, pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, last_update, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks FROM pipes{} ORDER BY entry_date DESC LIMIT ? OFFSET ?",
                 where_sql
             );
             let mut stmt = conn.prepare(&query_sql)?;
@@ -339,7 +371,7 @@ impl Database {
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
             let mut stmt = conn.prepare(
-                "SELECT id, pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, last_update, status FROM pipes WHERE pipe_id = ?",
+                "SELECT id, pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, last_update, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks FROM pipes WHERE pipe_id = ?",
             )?;
             let mut rows = stmt.query_map(params![pipe_id], row_to_pipe)?;
             if let Some(row) = rows.next() {
@@ -384,8 +416,8 @@ impl Database {
             let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
             let conn = db.conn.lock().unwrap();
             conn.execute(
-                "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=?, location=?, supplier=?, last_update=?, status=? WHERE pipe_id=?",
-                params![pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, pipe.status, pipe.pipe_id],
+                "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=?, location=?, supplier=?, last_update=?, status=?, furnace_number=?, heat_treatment_batch=?, sample_number=?, production_count=?, material_rack=?, remarks=? WHERE pipe_id=?",
+                params![pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, pipe.status, pipe.furnace_number, pipe.heat_treatment_batch, pipe.sample_number, pipe.production_count, pipe.material_rack, pipe.remarks, pipe.pipe_id],
             )?;
             Ok(())
         }).await.unwrap()
@@ -473,7 +505,7 @@ impl Database {
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
             let mut stmt = conn.prepare(
-                "SELECT id, pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, last_update, status FROM pipes WHERE quantity <= ? ORDER BY quantity ASC",
+                "SELECT id, pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, last_update, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks FROM pipes WHERE quantity <= ? ORDER BY quantity ASC",
             )?;
             let pipes: Vec<SteelPipe> = stmt.query_map(params![threshold], row_to_pipe)?.map(|r| r.map_err(DbError::from)).collect::<Result<Vec<_>>>()?;
             Ok(pipes)
@@ -645,14 +677,14 @@ impl Database {
                 match existing {
                     Ok(_) => {
                         tx.execute(
-                            "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, location=?, supplier=?, last_update=? WHERE pipe_id=?",
-                            params![diameter, thickness, length, material, quantity, location, supplier, now, pipe_id],
+                            "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, location=?, supplier=?, last_update=?, furnace_number=?, heat_treatment_batch=?, sample_number=?, production_count=?, material_rack=?, remarks=? WHERE pipe_id=?",
+                            params![diameter, thickness, length, material, quantity, location, supplier, now, None as Option<String>, None as Option<String>, None as Option<String>, None as Option<i32>, None as Option<String>, None as Option<String>, pipe_id],
                         ).ok();
                     }
                     Err(rusqlite::Error::QueryReturnedNoRows) => {
                         tx.execute(
-                            "INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-                            params![pipe_id, diameter, thickness, length, material, quantity, location, supplier, now, "在库"],
+                            "INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
+                            params![pipe_id, diameter, thickness, length, material, quantity, location, supplier, now, "在库", None as Option<String>, None as Option<String>, None as Option<String>, None as Option<i32>, None as Option<String>, None as Option<String>],
                         ).ok();
                     }
                     Err(_) => { fail += 1; continue; }
@@ -740,8 +772,8 @@ impl Database {
             };
 
             let sql = format!(
-                "SELECT pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status FROM pipes{} ORDER BY entry_date DESC",
-                where_sql
+            "SELECT id, pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, last_update, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks FROM pipes{} ORDER BY entry_date DESC",
+            where_sql
             );
             let mut stmt = conn.prepare(&sql)?;
             let pipes: Vec<(String, f64, f64, f64, String, i32, Option<String>, Option<String>, String, String)> =
@@ -829,14 +861,14 @@ impl Database {
                     match existing {
                         Ok(_) => {
                             tx.execute(
-                                "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, location=?, supplier=?, last_update=? WHERE pipe_id=?",
-                                params![diameter, thickness, length, material, quantity, location, supplier, now, pipe_id],
+                                "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, location=?, supplier=?, last_update=?, furnace_number=?, heat_treatment_batch=?, sample_number=?, production_count=?, material_rack=?, remarks=? WHERE pipe_id=?",
+                                params![diameter, thickness, length, material, quantity, location, supplier, now, None as Option<String>, None as Option<String>, None as Option<String>, None as Option<i32>, None as Option<String>, None as Option<String>, pipe_id],
                             ).ok();
                         }
                         Err(rusqlite::Error::QueryReturnedNoRows) => {
                             tx.execute(
-                                "INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-                                params![pipe_id, diameter, thickness, length, material, quantity, location, supplier, now, "在库"],
+                                "INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
+                                params![pipe_id, diameter, thickness, length, material, quantity, location, supplier, now, "在库", None as Option<String>, None as Option<String>, None as Option<String>, None as Option<i32>, None as Option<String>, None as Option<String>],
                             ).ok();
                         }
                         Err(_) => { fail += 1; continue; }
@@ -935,6 +967,45 @@ impl Database {
             }
             workbook.save(&path).map_err(|e| DbError::Validation(e.to_string()))?;
             Ok(())
+        }).await.unwrap()
+    }
+
+    pub async fn add_production(&self, production: &Production) -> Result<i64> {
+        let production = production.clone();
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO productions (furnace_number, heat_treatment_batch, material_batch, production_count, sample, supplier, operator, production_date, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![production.furnace_number, production.heat_treatment_batch, production.material_batch, production.production_count, production.sample, production.supplier, production.operator, now, production.remarks],
+            )?;
+            Ok(conn.last_insert_rowid())
+        }).await.unwrap()
+    }
+
+    pub async fn get_productions(&self) -> Result<Vec<Production>> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, furnace_number, heat_treatment_batch, material_batch, production_count, sample, supplier, operator, production_date, remarks FROM productions ORDER BY production_date DESC",
+            )?;
+            let productions: Vec<Production> = stmt.query_map([], |row| {
+                Ok(Production {
+                    id: Some(row.get(0)?),
+                    furnace_number: row.get(1)?,
+                    heat_treatment_batch: row.get(2)?,
+                    material_batch: row.get(3)?,
+                    production_count: row.get(4)?,
+                    sample: row.get(5)?,
+                    supplier: row.get(6)?,
+                    operator: row.get(7)?,
+                    production_date: row.get(8)?,
+                    remarks: row.get(9)?,
+                })
+            })?.map(|r| r.map_err(DbError::from)).collect::<Result<Vec<_>>>()?;
+            Ok(productions)
         }).await.unwrap()
     }
 }
