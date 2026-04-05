@@ -20,6 +20,7 @@ export const pipesAPI = {
   create: (data) => api.post('/pipes', data),
   update: (id, data) => api.put(`/pipes/${id}`, data),
   delete: (id) => api.delete(`/pipes/${id}`),
+  batchDelete: (data) => api.post('/pipes/batch-delete', data),
   entry: (data) => api.post('/pipes/entry', data),
   exit: (data) => api.post('/pipes/exit', data),
 }

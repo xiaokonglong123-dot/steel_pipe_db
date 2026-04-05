@@ -3,21 +3,21 @@ import sys
 import unittest
 from io import BytesIO
 
-# Ensure backend package is importable
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, BASE_DIR)
 
-from app import app as flask_app
+from app import app as flask_app, init_db
 
 class SteelPipeAPITest(unittest.TestCase):
     def setUp(self):
         self.client = flask_app.test_client()
         self.ctx = flask_app.app_context()
         self.ctx.push()
-        # Clean up database to ensure clean state for tests
         db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pipes.db'))
         if os.path.exists(db_path):
             os.remove(db_path)
+        open(db_path, 'a').close()
+        init_db()
 
     def tearDown(self):
         self.ctx.pop()
@@ -29,9 +29,9 @@ class SteelPipeAPITest(unittest.TestCase):
         data = rv.get_json()
         self.assertIn('pipes', data)
 
-        # 2. POST new pipe
-        payload = {"diameter": 12.0, "thickness": 1.2, "length": 6.0, "material": "Carbon Steel", "quantity": 5}
-        rv = self.client.post('/pipes', json=payload)
+        # 2. POST new pipe (use entry endpoint for full pipe data)
+        payload = {"pipe_id": "PIPE-001", "diameter": 12.0, "thickness": 1.2, "length": 6.0, "material": "Carbon Steel", "quantity": 5, "operator": "test"}
+        rv = self.client.post('/pipes/entry', json=payload)
         self.assertEqual(rv.status_code, 201)
         self.assertEqual(rv.get_json().get('status'), 'created')
 
@@ -66,22 +66,22 @@ class SteelPipeAPITest(unittest.TestCase):
         data = rv.get_json()
         self.assertEqual(data.get('total'), 0)
 
-        # 9. Export (CSV)
-        # Add two records then export
-        self.client.post('/pipes', json={"diameter": 10.0, "thickness": 1.0, "length": 5.0, "material": "Carbon Steel", "quantity": 2})
-        self.client.post('/pipes', json={"diameter": 12.0, "thickness": 1.0, "length": 6.0, "material": "Stainless Steel", "quantity": 3})
-        rv = self.client.get('/pipes/export?format=csv')
+        # 9. Test statistics endpoint
+        rv = self.client.get('/statistics')
         self.assertEqual(rv.status_code, 200)
-        self.assertIn(b'id,diameter,thickness,length,material,quantity', rv.data)
+        stats = rv.get_json()
+        self.assertIn('total_types', stats)
 
-        # 10. Import CSV
-        csv_content = "diameter,thickness,length,material,quantity\n11,1.0,4,Carbon Steel,3\n13,1.2,5,Alloy Steel,4\n"
-        data = {'file': (BytesIO(csv_content.encode('utf-8')), 'pipes.csv')}
-        rv = self.client.post('/pipes/import', data=data, content_type='multipart/form-data')
+        # 10. Test entry and exit
+        self.client.post('/pipes/entry', json={"pipe_id": "PIPE-002", "diameter": 10.0, "thickness": 1.0, "length": 5.0, "material": "Steel", "quantity": 10, "operator": "test"})
+        rv = self.client.post('/pipes/exit', json={"pipe_id": "PIPE-002", "quantity": 3, "operator": "test"})
         self.assertEqual(rv.status_code, 200)
-        res = rv.get_json()
-        self.assertIn('imported', res)
-        self.assertEqual(res['imported'], 2)
+
+        # 11. Test records endpoint
+        rv = self.client.get('/records')
+        self.assertEqual(rv.status_code, 200)
+        records = rv.get_json()
+        self.assertTrue(len(records) > 0)
 
 if __name__ == '__main__':
     unittest.main()

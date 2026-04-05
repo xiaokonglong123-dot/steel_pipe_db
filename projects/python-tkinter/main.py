@@ -1,9 +1,10 @@
 import sqlite3
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
 import configparser
 import os
+import csv
 
 class SteelPipeDB:
     def __init__(self, db_path="pipes.db"):
@@ -134,6 +135,45 @@ class SteelPipeDB:
 
         return stats
 
+    def export_to_csv(self, filepath):
+        self.cursor.execute("SELECT pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status FROM pipes")
+        pipes = self.cursor.fetchall()
+        with open(filepath, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['钢管编号', '直径(mm)', '壁厚(mm)', '长度(m)', '材质', '数量', '存放位置', '供应商', '入库日期', '状态'])
+            for row in pipes:
+                writer.writerow([row[i] for i in range(len(row))])
+        return len(pipes)
+
+    def import_from_csv(self, filepath):
+        count = 0
+        errors = []
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            next(reader)
+            for row in reader:
+                try:
+                    if len(row) < 6:
+                        errors.append(f"数据行不完整: {row}")
+                        continue
+                    pipe_id = row[0].strip()
+                    diameter = float(row[1].strip())
+                    thickness = float(row[2].strip())
+                    length = float(row[3].strip())
+                    material = row[4].strip()
+                    quantity = int(row[5].strip())
+                    location = row[6].strip() if len(row) > 6 and row[6].strip() else None
+                    supplier = row[7].strip() if len(row) > 7 and row[7].strip() else None
+                    self.add_pipe(pipe_id, diameter, thickness, length, material, quantity, location, supplier)
+                    count += 1
+                except Exception as e:
+                    errors.append(f"行数据错误: {row}, 错误: {e}")
+        return count, errors
+
+    def get_low_stock(self, threshold=10):
+        self.cursor.execute("SELECT * FROM pipes WHERE quantity <= ? ORDER BY quantity ASC", (threshold,))
+        return self.cursor.fetchall()
+
     def close(self):
         self.conn.close()
 
@@ -204,6 +244,8 @@ class PipeApp:
             ("库存查询", self.colors["inventory_btn"], self.show_inventory),
             ("出入库记录", self.colors["records_btn"], self.show_records),
             ("数据统计", self.colors["stats_btn"], self.show_statistics),
+            ("CSV导入导出", self.colors["inventory_btn"], self.show_import_export),
+            ("低库存提醒", self.colors["records_btn"], self.show_low_stock),
             ("退出系统", self.colors["close_btn"], self.on_close)
         ]
 
@@ -557,6 +599,131 @@ class PipeApp:
                                    bg=color, fg="white")
             value_label.pack()
 
+    def show_import_export(self):
+        self.clear_content_area()
+
+        ie_frame = tk.Frame(self.content_area, bg="white")
+        ie_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        title_label = tk.Label(ie_frame, text="CSV 导入/导出",
+                               font=(self.font_family, 16, "bold"), bg="white")
+        title_label.pack(pady=(0, 20))
+
+        btn_frame = tk.Frame(ie_frame, bg="white")
+        btn_frame.pack(pady=20)
+
+        export_btn = tk.Button(btn_frame, text="导出库存数据 (CSV)", 
+                               bg=self.colors["entry_btn"], fg="white",
+                               font=(self.font_family, self.button_size), relief=tk.FLAT,
+                               command=self.export_csv)
+        export_btn.pack(side=tk.LEFT, padx=10)
+
+        import_btn = tk.Button(btn_frame, text="导入库存数据 (CSV)", 
+                               bg=self.colors["inventory_btn"], fg="white",
+                               font=(self.font_family, self.button_size), relief=tk.FLAT,
+                               command=self.import_csv)
+        import_btn.pack(side=tk.LEFT, padx=10)
+
+        self.import_result_label = tk.Label(ie_frame, text="", font=(self.font_family, self.label_size),
+                                            bg="white", fg="green")
+        self.import_result_label.pack(pady=20)
+
+    def export_csv(self):
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+            title="导出库存数据"
+        )
+        if filepath:
+            try:
+                count = self.db.export_to_csv(filepath)
+                messagebox.showinfo("成功", f"已导出 {count} 条记录到 {filepath}")
+            except Exception as e:
+                messagebox.showerror("错误", f"导出失败: {e}")
+
+    def import_csv(self):
+        filepath = filedialog.askopenfilename(
+            filetypes=[("CSV files", "*.csv")],
+            title="导入库存数据"
+        )
+        if filepath:
+            try:
+                count, errors = self.db.import_from_csv(filepath)
+                if errors:
+                    messagebox.showwarning("部分失败", f"成功导入 {count} 条，失败 {len(errors)} 条\n错误详情:\n" + "\n".join(errors[:5]))
+                else:
+                    messagebox.showinfo("成功", f"成功导入 {count} 条记录")
+                self.load_data()
+            except Exception as e:
+                messagebox.showerror("错误", f"导入失败: {e}")
+
+    def show_low_stock(self):
+        self.clear_content_area()
+
+        ls_frame = tk.Frame(self.content_area, bg="white")
+        ls_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        title_label = tk.Label(ls_frame, text="低库存提醒",
+                               font=(self.font_family, 16, "bold"), bg="white")
+        title_label.pack(pady=(0, 20))
+
+        threshold_frame = tk.Frame(ls_frame, bg="white")
+        threshold_frame.pack(fill=tk.X, pady=(0, 10))
+
+        tk.Label(threshold_frame, text="库存阈值:", font=(self.font_family, self.label_size),
+                 bg="white").pack(side=tk.LEFT, padx=(0, 10))
+
+        self.threshold_var = tk.StringVar(value="10")
+        threshold_entry = tk.Entry(threshold_frame, textvariable=self.threshold_var,
+                                    font=(self.font_family, self.entry_size), width=10)
+        threshold_entry.pack(side=tk.LEFT, padx=(0, 10))
+
+        tk.Button(threshold_frame, text="查询", bg=self.colors["entry_btn"], fg="white",
+                  font=(self.font_family, self.label_size), relief=tk.FLAT,
+                  command=self.check_low_stock).pack(side=tk.LEFT)
+
+        table_frame = tk.Frame(ls_frame, bg="white")
+        table_frame.pack(fill=tk.BOTH, expand=True)
+
+        columns = ("pipe_id", "diameter", "thickness", "length", "material", "quantity", "location")
+
+        self.low_stock_tree = ttk.Treeview(table_frame, columns=columns, show="headings")
+
+        self.low_stock_tree.heading("pipe_id", text="钢管编号")
+        self.low_stock_tree.heading("diameter", text="直径(毫米)")
+        self.low_stock_tree.heading("thickness", text="壁厚(毫米)")
+        self.low_stock_tree.heading("length", text="长度(米)")
+        self.low_stock_tree.heading("material", text="材质")
+        self.low_stock_tree.heading("quantity", text="数量")
+        self.low_stock_tree.heading("location", text="存放位置")
+
+        for col in columns:
+            self.low_stock_tree.column(col, width=100, anchor=tk.CENTER)
+
+        scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL,
+                                  command=self.low_stock_tree.yview)
+        self.low_stock_tree.configure(yscrollcommand=scrollbar.set)
+
+        self.low_stock_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.check_low_stock()
+
+    def check_low_stock(self):
+        if not hasattr(self, "low_stock_tree"):
+            return
+        for item in self.low_stock_tree.get_children():
+            self.low_stock_tree.delete(item)
+
+        try:
+            threshold = int(self.threshold_var.get())
+        except ValueError:
+            threshold = 10
+
+        for pipe in self.db.get_low_stock(threshold):
+            values = tuple(pipe[col] for col in pipe.keys())
+            self.low_stock_tree.insert("", "end", values=values)
+
     def load_data(self):
         if not hasattr(self, "inventory_tree"):
             return
@@ -574,7 +741,14 @@ class PipeApp:
             self.inventory_tree.delete(item)
 
         for pipe in self.db.get_pipes():
-            if search_text in str(dict(pipe)).lower():
+            pipe_dict = dict(pipe)
+            search_fields = [
+                str(pipe_dict.get('pipe_id', '')),
+                str(pipe_dict.get('material', '')),
+                str(pipe_dict.get('location', '')),
+                str(pipe_dict.get('supplier', '')),
+            ]
+            if search_text in ' '.join(search_fields).lower():
                 values = tuple(pipe[col] for col in pipe.keys())
                 self.inventory_tree.insert("", "end", values=values)
 

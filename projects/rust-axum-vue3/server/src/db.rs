@@ -326,6 +326,21 @@ impl Database {
         }).await.unwrap()
     }
 
+    pub async fn batch_delete_pipes(&self, pipe_ids: &[String]) -> Result<()> {
+        let pipe_ids = pipe_ids.to_vec();
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            let tx = conn.unchecked_transaction()?;
+            for pipe_id in pipe_ids {
+                tx.execute("DELETE FROM inventory_records WHERE pipe_id = ?", params![pipe_id]).ok();
+                tx.execute("DELETE FROM pipes WHERE pipe_id = ?", params![pipe_id]).ok();
+            }
+            tx.commit()?;
+            Ok(())
+        }).await.unwrap()
+    }
+
     pub async fn update_pipe(&self, pipe: &SteelPipe) -> Result<()> {
         let pipe = pipe.clone();
         let db = self.clone();

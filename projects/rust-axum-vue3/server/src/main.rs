@@ -42,6 +42,12 @@ struct RecordQuery {
 }
 
 #[derive(Deserialize)]
+struct BatchDeleteRequest {
+    pipe_ids: Vec<String>,
+    operator: String,
+}
+
+#[derive(Deserialize)]
 struct EntryRequest {
     pipe: SteelPipe,
     operator: String,
@@ -96,6 +102,7 @@ async fn main() {
     let app = Router::new()
         .route("/api/pipes", get(list_pipes).post(create_pipe))
         .route("/api/pipes/:id", get(get_pipe).put(update_pipe).delete(delete_pipe))
+        .route("/api/pipes/batch-delete", post(batch_delete_pipes))
         .route("/api/pipes/entry", post(entry_pipe))
         .route("/api/pipes/exit", post(exit_pipe))
         .route("/api/statistics", get(get_statistics))
@@ -191,6 +198,26 @@ async fn delete_pipe(
 ) -> impl IntoResponse {
     match state.db.delete_pipe(&id).await {
         Ok(()) => Json(serde_json::json!({"status": "deleted"})).into_response(),
+        Err(e) => error_response(e),
+    }
+}
+
+async fn batch_delete_pipes(
+    State(state): State<AppState>,
+    Json(req): Json<BatchDeleteRequest>,
+) -> impl IntoResponse {
+    let deleted = req.pipe_ids.len();
+    match state.db.batch_delete_pipes(&req.pipe_ids).await {
+        Ok(()) => {
+            let _ = state.db.log_operation(
+                "批量删除", "pipe", "批量",
+                &format!("{{\"count\":{}}}", deleted),
+                "",
+                &req.operator,
+                &req.pipe_ids.join(","),
+            ).await;
+            Json(serde_json::json!({"status": "deleted", "count": deleted})).into_response()
+        }
         Err(e) => error_response(e),
     }
 }

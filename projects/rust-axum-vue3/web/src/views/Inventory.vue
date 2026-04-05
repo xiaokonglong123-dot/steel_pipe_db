@@ -11,6 +11,9 @@
       </select>
       <input v-model="filters.material" placeholder="材质" class="sm-input" @input="debounceSearch" />
       <button @click="fetchPipes" class="btn-secondary" :disabled="loading">刷新</button>
+      <button @click="batchDelete" class="btn-danger" :disabled="selectedIds.length === 0">
+        批量删除 ({{ selectedIds.length }})
+      </button>
     </div>
 
     <div v-if="loading" class="loading-container">
@@ -22,6 +25,7 @@
       <table class="apple-table">
         <thead>
           <tr>
+            <th class="col-check"><input type="checkbox" @change="toggleAll" :checked="allSelected" /></th>
             <th>钢管编号</th>
             <th>直径(mm)</th>
             <th>壁厚(mm)</th>
@@ -35,6 +39,7 @@
         </thead>
         <tbody>
           <tr v-for="p in pipes" :key="p.id">
+            <td class="col-check"><input type="checkbox" :value="p.pipe_id" v-model="selectedIds" /></td>
             <td class="fw-600">{{ p.pipe_id }}</td>
             <td>{{ p.diameter.toFixed(2) }}</td>
             <td>{{ p.thickness.toFixed(2) }}</td>
@@ -126,11 +131,35 @@ const errorMsg = ref('')
 const filters = reactive({ search: '', status: '', material: '' })
 const showEdit = ref(false)
 const editForm = reactive({ id: null, pipe_id: '', diameter: 0, thickness: 0, length: 0, material: '', quantity: 0, status: '在库' })
+const selectedIds = ref([])
+const allSelected = computed(() => pipes.value.length > 0 && selectedIds.value.length === pipes.value.length)
 
 let searchTimer = null
 function debounceSearch() {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => { page.value = 1; fetchPipes() }, 400)
+}
+
+function toggleAll(e) {
+  if (e.target.checked) {
+    selectedIds.value = pipes.value.map(p => p.pipe_id)
+  } else {
+    selectedIds.value = []
+  }
+}
+
+async function batchDelete() {
+  if (selectedIds.value.length === 0) return
+  if (!confirm(`确定删除选中的 ${selectedIds.value.length} 条记录吗？`)) return
+  try {
+    const operator = prompt('请输入操作员名称:', 'admin')
+    if (!operator) return
+    await pipesAPI.batchDelete({ pipe_ids: selectedIds.value, operator })
+    selectedIds.value = []
+    fetchPipes()
+  } catch (e) {
+    errorMsg.value = e.message || '批量删除失败'
+  }
 }
 
 async function fetchPipes() {
@@ -230,6 +259,8 @@ select {
 
 .fw-600 { font-weight: 600; }
 .qty-low { color: var(--apple-red); font-weight: 700; }
+.col-check { width: 40px; text-align: center; }
+.col-check input { width: 18px; height: 18px; cursor: pointer; }
 
 .status-badge {
   padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;

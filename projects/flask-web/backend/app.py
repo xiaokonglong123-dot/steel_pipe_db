@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify, g, Response
 from flask_cors import CORS
 import sqlite3
 import os
+from datetime import datetime
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'pipes.db')
 
@@ -13,42 +14,49 @@ def get_db():
         g.db.row_factory = sqlite3.Row
     return g.db
 
-def init_db():
-    db = get_db()
-    db.execute('''
-        CREATE TABLE IF NOT EXISTS pipes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            diameter REAL,
-            thickness REAL,
-            length REAL,
-            material TEXT,
-            quantity INTEGER
-        )
-    ''')
-    db.commit()
-
 def dict_from_row(row):
     return {k: row[k] for k in row.keys()}
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), '../frontend'), static_url_path="")
 CORS(app)
 
-@app.before_first_request
-def setup():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    if not os.path.exists(DB_PATH):
-        open(DB_PATH, 'a').close()
-    init_db()
+def init_db():
+    with app.app_context():
+        db = get_db()
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS pipes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pipe_id TEXT UNIQUE NOT NULL,
+                diameter REAL,
+                thickness REAL,
+                length REAL,
+                material TEXT,
+                quantity INTEGER,
+                location TEXT,
+                supplier TEXT,
+                entry_date TEXT,
+                last_update TEXT,
+                status TEXT DEFAULT "在库"
+            )
+        ''')
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS inventory_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pipe_id TEXT NOT NULL,
+                operation_type TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                operation_date TEXT NOT NULL,
+                operator TEXT NOT NULL,
+                remarks TEXT,
+                FOREIGN KEY (pipe_id) REFERENCES pipes(pipe_id)
+            )
+        ''')
+        db.commit()
 
-@app.teardown_appcontext
-def close_db(exc):
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
-
-@app.route("/")
-def index():
-    return app.send_static_file('index.html')
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+if not os.path.exists(DB_PATH):
+    open(DB_PATH, 'a').close()
+init_db()
 
 def query_pipes(params):
     db = get_db()
@@ -57,23 +65,12 @@ def query_pipes(params):
     if params.get('material'):
         sql.append("AND material = ?")
         args.append(params['material'])
-    if params.get('min_diameter') is not None:
-        sql.append("AND diameter >= ?")
-        args.append(params['min_diameter'])
-    if params.get('max_diameter') is not None:
-        sql.append("AND diameter <= ?")
-        args.append(params['max_diameter'])
-    if params.get('min_length') is not None:
-        sql.append("AND length >= ?")
-        args.append(params['min_length'])
-    if params.get('max_length') is not None:
-        sql.append("AND length <= ?")
-        args.append(params['max_length'])
     if params.get('q'):
-        sql.append("AND (material LIKE ?)")
+        sql.append("AND (material LIKE ? OR pipe_id LIKE ?)")
+        args.append(f"%{params['q']}%")
         args.append(f"%{params['q']}%")
     sort_by = params.get('sort_by')
-    if sort_by not in {"id","diameter","thickness","length","material","quantity"}:
+    if sort_by not in {"id","diameter","thickness","length","material","quantity","pipe_id"}:
         sort_by = 'id'
     sort_dir = params.get('sort_dir')
     if sort_dir not in {"asc","desc"}:
@@ -91,20 +88,9 @@ def query_pipes(params):
     if params.get('material'):
         count_sql += "AND material = ?"
         count_args.append(params['material'])
-    if params.get('min_diameter') is not None:
-        count_sql += "AND diameter >= ?"
-        count_args.append(params['min_diameter'])
-    if params.get('max_diameter') is not None:
-        count_sql += "AND diameter <= ?"
-        count_args.append(params['max_diameter'])
-    if params.get('min_length') is not None:
-        count_sql += "AND length >= ?"
-        count_args.append(params['min_length'])
-    if params.get('max_length') is not None:
-        count_sql += "AND length <= ?"
-        count_args.append(params['max_length'])
     if params.get('q'):
-        count_sql += "AND (material LIKE ?)"
+        count_sql += "AND (material LIKE ? OR pipe_id LIKE ?)"
+        count_args.append(f"%{params['q']}%")
         count_args.append(f"%{params['q']}%")
     total = db.execute(count_sql, tuple(count_args)).fetchone()[0]
     return {'total': total, 'page': page, 'per_page': per_page, 'pipes': rows}
@@ -128,22 +114,34 @@ def pipes():
         return jsonify(res)
     else:
         data = request.json or {}
+        pipe_id = data.get("pipe_id")
         diameter = data.get("diameter")
         thickness = data.get("thickness")
         length = data.get("length")
         material = data.get("material")
         quantity = data.get("quantity")
         errors = {}
-        if any(v is None for v in [diameter, thickness, length, material, quantity]):
+        if any(v is None for v in [pipe_id, diameter, thickness, length, material, quantity]):
+            if pipe_id is None: errors['pipe_id'] = 'required'
             if diameter is None: errors['diameter'] = 'required'
             if thickness is None: errors['thickness'] = 'required'
             if length is None: errors['length'] = 'required'
             if material is None: errors['material'] = 'required'
             if quantity is None: errors['quantity'] = 'required'
             return jsonify({'errors': errors}), 400
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         db = get_db()
-        db.execute("INSERT INTO pipes (diameter, thickness, length, material, quantity) VALUES (?,?,?,?,?)",
-                   (diameter, thickness, length, material, quantity))
+        existing = db.execute("SELECT id FROM pipes WHERE pipe_id = ?", (pipe_id,)).fetchone()
+        if existing:
+            db.execute('''
+                UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, last_update=?
+                WHERE pipe_id=?
+            ''', (diameter, thickness, length, material, quantity, now, pipe_id))
+        else:
+            db.execute('''
+                INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, entry_date, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (pipe_id, diameter, thickness, length, material, quantity, now, "在库"))
         db.commit()
         return jsonify({"status": "created"}), 201
 
@@ -234,6 +232,110 @@ def import_pipes():
             errors.append(str(e))
     db.commit()
     return jsonify({'imported': count, 'errors': errors})
+
+@app.route("/pipes/entry", methods=["POST"])
+def entry_pipe():
+    data = request.json or {}
+    pipe_id = data.get("pipe_id")
+    diameter = data.get("diameter")
+    thickness = data.get("thickness")
+    length = data.get("length")
+    material = data.get("material")
+    quantity = data.get("quantity")
+    location = data.get("location")
+    supplier = data.get("supplier")
+    operator = data.get("operator", "system")
+    remarks = data.get("remarks", "")
+
+    if not pipe_id or not quantity:
+        return jsonify({'error': 'pipe_id and quantity required'}), 400
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    db = get_db()
+
+    existing = db.execute("SELECT id FROM pipes WHERE pipe_id = ?", (pipe_id,)).fetchone()
+    if existing:
+        db.execute('''
+            UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, location=?, supplier=?, last_update=?
+            WHERE pipe_id=?
+        ''', (diameter, thickness, length, material, quantity, location, supplier, now, pipe_id))
+    else:
+        db.execute('''
+            INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (pipe_id, diameter, thickness, length, material, quantity, location, supplier, now, "在库"))
+
+    db.execute('''
+        INSERT INTO inventory_records (pipe_id, operation_type, quantity, operation_date, operator, remarks)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (pipe_id, "入库", quantity, now, operator, remarks))
+    db.commit()
+    return jsonify({"status": "created"}), 201
+
+@app.route("/pipes/exit", methods=["POST"])
+def exit_pipe():
+    data = request.json or {}
+    pipe_id = data.get("pipe_id")
+    quantity = data.get("quantity")
+    operator = data.get("operator", "system")
+    remarks = data.get("remarks", "")
+
+    if not pipe_id or not quantity:
+        return jsonify({'error': 'pipe_id and quantity required'}), 400
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    db = get_db()
+
+    pipe = db.execute("SELECT quantity FROM pipes WHERE pipe_id = ?", (pipe_id,)).fetchone()
+    if not pipe:
+        return jsonify({"error": "未找到该钢管编号"}), 404
+
+    if pipe["quantity"] < quantity:
+        return jsonify({"error": "库存不足", "current": pipe["quantity"]}), 400
+
+    db.execute("UPDATE pipes SET quantity = quantity - ?, last_update = ? WHERE pipe_id = ?",
+               (quantity, now, pipe_id))
+    db.execute('''
+        INSERT INTO inventory_records (pipe_id, operation_type, quantity, operation_date, operator, remarks)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (pipe_id, "出库", quantity, now, operator, remarks))
+    db.commit()
+    return jsonify({"status": "success"})
+
+@app.route("/records", methods=["GET"])
+def records():
+    db = get_db()
+    params = {}
+    if request.args.get('pipe_id'):
+        params['pipe_id'] = request.args.get('pipe_id')
+    if request.args.get('operation_type'):
+        params['operation_type'] = request.args.get('operation_type')
+
+    query = "SELECT * FROM inventory_records WHERE 1=1"
+    args = []
+    if params.get('pipe_id'):
+        query += " AND pipe_id = ?"
+        args.append(params['pipe_id'])
+    if params.get('operation_type'):
+        query += " AND operation_type = ?"
+        args.append(params['operation_type'])
+    query += " ORDER BY operation_date DESC"
+
+    cur = db.execute(query, tuple(args))
+    rows = [dict_from_row(r) for r in cur.fetchall()]
+    return jsonify(rows)
+
+@app.route("/statistics", methods=["GET"])
+def statistics():
+    db = get_db()
+    stats = {}
+
+    stats["total_types"] = db.execute("SELECT COUNT(*) FROM pipes").fetchone()[0]
+    stats["total_quantity"] = db.execute("SELECT COALESCE(SUM(quantity),0) FROM pipes").fetchone()[0]
+    stats["total_in"] = db.execute("SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='入库'").fetchone()[0]
+    stats["total_out"] = db.execute("SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='出库'").fetchone()[0]
+
+    return jsonify(stats)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
