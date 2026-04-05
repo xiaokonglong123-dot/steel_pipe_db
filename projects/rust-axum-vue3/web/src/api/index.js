@@ -2,14 +2,15 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: import.meta.env.DEV ? '/api' : 'http://localhost:3000/api',
-  timeout: 10000,
+  timeout: 15000,
 })
 
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', error.response?.data || error.message)
-    return Promise.reject(error)
+    const message = error.response?.data?.error || error.message || '请求失败'
+    console.error('API Error:', message)
+    return Promise.reject({ message, ...error.response?.data })
   }
 )
 
@@ -36,16 +37,18 @@ export const statsAPI = {
 
 export const logsAPI = {
   list: (limit = 50) => api.get('/logs', { params: { limit } }),
-  undo: (id) => api.delete(`/undo/${id}`),
 }
 
 export const exportAPI = {
   inventory: () => api.get('/export/inventory', { responseType: 'blob' }),
+  inventoryExcel: () => api.get('/export/inventory/excel', { responseType: 'blob' }),
   records: (params = {}) => api.get('/export/records', { params, responseType: 'blob' }),
+  recordsExcel: (params = {}) => api.get('/export/records/excel', { params, responseType: 'blob' }),
 }
 
 export const importAPI = {
   csv: (data) => api.post('/import/csv', data),
+  excel: (data) => api.post('/import/excel', data),
 }
 
 export default api

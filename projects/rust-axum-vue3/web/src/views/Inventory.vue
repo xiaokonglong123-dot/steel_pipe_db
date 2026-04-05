@@ -10,11 +10,16 @@
         <option value="已出库">已出库</option>
       </select>
       <input v-model="filters.material" placeholder="材质" class="sm-input" @input="debounceSearch" />
-      <button @click="fetchPipes" class="btn-secondary">刷新</button>
+      <button @click="fetchPipes" class="btn-secondary" :disabled="loading">刷新</button>
     </div>
 
-    <div class="card table-card">
-      <table class="apple-table" v-if="pipes.length">
+    <div v-if="loading" class="loading-container">
+      <div class="spinner"></div>
+      <span>加载中...</span>
+    </div>
+
+    <div class="card table-card" v-else-if="pipes.length">
+      <table class="apple-table">
         <thead>
           <tr>
             <th>钢管编号</th>
@@ -47,8 +52,8 @@
           </tr>
         </tbody>
       </table>
-      <div v-else class="empty">暂无数据</div>
     </div>
+    <div v-else class="card empty">暂无数据</div>
 
     <div class="pagination" v-if="total > 0">
       <span class="page-info">共 {{ total }} 条记录</span>
@@ -90,10 +95,17 @@
           </div>
         </div>
         <div class="modal-actions">
-          <button @click="saveEdit" class="btn-primary">保存</button>
+          <button @click="saveEdit" class="btn-primary" :disabled="saving">
+            {{ saving ? '保存中...' : '保存' }}
+          </button>
           <button @click="showEdit = false" class="btn-secondary">取消</button>
         </div>
       </div>
+    </div>
+
+    <div v-if="errorMsg" class="toast error">
+      {{ errorMsg }}
+      <button @click="errorMsg = ''">×</button>
     </div>
   </div>
 </template>
@@ -107,6 +119,9 @@ const total = ref(0)
 const page = ref(1)
 const perPage = 20
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / perPage)))
+const loading = ref(false)
+const saving = ref(false)
+const errorMsg = ref('')
 
 const filters = reactive({ search: '', status: '', material: '' })
 const showEdit = ref(false)
@@ -119,6 +134,7 @@ function debounceSearch() {
 }
 
 async function fetchPipes() {
+  loading.value = true
   try {
     const { data } = await pipesAPI.list({
       page: page.value, per_page: perPage,
@@ -128,7 +144,11 @@ async function fetchPipes() {
     })
     pipes.value = data.pipes
     total.value = data.total
-  } catch (e) { console.error(e) }
+  } catch (e) {
+    errorMsg.value = e.message || '加载失败'
+  } finally {
+    loading.value = false
+  }
 }
 
 function editPipe(p) {
@@ -137,11 +157,16 @@ function editPipe(p) {
 }
 
 async function saveEdit() {
+  saving.value = true
   try {
     await pipesAPI.update(editForm.pipe_id, editForm)
     showEdit.value = false
     fetchPipes()
-  } catch (e) { console.error(e) }
+  } catch (e) {
+    errorMsg.value = e.message || '保存失败'
+  } finally {
+    saving.value = false
+  }
 }
 
 async function deletePipe(id) {
@@ -149,7 +174,9 @@ async function deletePipe(id) {
   try {
     await pipesAPI.delete(id)
     fetchPipes()
-  } catch (e) { console.error(e) }
+  } catch (e) {
+    errorMsg.value = e.message || '删除失败'
+  }
 }
 
 onMounted(fetchPipes)
@@ -184,6 +211,7 @@ select {
   background: var(--apple-gray); color: var(--apple-text); transition: var(--apple-transition);
 }
 .btn-secondary:hover { background: #e8e8ed; }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .card { background: var(--apple-card); border-radius: var(--apple-radius); box-shadow: var(--apple-shadow); overflow: hidden; }
 .table-card { padding: 0; }
@@ -229,6 +257,17 @@ select {
 
 .empty { padding: 40px; text-align: center; color: var(--apple-text-secondary); font-size: 15px; }
 
+.loading-container {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 60px 0; gap: 16px; color: var(--apple-text-secondary);
+}
+.spinner {
+  width: 32px; height: 32px; border: 3px solid var(--apple-border);
+  border-top-color: var(--apple-blue); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 200;
@@ -249,5 +288,20 @@ select {
 .btn-primary {
   background: var(--apple-blue); color: white; padding: 10px 24px; border-radius: 980px;
   font-size: 14px; font-weight: 500;
+}
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  padding: 12px 24px; border-radius: 980px; font-size: 14px; font-weight: 500;
+  display: flex; align-items: center; gap: 12px; z-index: 1000;
+  animation: slideUp 0.3s ease;
+}
+.toast.error { background: var(--apple-red); color: white; }
+.toast button { background: none; color: inherit; font-size: 18px; padding: 0; opacity: 0.7; }
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 </style>

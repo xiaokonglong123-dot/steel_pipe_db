@@ -20,6 +20,9 @@
         <div class="stat-value">{{ stats.total_out }}</div>
       </div>
     </div>
+    <div v-else class="skeleton-grid">
+      <div v-for="i in 4" :key="i" class="skeleton-card"></div>
+    </div>
 
     <div class="content-grid">
       <div class="card">
@@ -56,6 +59,11 @@
         </div>
       </div>
     </div>
+
+    <div v-if="errorMsg" class="toast error">
+      {{ errorMsg }}
+      <button @click="errorMsg = ''">×</button>
+    </div>
   </div>
 </template>
 
@@ -67,6 +75,7 @@ const stats = ref(null)
 const recentRecords = ref([])
 const materialStats = ref([])
 const lowStock = ref([])
+const errorMsg = ref('')
 
 onMounted(async () => {
   try {
@@ -81,7 +90,7 @@ onMounted(async () => {
     lowStock.value = ls.data
     recentRecords.value = rr.data.slice(0, 10)
   } catch (e) {
-    console.error(e)
+    errorMsg.value = e.message || '加载数据失败'
   }
 })
 </script>
@@ -99,6 +108,25 @@ onMounted(async () => {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 28px;
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.skeleton-card {
+  height: 100px;
+  background: var(--apple-card);
+  border-radius: var(--apple-radius);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .stat-card {
@@ -209,5 +237,29 @@ onMounted(async () => {
   font-size: 14px;
   padding: 20px 0;
   text-align: center;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 980px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 1000;
+  animation: slideUp 0.3s ease;
+}
+
+.toast.error { background: var(--apple-red); color: white; }
+.toast button { background: none; color: inherit; font-size: 18px; padding: 0; opacity: 0.7; }
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 </style>

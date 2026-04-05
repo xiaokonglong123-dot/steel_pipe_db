@@ -1,75 +1,108 @@
 # 钢管原料进出入库管理系统
 
-基于 Rust (axum) + Vue 3 + SQLite3 的现代化库存管理系统。
+本项目包含多个独立实现的钢管库存管理系统，按技术栈分类存放于 `projects/` 目录下。
 
 ## 项目结构
 
 ```
 steel_pipe_db/
-├── server/          # Rust axum 后端
-│   ├── src/
-│   │   ├── main.rs  # 服务器入口和API路由
-│   │   └── db.rs    # 数据库层 (SQLite3)
-│   └── Cargo.toml
-├── web/             # Vue 3 前端 (苹果风格UI)
-│   ├── src/
-│   │   ├── api/     # API请求封装
-│   │   ├── router/  # 路由配置
-│   │   ├── views/   # 页面组件
-│   │   └── components/  # 公共组件
-│   └── vite.config.js
-└── rust_version/    # 旧版 egui 桌面应用 (保留)
+├── projects/
+│   ├── python-tkinter/        # Python Tkinter 桌面应用
+│   │   ├── main.py            #   主程序
+│   │   ├── config.ini         #   配置文件
+│   │   ├── requirements.txt   #   依赖
+│   │   └── 钢管原料进出入库系统.bat  # Windows 启动脚本
+│   │
+│   ├── rust-axum-vue3/        # Rust (axum) + Vue 3 Web 应用 (推荐)
+│   │   ├── server/            #   Rust axum 后端
+│   │   │   ├── src/
+│   │   │   │   ├── main.rs    #     服务器入口和 API 路由
+│   │   │   │   └── db.rs      #     SQLite 数据库层
+│   │   │   └── Cargo.toml
+│   │   └── web/               #   Vue 3 前端 (苹果风格 UI)
+│   │       ├── src/
+│   │       └── vite.config.js
+│   │
+│   ├── flask-web/             # Flask + Vanilla JS Web 应用
+│   │   ├── backend/           #   Flask 后端
+│   │   │   ├── app.py
+│   │   │   └── requirements.txt
+│   │   ├── frontend/          #   原生 JS 前端
+│   │   │   └── index.html
+│   │   └── windows/           #   Windows 一键启动脚本
+│   │
+│   └── rust-egui/             # Rust egui 桌面应用 (旧版)
+│       ├── src/
+│       └── Cargo.toml
+│
+├── testdata/                  # 测试数据 (CSV 格式)
+└── test.txt                   # 测试文件
 ```
 
-## 启动方式
+## 各项目说明
 
-### 1. 启动后端
+### 1. Rust axum + Vue 3 (推荐)
 
-```bash
-cd server
-cargo run --release
-```
+现代化 Web 应用，功能最完整。
 
-后端运行在 `http://localhost:3000`，同时提供API和静态文件服务。
-
-### 2. 启动前端（开发模式）
-
-```bash
-cd web
-npm install
-npm run dev
-```
-
-前端开发服务器运行在 `http://localhost:5173`，API请求自动代理到后端。
-
-### 3. 生产部署
-
-```bash
-# 构建前端
-cd web && npm run build
-
-# 启动后端（直接服务前端静态文件）
-cd ../server && cargo run --release
-```
-
-访问 `http://localhost:3000` 即可使用完整应用。
-
-## 功能特性
-
-- **首页概览**: 统计卡片、最近操作、材质统计、库存预警
-- **钢管入库**: 表单录入，支持自动更新已有库存
-- **钢管出库**: 库存校验，不足时自动提示
-- **库存查询**: 搜索、筛选、分页、编辑、删除
-- **出入库记录**: 按类型/编号/日期筛选，支持CSV导出
-- **数据统计**: 材质分类柱状图、入库出库对比、库存预警阈值
-- **数据导入**: CSV批量导入
-- **数据导出**: 库存/记录CSV导出
-
-## 技术栈
-
-| 层 | 技术 |
-|---|---|
-| 后端 | Rust + axum + tokio |
-| 数据库 | SQLite3 (rusqlite) |
+| 技术 | 说明 |
+|------|------|
+| 后端 | Rust + axum + tokio + rusqlite |
 | 前端 | Vue 3 + Vue Router + Axios |
-| UI风格 | Apple Design (SF字体、毛玻璃、圆角卡片) |
+| 数据库 | SQLite3 |
+| UI | Apple Design 风格 |
+
+**启动方式:**
+```bash
+# 启动后端
+cd projects/rust-axum-vue3/server
+cargo run --release
+
+# 启动前端开发服务器
+cd projects/rust-axum-vue3/web
+npm install && npm run dev
+```
+
+### 2. Python Tkinter 桌面应用
+
+轻量级桌面应用，无需浏览器即可使用。
+
+| 技术 | 说明 |
+|------|------|
+| 语言 | Python 3 |
+| GUI | Tkinter |
+| 数据库 | SQLite3 |
+| 配置 | config.ini |
+
+**启动方式:**
+```bash
+cd projects/python-tkinter
+python main.py
+```
+
+### 3. Flask + Vanilla JS Web 应用
+
+简易 Web 应用，适合快速部署。
+
+| 技术 | 说明 |
+|------|------|
+| 后端 | Flask + Flask-CORS |
+| 前端 | 原生 JavaScript |
+| 数据库 | SQLite3 |
+
+**启动方式:**
+```bash
+cd projects/flask-web
+pip install -r backend/requirements.txt
+python backend/app.py
+```
+
+### 4. Rust egui 桌面应用 (旧版)
+
+基于 egui 的 Rust 桌面应用，已不再维护。
+
+## 测试数据
+
+测试用 CSV 文件位于 `testdata/` 目录，包含:
+- `pipes_test.csv` - 正常导入数据
+- `pipes_error.csv` - 错误测试数据

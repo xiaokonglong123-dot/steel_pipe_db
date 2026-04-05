@@ -13,6 +13,7 @@ use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use base64::Engine;
+use std::io::Write;
 
 #[derive(Clone)]
 struct AppState {
@@ -40,11 +41,44 @@ struct RecordQuery {
     end_date: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct EntryRequest {
+    pipe: SteelPipe,
+    operator: String,
+    remarks: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ExitRequest {
+    pipe_id: String,
+    quantity: i32,
+    operator: String,
+    remarks: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ImportRequest {
+    csv_content: String,
+    operator: String,
+}
+
+#[derive(Deserialize)]
+struct ExcelImportRequest {
+    excel_base64: String,
+    operator: String,
+}
+
+#[derive(Deserialize)]
+struct SaveRequest {
+    path: Option<String>,
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let db = Arc::new(Database::new("pipes.db").expect("Failed to initialize database"));
+    let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "pipes.db".to_string());
+    let db = Arc::new(Database::new(&db_path).expect("Failed to initialize database"));
     let state = AppState { db };
 
     let cors = CorsLayer::new()
@@ -54,7 +88,6 @@ async fn main() {
 
     let frontend = ServeDir::new("../web/dist").not_found_service(
         axum::routing::get(|| async {
-            use axum::response::Html;
             let content = tokio::fs::read_to_string("../web/dist/index.html").await.unwrap_or_default();
             Html(content)
         })
@@ -76,17 +109,22 @@ async fn main() {
         .route("/api/export/records/excel", get(export_records_excel))
         .route("/api/import/csv", post(import_csv))
         .route("/api/import/excel", post(import_excel))
-        .route("/api/undo", delete(undo_operation))
         .route("/api/save", post(save_database))
         .layer(cors)
         .nest_service("/", frontend)
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
-        .await
-        .expect("Failed to bind to port 3000");
+    let port = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse::<u16>().ok())
+        .unwrap_or(3000);
+    let addr = format!("0.0.0.0:{}", port);
 
-    tracing::info!("Server running on http://0.0.0.0:3000");
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .unwrap_or_else(|e| panic!("Failed to bind to {}: {}", addr, e));
+
+    tracing::info!("Server running on http://{}", addr);
     axum::serve(listener, app).await.expect("Server failed");
 }
 
@@ -157,13 +195,6 @@ async fn delete_pipe(
     }
 }
 
-#[derive(Deserialize)]
-struct EntryRequest {
-    pipe: SteelPipe,
-    operator: String,
-    remarks: Option<String>,
-}
-
 async fn entry_pipe(
     State(state): State<AppState>,
     Json(req): Json<EntryRequest>,
@@ -172,6 +203,7 @@ async fn entry_pipe(
     let pipe_id = req.pipe.pipe_id.clone();
     let operator = req.operator.clone();
     let remarks = req.remarks.clone().unwrap_or_default();
+
     match state.db.add_pipe(&req.pipe).await {
         Ok(()) => {
             let record = InventoryRecord {
@@ -183,20 +215,18 @@ async fn entry_pipe(
                 operator: operator.clone(),
                 remarks: Some(remarks.clone()),
             };
-            let _ = state.db.add_inventory_record(&record).await;
-            let _ = state.db.log_operation("入库", "pipe", &pipe_id, "", &format!("{{\"qty\":{}}}", qty), &operator, &remarks).await;
+            if let Err(e) = state.db.add_inventory_record(&record).await {
+                return error_response(e);
+            }
+            let _ = state.db.log_operation(
+                "入库", "pipe", &pipe_id, "",
+                &format!("{{\"qty\":{}}}", qty),
+                &operator, &remarks,
+            ).await;
             Json(serde_json::json!({"status": "created"})).into_response()
         }
         Err(e) => error_response(e),
     }
-}
-
-#[derive(Deserialize)]
-struct ExitRequest {
-    pipe_id: String,
-    quantity: i32,
-    operator: String,
-    remarks: Option<String>,
 }
 
 async fn exit_pipe(
@@ -224,11 +254,16 @@ async fn exit_pipe(
                 operator: req.operator.clone(),
                 remarks: req.remarks.clone(),
             };
-            let _ = state.db.add_inventory_record(&record).await;
-            let _ = state.db.log_operation("出库", "pipe", &req.pipe_id,
+            if let Err(e) = state.db.add_inventory_record(&record).await {
+                return error_response(e);
+            }
+            let _ = state.db.log_operation(
+                "出库", "pipe", &req.pipe_id,
                 &format!("{{\"qty\":{}}}", before),
                 &format!("{{\"qty\":{}}}", before - req.quantity),
-                &req.operator, &req.remarks.as_deref().unwrap_or("")).await;
+                &req.operator,
+                req.remarks.as_deref().unwrap_or(""),
+            ).await;
             Json(serde_json::json!({"status": "success"})).into_response()
         }
         Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "未找到该钢管编号"}))).into_response(),
@@ -301,7 +336,10 @@ async fn export_inventory(State(state): State<AppState>) -> impl IntoResponse {
     match state.db.export_inventory_csv().await {
         Ok(csv) => (
             StatusCode::OK,
-            [("Content-Type", "text/csv; charset=utf-8"), ("Content-Disposition", "attachment; filename=\"inventory.csv\"")],
+            [
+                ("Content-Type", "text/csv; charset=utf-8"),
+                ("Content-Disposition", "attachment; filename=\"inventory.csv\""),
+            ],
             csv,
         ).into_response(),
         Err(e) => error_response(e),
@@ -320,17 +358,14 @@ async fn export_records(
     ).await {
         Ok(csv) => (
             StatusCode::OK,
-            [("Content-Type", "text/csv; charset=utf-8"), ("Content-Disposition", "attachment; filename=\"records.csv\"")],
+            [
+                ("Content-Type", "text/csv; charset=utf-8"),
+                ("Content-Disposition", "attachment; filename=\"records.csv\""),
+            ],
             csv,
         ).into_response(),
         Err(e) => error_response(e),
     }
-}
-
-#[derive(Deserialize)]
-struct ImportRequest {
-    csv_content: String,
-    operator: String,
 }
 
 async fn import_csv(
@@ -346,54 +381,33 @@ async fn import_csv(
     }
 }
 
-async fn undo_operation(State(state): State<AppState>) -> impl IntoResponse {
-    match state.db.get_operation_logs(1).await {
-        Ok(logs) => {
-            if let Some(log) = logs.first() {
-                let target_id = log.target_id.clone();
-                let op_type = log.operation_type.clone();
-                match state.db.delete_pipe(&target_id).await {
-                    Ok(()) => Json(serde_json::json!({
-                        "status": "undone",
-                        "operation": op_type,
-                        "target": target_id
-                    })).into_response(),
-                    Err(e) => error_response(e),
-                }
-            } else {
-                (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "no operations to undo"}))).into_response()
-            }
-        }
-        Err(e) => error_response(e),
-    }
-}
-
-#[derive(Deserialize)]
-struct SaveRequest {
-    path: Option<String>,
-}
-
 async fn save_database(
     State(state): State<AppState>,
     Json(req): Json<SaveRequest>,
 ) -> impl IntoResponse {
-    let path = req.path.unwrap_or_else(|| "pipes.db".to_string());
-    match tokio::fs::copy("pipes.db", &path).await {
+    let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "pipes.db".to_string());
+    let path = req.path.unwrap_or_else(|| format!("pipes_backup_{}.db", chrono::Local::now().format("%Y%m%d_%H%M%S")));
+    match tokio::fs::copy(&db_path, &path).await {
         Ok(_) => Json(serde_json::json!({"status": "saved", "path": path})).into_response(),
         Err(e) => error_response(DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))),
     }
 }
 
 async fn export_inventory_excel(State(state): State<AppState>) -> impl IntoResponse {
-    let path = format!("/tmp/inventory_{}.xlsx", chrono::Local::now().format("%Y%m%d_%H%M%S"));
-    match state.db.export_inventory_to_excel(&path).await {
+    let temp_dir = std::env::temp_dir();
+    let path = temp_dir.join(format!("inventory_{}.xlsx", chrono::Local::now().format("%Y%m%d_%H%M%S")));
+    let path_str = path.to_string_lossy().to_string();
+    match state.db.export_inventory_to_excel(&path_str).await {
         Ok(()) => {
             match tokio::fs::read(&path).await {
                 Ok(data) => {
                     let _ = tokio::fs::remove_file(&path).await;
                     (
                         StatusCode::OK,
-                        [("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), ("Content-Disposition", &format!("attachment; filename=\"inventory.xlsx\""))],
+                        [
+                            ("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                            ("Content-Disposition", "attachment; filename=\"inventory.xlsx\""),
+                        ],
                         data,
                     ).into_response()
                 }
@@ -408,15 +422,20 @@ async fn export_records_excel(
     State(state): State<AppState>,
     Query(q): Query<RecordQuery>,
 ) -> impl IntoResponse {
-    let path = format!("/tmp/records_{}.xlsx", chrono::Local::now().format("%Y%m%d_%H%M%S"));
-    match state.db.export_records_to_excel(&path, q.pipe_id.as_deref(), q.operation_type.as_deref(), q.start_date.as_deref(), q.end_date.as_deref()).await {
+    let temp_dir = std::env::temp_dir();
+    let path = temp_dir.join(format!("records_{}.xlsx", chrono::Local::now().format("%Y%m%d_%H%M%S")));
+    let path_str = path.to_string_lossy().to_string();
+    match state.db.export_records_to_excel(&path_str, q.pipe_id.as_deref(), q.operation_type.as_deref(), q.start_date.as_deref(), q.end_date.as_deref()).await {
         Ok(()) => {
             match tokio::fs::read(&path).await {
                 Ok(data) => {
                     let _ = tokio::fs::remove_file(&path).await;
                     (
                         StatusCode::OK,
-                        [("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), ("Content-Disposition", "attachment; filename=records.xlsx")],
+                        [
+                            ("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                            ("Content-Disposition", "attachment; filename=\"records.xlsx\""),
+                        ],
                         data,
                     ).into_response()
                 }
@@ -427,45 +446,32 @@ async fn export_records_excel(
     }
 }
 
-#[derive(Deserialize)]
-struct ExcelImportRequest {
-    excel_base64: String,
-    operator: String,
-}
-
 async fn import_excel(
     State(state): State<AppState>,
     Json(req): Json<ExcelImportRequest>,
 ) -> impl IntoResponse {
-    use std::io::Write;
-    let decoded = base64::engine::general_purpose::STANDARD.decode(&req.excel_base64).map_err(|e| DbError::Validation(e.to_string()));
-    match decoded {
-        Ok(data) => {
-            let temp_path = format!("/tmp/import_{}.xlsx", chrono::Local::now().format("%Y%m%d_%H%M%S"));
-            if let Ok(mut file) = std::fs::File::create(&temp_path) {
-                if file.write_all(&data).is_ok() {
-                    match state.db.import_pipes_from_excel(&temp_path, &req.operator).await {
-                        Ok((success, fail)) => {
-                            std::fs::remove_file(&temp_path).ok();
-                            Json(serde_json::json!({
-                                "success": success,
-                                "fail": fail,
-                            })).into_response()
-                        }
-                        Err(e) => {
-                            std::fs::remove_file(&temp_path).ok();
-                            error_response(e)
-                        }
-                    }
-                } else {
-                    error_response(DbError::Validation("Failed to write temp file".to_string()))
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(&req.excel_base64)
+        .map_err(|e| DbError::Validation(e.to_string()))?;
+
+    let temp_dir = std::env::temp_dir();
+    let temp_path = temp_dir.join(format!("import_{}.xlsx", chrono::Local::now().format("%Y%m%d_%H%M%S")));
+    let temp_path_str = temp_path.to_string_lossy().to_string();
+
+    if let Ok(mut file) = std::fs::File::create(&temp_path) {
+        if file.write_all(&decoded).is_ok() {
+            match state.db.import_pipes_from_excel(&temp_path_str, &req.operator).await {
+                Ok((success, fail)) => {
+                    return Json(serde_json::json!({
+                        "success": success,
+                        "fail": fail,
+                    })).into_response();
                 }
-            } else {
-                error_response(DbError::Validation("Failed to create temp file".to_string()))
+                Err(e) => return error_response(e),
             }
         }
-        Err(e) => error_response(e),
     }
+    error_response(DbError::Validation("Failed to write temp file".to_string()))
 }
 
 fn error_response(e: DbError) -> axum::response::Response {
