@@ -4,7 +4,7 @@ use axum::{
     extract::{Query, State, Json},
     http::StatusCode,
     response::{IntoResponse, Html},
-    routing::{get, post, put, delete},
+    routing::{get, post},
     Router,
 };
 use db::{Database, SteelPipe, InventoryRecord, DbError};
@@ -14,6 +14,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use base64::Engine;
 use std::io::Write;
+use chrono::Datelike;
 
 #[derive(Clone)]
 struct AppState {
@@ -165,7 +166,7 @@ async fn list_pipes(
         q.min_diameter, q.max_diameter,
         q.min_length, q.max_length,
     ).await {
-        Ok((pipes, total)) => Json(serde_json::json!({
+        Ok((pipes, total)) => Json::<serde_json::Value>(serde_json::json!({
             "pipes": pipes,
             "total": total,
             "page": page,
@@ -183,7 +184,7 @@ async fn create_pipe(
         return error_response(e);
     }
     match state.db.add_pipe(&pipe).await {
-        Ok(()) => (StatusCode::CREATED, Json(serde_json::json!({"status": "created"}))).into_response(),
+        Ok(()) => (StatusCode::CREATED, Json::<serde_json::Value>(serde_json::json!({"status": "created"}))).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -193,8 +194,8 @@ async fn get_pipe(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
     match state.db.get_pipe_by_id(&id).await {
-        Ok(Some(pipe)) => Json(pipe).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "not found"}))).into_response(),
+        Ok(Some(pipe)) => Json::<db::SteelPipe>(pipe).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, Json::<serde_json::Value>(serde_json::json!({"error": "not found"}))).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -206,7 +207,7 @@ async fn update_pipe(
 ) -> impl IntoResponse {
     pipe.pipe_id = id;
     match state.db.update_pipe(&pipe).await {
-        Ok(()) => Json(serde_json::json!({"status": "updated"})).into_response(),
+        Ok(()) => Json::<serde_json::Value>(serde_json::json!({"status": "updated"})).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -216,7 +217,7 @@ async fn delete_pipe(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
     match state.db.delete_pipe(&id).await {
-        Ok(()) => Json(serde_json::json!({"status": "deleted"})).into_response(),
+        Ok(()) => Json::<serde_json::Value>(serde_json::json!({"status": "deleted"})).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -235,7 +236,7 @@ async fn batch_delete_pipes(
                 &req.operator,
                 &req.pipe_ids.join(","),
             ).await;
-            Json(serde_json::json!({"status": "deleted", "count": deleted})).into_response()
+            Json::<serde_json::Value>(serde_json::json!({"status": "deleted", "count": deleted})).into_response()
         }
         Err(e) => error_response(e),
     }
@@ -272,7 +273,7 @@ async fn entry_pipe(
                 &format!("{{\"qty\":{}}}", qty),
                 &operator, &remarks,
             ).await;
-            Json(serde_json::json!({"status": "created"})).into_response()
+            Json::<serde_json::Value>(serde_json::json!({"status": "created"})).into_response()
         }
         Err(e) => error_response(e),
     }
@@ -291,7 +292,7 @@ async fn exit_pipe(
     match state.db.get_pipe_by_id(&req.pipe_id).await {
         Ok(Some(pipe)) => {
             if pipe.quantity < req.quantity {
-                return (StatusCode::BAD_REQUEST, Json(serde_json::json!({
+                return (StatusCode::BAD_REQUEST, Json::<serde_json::Value>(serde_json::json!({
                     "error": "库存不足",
                     "current": pipe.quantity
                 }))).into_response();
@@ -319,23 +320,23 @@ async fn exit_pipe(
                 &req.operator,
                 req.remarks.as_deref().unwrap_or(""),
             ).await;
-            Json(serde_json::json!({"status": "success"})).into_response()
+            Json::<serde_json::Value>(serde_json::json!({"status": "success"})).into_response()
         }
-        Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "未找到该钢管编号"}))).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, Json::<serde_json::Value>(serde_json::json!({"error": "未找到该钢管编号"}))).into_response(),
         Err(e) => error_response(e),
     }
 }
 
 async fn get_statistics(State(state): State<AppState>) -> impl IntoResponse {
     match state.db.get_statistics().await {
-        Ok(stats) => Json(stats).into_response(),
+        Ok(stats) => Json::<db::Statistics>(stats).into_response(),
         Err(e) => error_response(e),
     }
 }
 
 async fn get_material_stats(State(state): State<AppState>) -> impl IntoResponse {
     match state.db.get_material_stats().await {
-        Ok(stats) => Json(stats).into_response(),
+        Ok(stats) => Json::<Vec<db::MaterialStats>>(stats).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -346,7 +347,7 @@ async fn get_low_stock(
 ) -> impl IntoResponse {
     let threshold = q.get("threshold").copied().unwrap_or(10);
     match state.db.get_low_stock(threshold).await {
-        Ok(items) => Json(items).into_response(),
+        Ok(items) => Json::<Vec<db::SteelPipe>>(items).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -361,7 +362,7 @@ async fn list_records(
         q.start_date.as_deref(),
         q.end_date.as_deref(),
     ).await {
-        Ok(records) => Json(records).into_response(),
+        Ok(records) => Json::<Vec<db::InventoryRecord>>(records).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -371,7 +372,7 @@ async fn create_record(
     Json(record): Json<InventoryRecord>,
 ) -> impl IntoResponse {
     match state.db.add_inventory_record(&record).await {
-        Ok(()) => (StatusCode::CREATED, Json(serde_json::json!({"status": "created"}))).into_response(),
+        Ok(()) => (StatusCode::CREATED, Json::<serde_json::Value>(serde_json::json!({"status": "created"}))).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -382,7 +383,7 @@ async fn get_logs(
 ) -> impl IntoResponse {
     let limit = q.get("limit").copied().unwrap_or(50);
     match state.db.get_operation_logs(limit).await {
-        Ok(logs) => Json(logs).into_response(),
+        Ok(logs) => Json::<Vec<db::OperationLog>>(logs).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -451,7 +452,7 @@ async fn import_csv(
     Json(req): Json<ImportRequest>,
 ) -> impl IntoResponse {
     match state.db.import_pipes_from_csv(&req.csv_content, &req.operator).await {
-        Ok((success, fail)) => Json(serde_json::json!({
+        Ok((success, fail)) => Json::<serde_json::Value>(serde_json::json!({
             "success": success,
             "fail": fail,
         })).into_response(),
@@ -466,7 +467,7 @@ async fn save_database(
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "pipes.db".to_string());
     let path = req.path.unwrap_or_else(|| format!("pipes_backup_{}.db", chrono::Local::now().format("%Y%m%d_%H%M%S")));
     match tokio::fs::copy(&db_path, &path).await {
-        Ok(_) => Json(serde_json::json!({"status": "saved", "path": path})).into_response(),
+        Ok(_) => Json::<serde_json::Value>(serde_json::json!({"status": "saved", "path": path})).into_response(),
         Err(e) => error_response(DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))),
     }
 }
@@ -483,7 +484,7 @@ async fn restore_database(
     
     match tokio::fs::copy(&req.backup_path, &db_path).await {
         Ok(_) => {
-            Json(serde_json::json!({"status": "restored", "path": db_path})).into_response()
+            Json::<serde_json::Value>(serde_json::json!({"status": "restored", "path": db_path})).into_response()
         }
         Err(e) => error_response(DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))),
     }
@@ -495,7 +496,7 @@ async fn daily_report(
 ) -> impl IntoResponse {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     match state.db.get_daily_report(&today, &today).await {
-        Ok(report) => Json(report).into_response(),
+        Ok(report) => Json::<serde_json::Value>(report).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -508,7 +509,7 @@ async fn monthly_report(
     let start = now.with_day(1).unwrap().format("%Y-%m-%d").to_string();
     let end = now.format("%Y-%m-%d").to_string();
     match state.db.get_monthly_report(&start, &end).await {
-        Ok(report) => Json(report).into_response(),
+        Ok(report) => Json::<serde_json::Value>(report).into_response(),
         Err(e) => error_response(e),
     }
 }
@@ -570,9 +571,10 @@ async fn import_excel(
     State(state): State<AppState>,
     Json(req): Json<ExcelImportRequest>,
 ) -> impl IntoResponse {
-    let decoded = base64::engine::general_purpose::STANDARD
-        .decode(&req.excel_base64)
-        .map_err(|e| DbError::Validation(e.to_string()))?;
+    let decoded = match base64::engine::general_purpose::STANDARD.decode(&req.excel_base64) {
+        Ok(d) => d,
+        Err(e) => return error_response(DbError::Validation(e.to_string())),
+    };
 
     let temp_dir = std::env::temp_dir();
     let temp_path = temp_dir.join(format!("import_{}.xlsx", chrono::Local::now().format("%Y%m%d_%H%M%S")));
@@ -582,7 +584,7 @@ async fn import_excel(
         if file.write_all(&decoded).is_ok() {
             match state.db.import_pipes_from_excel(&temp_path_str, &req.operator).await {
                 Ok((success, fail)) => {
-                    return Json(serde_json::json!({
+                    return Json::<serde_json::Value>(serde_json::json!({
                         "success": success,
                         "fail": fail,
                     })).into_response();
@@ -601,5 +603,5 @@ fn error_response(e: DbError) -> axum::response::Response {
         DbError::InsufficientStock { .. } => StatusCode::BAD_REQUEST,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     };
-    (status, Json(serde_json::json!({"error": e.to_string()}))).into_response()
+    (status, Json::<serde_json::Value>(serde_json::json!({"error": e.to_string()}))).into_response()
 }

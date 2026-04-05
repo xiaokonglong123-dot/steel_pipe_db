@@ -529,18 +529,20 @@ impl Database {
                 let mut stmt = conn.prepare(
                     "SELECT pipe_id, operation_date, quantity, operator FROM inventory_records WHERE operation_type='入库' AND operation_date >= ? AND operation_date <= ? ORDER BY operation_date DESC LIMIT 10"
                 )?;
-                stmt.query_map(params![start, end], |row| {
+                let result = stmt.query_map(params![start, end], |row| {
                     Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-                })?.collect::<std::result::Result<Vec<_>, _>>()?
+                })?.collect::<std::result::Result<Vec<_>, _>>()?;
+                result
             };
             
             let exit_records: Vec<(String, String, i32, String)> = {
                 let mut stmt = conn.prepare(
                     "SELECT pipe_id, operation_date, quantity, operator FROM inventory_records WHERE operation_type='出库' AND operation_date >= ? AND operation_date <= ? ORDER BY operation_date DESC LIMIT 10"
                 )?;
-                stmt.query_map(params![start, end], |row| {
+                let result = stmt.query_map(params![start, end], |row| {
                     Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-                })?.collect::<std::result::Result<Vec<_>, _>>()?
+                })?.collect::<std::result::Result<Vec<_>, _>>()?;
+                result
             };
             
             Ok(serde_json::json!({
@@ -860,7 +862,7 @@ impl Database {
             let worksheet = workbook.add_worksheet();
             let headers = ["钢管编号", "直径(mm)", "壁厚(mm)", "长度(m)", "材质", "数量", "存放位置", "供应商", "入库日期", "状态"];
             for (i, h) in headers.iter().enumerate() {
-                worksheet.write_string(0, i as u16, h).ok();
+                worksheet.write_string(0, i as u16, *h).ok();
             }
             for (i, (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status)) in pipes.iter().enumerate() {
                 let row = i as u32 + 1;
@@ -908,7 +910,7 @@ impl Database {
             let worksheet = workbook.add_worksheet();
             let headers = ["钢管编号", "操作类型", "数量", "操作日期", "操作员", "备注"];
             for (i, h) in headers.iter().enumerate() {
-                worksheet.write_string(0, i as u16, h).ok();
+                worksheet.write_string(0, i as u16, *h).ok();
             }
             for (i, (pipe_id, op_type, quantity, op_date, operator, remarks)) in records.iter().enumerate() {
                 let row = i as u32 + 1;
