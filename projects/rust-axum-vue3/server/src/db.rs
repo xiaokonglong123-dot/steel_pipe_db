@@ -38,6 +38,30 @@ pub struct SteelPipe {
     pub status: String,
 }
 
+impl SteelPipe {
+    pub fn validate(&self) -> Result<()> {
+        if self.pipe_id.trim().is_empty() {
+            return Err(DbError::Validation("钢管编号不能为空".to_string()));
+        }
+        if self.diameter <= 0.0 || self.diameter > 10000.0 {
+            return Err(DbError::Validation("直径必须在0-10000mm之间".to_string()));
+        }
+        if self.thickness <= 0.0 || self.thickness > 500.0 {
+            return Err(DbError::Validation("壁厚必须在0-500mm之间".to_string()));
+        }
+        if self.length <= 0.0 || self.length > 1000.0 {
+            return Err(DbError::Validation("长度必须在0-1000m之间".to_string()));
+        }
+        if self.material.trim().is_empty() {
+            return Err(DbError::Validation("材质不能为空".to_string()));
+        }
+        if self.quantity <= 0 {
+            return Err(DbError::Validation("数量必须大于0".to_string()));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InventoryRecord {
     pub id: Option<i64>,
@@ -556,6 +580,73 @@ impl Database {
             )?;
             let pipes: Vec<(String, f64, f64, f64, String, i32, Option<String>, Option<String>, String, String)> =
                 stmt.query_map([], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?))
+                })?.collect::<std::result::Result<Vec<_>, _>>()?;
+
+            let mut csv = String::from("钢管编号,直径(mm),壁厚(mm),长度(m),材质,数量,存放位置,供应商,入库日期,状态\n");
+            for (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status) in pipes {
+                csv.push_str(&format!("{},{:.2},{:.2},{:.2},{},{},{},{},{},{}\n",
+                    escape_csv_field(&pipe_id), diameter, thickness, length,
+                    escape_csv_field(&material), quantity,
+                    escape_csv_field(location.as_deref().unwrap_or("")),
+                    escape_csv_field(supplier.as_deref().unwrap_or("")),
+                    escape_csv_field(&entry_date), escape_csv_field(&status)));
+            }
+            Ok(csv)
+        }).await.unwrap()
+    }
+
+    pub async fn export_pipes_by_filter(
+        &self,
+        search: Option<&str>,
+        material: Option<&str>,
+        status: Option<&str>,
+        min_d: Option<f64>,
+        max_d: Option<f64>,
+        min_l: Option<f64>,
+        max_l: Option<f64>,
+    ) -> Result<String> {
+        let search = search.map(String::from);
+        let material = material.map(String::from);
+        let status = status.map(String::from);
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            let mut where_parts: Vec<String> = vec![];
+            let mut args: Vec<Box<dyn rusqlite::ToSql>> = vec![];
+
+            if let Some(s) = &search {
+                where_parts.push("(pipe_id LIKE ? OR material LIKE ? OR location LIKE ? OR supplier LIKE ?)".to_string());
+                let p = format!("%{}%", s);
+                args.push(Box::new(p.clone())); args.push(Box::new(p.clone()));
+                args.push(Box::new(p.clone())); args.push(Box::new(p));
+            }
+            if let Some(m) = &material {
+                where_parts.push("material LIKE ?".to_string());
+                args.push(Box::new(format!("%{}%", m)));
+            }
+            if let Some(s) = &status {
+                where_parts.push("status = ?".to_string());
+                args.push(Box::new(s.clone()));
+            }
+            if let Some(v) = min_d { where_parts.push("diameter >= ?".to_string()); args.push(Box::new(v)); }
+            if let Some(v) = max_d { where_parts.push("diameter <= ?".to_string()); args.push(Box::new(v)); }
+            if let Some(v) = min_l { where_parts.push("length >= ?".to_string()); args.push(Box::new(v)); }
+            if let Some(v) = max_l { where_parts.push("length <= ?".to_string()); args.push(Box::new(v)); }
+
+            let where_sql = if where_parts.is_empty() {
+                String::new()
+            } else {
+                format!(" WHERE {}", where_parts.join(" AND "))
+            };
+
+            let sql = format!(
+                "SELECT pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status FROM pipes{} ORDER BY entry_date DESC",
+                where_sql
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            let pipes: Vec<(String, f64, f64, f64, String, i32, Option<String>, Option<String>, String, String)> =
+                stmt.query_map(params_from_iter(args.iter().map(|p| p.as_ref())), |row| {
                     Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?))
                 })?.collect::<std::result::Result<Vec<_>, _>>()?;
 

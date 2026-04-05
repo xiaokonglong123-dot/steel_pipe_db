@@ -135,6 +135,13 @@ class SteelPipeDB:
 
         return stats
 
+    def batch_delete_pipes(self, pipe_ids):
+        for pipe_id in pipe_ids:
+            self.cursor.execute("DELETE FROM inventory_records WHERE pipe_id = ?", (pipe_id,))
+            self.cursor.execute("DELETE FROM pipes WHERE pipe_id = ?", (pipe_id,))
+        self.conn.commit()
+        return len(pipe_ids)
+
     def export_to_csv(self, filepath):
         self.cursor.execute("SELECT pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status FROM pipes")
         pipes = self.cursor.fetchall()
@@ -340,6 +347,19 @@ class PipeApp:
             length = float(length)
             quantity = int(quantity)
 
+            if diameter <= 0 or diameter > 10000:
+                messagebox.showerror("错误", "直径必须在0-10000mm之间")
+                return
+            if thickness <= 0 or thickness > 500:
+                messagebox.showerror("错误", "壁厚必须在0-500mm之间")
+                return
+            if length <= 0 or length > 1000:
+                messagebox.showerror("错误", "长度必须在0-1000m之间")
+                return
+            if quantity <= 0:
+                messagebox.showerror("错误", "数量必须大于0")
+                return
+
             self.db.add_pipe(pipe_id, diameter, thickness, length, material, quantity, location, supplier)
             self.db.add_inventory_record(pipe_id, "入库", quantity, operator, remarks)
 
@@ -413,6 +433,10 @@ class PipeApp:
         try:
             quantity = int(quantity)
 
+            if quantity <= 0:
+                messagebox.showerror("错误", "出库数量必须大于0")
+                return
+
             pipe_data = self.db.get_pipe_by_id(pipe_id)
 
             if not pipe_data:
@@ -473,13 +497,19 @@ class PipeApp:
                                 command=self.load_data)
         refresh_btn.pack(side=tk.LEFT, padx=(10, 0))
 
+        self.batch_delete_btn = tk.Button(search_frame, text="批量删除", bg="#e74c3c", fg="white",
+                                font=(self.font_family, self.label_size), relief=tk.FLAT,
+                                activebackground="#c0392b", activeforeground="white",
+                                command=self.batch_delete_selected, state=tk.DISABLED)
+        self.batch_delete_btn.pack(side=tk.LEFT, padx=(10, 0))
+
         table_frame = tk.Frame(inventory_frame, bg="white")
         table_frame.pack(fill=tk.BOTH, expand=True)
 
         columns = ("pipe_id", "diameter", "thickness", "length", "material",
                    "quantity", "location", "entry_date", "status")
 
-        self.inventory_tree = ttk.Treeview(table_frame, columns=columns, show="headings")
+        self.inventory_tree = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="extended")
 
         self.inventory_tree.heading("pipe_id", text="钢管编号")
         self.inventory_tree.heading("diameter", text="直径(毫米)")
@@ -490,6 +520,8 @@ class PipeApp:
         self.inventory_tree.heading("location", text="存放位置")
         self.inventory_tree.heading("entry_date", text="入库日期")
         self.inventory_tree.heading("status", text="状态")
+
+        self.inventory_tree.bind("<<TreeviewSelect>>", self.on_tree_select)
 
         for col in columns:
             self.inventory_tree.column(col, width=100, anchor=tk.CENTER)
@@ -733,6 +765,34 @@ class PipeApp:
         for pipe in self.db.get_pipes():
             values = tuple(pipe[col] for col in pipe.keys())
             self.inventory_tree.insert("", "end", values=values)
+
+        if hasattr(self, 'batch_delete_btn'):
+            self.batch_delete_btn.config(state=tk.DISABLED)
+
+    def on_tree_select(self, event):
+        selected = self.inventory_tree.selection()
+        if hasattr(self, 'batch_delete_btn'):
+            if selected:
+                self.batch_delete_btn.config(state=tk.NORMAL)
+            else:
+                self.batch_delete_btn.config(state=tk.DISABLED)
+
+    def batch_delete_selected(self):
+        selected = self.inventory_tree.selection()
+        if not selected:
+            return
+        
+        pipe_ids = [self.inventory_tree.item(item)['values'][0] for item in selected]
+        
+        if not messagebox.askyesno("确认", f"确定删除选中的 {len(pipe_ids)} 条记录吗？"):
+            return
+        
+        try:
+            count = self.db.batch_delete_pipes(pipe_ids)
+            messagebox.showinfo("成功", f"已删除 {count} 条记录")
+            self.load_data()
+        except Exception as e:
+            messagebox.showerror("错误", f"删除失败: {e}")
 
     def search_inventory(self):
         search_text = self.search_var.get().lower()

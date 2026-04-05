@@ -105,6 +105,7 @@ async fn main() {
         .route("/api/pipes/batch-delete", post(batch_delete_pipes))
         .route("/api/pipes/entry", post(entry_pipe))
         .route("/api/pipes/exit", post(exit_pipe))
+        .route("/api/pipes/batch-export", get(batch_export_pipes))
         .route("/api/statistics", get(get_statistics))
         .route("/api/material-stats", get(get_material_stats))
         .route("/api/low-stock", get(get_low_stock))
@@ -163,6 +164,9 @@ async fn create_pipe(
     State(state): State<AppState>,
     Json(pipe): Json<SteelPipe>,
 ) -> impl IntoResponse {
+    if let Err(e) = pipe.validate() {
+        return error_response(e);
+    }
     match state.db.add_pipe(&pipe).await {
         Ok(()) => (StatusCode::CREATED, Json(serde_json::json!({"status": "created"}))).into_response(),
         Err(e) => error_response(e),
@@ -226,6 +230,9 @@ async fn entry_pipe(
     State(state): State<AppState>,
     Json(req): Json<EntryRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = req.pipe.validate() {
+        return error_response(e);
+    }
     let qty = req.pipe.quantity;
     let pipe_id = req.pipe.pipe_id.clone();
     let operator = req.operator.clone();
@@ -260,6 +267,12 @@ async fn exit_pipe(
     State(state): State<AppState>,
     Json(req): Json<ExitRequest>,
 ) -> impl IntoResponse {
+    if req.pipe_id.trim().is_empty() {
+        return error_response(DbError::Validation("钢管编号不能为空".to_string()));
+    }
+    if req.quantity <= 0 {
+        return error_response(DbError::Validation("数量必须大于0".to_string()));
+    }
     match state.db.get_pipe_by_id(&req.pipe_id).await {
         Ok(Some(pipe)) => {
             if pipe.quantity < req.quantity {
@@ -388,6 +401,29 @@ async fn export_records(
             [
                 ("Content-Type", "text/csv; charset=utf-8"),
                 ("Content-Disposition", "attachment; filename=\"records.csv\""),
+            ],
+            csv,
+        ).into_response(),
+        Err(e) => error_response(e),
+    }
+}
+
+async fn batch_export_pipes(
+    State(state): State<AppState>,
+    Query(q): Query<PipeQuery>,
+) -> impl IntoResponse {
+    match state.db.export_pipes_by_filter(
+        q.search.as_deref(),
+        q.material.as_deref(),
+        q.status.as_deref(),
+        q.min_diameter, q.max_diameter,
+        q.min_length, q.max_length,
+    ).await {
+        Ok(csv) => (
+            StatusCode::OK,
+            [
+                ("Content-Type", "text/csv; charset=utf-8"),
+                ("Content-Disposition", "attachment; filename=\"pipes_export.csv\""),
             ],
             csv,
         ).into_response(),
