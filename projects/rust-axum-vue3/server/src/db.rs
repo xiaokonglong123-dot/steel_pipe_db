@@ -36,6 +36,12 @@ pub struct SteelPipe {
     pub entry_date: String,
     pub last_update: Option<String>,
     pub status: String,
+    pub furnace_number: Option<String>,
+    pub heat_treatment_batch: Option<String>,
+    pub sample_number: Option<String>,
+    pub production_count: Option<i32>,
+    pub material_rack: Option<String>,
+    pub remarks: Option<String>,
 }
 
 impl SteelPipe {
@@ -175,7 +181,13 @@ impl Database {
                 supplier TEXT,
                 entry_date TEXT NOT NULL,
                 last_update TEXT,
-                status TEXT NOT NULL DEFAULT '在库'
+                status TEXT NOT NULL DEFAULT '在库',
+                furnace_number TEXT,
+                heat_treatment_batch TEXT,
+                sample_number TEXT,
+                production_count INTEGER,
+                material_rack TEXT,
+                remarks TEXT
             );
             CREATE TABLE IF NOT EXISTS inventory_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

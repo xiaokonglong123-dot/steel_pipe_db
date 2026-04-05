@@ -1,7 +1,5 @@
 <template>
   <div class="page">
-    <h1 class="page-title">库存查询</h1>
-
     <div class="toolbar">
       <input v-model="filters.search" placeholder="搜索钢管编号、材质..." class="search-input" @input="debounceSearch" />
       <select v-model="filters.status" @change="fetchPipes">
@@ -10,8 +8,35 @@
         <option value="已出库">已出库</option>
       </select>
       <input v-model="filters.material" placeholder="材质" class="sm-input" @input="debounceSearch" />
-      <button @click="fetchPipes" class="btn-secondary" :disabled="loading">刷新</button>
+      <button @click="fetchPipes" class="btn-secondary" :disabled="loading">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        刷新
+      </button>
+    </div>
+
+    <div class="toolbar-actions">
+      <div class="action-group">
+        <button @click="showExportMenu = !showExportMenu" class="btn-primary" :disabled="loading">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          导出
+        </button>
+        <div v-if="showExportMenu" class="dropdown-menu">
+          <button @click="exportCSV">导出 CSV</button>
+          <button @click="exportExcel">导出 Excel</button>
+          <button @click="exportFiltered">导出筛选结果</button>
+        </div>
+      </div>
+      
+      <div class="action-group">
+        <label class="btn-import">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          导入
+          <input type="file" accept=".csv,.xlsx,.xls" @change="handleImport" hidden />
+        </label>
+      </div>
+      
       <button @click="batchDelete" class="btn-danger" :disabled="selectedIds.length === 0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         批量删除 ({{ selectedIds.length }})
       </button>
     </div>
@@ -32,6 +57,10 @@
             <th>长度(m)</th>
             <th>材质</th>
             <th>数量</th>
+            <th>炉号</th>
+            <th>热处理批号</th>
+            <th>取样号</th>
+            <th>原料架</th>
             <th>存放位置</th>
             <th>状态</th>
             <th>操作</th>
@@ -46,6 +75,10 @@
             <td>{{ p.length.toFixed(2) }}</td>
             <td>{{ p.material }}</td>
             <td :class="{ 'qty-low': p.quantity <= 10 }">{{ p.quantity }}</td>
+            <td>{{ p.furnace_number || '-' }}</td>
+            <td>{{ p.heat_treatment_batch || '-' }}</td>
+            <td>{{ p.sample_number || '-' }}</td>
+            <td>{{ p.material_rack || '-' }}</td>
             <td>{{ p.location || '-' }}</td>
             <td>
               <span class="status-badge" :class="p.status === '在库' ? 'in' : 'out'">{{ p.status }}</span>
@@ -98,6 +131,34 @@
               <option value="已出库">已出库</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>炉号</label>
+            <input v-model="editForm.furnace_number" />
+          </div>
+          <div class="form-group">
+            <label>热处理批号</label>
+            <input v-model="editForm.heat_treatment_batch" />
+          </div>
+          <div class="form-group">
+            <label>取样号</label>
+            <input v-model="editForm.sample_number" />
+          </div>
+          <div class="form-group">
+            <label>投产支数</label>
+            <input v-model.number="editForm.production_count" type="number" />
+          </div>
+          <div class="form-group">
+            <label>原料架</label>
+            <input v-model="editForm.material_rack" />
+          </div>
+          <div class="form-group">
+            <label>存放位置</label>
+            <input v-model="editForm.location" />
+          </div>
+        </div>
+        <div class="form-group full">
+          <label>备注</label>
+          <textarea v-model="editForm.remarks" rows="2"></textarea>
         </div>
         <div class="modal-actions">
           <button @click="saveEdit" class="btn-primary" :disabled="saving">
@@ -117,7 +178,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { pipesAPI } from '../api'
+import { pipesAPI, exportAPI, importAPI } from '../api'
 
 const pipes = ref([])
 const total = ref(0)
@@ -127,10 +188,16 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / perPage)))
 const loading = ref(false)
 const saving = ref(false)
 const errorMsg = ref('')
+const showExportMenu = ref(false)
 
 const filters = reactive({ search: '', status: '', material: '' })
 const showEdit = ref(false)
-const editForm = reactive({ id: null, pipe_id: '', diameter: 0, thickness: 0, length: 0, material: '', quantity: 0, status: '在库' })
+const editForm = reactive({ 
+  id: null, pipe_id: '', diameter: 0, thickness: 0, length: 0, 
+  material: '', quantity: 0, status: '在库',
+  furnace_number: '', heat_treatment_batch: '', sample_number: '',
+  production_count: null, material_rack: '', location: '', remarks: ''
+})
 const selectedIds = ref([])
 const allSelected = computed(() => pipes.value.length > 0 && selectedIds.value.length === pipes.value.length)
 
@@ -138,6 +205,109 @@ let searchTimer = null
 function debounceSearch() {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => { page.value = 1; fetchPipes() }, 400)
+}
+
+async function exportCSV() {
+  showExportMenu.value = false
+  try {
+    loading.value = true
+    const { data } = await exportAPI.inventory()
+    downloadBlob(data, 'inventory.csv', 'text/csv')
+  } catch (e) {
+    errorMsg.value = e.message || '导出失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function exportExcel() {
+  showExportMenu.value = false
+  try {
+    loading.value = true
+    const { data } = await exportAPI.inventoryExcel()
+    downloadBlob(data, 'inventory.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  } catch (e) {
+    errorMsg.value = e.message || '导出失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function exportFiltered() {
+  showExportMenu.value = false
+  try {
+    loading.value = true
+    const params = {}
+    if (filters.search) params.search = filters.search
+    if (filters.material) params.material = filters.material
+    if (filters.status) params.status = filters.status
+    const { data } = await pipesAPI.batchExport ? await pipesAPI.batchExport(params) : await exportAPI.inventory()
+    downloadBlob(data, 'inventory_filtered.csv', 'text/csv')
+  } catch (e) {
+    errorMsg.value = e.message || '导出失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleImport(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  
+  const isExcel = file.name.match(/\.(xlsx|xls)$/i)
+  const isCsv = file.name.endsWith('.csv')
+  
+  if (!isExcel && !isCsv) {
+    errorMsg.value = '请选择 CSV 或 Excel 文件'
+    return
+  }
+  
+  try {
+    loading.value = true
+    if (isExcel) {
+      const reader = new FileReader()
+      reader.onload = async (event) => {
+        const base64 = event.target.result.split(',')[1]
+        const { data } = await importAPI.excel({ excel_base64: base64, operator: 'admin' })
+        if (data.success > 0) {
+          errorMsg.value = ''
+          fetchPipes()
+        }
+        if (data.fail?.length > 0) {
+          errorMsg.value = `导入完成，成功 ${data.success} 条，失败 ${data.fail.length} 条`
+        }
+      }
+      reader.readAsDataURL(file)
+    } else {
+      const reader = new FileReader()
+      reader.onload = async (event) => {
+        const csv_content = event.target.result
+        const { data } = await importAPI.csv({ csv_content, operator: 'admin' })
+        if (data.success > 0) {
+          errorMsg.value = ''
+          fetchPipes()
+        }
+        if (data.fail?.length > 0) {
+          errorMsg.value = `导入完成，成功 ${data.success} 条，失败 ${data.fail.length} 条`
+        }
+      }
+      reader.readAsText(file)
+    }
+  } catch (e) {
+    errorMsg.value = e.message || '导入失败'
+  } finally {
+    loading.value = false
+    e.target.value = ''
+  }
+}
+
+function downloadBlob(blob, filename, type) {
+  const url = URL.createObjectURL(new Blob([blob], { type }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function toggleAll(e) {
@@ -181,7 +351,13 @@ async function fetchPipes() {
 }
 
 function editPipe(p) {
-  Object.assign(editForm, { id: p.id, pipe_id: p.pipe_id, diameter: p.diameter, thickness: p.thickness, length: p.length, material: p.material, quantity: p.quantity, status: p.status })
+  Object.assign(editForm, { 
+    id: p.id, pipe_id: p.pipe_id, diameter: p.diameter, thickness: p.thickness, 
+    length: p.length, material: p.material, quantity: p.quantity, status: p.status,
+    furnace_number: p.furnace_number || '', heat_treatment_batch: p.heat_treatment_batch || '',
+    sample_number: p.sample_number || '', production_count: p.production_count,
+    material_rack: p.material_rack || '', location: p.location || '', remarks: p.remarks || ''
+  })
   showEdit.value = true
 }
 
@@ -214,7 +390,7 @@ onMounted(fetchPipes)
 <style scoped>
 .page-title { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 28px; }
 
-.toolbar {
+.toolbar, .toolbar-actions {
   display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;
 }
 
@@ -308,28 +484,66 @@ select {
   width: 500px; max-width: 90vw; box-shadow: var(--apple-shadow-lg);
 }
 .modal-title { font-size: 20px; font-weight: 600; margin-bottom: 20px; }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.form-group { display: flex; flex-direction: column; gap: 6px; }
-.form-group label { font-size: 13px; font-weight: 500; color: var(--apple-text-secondary); }
-.form-group input, .form-group select {
-  padding: 10px 14px; border: 1px solid var(--apple-border); border-radius: var(--apple-radius-sm);
-  font-size: 15px; background: var(--apple-gray);
+.toolbar-actions {
+  display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
 }
-.modal-actions { display: flex; gap: 12px; margin-top: 24px; justify-content: flex-end; }
+
+.action-group {
+  position: relative;
+}
+
 .btn-primary {
-  background: var(--apple-blue); color: white; padding: 10px 24px; border-radius: 980px;
-  font-size: 14px; font-weight: 500;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--apple-blue); color: white; padding: 10px 20px; border-radius: 10px;
+  font-size: 14px; font-weight: 500; border: none; cursor: pointer;
+  transition: var(--apple-transition);
 }
+.btn-primary:hover { background: var(--apple-blue-hover); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.dropdown-menu {
+  position: absolute; top: 100%; left: 0; margin-top: 4px;
+  background: var(--apple-card); border-radius: 10px;
+  box-shadow: var(--apple-shadow-lg); overflow: hidden; z-index: 100;
+  min-width: 140px;
+}
+
+.dropdown-menu button {
+  display: block; width: 100%; padding: 12px 16px;
+  border: none; background: none; text-align: left;
+  font-size: 14px; color: var(--apple-text);
+  cursor: pointer; transition: var(--apple-transition);
+}
+
+.dropdown-menu button:hover {
+  background: var(--apple-gray);
+}
+
+.btn-import {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--apple-green); color: white; padding: 10px 20px; border-radius: 10px;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: var(--apple-transition);
+}
+.btn-import:hover { background: #2db84d; }
+
+.btn-danger {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--apple-red); color: white; padding: 10px 20px; border-radius: 10px;
+  font-size: 14px; font-weight: 500; border: none; cursor: pointer;
+  transition: var(--apple-transition);
+}
+.btn-danger:hover { background: #e62a1f; }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-  padding: 12px 24px; border-radius: 980px; font-size: 14px; font-weight: 500;
+  padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 500;
   display: flex; align-items: center; gap: 12px; z-index: 1000;
   animation: slideUp 0.3s ease;
 }
 .toast.error { background: var(--apple-red); color: white; }
-.toast button { background: none; color: inherit; font-size: 18px; padding: 0; opacity: 0.7; }
+.toast button { background: none; color: inherit; font-size: 18px; padding: 0; opacity: 0.7; border: none; cursor: pointer; }
 
 @keyframes slideUp {
   from { opacity: 0; transform: translateX(-50%) translateY(20px); }

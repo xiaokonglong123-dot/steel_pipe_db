@@ -36,7 +36,13 @@ def init_db():
                 supplier TEXT,
                 entry_date TEXT,
                 last_update TEXT,
-                status TEXT DEFAULT "在库"
+                status TEXT DEFAULT "在库",
+                furnace_number TEXT,
+                heat_treatment_batch TEXT,
+                sample_number TEXT,
+                production_count INTEGER,
+                material_rack TEXT,
+                remarks TEXT
             )
         ''')
         db.execute('''

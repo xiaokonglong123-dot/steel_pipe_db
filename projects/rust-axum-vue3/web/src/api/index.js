@@ -21,6 +21,7 @@ export const pipesAPI = {
   update: (id, data) => api.put(`/pipes/${id}`, data),
   delete: (id) => api.delete(`/pipes/${id}`),
   batchDelete: (data) => api.post('/pipes/batch-delete', data),
+  batchExport: (params = {}) => api.get('/pipes/batch-export', { params, responseType: 'blob' }),
   entry: (data) => api.post('/pipes/entry', data),
   exit: (data) => api.post('/pipes/exit', data),
 }
