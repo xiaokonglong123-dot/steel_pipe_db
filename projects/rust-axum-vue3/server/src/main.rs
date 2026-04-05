@@ -79,6 +79,18 @@ struct SaveRequest {
     path: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct RestoreRequest {
+    backup_path: String,
+}
+
+#[derive(Deserialize)]
+struct ReportRequest {
+    start_date: Option<String>,
+    end_date: Option<String>,
+    report_type: Option<String>,
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -118,6 +130,9 @@ async fn main() {
         .route("/api/import/csv", post(import_csv))
         .route("/api/import/excel", post(import_excel))
         .route("/api/save", post(save_database))
+        .route("/api/restore", post(restore_database))
+        .route("/api/report/daily", get(daily_report))
+        .route("/api/report/monthly", get(monthly_report))
         .layer(cors)
         .nest_service("/", frontend)
         .with_state(state);
@@ -453,6 +468,48 @@ async fn save_database(
     match tokio::fs::copy(&db_path, &path).await {
         Ok(_) => Json(serde_json::json!({"status": "saved", "path": path})).into_response(),
         Err(e) => error_response(DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))),
+    }
+}
+
+async fn restore_database(
+    State(state): State<AppState>,
+    Json(req): Json<RestoreRequest>,
+) -> impl IntoResponse {
+    let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "pipes.db".to_string());
+    
+    if !tokio::fs::try_exists(&req.backup_path).await.unwrap_or(false) {
+        return error_response(DbError::Validation("备份文件不存在".to_string()));
+    }
+    
+    match tokio::fs::copy(&req.backup_path, &db_path).await {
+        Ok(_) => {
+            Json(serde_json::json!({"status": "restored", "path": db_path})).into_response()
+        }
+        Err(e) => error_response(DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))),
+    }
+}
+
+async fn daily_report(
+    State(state): State<AppState>,
+    Query(q): Query<ReportRequest>,
+) -> impl IntoResponse {
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    match state.db.get_daily_report(&today, &today).await {
+        Ok(report) => Json(report).into_response(),
+        Err(e) => error_response(e),
+    }
+}
+
+async fn monthly_report(
+    State(state): State<AppState>,
+    Query(q): Query<ReportRequest>,
+) -> impl IntoResponse {
+    let now = chrono::Local::now();
+    let start = now.with_day(1).unwrap().format("%Y-%m-%d").to_string();
+    let end = now.format("%Y-%m-%d").to_string();
+    match state.db.get_monthly_report(&start, &end).await {
+        Ok(report) => Json(report).into_response(),
+        Err(e) => error_response(e),
     }
 }
 

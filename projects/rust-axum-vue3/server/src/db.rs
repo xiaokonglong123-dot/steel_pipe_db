@@ -468,6 +468,91 @@ impl Database {
         }).await.unwrap()
     }
 
+    pub async fn get_daily_report(&self, start_date: &str, end_date: &str) -> Result<serde_json::Value> {
+        let start = start_date.to_string();
+        let end = end_date.to_string();
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            
+            let entry_count: i32 = conn.query_row(
+                "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='入库' AND operation_date LIKE ?",
+                params![format!("{}%", start)], |row| row.get(0)
+            )?;
+            
+            let exit_count: i32 = conn.query_row(
+                "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='出库' AND operation_date LIKE ?",
+                params![format!("{}%", end)], |row| row.get(0)
+            )?;
+            
+            let total_in: i32 = conn.query_row(
+                "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='入库'", [], |row| row.get(0)
+            )?;
+            
+            let total_out: i32 = conn.query_row(
+                "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='出库'", [], |row| row.get(0)
+            )?;
+            
+            let current_stock: i32 = conn.query_row(
+                "SELECT COALESCE(SUM(quantity),0) FROM pipes", [], |row| row.get(0)
+            )?;
+            
+            Ok(serde_json::json!({
+                "date": start,
+                "entry_count": entry_count,
+                "exit_count": exit_count,
+                "total_in": total_in,
+                "total_out": total_out,
+                "current_stock": current_stock
+            }))
+        }).await.unwrap()
+    }
+
+    pub async fn get_monthly_report(&self, start_date: &str, end_date: &str) -> Result<serde_json::Value> {
+        let start = start_date.to_string();
+        let end = end_date.to_string();
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            
+            let entry_count: i32 = conn.query_row(
+                "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='入库' AND operation_date >= ? AND operation_date <= ?",
+                params![start, end], |row| row.get(0)
+            )?;
+            
+            let exit_count: i32 = conn.query_row(
+                "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='出库' AND operation_date >= ? AND operation_date <= ?",
+                params![start, end], |row| row.get(0)
+            )?;
+            
+            let entry_records: Vec<(String, String, i32, String)> = {
+                let mut stmt = conn.prepare(
+                    "SELECT pipe_id, operation_date, quantity, operator FROM inventory_records WHERE operation_type='入库' AND operation_date >= ? AND operation_date <= ? ORDER BY operation_date DESC LIMIT 10"
+                )?;
+                stmt.query_map(params![start, end], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })?.collect::<std::result::Result<Vec<_>, _>>()?
+            };
+            
+            let exit_records: Vec<(String, String, i32, String)> = {
+                let mut stmt = conn.prepare(
+                    "SELECT pipe_id, operation_date, quantity, operator FROM inventory_records WHERE operation_type='出库' AND operation_date >= ? AND operation_date <= ? ORDER BY operation_date DESC LIMIT 10"
+                )?;
+                stmt.query_map(params![start, end], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })?.collect::<std::result::Result<Vec<_>, _>>()?
+            };
+            
+            Ok(serde_json::json!({
+                "period": {"start": start, "end": end},
+                "entry_count": entry_count,
+                "exit_count": exit_count,
+                "recent_entries": entry_records,
+                "recent_exits": exit_records
+            }))
+        }).await.unwrap()
+    }
+
     pub async fn get_recent_records(&self, limit: usize) -> Result<Vec<InventoryRecord>> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {

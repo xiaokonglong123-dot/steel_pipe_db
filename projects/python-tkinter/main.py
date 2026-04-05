@@ -142,6 +142,29 @@ class SteelPipeDB:
         self.conn.commit()
         return len(pipe_ids)
 
+    def backup_database(self, backup_path):
+        import shutil
+        self.conn.close()
+        shutil.copy2(self.conn.cursor(), backup_path)
+        self.conn = sqlite3.connect(self.conn.cursor())
+        self.conn.row_factory = sqlite3.Row
+        return backup_path
+
+    def get_daily_report(self):
+        today = datetime.now().strftime("%Y-%m-%d")
+        self.cursor.execute("SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='入库' AND operation_date LIKE ?", (f"{today}%",))
+        entry_count = self.cursor.fetchone()[0]
+        self.cursor.execute("SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='出库' AND operation_date LIKE ?", (f"{today}%",))
+        exit_count = self.cursor.fetchone()[0]
+        self.cursor.execute("SELECT COALESCE(SUM(quantity),0) FROM pipes")
+        current_stock = self.cursor.fetchone()[0]
+        return {
+            "date": today,
+            "entry_count": entry_count,
+            "exit_count": exit_count,
+            "current_stock": current_stock
+        }
+
     def export_to_csv(self, filepath):
         self.cursor.execute("SELECT pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status FROM pipes")
         pipes = self.cursor.fetchall()
@@ -253,6 +276,7 @@ class PipeApp:
             ("数据统计", self.colors["stats_btn"], self.show_statistics),
             ("CSV导入导出", self.colors["inventory_btn"], self.show_import_export),
             ("低库存提醒", self.colors["records_btn"], self.show_low_stock),
+            ("数据备份", self.colors["stats_btn"], self.show_backup),
             ("退出系统", self.colors["close_btn"], self.on_close)
         ]
 
@@ -833,6 +857,67 @@ class PipeApp:
                                                     operation_type=operation_type):
             values = tuple(record[col] for col in record.keys())
             self.records_tree.insert("", "end", values=values)
+
+    def show_backup(self):
+        self.clear_content_area()
+
+        backup_frame = tk.Frame(self.content_area, bg="white")
+        backup_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        title_label = tk.Label(backup_frame, text="数据备份与报表",
+                               font=(self.font_family, 16, "bold"), bg="white")
+        title_label.pack(pady=(0, 20))
+
+        btn_frame = tk.Frame(backup_frame, bg="white")
+        btn_frame.pack(pady=20)
+
+        backup_btn = tk.Button(btn_frame, text="备份数据库", 
+                               bg=self.colors["entry_btn"], fg="white",
+                               font=(self.font_family, self.button_size), relief=tk.FLAT,
+                               command=self.backup_database)
+        backup_btn.pack(side=tk.LEFT, padx=10)
+
+        report_btn = tk.Button(btn_frame, text="今日报表", 
+                               bg=self.colors["inventory_btn"], fg="white",
+                               font=(self.font_family, self.button_size), relief=tk.FLAT,
+                               command=self.show_daily_report)
+        report_btn.pack(side=tk.LEFT, padx=10)
+
+        self.report_text = tk.Text(backup_frame, font=(self.font_family, self.label_size),
+                                   height=15, width=60)
+        self.report_text.pack(pady=20)
+
+    def backup_database(self):
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".db",
+            filetypes=[("Database files", "*.db")],
+            title="备份数据库"
+        )
+        if filepath:
+            try:
+                self.db.backup_database(filepath)
+                messagebox.showinfo("成功", f"数据库已备份到 {filepath}")
+            except Exception as e:
+                messagebox.showerror("错误", f"备份失败: {e}")
+
+    def show_daily_report(self):
+        if not hasattr(self, 'report_text'):
+            return
+        try:
+            report = self.db.get_daily_report()
+            report_str = f"""
+===========================================
+            今日报表 - {report['date']}
+===========================================
+入库数量: {report['entry_count']}
+出库数量: {report['exit_count']}
+当前库存: {report['current_stock']}
+===========================================
+"""
+            self.report_text.delete("1.0", tk.END)
+            self.report_text.insert("1.0", report_str)
+        except Exception as e:
+            messagebox.showerror("错误", f"生成报表失败: {e}")
 
     def on_close(self):
         self.db.close()

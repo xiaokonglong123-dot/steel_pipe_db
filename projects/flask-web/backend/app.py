@@ -337,5 +337,55 @@ def statistics():
 
     return jsonify(stats)
 
+@app.route("/backup", methods=["POST"])
+def backup():
+    from datetime import datetime
+    data = request.json or {}
+    backup_path = data.get("path", f"pipes_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db")
+    try:
+        import shutil
+        shutil.copy2(DB_PATH, backup_path)
+        return jsonify({"status": "saved", "path": backup_path})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/restore", methods=["POST"])
+def restore():
+    data = request.json or {}
+    backup_path = data.get("backup_path")
+    if not backup_path:
+        return jsonify({"error": "backup_path required"}), 400
+    try:
+        import shutil
+        shutil.copy2(backup_path, DB_PATH)
+        return jsonify({"status": "restored", "path": DB_PATH})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/report/daily", methods=["GET"])
+def daily_report():
+    from datetime import datetime
+    today = datetime.now().strftime("%Y-%m-%d")
+    db = get_db()
+    
+    entry_count = db.execute(
+        "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='入库' AND operation_date LIKE ?",
+        (f"{today}%",)
+    ).fetchone()[0]
+    
+    exit_count = db.execute(
+        "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='出库' AND operation_date LIKE ?",
+        (f"{today}%",)
+    ).fetchone()[0]
+    
+    current_stock = db.execute("SELECT COALESCE(SUM(quantity),0) FROM pipes").fetchone()[0]
+    
+    return jsonify({
+        "date": today,
+        "entry_count": entry_count,
+        "exit_count": exit_count,
+        "current_stock": current_stock
+    })
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
