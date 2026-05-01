@@ -6,6 +6,7 @@ import Production from '../views/Production.vue'
 import Inventory from '../views/Inventory.vue'
 import Records from '../views/Records.vue'
 import Statistics from '../views/Statistics.vue'
+import HeatTreatment from '../views/HeatTreatment.vue'
 
 const routes = [
   { path: '/', name: 'Dashboard', component: Dashboard },
@@ -15,6 +16,7 @@ const routes = [
   { path: '/inventory', name: 'Inventory', component: Inventory },
   { path: '/records', name: 'Records', component: Records },
   { path: '/statistics', name: 'Statistics', component: Statistics },
+  { path: '/heat-treatment', name: 'HeatTreatment', component: HeatTreatment },
 ]
 
 const router = createRouter({

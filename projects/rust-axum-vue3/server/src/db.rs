@@ -130,7 +130,104 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_pipes_pipe_id ON pipes(pipe_id);
             CREATE INDEX IF NOT EXISTS idx_records_pipe_id ON inventory_records(pipe_id);
             CREATE INDEX IF NOT EXISTS idx_records_date ON inventory_records(operation_date);
-            CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON operation_logs(timestamp);",
+            CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON operation_logs(timestamp);
+
+            CREATE TABLE IF NOT EXISTS heat_treatment_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_number TEXT UNIQUE NOT NULL,
+                pipe_id TEXT NOT NULL,
+                furnace_number TEXT NOT NULL,
+                heat_treatment_type TEXT NOT NULL,
+                process_parameters TEXT,
+                start_time TEXT NOT NULL,
+                end_time TEXT,
+                operator TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT '进行中',
+                temperature_curve TEXT,
+                cooling_method TEXT,
+                remarks TEXT,
+                FOREIGN KEY (pipe_id) REFERENCES pipes(pipe_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS heat_treatment_processes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id INTEGER NOT NULL,
+                stage TEXT NOT NULL,
+                target_temperature REAL NOT NULL,
+                actual_temperature REAL,
+                heating_rate REAL,
+                holding_time INTEGER,
+                cooling_rate REAL,
+                start_time TEXT NOT NULL,
+                end_time TEXT,
+                operator TEXT NOT NULL,
+                remarks TEXT,
+                FOREIGN KEY (order_id) REFERENCES heat_treatment_orders(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS quality_inspections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id INTEGER NOT NULL,
+                inspection_type TEXT NOT NULL,
+                hardness_hb REAL,
+                hardness_hrc REAL,
+                tensile_strength REAL,
+                yield_strength REAL,
+                elongation REAL,
+                metallographic_structure TEXT,
+                inspector TEXT NOT NULL,
+                inspection_date TEXT NOT NULL,
+                result TEXT NOT NULL,
+                remarks TEXT,
+                FOREIGN KEY (order_id) REFERENCES heat_treatment_orders(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS sampling_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id INTEGER NOT NULL,
+                sample_number TEXT NOT NULL,
+                sampling_position TEXT NOT NULL,
+                sampling_time TEXT NOT NULL,
+                sampler TEXT NOT NULL,
+                sample_description TEXT,
+                sample_status TEXT DEFAULT '待检测',
+                remarks TEXT,
+                FOREIGN KEY (order_id) REFERENCES heat_treatment_orders(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS marking_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id INTEGER NOT NULL,
+                marking_number TEXT NOT NULL,
+                marking_content TEXT NOT NULL,
+                marking_position TEXT NOT NULL,
+                marking_time TEXT NOT NULL,
+                marker TEXT NOT NULL,
+                marking_method TEXT,
+                marking_status TEXT DEFAULT '待确认',
+                remarks TEXT,
+                FOREIGN KEY (order_id) REFERENCES heat_treatment_orders(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS furnace_status (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                furnace_number TEXT UNIQUE NOT NULL,
+                status TEXT NOT NULL DEFAULT '空闲',
+                current_temperature REAL,
+                target_temperature REAL,
+                load_count INTEGER,
+                last_maintenance TEXT,
+                operator TEXT NOT NULL,
+                update_time TEXT NOT NULL,
+                remarks TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ht_orders_pipe_id ON heat_treatment_orders(pipe_id);
+            CREATE INDEX IF NOT EXISTS idx_ht_orders_status ON heat_treatment_orders(status);
+            CREATE INDEX IF NOT EXISTS idx_ht_processes_order_id ON heat_treatment_processes(order_id);
+            CREATE INDEX IF NOT EXISTS idx_quality_inspections_order_id ON quality_inspections(order_id);
+            CREATE INDEX IF NOT EXISTS idx_sampling_order_id ON sampling_records(order_id);
+            CREATE INDEX IF NOT EXISTS idx_marking_order_id ON marking_records(order_id);",
         )?;
         Ok(())
     }
@@ -939,6 +1036,285 @@ impl Database {
             }
             
             Ok(trends)
+        }).await?
+    }
+
+    pub async fn create_heat_treatment_order(&self, order: HeatTreatmentOrder) -> Result<i64> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO heat_treatment_orders (order_number, pipe_id, furnace_number, heat_treatment_type, process_parameters, start_time, operator, status, temperature_curve, cooling_method, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+                params![order.order_number, order.pipe_id, order.furnace_number, order.heat_treatment_type, order.process_parameters, order.start_time, order.operator, order.status, order.temperature_curve, order.cooling_method, order.remarks],
+            )?;
+            Ok(conn.last_insert_rowid())
+        }).await?
+    }
+
+    pub async fn get_heat_treatment_orders(&self, status: Option<String>, pipe_id: Option<String>) -> Result<Vec<HeatTreatmentOrder>> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            let mut where_parts = vec![];
+            let mut args: Vec<Box<dyn rusqlite::ToSql>> = vec![];
+            
+            if let Some(s) = &status {
+                where_parts.push("status = ?".to_string());
+                args.push(Box::new(s.clone()));
+            }
+            if let Some(p) = &pipe_id {
+                where_parts.push("pipe_id = ?".to_string());
+                args.push(Box::new(p.clone()));
+            }
+            
+            let where_sql = if where_parts.is_empty() {
+                String::new()
+            } else {
+                format!(" WHERE {}", where_parts.join(" AND "))
+            };
+            
+            let sql = format!("SELECT id, order_number, pipe_id, furnace_number, heat_treatment_type, process_parameters, start_time, end_time, operator, status, temperature_curve, cooling_method, remarks FROM heat_treatment_orders{} ORDER BY start_time DESC", where_sql);
+            
+            let mut stmt = conn.prepare(&sql)?;
+            let orders: Vec<HeatTreatmentOrder> = stmt.query_map(
+                params_from_iter(args.iter().map(|p| p.as_ref())),
+                |row| {
+                    Ok(HeatTreatmentOrder {
+                        id: Some(row.get(0)?),
+                        order_number: row.get(1)?,
+                        pipe_id: row.get(2)?,
+                        furnace_number: row.get(3)?,
+                        heat_treatment_type: row.get(4)?,
+                        process_parameters: row.get(5)?,
+                        start_time: row.get(6)?,
+                        end_time: row.get(7)?,
+                        operator: row.get(8)?,
+                        status: row.get(9)?,
+                        temperature_curve: row.get(10)?,
+                        cooling_method: row.get(11)?,
+                        remarks: row.get(12)?,
+                    })
+                },
+            )?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
+            Ok(orders)
+        }).await?
+    }
+
+    pub async fn update_heat_treatment_order_status(&self, order_id: i64, status: String, end_time: Option<String>) -> Result<()> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            if let Some(et) = &end_time {
+                conn.execute(
+                    "UPDATE heat_treatment_orders SET status = ?, end_time = ? WHERE id = ?",
+                    params![status, et, order_id],
+                )?;
+            } else {
+                conn.execute(
+                    "UPDATE heat_treatment_orders SET status = ? WHERE id = ?",
+                    params![status, order_id],
+                )?;
+            }
+            Ok(())
+        }).await?
+    }
+
+    pub async fn add_heat_treatment_process(&self, process: HeatTreatmentProcess) -> Result<i64> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO heat_treatment_processes (order_id, stage, target_temperature, actual_temperature, heating_rate, holding_time, cooling_rate, start_time, end_time, operator, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+                params![process.order_id, process.stage, process.target_temperature, process.actual_temperature, process.heating_rate, process.holding_time, process.cooling_rate, process.start_time, process.end_time, process.operator, process.remarks],
+            )?;
+            Ok(conn.last_insert_rowid())
+        }).await?
+    }
+
+    pub async fn add_quality_inspection(&self, inspection: QualityInspection) -> Result<i64> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO quality_inspections (order_id, inspection_type, hardness_hb, hardness_hrc, tensile_strength, yield_strength, elongation, metallographic_structure, inspector, inspection_date, result, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+                params![inspection.order_id, inspection.inspection_type, inspection.hardness_hb, inspection.hardness_hrc, inspection.tensile_strength, inspection.yield_strength, inspection.elongation, inspection.metallographic_structure, inspection.inspector, inspection.inspection_date, inspection.result, inspection.remarks],
+            )?;
+            Ok(conn.last_insert_rowid())
+        }).await?
+    }
+
+    pub async fn get_quality_inspections(&self, order_id: i64) -> Result<Vec<QualityInspection>> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, order_id, inspection_type, hardness_hb, hardness_hrc, tensile_strength, yield_strength, elongation, metallographic_structure, inspector, inspection_date, result, remarks FROM quality_inspections WHERE order_id = ? ORDER BY inspection_date DESC"
+            )?;
+            let inspections: Vec<QualityInspection> = stmt.query_map(params![order_id], |row| {
+                Ok(QualityInspection {
+                    id: Some(row.get(0)?),
+                    order_id: row.get(1)?,
+                    inspection_type: row.get(2)?,
+                    hardness_hb: row.get(3)?,
+                    hardness_hrc: row.get(4)?,
+                    tensile_strength: row.get(5)?,
+                    yield_strength: row.get(6)?,
+                    elongation: row.get(7)?,
+                    metallographic_structure: row.get(8)?,
+                    inspector: row.get(9)?,
+                    inspection_date: row.get(10)?,
+                    result: row.get(11)?,
+                    remarks: row.get(12)?,
+                })
+            })?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
+            Ok(inspections)
+        }).await?
+    }
+
+    pub async fn add_sampling_record(&self, record: SamplingRecord) -> Result<i64> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO sampling_records (order_id, sample_number, sampling_position, sampling_time, sampler, sample_description, sample_status, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+                params![record.order_id, record.sample_number, record.sampling_position, now, record.sampler, record.sample_description, "待检测".to_string(), record.remarks],
+            )?;
+            Ok(conn.last_insert_rowid())
+        }).await?
+    }
+
+    pub async fn get_sampling_records(&self, order_id: i64) -> Result<Vec<SamplingRecord>> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, order_id, sample_number, sampling_position, sampling_time, sampler, sample_description, sample_status, remarks FROM sampling_records WHERE order_id = ? ORDER BY sampling_time DESC"
+            )?;
+            let records: Vec<SamplingRecord> = stmt.query_map(params![order_id], |row| {
+                Ok(SamplingRecord {
+                    id: Some(row.get(0)?),
+                    order_id: row.get(1)?,
+                    sample_number: row.get(2)?,
+                    sampling_position: row.get(3)?,
+                    sampling_time: row.get(4)?,
+                    sampler: row.get(5)?,
+                    sample_description: row.get(6)?,
+                    sample_status: row.get(7)?,
+                    remarks: row.get(8)?,
+                })
+            })?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
+            Ok(records)
+        }).await?
+    }
+
+    pub async fn update_sampling_status(&self, id: i64, status: String) -> Result<()> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            conn.execute("UPDATE sampling_records SET sample_status = ? WHERE id = ?", params![status, id])?;
+            Ok(())
+        }).await?
+    }
+
+    pub async fn add_marking_record(&self, record: MarkingRecord) -> Result<i64> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO marking_records (order_id, marking_number, marking_content, marking_position, marking_time, marker, marking_method, marking_status, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![record.order_id, record.marking_number, record.marking_content, record.marking_position, now, record.marker, record.marking_method, "待确认".to_string(), record.remarks],
+            )?;
+            Ok(conn.last_insert_rowid())
+        }).await?
+    }
+
+    pub async fn get_marking_records(&self, order_id: i64) -> Result<Vec<MarkingRecord>> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, order_id, marking_number, marking_content, marking_position, marking_time, marker, marking_method, marking_status, remarks FROM marking_records WHERE order_id = ? ORDER BY marking_time DESC"
+            )?;
+            let records: Vec<MarkingRecord> = stmt.query_map(params![order_id], |row| {
+                Ok(MarkingRecord {
+                    id: Some(row.get(0)?),
+                    order_id: row.get(1)?,
+                    marking_number: row.get(2)?,
+                    marking_content: row.get(3)?,
+                    marking_position: row.get(4)?,
+                    marking_time: row.get(5)?,
+                    marker: row.get(6)?,
+                    marking_method: row.get(7)?,
+                    marking_status: row.get(8)?,
+                    remarks: row.get(9)?,
+                })
+            })?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
+            Ok(records)
+        }).await?
+    }
+
+    pub async fn update_marking_status(&self, id: i64, status: String) -> Result<()> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            conn.execute("UPDATE marking_records SET marking_status = ? WHERE id = ?", params![status, id])?;
+            Ok(())
+        }).await?
+    }
+
+    pub async fn update_furnace_status(&self, furnace: FurnaceStatus) -> Result<()> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            let existing = conn.query_row(
+                "SELECT id FROM furnace_status WHERE furnace_number = ?",
+                params![furnace.furnace_number],
+                |row| row.get::<_, i64>(0),
+            );
+            
+            match existing {
+                Ok(_) => {
+                    conn.execute(
+                        "UPDATE furnace_status SET status = ?, current_temperature = ?, target_temperature = ?, load_count = ?, last_maintenance = ?, operator = ?, update_time = ?, remarks = ? WHERE furnace_number = ?",
+                        params![furnace.status, furnace.current_temperature, furnace.target_temperature, furnace.load_count, furnace.last_maintenance, furnace.operator, furnace.update_time, furnace.remarks, furnace.furnace_number],
+                    )?;
+                }
+                Err(rusqlite::Error::QueryReturnedNoRows) => {
+                    conn.execute(
+                        "INSERT INTO furnace_status (furnace_number, status, current_temperature, target_temperature, load_count, last_maintenance, operator, update_time, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                        params![furnace.furnace_number, furnace.status, furnace.current_temperature, furnace.target_temperature, furnace.load_count, furnace.last_maintenance, furnace.operator, furnace.update_time, furnace.remarks],
+                    )?;
+                }
+                Err(e) => return Err(e.into()),
+            }
+            Ok(())
+        }).await?
+    }
+
+    pub async fn get_furnace_statuses(&self) -> Result<Vec<FurnaceStatus>> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, furnace_number, status, current_temperature, target_temperature, load_count, last_maintenance, operator, update_time, remarks FROM furnace_status ORDER BY furnace_number"
+            )?;
+            let statuses: Vec<FurnaceStatus> = stmt.query_map([], |row| {
+                Ok(FurnaceStatus {
+                    id: Some(row.get(0)?),
+                    furnace_number: row.get(1)?,
+                    status: row.get(2)?,
+                    current_temperature: row.get(3)?,
+                    target_temperature: row.get(4)?,
+                    load_count: row.get(5)?,
+                    last_maintenance: row.get(6)?,
+                    operator: row.get(7)?,
+                    update_time: row.get(8)?,
+                    remarks: row.get(9)?,
+                })
+            })?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
+            Ok(statuses)
         }).await?
     }
 }

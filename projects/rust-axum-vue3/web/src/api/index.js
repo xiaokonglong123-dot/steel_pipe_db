@@ -65,4 +65,15 @@ export const importAPI = {
   excel: (data) => api.post('/import/excel', data),
 }
 
+export const heatTreatmentAPI = {
+  list: (params = {}) => api.get('/heat-treatment-orders', { params }),
+  create: (data) => api.post('/heat-treatment-orders', data),
+  updateStatus: (id, data) => api.post(`/heat-treatment-orders/${id}`, data),
+  addProcess: (data) => api.post('/heat-treatment-processes', data),
+  addInspection: (data) => api.post('/quality-inspections', data),
+  listInspections: (orderId) => api.get(`/quality-inspections/${orderId}`),
+  listFurnaceStatuses: () => api.get('/furnace-status'),
+  updateFurnaceStatus: (data) => api.post('/furnace-status', data),
+}
+
 export default api
