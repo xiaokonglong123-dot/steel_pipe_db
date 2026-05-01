@@ -19,3 +19,6 @@ tracing-subscriber = "0.3"
 multipart = "0.18"
 futures = "0.3"
 base64 = "0.21"
+
+[dev-dependencies]
+tempfile = "3.10"

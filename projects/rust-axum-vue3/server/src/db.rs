@@ -1,129 +1,14 @@
 use chrono::Local;
 use rusqlite::{params, params_from_iter, Connection};
-use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
-use thiserror::Error;
+use std::sync::{Arc, Mutex};
 use calamine::{Reader, Xlsx, open_workbook};
 use rust_xlsxwriter::Workbook;
-
-#[derive(Error, Debug)]
-pub enum DbError {
-    #[error("Database error: {0}")]
-    Sqlite(#[from] rusqlite::Error),
-    #[error("Validation error: {0}")]
-    Validation(String),
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Insufficient stock: current={current}, requested={requested}")]
-    InsufficientStock { current: i32, requested: i32 },
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-}
-
-pub type Result<T> = std::result::Result<T, DbError>;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SteelPipe {
-    pub id: Option<i64>,
-    pub pipe_id: String,
-    pub diameter: f64,
-    pub thickness: f64,
-    pub length: f64,
-    pub material: String,
-    pub quantity: i32,
-    pub location: Option<String>,
-    pub supplier: Option<String>,
-    pub entry_date: String,
-    pub last_update: Option<String>,
-    pub status: String,
-    pub furnace_number: Option<String>,
-    pub heat_treatment_batch: Option<String>,
-    pub sample_number: Option<String>,
-    pub production_count: Option<i32>,
-    pub material_rack: Option<String>,
-    pub remarks: Option<String>,
-}
-
-impl SteelPipe {
-    pub fn validate(&self) -> Result<()> {
-        if self.pipe_id.trim().is_empty() {
-            return Err(DbError::Validation("钢管编号不能为空".to_string()));
-        }
-        if self.diameter <= 0.0 || self.diameter > 10000.0 {
-            return Err(DbError::Validation("直径必须在0-10000mm之间".to_string()));
-        }
-        if self.thickness <= 0.0 || self.thickness > 500.0 {
-            return Err(DbError::Validation("壁厚必须在0-500mm之间".to_string()));
-        }
-        if self.length <= 0.0 || self.length > 1000.0 {
-            return Err(DbError::Validation("长度必须在0-1000m之间".to_string()));
-        }
-        if self.material.trim().is_empty() {
-            return Err(DbError::Validation("材质不能为空".to_string()));
-        }
-        if self.quantity <= 0 {
-            return Err(DbError::Validation("数量必须大于0".to_string()));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InventoryRecord {
-    pub id: Option<i64>,
-    pub pipe_id: String,
-    pub operation_type: String,
-    pub quantity: i32,
-    pub operation_date: String,
-    pub operator: String,
-    pub remarks: Option<String>,
-}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct Statistics {
-    pub total_types: i32,
-    pub total_quantity: i32,
-    pub total_in: i32,
-    pub total_out: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MaterialStats {
-    pub material: String,
-    pub type_count: i32,
-    pub total_quantity: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OperationLog {
-    pub id: i64,
-    pub operation_type: String,
-    pub target_type: String,
-    pub target_id: String,
-    pub snapshot_before: String,
-    pub snapshot_after: String,
-    pub operator: String,
-    pub timestamp: String,
-    pub remarks: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Production {
-    pub id: Option<i64>,
-    pub furnace_number: String,
-    pub heat_treatment_batch: Option<String>,
-    pub material_batch: Option<String>,
-    pub production_count: i32,
-    pub sample: Option<String>,
-    pub supplier: Option<String>,
-    pub operator: String,
-    pub production_date: String,
-    pub remarks: Option<String>,
-}
+use crate::models::*;
+use crate::error::{AppError, Result};
 
 #[derive(Clone)]
 pub struct Database {
-    conn: std::sync::Arc<Mutex<Connection>>,
+    conn: Arc<Mutex<Connection>>,
 }
 
 fn row_to_pipe(row: &rusqlite::Row) -> rusqlite::Result<SteelPipe> {
@@ -180,7 +65,7 @@ impl Database {
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         let db = Database {
-            conn: std::sync::Arc::new(Mutex::new(conn)),
+            conn: Arc::new(Mutex::new(conn)),
         };
         db.init_tables()?;
         Ok(db)
@@ -250,62 +135,43 @@ impl Database {
         Ok(())
     }
 
-    fn upsert_pipe_tx(&self, pipe: &SteelPipe) -> Result<()> {
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let conn = self.conn.lock().unwrap();
-        let tx = conn.unchecked_transaction()?;
-        let existing = tx.query_row(
-            "SELECT id FROM pipes WHERE pipe_id = ?",
-            params![pipe.pipe_id],
-            |row| row.get::<_, i64>(0),
-        );
-        match existing {
-            Ok(_) => {
-                tx.execute(
-                    "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, location=?, supplier=?, last_update=?, furnace_number=?, heat_treatment_batch=?, sample_number=?, production_count=?, material_rack=?, remarks=? WHERE pipe_id=?",
-                    params![pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, pipe.furnace_number, pipe.heat_treatment_batch, pipe.sample_number, pipe.production_count, pipe.material_rack, pipe.remarks, pipe.pipe_id],
-                )?;
-            }
-            Err(rusqlite::Error::QueryReturnedNoRows) => {
-                tx.execute(
-                    "INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
-                    params![pipe.pipe_id, pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, "在库", pipe.furnace_number, pipe.heat_treatment_batch, pipe.sample_number, pipe.production_count, pipe.material_rack, pipe.remarks],
-                )?;
-            }
-            Err(e) => return Err(e.into()),
-        }
-        tx.commit()?;
-        Ok(())
-    }
-
     pub async fn add_pipe(&self, pipe: &SteelPipe) -> Result<()> {
         let pipe = pipe.clone();
         let db = self.clone();
-        tokio::task::spawn_blocking(move || db.upsert_pipe_tx(&pipe)).await.unwrap()
-    }
-
-    pub fn blocking_add_pipe(&self, pipe: &SteelPipe) -> Result<()> {
-        self.upsert_pipe_tx(pipe)
-    }
-
-    pub fn blocking_add_inventory_record(&self, record: &InventoryRecord) -> Result<()> {
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "INSERT INTO inventory_records (pipe_id, operation_type, quantity, operation_date, operator, remarks) VALUES (?1,?2,?3,?4,?5,?6)",
-            params![record.pipe_id, record.operation_type, record.quantity, now, record.operator, record.remarks],
-        )?;
-        Ok(())
+        tokio::task::spawn_blocking(move || {
+            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let conn = db.conn.lock().unwrap();
+            let tx = conn.unchecked_transaction()?;
+            let existing = tx.query_row(
+                "SELECT id FROM pipes WHERE pipe_id = ?",
+                params![pipe.pipe_id],
+                |row| row.get::<_, i64>(0),
+            );
+            match existing {
+                Ok(_) => {
+                    tx.execute(
+                        "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, location=?, supplier=?, last_update=?, furnace_number=?, heat_treatment_batch=?, sample_number=?, production_count=?, material_rack=?, remarks=? WHERE pipe_id=?",
+                        params![pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, pipe.furnace_number, pipe.heat_treatment_batch, pipe.sample_number, pipe.production_count, pipe.material_rack, pipe.remarks, pipe.pipe_id],
+                    )?;
+                }
+                Err(rusqlite::Error::QueryReturnedNoRows) => {
+                    tx.execute(
+                        "INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
+                        params![pipe.pipe_id, pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, "在库", pipe.furnace_number, pipe.heat_treatment_batch, pipe.sample_number, pipe.production_count, pipe.material_rack, pipe.remarks],
+                    )?;
+                }
+                Err(e) => return Err(e.into()),
+            }
+            tx.commit()?;
+            Ok(())
+        }).await?
     }
 
     pub async fn get_pipes(
         &self, page: i64, per_page: i64,
-        search: Option<&str>, material: Option<&str>, status: Option<&str>,
+        search: Option<String>, material: Option<String>, status: Option<String>,
         min_d: Option<f64>, max_d: Option<f64>, min_l: Option<f64>, max_l: Option<f64>,
     ) -> Result<(Vec<SteelPipe>, i64)> {
-        let search = search.map(String::from);
-        let material = material.map(String::from);
-        let status = status.map(String::from);
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
@@ -359,14 +225,13 @@ impl Database {
             let pipes: Vec<SteelPipe> = stmt.query_map(
                 params_from_iter(query_params.iter().map(|p| p.as_ref())),
                 row_to_pipe,
-            )?.map(|r| r.map_err(DbError::from)).collect::<Result<Vec<_>>>()?;
+            )?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
 
             Ok((pipes, count))
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn get_pipe_by_id(&self, pipe_id: &str) -> Result<Option<SteelPipe>> {
-        let pipe_id = pipe_id.to_string();
+    pub async fn get_pipe_by_id(&self, pipe_id: String) -> Result<Option<SteelPipe>> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
@@ -378,11 +243,10 @@ impl Database {
                 return Ok(Some(row?));
             }
             Ok(None)
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn delete_pipe(&self, pipe_id: &str) -> Result<()> {
-        let pipe_id = pipe_id.to_string();
+    pub async fn delete_pipe(&self, pipe_id: String) -> Result<()> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
@@ -391,11 +255,10 @@ impl Database {
             tx.execute("DELETE FROM pipes WHERE pipe_id = ?", params![pipe_id])?;
             tx.commit()?;
             Ok(())
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn batch_delete_pipes(&self, pipe_ids: &[String]) -> Result<()> {
-        let pipe_ids = pipe_ids.to_vec();
+    pub async fn batch_delete_pipes(&self, pipe_ids: Vec<String>) -> Result<()> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
@@ -406,11 +269,10 @@ impl Database {
             }
             tx.commit()?;
             Ok(())
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn update_pipe(&self, pipe: &SteelPipe) -> Result<()> {
-        let pipe = pipe.clone();
+    pub async fn update_pipe(&self, pipe: SteelPipe) -> Result<()> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -420,39 +282,93 @@ impl Database {
                 params![pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, pipe.status, pipe.furnace_number, pipe.heat_treatment_batch, pipe.sample_number, pipe.production_count, pipe.material_rack, pipe.remarks, pipe.pipe_id],
             )?;
             Ok(())
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn update_pipe_quantity(&self, pipe_id: &str, change: i32) -> Result<()> {
-        let pipe_id = pipe_id.to_string();
+    pub async fn add_inventory_record(&self, record: InventoryRecord) -> Result<()> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
             let conn = db.conn.lock().unwrap();
-            let tx = conn.unchecked_transaction()?;
-            let current: i32 = tx.query_row("SELECT quantity FROM pipes WHERE pipe_id = ?", params![pipe_id], |row| row.get(0))?;
-            if current + change < 0 {
-                return Err(DbError::InsufficientStock { current, requested: change });
-            }
-            tx.execute("UPDATE pipes SET quantity = quantity + ?, last_update = ? WHERE pipe_id = ?", params![change, now, pipe_id])?;
-            tx.commit()?;
+            conn.execute(
+                "INSERT INTO inventory_records (pipe_id, operation_type, quantity, operation_date, operator, remarks) VALUES (?1,?2,?3,?4,?5,?6)",
+                params![record.pipe_id, record.operation_type, record.quantity, now, record.operator, record.remarks],
+            )?;
             Ok(())
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn add_inventory_record(&self, record: &InventoryRecord) -> Result<()> {
-        let record = record.clone();
+    pub async fn process_entry(&self, pipe: SteelPipe, operator: String, remarks: Option<String>) -> Result<()> {
         let db = self.clone();
-        tokio::task::spawn_blocking(move || db.blocking_add_inventory_record(&record)).await.unwrap()
+        tokio::task::spawn_blocking(move || {
+            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let mut conn = db.conn.lock().unwrap();
+            let tx = conn.transaction()?;
+            
+            // 1. Upsert Pipe
+            let existing = tx.query_row(
+                "SELECT id FROM pipes WHERE pipe_id = ?",
+                params![pipe.pipe_id],
+                |row| row.get::<_, i64>(0),
+            );
+            
+            match existing {
+                Ok(_) => {
+                    tx.execute(
+                        "UPDATE pipes SET diameter=?, thickness=?, length=?, material=?, quantity=quantity+?, location=?, supplier=?, last_update=?, furnace_number=?, heat_treatment_batch=?, sample_number=?, production_count=?, material_rack=?, remarks=? WHERE pipe_id=?",
+                        params![pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, pipe.furnace_number, pipe.heat_treatment_batch, pipe.sample_number, pipe.production_count, pipe.material_rack, pipe.remarks, pipe.pipe_id],
+                    )?;
+                }
+                Err(rusqlite::Error::QueryReturnedNoRows) => {
+                    tx.execute(
+                        "INSERT INTO pipes (pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
+                        params![pipe.pipe_id, pipe.diameter, pipe.thickness, pipe.length, pipe.material, pipe.quantity, pipe.location, pipe.supplier, now, "在库", pipe.furnace_number, pipe.heat_treatment_batch, pipe.sample_number, pipe.production_count, pipe.material_rack, pipe.remarks],
+                    )?;
+                }
+                Err(e) => return Err(e.into()),
+            }
+            
+            // 2. Add Inventory Record
+            tx.execute(
+                "INSERT INTO inventory_records (pipe_id, operation_type, quantity, operation_date, operator, remarks) VALUES (?1,?2,?3,?4,?5,?6)",
+                params![pipe.pipe_id, "入库", pipe.quantity, now, operator, remarks],
+            )?;
+            
+            tx.commit()?;
+            Ok(())
+        }).await?
+    }
+
+    pub async fn process_exit(&self, pipe_id: String, quantity: i32, operator: String, remarks: Option<String>) -> Result<(i32, i32)> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let mut conn = db.conn.lock().unwrap();
+            let tx = conn.transaction()?;
+            
+            // 1. Check and Update Quantity
+            let before: i32 = tx.query_row("SELECT quantity FROM pipes WHERE pipe_id = ?", params![pipe_id], |row| row.get(0))?;
+            if before < quantity {
+                return Err(AppError::InsufficientStock { current: before, requested: quantity });
+            }
+            
+            let after = before - quantity;
+            tx.execute("UPDATE pipes SET quantity = ?, last_update = ? WHERE pipe_id = ?", params![after, now, pipe_id])?;
+            
+            // 2. Add Inventory Record
+            tx.execute(
+                "INSERT INTO inventory_records (pipe_id, operation_type, quantity, operation_date, operator, remarks) VALUES (?1,?2,?3,?4,?5,?6)",
+                params![pipe_id, "出库", quantity, now, operator, remarks],
+            )?;
+            
+            tx.commit()?;
+            Ok((before, after))
+        }).await?
     }
 
     pub async fn get_inventory_records(
-        &self, pipe_id: Option<&str>, op_type: Option<&str>, start: Option<&str>, end: Option<&str>,
+        &self, pipe_id: Option<String>, op_type: Option<String>, start: Option<String>, end: Option<String>,
     ) -> Result<Vec<InventoryRecord>> {
-        let pipe_id = pipe_id.map(String::from);
-        let op_type = op_type.map(String::from);
-        let start = start.map(String::from);
-        let end = end.map(String::from);
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
@@ -468,9 +384,9 @@ impl Database {
             let records: Vec<InventoryRecord> = stmt.query_map(
                 params_from_iter(args.iter().map(|p| p.as_ref())),
                 row_to_record,
-            )?.map(|r| r.map_err(DbError::from)).collect::<Result<Vec<_>>>()?;
+            )?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
             Ok(records)
-        }).await.unwrap()
+        }).await?
     }
 
     pub async fn get_statistics(&self) -> Result<Statistics> {
@@ -483,7 +399,7 @@ impl Database {
             stats.total_in = conn.query_row("SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='入库'", [], |row| row.get(0))?;
             stats.total_out = conn.query_row("SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='出库'", [], |row| row.get(0))?;
             Ok(stats)
-        }).await.unwrap()
+        }).await?
     }
 
     pub async fn get_material_stats(&self) -> Result<Vec<MaterialStats>> {
@@ -495,9 +411,9 @@ impl Database {
             )?;
             let stats: Vec<MaterialStats> = stmt.query_map([], |row| {
                 Ok(MaterialStats { material: row.get(0)?, type_count: row.get(1)?, total_quantity: row.get(2)? })
-            })?.map(|r| r.map_err(DbError::from)).collect::<Result<Vec<_>>>()?;
+            })?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
             Ok(stats)
-        }).await.unwrap()
+        }).await?
     }
 
     pub async fn get_low_stock(&self, threshold: i32) -> Result<Vec<SteelPipe>> {
@@ -507,26 +423,24 @@ impl Database {
             let mut stmt = conn.prepare(
                 "SELECT id, pipe_id, diameter, thickness, length, material, quantity, location, supplier, entry_date, last_update, status, furnace_number, heat_treatment_batch, sample_number, production_count, material_rack, remarks FROM pipes WHERE quantity <= ? ORDER BY quantity ASC",
             )?;
-            let pipes: Vec<SteelPipe> = stmt.query_map(params![threshold], row_to_pipe)?.map(|r| r.map_err(DbError::from)).collect::<Result<Vec<_>>>()?;
+            let pipes: Vec<SteelPipe> = stmt.query_map(params![threshold], row_to_pipe)?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
             Ok(pipes)
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn get_daily_report(&self, start_date: &str, end_date: &str) -> Result<serde_json::Value> {
-        let start = start_date.to_string();
-        let end = end_date.to_string();
+    pub async fn get_daily_report(&self, start_date: String, end_date: String) -> Result<serde_json::Value> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
             
             let entry_count: i32 = conn.query_row(
                 "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='入库' AND operation_date LIKE ?",
-                params![format!("{}%", start)], |row| row.get(0)
+                params![format!("{}%", start_date)], |row| row.get(0)
             )?;
             
             let exit_count: i32 = conn.query_row(
                 "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='出库' AND operation_date LIKE ?",
-                params![format!("{}%", end)], |row| row.get(0)
+                params![format!("{}%", end_date)], |row| row.get(0)
             )?;
             
             let total_in: i32 = conn.query_row(
@@ -542,38 +456,36 @@ impl Database {
             )?;
             
             Ok(serde_json::json!({
-                "date": start,
+                "date": start_date,
                 "entry_count": entry_count,
                 "exit_count": exit_count,
                 "total_in": total_in,
                 "total_out": total_out,
                 "current_stock": current_stock
             }))
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn get_monthly_report(&self, start_date: &str, end_date: &str) -> Result<serde_json::Value> {
-        let start = start_date.to_string();
-        let end = end_date.to_string();
+    pub async fn get_monthly_report(&self, start_date: String, end_date: String) -> Result<serde_json::Value> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
             
             let entry_count: i32 = conn.query_row(
                 "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='入库' AND operation_date >= ? AND operation_date <= ?",
-                params![start, end], |row| row.get(0)
+                params![start_date, end_date], |row| row.get(0)
             )?;
             
             let exit_count: i32 = conn.query_row(
                 "SELECT COALESCE(SUM(quantity),0) FROM inventory_records WHERE operation_type='出库' AND operation_date >= ? AND operation_date <= ?",
-                params![start, end], |row| row.get(0)
+                params![start_date, end_date], |row| row.get(0)
             )?;
             
             let entry_records: Vec<(String, String, i32, String)> = {
                 let mut stmt = conn.prepare(
                     "SELECT pipe_id, operation_date, quantity, operator FROM inventory_records WHERE operation_type='入库' AND operation_date >= ? AND operation_date <= ? ORDER BY operation_date DESC LIMIT 10"
                 )?;
-                let result = stmt.query_map(params![start, end], |row| {
+                let result = stmt.query_map(params![start_date, end_date], |row| {
                     Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
                 })?.collect::<std::result::Result<Vec<_>, _>>()?;
                 result
@@ -583,32 +495,20 @@ impl Database {
                 let mut stmt = conn.prepare(
                     "SELECT pipe_id, operation_date, quantity, operator FROM inventory_records WHERE operation_type='出库' AND operation_date >= ? AND operation_date <= ? ORDER BY operation_date DESC LIMIT 10"
                 )?;
-                let result = stmt.query_map(params![start, end], |row| {
+                let result = stmt.query_map(params![start_date, end_date], |row| {
                     Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
                 })?.collect::<std::result::Result<Vec<_>, _>>()?;
                 result
             };
             
             Ok(serde_json::json!({
-                "period": {"start": start, "end": end},
+                "period": {"start": start_date, "end": end_date},
                 "entry_count": entry_count,
                 "exit_count": exit_count,
                 "recent_entries": entry_records,
                 "recent_exits": exit_records
             }))
-        }).await.unwrap()
-    }
-
-    pub async fn get_recent_records(&self, limit: usize) -> Result<Vec<InventoryRecord>> {
-        let db = self.clone();
-        tokio::task::spawn_blocking(move || {
-            let conn = db.conn.lock().unwrap();
-            let mut stmt = conn.prepare(
-                "SELECT id, pipe_id, operation_type, quantity, operation_date, operator, remarks FROM inventory_records ORDER BY operation_date DESC LIMIT ?",
-            )?;
-            let records: Vec<InventoryRecord> = stmt.query_map(params![limit as i64], row_to_record)?.map(|r| r.map_err(DbError::from)).collect::<Result<Vec<_>>>()?;
-            Ok(records)
-        }).await.unwrap()
+        }).await?
     }
 
     pub async fn log_operation(&self, op_type: &str, target_type: &str, target_id: &str, before: &str, after: &str, operator: &str, remarks: &str) -> Result<()> {
@@ -628,7 +528,7 @@ impl Database {
                 params![op_type, target_type, target_id, before, after, operator, now, remarks],
             )?;
             Ok(())
-        }).await.unwrap()
+        }).await?
     }
 
     pub async fn get_operation_logs(&self, limit: usize) -> Result<Vec<OperationLog>> {
@@ -644,14 +544,12 @@ impl Database {
                     target_id: row.get(3)?, snapshot_before: row.get(4)?, snapshot_after: row.get(5)?,
                     operator: row.get(6)?, timestamp: row.get(7)?, remarks: row.get(8)?,
                 })
-            })?.map(|r| r.map_err(DbError::from)).collect::<Result<Vec<_>>>()?;
+            })?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
             Ok(logs)
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn import_pipes_from_csv(&self, csv_content: &str, operator: &str) -> Result<(usize, usize)> {
-        let csv_content = csv_content.to_string();
-        let operator = operator.to_string();
+    pub async fn import_pipes_from_csv(&self, csv_content: String, operator: String) -> Result<(usize, usize)> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let mut success = 0;
@@ -699,7 +597,7 @@ impl Database {
 
             tx.commit()?;
             Ok((success, fail))
-        }).await.unwrap()
+        }).await?
     }
 
     pub async fn export_inventory_csv(&self) -> Result<String> {
@@ -724,22 +622,19 @@ impl Database {
                     escape_csv_field(&entry_date), escape_csv_field(&status)));
             }
             Ok(csv)
-        }).await.unwrap()
+        }).await?
     }
 
     pub async fn export_pipes_by_filter(
         &self,
-        search: Option<&str>,
-        material: Option<&str>,
-        status: Option<&str>,
+        search: Option<String>,
+        material: Option<String>,
+        status: Option<String>,
         min_d: Option<f64>,
         max_d: Option<f64>,
         min_l: Option<f64>,
         max_l: Option<f64>,
     ) -> Result<String> {
-        let search = search.map(String::from);
-        let material = material.map(String::from);
-        let status = status.map(String::from);
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
@@ -791,14 +686,10 @@ impl Database {
                     escape_csv_field(&entry_date), escape_csv_field(&status)));
             }
             Ok(csv)
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn export_records_csv(&self, pipe_id: Option<&str>, op_type: Option<&str>, start: Option<&str>, end: Option<&str>) -> Result<String> {
-        let pipe_id = pipe_id.map(String::from);
-        let op_type = op_type.map(String::from);
-        let start = start.map(String::from);
-        let end = end.map(String::from);
+    pub async fn export_records_csv(&self, pipe_id: Option<String>, op_type: Option<String>, start: Option<String>, end: Option<String>) -> Result<String> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let mut where_parts: Vec<String> = vec![];
@@ -825,18 +716,16 @@ impl Database {
                     escape_csv_field(remarks.as_deref().unwrap_or(""))));
             }
             Ok(csv)
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn import_pipes_from_excel(&self, excel_path: &str, operator: &str) -> Result<(usize, usize)> {
-        let excel_path = excel_path.to_string();
-        let operator = operator.to_string();
+    pub async fn import_pipes_from_excel(&self, excel_path: String, operator: String) -> Result<(usize, usize)> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let mut success = 0;
             let mut fail = 0;
 
-            let mut workbook: Xlsx<std::io::BufReader<std::fs::File>> = open_workbook(&excel_path).map_err(|e: calamine::XlsxError| DbError::Validation(e.to_string()))?;
+            let mut workbook: Xlsx<std::io::BufReader<std::fs::File>> = open_workbook(&excel_path).map_err(|e: calamine::XlsxError| AppError::Validation(e.to_string()))?;
             let sheet = workbook.worksheet_range_at(0);
             if let Some(Ok(range)) = sheet {
                 let conn = db.conn.lock().unwrap();
@@ -886,11 +775,10 @@ impl Database {
 
             std::fs::remove_file(&excel_path).ok();
             Ok((success, fail))
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn export_inventory_to_excel(&self, path: &str) -> Result<()> {
-        let path = path.to_string();
+    pub async fn export_inventory_to_excel(&self, path: String) -> Result<()> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().unwrap();
@@ -921,17 +809,12 @@ impl Database {
                 worksheet.write_string(row, 8, entry_date).ok();
                 worksheet.write_string(row, 9, status).ok();
             }
-            workbook.save(&path).map_err(|e| DbError::Validation(e.to_string()))?;
+            workbook.save(&path).map_err(|e| AppError::Validation(e.to_string()))?;
             Ok(())
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn export_records_to_excel(&self, path: &str, pipe_id: Option<&str>, op_type: Option<&str>, start: Option<&str>, end: Option<&str>) -> Result<()> {
-        let path = path.to_string();
-        let pipe_id = pipe_id.map(String::from);
-        let op_type = op_type.map(String::from);
-        let start = start.map(String::from);
-        let end = end.map(String::from);
+    pub async fn export_records_to_excel(&self, path: String, pipe_id: Option<String>, op_type: Option<String>, start: Option<String>, end: Option<String>) -> Result<()> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let mut where_parts: Vec<String> = vec![];
@@ -965,13 +848,12 @@ impl Database {
                 worksheet.write_string(row, 4, operator).ok();
                 worksheet.write_string(row, 5, remarks.as_deref().unwrap_or("")).ok();
             }
-            workbook.save(&path).map_err(|e| DbError::Validation(e.to_string()))?;
+            workbook.save(&path).map_err(|e| AppError::Validation(e.to_string()))?;
             Ok(())
-        }).await.unwrap()
+        }).await?
     }
 
-    pub async fn add_production(&self, production: &Production) -> Result<i64> {
-        let production = production.clone();
+    pub async fn add_production(&self, production: Production) -> Result<i64> {
         let db = self.clone();
         tokio::task::spawn_blocking(move || {
             let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -981,7 +863,7 @@ impl Database {
                 params![production.furnace_number, production.heat_treatment_batch, production.material_batch, production.production_count, production.sample, production.supplier, production.operator, now, production.remarks],
             )?;
             Ok(conn.last_insert_rowid())
-        }).await.unwrap()
+        }).await?
     }
 
     pub async fn get_productions(&self) -> Result<Vec<Production>> {
@@ -1004,8 +886,194 @@ impl Database {
                     production_date: row.get(8)?,
                     remarks: row.get(9)?,
                 })
-            })?.map(|r| r.map_err(DbError::from)).collect::<Result<Vec<_>>>()?;
+            })?.map(|r| r.map_err(AppError::from)).collect::<std::result::Result<Vec<_>, AppError>>()?;
             Ok(productions)
-        }).await.unwrap()
+        }).await?
+    }
+
+    pub async fn get_data_dictionaries(&self) -> Result<DataDictionaries> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            
+            let mut stmt = conn.prepare("SELECT DISTINCT material FROM pipes WHERE material IS NOT NULL AND material != ''")?;
+            let materials = stmt.query_map([], |row| row.get(0))?.collect::<rusqlite::Result<Vec<String>>>()?;
+            
+            let mut stmt = conn.prepare("SELECT DISTINCT location FROM pipes WHERE location IS NOT NULL AND location != ''")?;
+            let locations = stmt.query_map([], |row| row.get(0))?.collect::<rusqlite::Result<Vec<String>>>()?;
+            
+            let mut stmt = conn.prepare("SELECT DISTINCT status FROM pipes WHERE status IS NOT NULL AND status != ''")?;
+            let statuses = stmt.query_map([], |row| row.get(0))?.collect::<rusqlite::Result<Vec<String>>>()?;
+            
+            Ok(DataDictionaries { materials, locations, statuses })
+        }).await?
+    }
+
+    pub async fn get_inventory_trends(&self) -> Result<Vec<InventoryTrend>> {
+        let db = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().unwrap();
+            let mut trends = Vec::new();
+            
+            for i in (0..7).rev() {
+                let date = Local::now() - chrono::Duration::days(i);
+                let date_str = date.format("%Y-%m-%d").to_string();
+                
+                let entry_count: i32 = conn.query_row(
+                    "SELECT COALESCE(SUM(quantity), 0) FROM inventory_records WHERE operation_type = '入库' AND operation_date LIKE ?",
+                    params![format!("{}%", date_str)],
+                    |row| row.get(0),
+                )?;
+                
+                let exit_count: i32 = conn.query_row(
+                    "SELECT COALESCE(SUM(quantity), 0) FROM inventory_records WHERE operation_type = '出库' AND operation_date LIKE ?",
+                    params![format!("{}%", date_str)],
+                    |row| row.get(0),
+                )?;
+                
+                trends.push(InventoryTrend {
+                    date: date_str,
+                    entry_count,
+                    exit_count,
+                });
+            }
+            
+            Ok(trends)
+        }).await?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+
+    async fn setup_db() -> Database {
+        let tmp_file = NamedTempFile::new().unwrap();
+        let path = tmp_file.path().to_str().unwrap().to_string();
+        Database::new(&path).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_db_init() {
+        let _db = setup_db().await;
+    }
+
+    #[tokio::test]
+    async fn test_add_get_pipe() {
+        let db = setup_db().await;
+        let pipe = SteelPipe {
+            id: None,
+            pipe_id: "TEST001".to_string(),
+            diameter: 10.0,
+            thickness: 2.0,
+            length: 5.0,
+            material: "Steel".to_string(),
+            quantity: 100,
+            location: Some("A1".to_string()),
+            supplier: Some("Supp1".to_string()),
+            entry_date: "".to_string(),
+            last_update: None,
+            status: "在库".to_string(),
+            furnace_number: None,
+            heat_treatment_batch: None,
+            sample_number: None,
+            production_count: None,
+            material_rack: None,
+            remarks: None,
+        };
+
+        db.add_pipe(&pipe).await.unwrap();
+        let result = db.get_pipe_by_id("TEST001".to_string()).await.unwrap();
+        assert!(result.is_some());
+        let found = result.unwrap();
+        assert_eq!(found.pipe_id, "TEST001");
+        assert_eq!(found.quantity, 100);
+    }
+
+    #[tokio::test]
+    async fn test_update_quantity() {
+        let db = setup_db().await;
+        let pipe = SteelPipe {
+            id: None,
+            pipe_id: "TEST002".to_string(),
+            diameter: 10.0,
+            thickness: 2.0,
+            length: 5.0,
+            material: "Steel".to_string(),
+            quantity: 50,
+            location: None,
+            supplier: None,
+            entry_date: "".to_string(),
+            last_update: None,
+            status: "在库".to_string(),
+            furnace_number: None,
+            heat_treatment_batch: None,
+            sample_number: None,
+            production_count: None,
+            material_rack: None,
+            remarks: None,
+        };
+
+        db.add_pipe(&pipe).await.unwrap();
+        let (before, after) = db.process_exit("TEST002".to_string(), 10, "admin".to_string(), None).await.unwrap();
+        
+        assert_eq!(before, 50);
+        assert_eq!(after, 40);
+        
+        let found = db.get_pipe_by_id("TEST002".to_string()).await.unwrap().unwrap();
+        assert_eq!(found.quantity, 40);
+
+        // Test insufficient stock
+        let err = db.process_exit("TEST002".to_string(), 50, "admin".to_string(), None).await;
+        assert!(matches!(err, Err(AppError::InsufficientStock { .. })));
+    }
+
+    #[tokio::test]
+    async fn test_data_dictionaries() {
+        let db = setup_db().await;
+        let p1 = SteelPipe {
+            pipe_id: "P1".to_string(), material: "M1".to_string(), location: Some("L1".to_string()), status: "在库".to_string(),
+            diameter: 1.0, thickness: 1.0, length: 1.0, quantity: 1, id: None, entry_date: "".to_string(), last_update: None,
+            supplier: None, furnace_number: None, heat_treatment_batch: None, sample_number: None, production_count: None, material_rack: None, remarks: None,
+        };
+        let p2 = SteelPipe {
+            pipe_id: "P2".to_string(), material: "M2".to_string(), location: Some("L2".to_string()), status: "已出库".to_string(),
+            diameter: 1.0, thickness: 1.0, length: 1.0, quantity: 1, id: None, entry_date: "".to_string(), last_update: None,
+            supplier: None, furnace_number: None, heat_treatment_batch: None, sample_number: None, production_count: None, material_rack: None, remarks: None,
+        };
+        db.add_pipe(&p1).await.unwrap();
+        // 直接更新状态
+        let mut p2_with_status = p2.clone();
+        db.add_pipe(&p2).await.unwrap();
+        p2_with_status.status = "已出库".to_string();
+        db.update_pipe(p2_with_status).await.unwrap();
+
+        let dicts = db.get_data_dictionaries().await.unwrap();
+        assert!(dicts.materials.contains(&"M1".to_string()));
+        assert!(dicts.materials.contains(&"M2".to_string()));
+        assert!(dicts.locations.contains(&"L1".to_string()));
+        assert!(dicts.statuses.contains(&"在库".to_string()));
+        assert!(dicts.statuses.contains(&"已出库".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_inventory_trends() {
+        let db = setup_db().await;
+        let p1 = SteelPipe {
+            pipe_id: "TREND01".to_string(), diameter: 1.0, thickness: 1.0, length: 1.0, material: "M1".to_string(), quantity: 10,
+            id: None, entry_date: "".to_string(), last_update: None, status: "在库".to_string(), location: None, supplier: None,
+            furnace_number: None, heat_treatment_batch: None, sample_number: None, production_count: None, material_rack: None, remarks: None,
+        };
+        
+        // 使用事务级方法增加记录
+        db.process_entry(p1, "admin".to_string(), None).await.unwrap();
+        db.process_exit("TREND01".to_string(), 3, "admin".to_string(), None).await.unwrap();
+
+        let trends = db.get_inventory_trends().await.unwrap();
+        assert_eq!(trends.len(), 7);
+        let today_trend = trends.last().unwrap();
+        assert_eq!(today_trend.entry_count, 10);
+        assert_eq!(today_trend.exit_count, 3);
     }
 }
