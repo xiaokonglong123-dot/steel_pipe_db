@@ -1,0 +1,17 @@
+{
+  "name": "steel-pipe-db",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:web": "cd projects/rust-axum-vue3/web && npm install",
+    "dev:web": "cd projects/rust-axum-vue3/web && npm run dev",
+    "dev:server": "cd projects/rust-axum-vue3/server && cargo run",
+    "build:web": "cd projects/rust-axum-vue3/web && npm run build",
+    "build:server": "cd projects/rust-axum-vue3/server && cargo build --release",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "build": "npm run build:web && npm run build:server"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

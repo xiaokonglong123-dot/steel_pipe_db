@@ -10,6 +10,8 @@ api.interceptors.response.use(
   (error) => {
     const message = error.response?.data?.error || error.message || '请求失败'
     console.error('API Error:', message)
+    // 可以通过自定义事件通知 UI 层
+    window.dispatchEvent(new CustomEvent('api-error', { detail: message }))
     return Promise.reject({ message, ...error.response?.data })
   }
 )
@@ -40,6 +42,11 @@ export const statsAPI = {
   overview: () => api.get('/statistics'),
   byMaterial: () => api.get('/material-stats'),
   lowStock: (threshold = 10) => api.get('/low-stock', { params: { threshold } }),
+  trends: () => api.get('/trends'),
+}
+
+export const dictsAPI = {
+  all: () => api.get('/dicts'),
 }
 
 export const logsAPI = {

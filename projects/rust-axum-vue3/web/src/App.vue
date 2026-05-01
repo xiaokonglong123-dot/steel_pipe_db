@@ -21,16 +21,43 @@
         </transition>
       </router-view>
     </main>
+    
+    <!-- 全局通知 -->
+    <transition name="slide-up">
+      <div v-if="notification" class="notification" :class="notification.type">
+        {{ notification.message }}
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 
 const route = useRoute()
 const lastRefresh = ref(Date.now())
+const notification = ref(null)
+
+const showNotification = (message, type = 'error') => {
+  notification.value = { message, type }
+  setTimeout(() => {
+    notification.value = null
+  }, 3000)
+}
+
+const handleApiError = (event) => {
+  showNotification(event.detail, 'error')
+}
+
+onMounted(() => {
+  window.addEventListener('api-error', handleApiError)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('api-error', handleApiError)
+})
 
 const pageTitle = computed(() => {
   const titles = {
@@ -96,6 +123,46 @@ const refreshData = () => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* 通知样式 */
+.notification {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: var(--apple-radius);
+  background: var(--apple-card);
+  box-shadow: var(--apple-shadow-lg);
+  color: var(--apple-text);
+  z-index: 1000;
+  font-weight: 500;
+  border: 1px solid var(--apple-border);
+}
+
+.notification.error {
+  border-color: var(--apple-red);
+  color: var(--apple-red);
+}
+
+.notification.success {
+  border-color: var(--apple-green);
+  color: var(--apple-green);
+}
+
+.slide-up-enter-active, .slide-up-leave-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.slide-up-enter-from {
+  transform: translate(-50%, 20px);
+  opacity: 0;
+}
+
+.slide-up-leave-to {
+  transform: translate(-50%, 20px);
+  opacity: 0;
 }
 
 .page-subtitle {
