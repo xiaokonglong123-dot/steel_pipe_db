@@ -20,6 +20,10 @@ def dict_from_row(row):
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), '../frontend'), static_url_path="")
 CORS(app)
 
+@app.route("/")
+def index():
+    return app.send_static_file("index.html")
+
 def init_db():
     with app.app_context():
         db = get_db()

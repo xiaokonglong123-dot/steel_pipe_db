@@ -402,3 +402,182 @@ pub async fn import_excel(
         "fail": fail,
     })))
 }
+
+pub async fn create_heat_treatment_order(
+    State(state): State<AppState>,
+    Json(req): Json<HeatTreatmentOrderRequest>,
+) -> Result<impl IntoResponse> {
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let order = HeatTreatmentOrder {
+        id: None,
+        order_number: req.order_number,
+        pipe_id: req.pipe_id,
+        furnace_number: req.furnace_number,
+        heat_treatment_type: req.heat_treatment_type,
+        process_parameters: req.process_parameters,
+        start_time: now.clone(),
+        end_time: None,
+        operator: req.operator,
+        status: "进行中".to_string(),
+        temperature_curve: req.temperature_curve,
+        cooling_method: req.cooling_method,
+        remarks: req.remarks,
+    };
+    order.validate()?;
+    let id = state.db.create_heat_treatment_order(order).await?;
+    Ok((StatusCode::CREATED, Json(serde_json::json!({"id": id, "status": "created"}))))
+}
+
+pub async fn list_heat_treatment_orders(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> Result<impl IntoResponse> {
+    let status = q.get("status").cloned();
+    let pipe_id = q.get("pipe_id").cloned();
+    let orders = state.db.get_heat_treatment_orders(status, pipe_id).await?;
+    Ok(Json(orders))
+}
+
+pub async fn update_heat_treatment_order(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(q): Json<std::collections::HashMap<String, String>>,
+) -> Result<impl IntoResponse> {
+    let status = q.get("status").cloned().unwrap_or("已完成".to_string());
+    let end_time = q.get("end_time").cloned();
+    state.db.update_heat_treatment_order_status(id, status, end_time).await?;
+    Ok(Json(serde_json::json!({"status": "updated"})))
+}
+
+pub async fn add_heat_treatment_process(
+    State(state): State<AppState>,
+    Json(mut process): Json<HeatTreatmentProcess>,
+) -> Result<impl IntoResponse> {
+    if process.start_time.is_empty() {
+        process.start_time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    }
+    let id = state.db.add_heat_treatment_process(process).await?;
+    Ok((StatusCode::CREATED, Json(serde_json::json!({"id": id, "status": "created"}))))
+}
+
+pub async fn add_quality_inspection(
+    State(state): State<AppState>,
+    Json(req): Json<QualityInspectionRequest>,
+) -> Result<impl IntoResponse> {
+    let inspection = QualityInspection {
+        id: None,
+        order_id: req.order_id,
+        inspection_type: req.inspection_type,
+        hardness_hb: req.hardness_hb,
+        hardness_hrc: req.hardness_hrc,
+        tensile_strength: req.tensile_strength,
+        yield_strength: req.yield_strength,
+        elongation: req.elongation,
+        metallographic_structure: req.metallographic_structure,
+        inspector: req.inspector,
+        inspection_date: req.inspection_date,
+        result: req.result,
+        remarks: req.remarks,
+    };
+    let id = state.db.add_quality_inspection(inspection).await?;
+    Ok((StatusCode::CREATED, Json(serde_json::json!({"id": id, "status": "created"}))))
+}
+
+pub async fn list_quality_inspections(
+    State(state): State<AppState>,
+    Path(order_id): Path<i64>,
+) -> Result<impl IntoResponse> {
+    let inspections = state.db.get_quality_inspections(order_id).await?;
+    Ok(Json(inspections))
+}
+
+pub async fn add_sampling(
+    State(state): State<AppState>,
+    Json(req): Json<SamplingRequest>,
+) -> Result<impl IntoResponse> {
+    let record = SamplingRecord {
+        id: None,
+        order_id: req.order_id,
+        sample_number: req.sample_number,
+        sampling_position: req.sampling_position,
+        sampling_time: String::new(),
+        sampler: req.sampler,
+        sample_description: req.sample_description,
+        sample_status: None,
+        remarks: req.remarks,
+    };
+    let id = state.db.add_sampling_record(record).await?;
+    Ok((StatusCode::CREATED, Json(serde_json::json!({"id": id, "status": "created"}))))
+}
+
+pub async fn list_samplings(
+    State(state): State<AppState>,
+    Path(order_id): Path<i64>,
+) -> Result<impl IntoResponse> {
+    let records = state.db.get_sampling_records(order_id).await?;
+    Ok(Json(records))
+}
+
+pub async fn update_sampling_status(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(q): Json<std::collections::HashMap<String, String>>,
+) -> Result<impl IntoResponse> {
+    let status = q.get("status").cloned().unwrap_or("已完成".to_string());
+    state.db.update_sampling_status(id, status).await?;
+    Ok(Json(serde_json::json!({"status": "updated"})))
+}
+
+pub async fn add_marking(
+    State(state): State<AppState>,
+    Json(req): Json<MarkingRequest>,
+) -> Result<impl IntoResponse> {
+    let record = MarkingRecord {
+        id: None,
+        order_id: req.order_id,
+        marking_number: req.marking_number,
+        marking_content: req.marking_content,
+        marking_position: req.marking_position,
+        marking_time: String::new(),
+        marker: req.marker,
+        marking_method: req.marking_method,
+        marking_status: None,
+        remarks: req.remarks,
+    };
+    let id = state.db.add_marking_record(record).await?;
+    Ok((StatusCode::CREATED, Json(serde_json::json!({"id": id, "status": "created"}))))
+}
+
+pub async fn list_markings(
+    State(state): State<AppState>,
+    Path(order_id): Path<i64>,
+) -> Result<impl IntoResponse> {
+    let records = state.db.get_marking_records(order_id).await?;
+    Ok(Json(records))
+}
+
+pub async fn update_marking_status(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(q): Json<std::collections::HashMap<String, String>>,
+) -> Result<impl IntoResponse> {
+    let status = q.get("status").cloned().unwrap_or("已确认".to_string());
+    state.db.update_marking_status(id, status).await?;
+    Ok(Json(serde_json::json!({"status": "updated"})))
+}
+
+pub async fn update_furnace_status(
+    State(state): State<AppState>,
+    Json(mut furnace): Json<FurnaceStatus>,
+) -> Result<impl IntoResponse> {
+    furnace.update_time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    state.db.update_furnace_status(furnace).await?;
+    Ok(Json(serde_json::json!({"status": "updated"})))
+}
+
+pub async fn list_furnace_statuses(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse> {
+    let statuses = state.db.get_furnace_statuses().await?;
+    Ok(Json(statuses))
+}

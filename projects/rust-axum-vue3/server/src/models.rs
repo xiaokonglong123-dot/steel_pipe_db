@@ -278,3 +278,162 @@ pub struct DataDictionaries {
     pub locations: Vec<String>,
     pub statuses: Vec<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeatTreatmentOrder {
+    pub id: Option<i64>,
+    pub order_number: String,
+    pub pipe_id: String,
+    pub furnace_number: String,
+    pub heat_treatment_type: String,
+    pub process_parameters: Option<String>,
+    pub start_time: String,
+    pub end_time: Option<String>,
+    pub operator: String,
+    pub status: String,
+    pub temperature_curve: Option<String>,
+    pub cooling_method: Option<String>,
+    pub remarks: Option<String>,
+}
+
+impl HeatTreatmentOrder {
+    pub fn validate(&self) -> AppResult<()> {
+        if self.order_number.trim().is_empty() {
+            return Err(AppError::Validation("热处理工单号不能为空".to_string()));
+        }
+        if self.pipe_id.trim().is_empty() {
+            return Err(AppError::Validation("钢管编号不能为空".to_string()));
+        }
+        if self.furnace_number.trim().is_empty() {
+            return Err(AppError::Validation("炉号不能为空".to_string()));
+        }
+        if self.heat_treatment_type.trim().is_empty() {
+            return Err(AppError::Validation("热处理类型不能为空".to_string()));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeatTreatmentProcess {
+    pub id: Option<i64>,
+    pub order_id: i64,
+    pub stage: String,
+    pub target_temperature: f64,
+    pub actual_temperature: Option<f64>,
+    pub heating_rate: Option<f64>,
+    pub holding_time: Option<i32>,
+    pub cooling_rate: Option<f64>,
+    pub start_time: String,
+    pub end_time: Option<String>,
+    pub operator: String,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityInspection {
+    pub id: Option<i64>,
+    pub order_id: i64,
+    pub inspection_type: String,
+    pub hardness_hb: Option<f64>,
+    pub hardness_hrc: Option<f64>,
+    pub tensile_strength: Option<f64>,
+    pub yield_strength: Option<f64>,
+    pub elongation: Option<f64>,
+    pub metallographic_structure: Option<String>,
+    pub inspector: String,
+    pub inspection_date: String,
+    pub result: String,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FurnaceStatus {
+    pub id: Option<i64>,
+    pub furnace_number: String,
+    pub status: String,
+    pub current_temperature: Option<f64>,
+    pub target_temperature: Option<f64>,
+    pub load_count: Option<i32>,
+    pub last_maintenance: Option<String>,
+    pub operator: String,
+    pub update_time: String,
+    pub remarks: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct HeatTreatmentOrderRequest {
+    pub order_number: String,
+    pub pipe_id: String,
+    pub furnace_number: String,
+    pub heat_treatment_type: String,
+    pub process_parameters: Option<String>,
+    pub operator: String,
+    pub temperature_curve: Option<String>,
+    pub cooling_method: Option<String>,
+    pub remarks: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct QualityInspectionRequest {
+    pub order_id: i64,
+    pub inspection_type: String,
+    pub hardness_hb: Option<f64>,
+    pub hardness_hrc: Option<f64>,
+    pub tensile_strength: Option<f64>,
+    pub yield_strength: Option<f64>,
+    pub elongation: Option<f64>,
+    pub metallographic_structure: Option<String>,
+    pub inspector: String,
+    pub inspection_date: String,
+    pub result: String,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SamplingRecord {
+    pub id: Option<i64>,
+    pub order_id: i64,
+    pub sample_number: String,
+    pub sampling_position: String,
+    pub sampling_time: String,
+    pub sampler: String,
+    pub sample_description: Option<String>,
+    pub sample_status: Option<String>,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarkingRecord {
+    pub id: Option<i64>,
+    pub order_id: i64,
+    pub marking_number: String,
+    pub marking_content: String,
+    pub marking_position: String,
+    pub marking_time: String,
+    pub marker: String,
+    pub marking_method: Option<String>,
+    pub marking_status: Option<String>,
+    pub remarks: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct SamplingRequest {
+    pub order_id: i64,
+    pub sample_number: String,
+    pub sampling_position: String,
+    pub sampler: String,
+    pub sample_description: Option<String>,
+    pub remarks: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct MarkingRequest {
+    pub order_id: i64,
+    pub marking_number: String,
+    pub marking_content: String,
+    pub marking_position: String,
+    pub marker: String,
+    pub marking_method: Option<String>,
+    pub remarks: Option<String>,
+}
