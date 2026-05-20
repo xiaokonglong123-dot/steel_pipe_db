@@ -1,5 +1,36 @@
+# ── Rust ──
+/backend/target/
+/backend/Cargo.lock
 
-# Python
+# ── Node ──
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.vite/
+
+# ── Environment ──
+.env
+.env.local
+.env.*.local
+
+# ── IDE ──
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── SQLite ──
+/backend/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ── Python (general) ──
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,36 +51,22 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-
-# 虚拟环境
 venv/
 ENV/
 env/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-*debug/
-debug/
-*target/debug/
+# ── Development artifacts ──
+.omo/
+memory.md
 
-# 数据库文件
-*.db
-*.sqlite
-*.sqlite3
-*.db*
-
-# 日志文件
+# ── Logs ──
 *.log
 
-# 操作系统
-.DS_Store
-Thumbs.db
+# ── Editor / IDE (extended) ──
+*.iml
+.idea/
+.vscode/
 
-# 项目特定
+# ── Project specific ──
 pipes.db
 steel_pipe.ico
