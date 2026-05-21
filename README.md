@@ -257,4 +257,4 @@ Design documents (in Chinese) are in [`docs/`](./docs/):
 
 ## 📄 License
 
-[MIT](./LICENSE)
+[GNU General Public License v2](./LICENSE)
