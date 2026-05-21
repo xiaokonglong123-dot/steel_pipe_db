@@ -59,6 +59,9 @@ env/
 .omo/
 memory.md
 
+# ── Build artifacts ──
+frontend/tsconfig.tsbuildinfo
+
 # ── Logs ──
 *.log
 
