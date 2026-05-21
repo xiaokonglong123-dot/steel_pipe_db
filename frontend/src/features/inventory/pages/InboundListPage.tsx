@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Table,
   Button,
@@ -11,7 +11,7 @@ import {
   Popconfirm,
   message,
 } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, InboxOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import {
   useInboundRecords,
@@ -21,6 +21,8 @@ import {
   useDeleteInbound,
 } from '../hooks/useInventory';
 import type { InboundRecord, CreateInboundData } from '../api/inventoryApi';
+import type { PurchaseOrder } from '../../purchases/types';
+import PurchaseOrderSelector from '../components/PurchaseOrderSelector';
 
 const INBOUND_TYPES = ['purchase', 'production', 'return', 'transfer'];
 const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
@@ -48,8 +50,30 @@ export default function InboundListPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<number | null>(null);
+  const [poSelectorOpen, setPoSelectorOpen] = useState(false);
   const [form] = Form.useForm<CreateInboundData>();
   const [rejectForm] = Form.useForm<{ reason: string }>();
+
+  const handlePOSelect = useCallback(
+    (po: PurchaseOrder) => {
+      const pipes: { pipe_type: string; pipe_id?: number }[] = [];
+      for (const item of po.items) {
+        for (let i = 0; i < item.quantity; i++) {
+          pipes.push({ pipe_type: item.pipe_type, pipe_id: undefined });
+        }
+      }
+      form.setFieldsValue({
+        inbound_type: 'purchase',
+        order_id: po.id,
+        supplier_id: po.supplier_id,
+        notes: t('inbound.from_po_template', { order_no: po.order_number }),
+        pipes: pipes.length > 0 ? pipes : [{ pipe_type: 'casing', pipe_id: undefined }],
+      });
+      setPoSelectorOpen(false);
+      message.success(t('inbound.template_applied'));
+    },
+    [form, t],
+  );
 
   const { data, isLoading } = useInboundRecords({
     page,
@@ -167,7 +191,7 @@ export default function InboundListPage() {
             </>
           )}
           <Popconfirm
-            title="Confirm delete?"
+            title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
             <Button type="link" danger>
@@ -264,6 +288,16 @@ export default function InboundListPage() {
         width={600}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <Button
+              icon={<InboxOutlined />}
+              onClick={() => setPoSelectorOpen(true)}
+              block
+            >
+              {t('inbound.from_purchase_order')}
+            </Button>
+          </div>
+
           <Form.Item
             name="inbound_type"
             label={t('inbound.inbound_type')}
@@ -300,7 +334,7 @@ export default function InboundListPage() {
                         <Select style={{ width: 140 }}>
                           {PIPE_TYPES.map((pt) => (
                             <Select.Option key={pt} value={pt}>
-                              {pt}
+                              {t('pipe_type.' + pt)}
                             </Select.Option>
                           ))}
                         </Select>
@@ -311,7 +345,7 @@ export default function InboundListPage() {
                         rules={[{ required: true, message: t('common.required') }]}
                         noStyle
                       >
-                        <Input placeholder="Pipe ID" type="number" style={{ width: 120 }} />
+                        <Input placeholder={t('inbound.pipe_id_placeholder')} type="number" style={{ width: 120 }} />
                       </Form.Item>
                       {fields.length > 1 && (
                         <Button size="small" danger onClick={() => remove(name)}>
@@ -329,6 +363,12 @@ export default function InboundListPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <PurchaseOrderSelector
+        open={poSelectorOpen}
+        onCancel={() => setPoSelectorOpen(false)}
+        onSelect={handlePOSelect}
+      />
 
       <Modal
         title={t('inbound.reject')}

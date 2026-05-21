@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Table,
   Button,
@@ -11,7 +11,7 @@ import {
   Popconfirm,
   message,
 } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, StockOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import {
   useOutboundRecords,
@@ -21,6 +21,7 @@ import {
   useDeleteOutbound,
 } from '../hooks/useInventory';
 import type { OutboundRecord, CreateOutboundData } from '../api/inventoryApi';
+import StockSelector from '../components/StockSelector';
 
 const OUTBOUND_TYPES = ['sales', 'production', 'return', 'transfer', 'scrapped'];
 const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
@@ -49,8 +50,22 @@ export default function OutboundListPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<number | null>(null);
+  const [stockSelectorOpen, setStockSelectorOpen] = useState(false);
   const [form] = Form.useForm<CreateOutboundData>();
   const [rejectForm] = Form.useForm<{ reason: string }>();
+
+  const handleStockSelect = useCallback(
+    (selectedPipes: { pipe_type: string; pipe_id: number }[]) => {
+      const currentPipes = form.getFieldValue('pipes') || [];
+      // Merge: append selected pipes to existing, avoiding duplicates by pipe_id
+      const existingIds = new Set(currentPipes.map((p: { pipe_id: number }) => p.pipe_id));
+      const newPipes = selectedPipes.filter((p) => !existingIds.has(p.pipe_id));
+      form.setFieldsValue({ pipes: [...currentPipes, ...newPipes] });
+      setStockSelectorOpen(false);
+      message.success(t('outbound.stock_added', { count: newPipes.length }));
+    },
+    [form, t],
+  );
 
   const { data, isLoading } = useOutboundRecords({
     page,
@@ -168,7 +183,7 @@ export default function OutboundListPage() {
             </>
           )}
           <Popconfirm
-            title="Confirm delete?"
+            title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
             <Button type="link" danger>
@@ -265,6 +280,16 @@ export default function OutboundListPage() {
         width={600}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <Button
+              icon={<StockOutlined />}
+              onClick={() => setStockSelectorOpen(true)}
+              block
+            >
+              {t('outbound.from_stock')}
+            </Button>
+          </div>
+
           <Form.Item
             name="outbound_type"
             label={t('outbound.outbound_type')}
@@ -301,7 +326,7 @@ export default function OutboundListPage() {
                         <Select style={{ width: 140 }}>
                           {PIPE_TYPES.map((pt) => (
                             <Select.Option key={pt} value={pt}>
-                              {pt}
+                              {t('pipe_type.' + pt)}
                             </Select.Option>
                           ))}
                         </Select>
@@ -312,7 +337,7 @@ export default function OutboundListPage() {
                         rules={[{ required: true, message: t('common.required') }]}
                         noStyle
                       >
-                        <Input placeholder="Pipe ID" type="number" style={{ width: 120 }} />
+                        <Input placeholder={t('outbound.pipe_id_placeholder')} type="number" style={{ width: 120 }} />
                       </Form.Item>
                       {fields.length > 1 && (
                         <Button size="small" danger onClick={() => remove(name)}>
@@ -330,6 +355,12 @@ export default function OutboundListPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <StockSelector
+        open={stockSelectorOpen}
+        onCancel={() => setStockSelectorOpen(false)}
+        onSelect={handleStockSelect}
+      />
 
       <Modal
         title={t('outbound.reject')}

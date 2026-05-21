@@ -92,7 +92,7 @@ Open `http://localhost:5173` and log in with:
 |------------|------------------------------------------------|
 | Auth       | JWT login/refresh/logout, RBAC (admin/warehouse/qc/sales) |
 | Pipes      | API 5CT pipe master data (steel grade, heat treatment, threading) |
-| Inventory  | Per-pipe granular tracking, ATP calculation, inventory logs |
+| Inventory  | Per-pipe granular tracking, ATP calculation, inventory logs, inbound templates (auto-fill from PO), outbound stock awareness (browse in-stock pipes) |
 
 ### Phase 2 — Business (P1)
 | Module     | Description                                    |
