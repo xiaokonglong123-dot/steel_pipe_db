@@ -1,0 +1,116 @@
+use serde::Deserialize;
+
+// ━━━ Inbound DTOs ━━━
+
+#[derive(Debug, Deserialize)]
+pub struct CreateInboundRecordRequest {
+    pub inbound_type: String,
+    pub order_id: Option<i64>,
+    pub supplier_id: Option<i64>,
+    pub notes: Option<String>,
+    pub pipes: Vec<InboundPipeItem>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct InboundPipeItem {
+    pub pipe_type: String,
+    pub pipe_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InboundFilter {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub sort_by: Option<String>,
+    pub sort_order: Option<String>,
+    pub inbound_type: Option<String>,
+    pub approval_status: Option<String>,
+    pub order_id: Option<i64>,
+    pub q: Option<String>,
+}
+
+// ━━━ Outbound DTOs ━━━
+
+#[derive(Debug, Deserialize)]
+pub struct CreateOutboundRecordRequest {
+    pub outbound_type: String,
+    pub order_id: Option<i64>,
+    pub customer_id: Option<i64>,
+    pub notes: Option<String>,
+    pub pipes: Vec<OutboundPipeItem>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OutboundPipeItem {
+    pub pipe_type: String,
+    pub pipe_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OutboundFilter {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub sort_by: Option<String>,
+    pub sort_order: Option<String>,
+    pub outbound_type: Option<String>,
+    pub approval_status: Option<String>,
+    pub order_id: Option<i64>,
+    pub q: Option<String>,
+}
+
+// ━━━ Inventory DTOs ━━━
+
+#[derive(Debug, Deserialize)]
+pub struct InventoryFilter {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub grade: Option<String>,
+    pub pipe_type: Option<String>,
+    pub location_id: Option<i64>,
+    pub q: Option<String>,
+}
+
+// ━━━ Location DTOs ━━━
+
+#[derive(Debug, Deserialize)]
+pub struct CreateLocationRequest {
+    pub zone_code: String,
+    pub shelf_code: String,
+    pub level_code: String,
+    pub description: Option<String>,
+    pub capacity: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateLocationRequest {
+    pub description: Option<String>,
+    pub capacity: Option<i64>,
+    pub is_active: Option<bool>,
+}
+
+// ━━━ Check DTOs ━━━
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCheckRequest {
+    pub location_id: Option<i64>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SubmitCheckItemRequest {
+    pub found_status: String,
+    pub notes: Option<String>,
+}
+
+// ━━━ Approval DTOs ━━━
+
+#[derive(Debug, Deserialize)]
+pub struct ApproveRequest {
+    #[allow(dead_code)]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RejectRequest {
+    pub reason: String,
+}
