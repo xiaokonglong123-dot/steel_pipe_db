@@ -1,5 +1,8 @@
+<div align="center">
+
 > **🤖 本仓库全部代码由 AI 生成** — 从架构设计到每一行代码，均为大语言模型自动产出，仅做技术演示与能力验证用途。
-> {: style="text-align: center;"}
+
+</div>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/API-5CT-1f2937?style=flat-square&logo=rust&logoColor=white">
