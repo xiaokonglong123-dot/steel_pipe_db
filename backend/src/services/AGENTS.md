@@ -1,19 +1,17 @@
-# `services/` — Business Logic Layer (13 files)
+# `services/` — Business Logic Layer (12 files)
 
 This is where business rules, cross-entity orchestration, and transaction management live. Services are called by handlers and call repositories.
 
 ## Pattern
 ```rust
-pub struct PipeService {
-    repo: Arc<PipeRepository>,
-    inventory_repo: Arc<InventoryRepository>,
-    db: Pool<Sqlite>,
-}
+pub struct PipeService;  // No fields, no constructor, no DI
 
 impl PipeService {
-    pub fn new(repo: Arc<PipeRepository>, inventory_repo: Arc<InventoryRepository>, db: Pool<Sqlite>) -> Self { ... }
-    
-    pub async fn list_pipes(&self, params: &PipeListParams) -> Result<PagedResult<PipeDto>, AppError> {
+    pub async fn list_seamless_pipes(
+        pool: &SqlitePool,
+        params: &PipeFilterParams,
+        pagination: &PaginationParams,
+    ) -> Result<(Vec<SeamlessPipe>, i64), AppError> {
         // 1. Validate business rules
         // 2. Call repository
         // 3. Transform/aggregate results
@@ -23,33 +21,29 @@ impl PipeService {
 ```
 
 ## Service File List
-| File | Description | Size |
-|------|-------------|------|
-| `auth_service.rs` | Login, register, token management | ~200 lines |
-| `pipe_service.rs` | Pipe specs, product config | ~300 lines |
-| `inventory_service.rs` | Stock management (764 lines — largest) | **764** |
-| `purchase_service.rs` | Purchase orders, approvals | ~350 lines |
-| `production_service.rs` | Production orders | ~250 lines |
-| `report_service.rs` | Report generation | ~400 lines |
-| `contract_service.rs` | Contracts | ~200 lines |
-| `customer_service.rs` | Customer management | ~200 lines |
-| `supplier_service.rs` | Supplier management | ~200 lines |
-| `category_service.rs` | Category management | ~150 lines |
-| `warehouse_service.rs` | Warehouse management | ~200 lines |
-| `dashboard_service.rs` | Dashboard aggregation | ~200 lines |
+| File | Entity | Description |
+|------|--------|-------------|
+| `auth_service.rs` | Auth | login, token refresh, password verify |
+| `pipe_service.rs` | Pipes | pipe CRUD, steel grade/heat treatment validation |
+| `inventory_service.rs` | Inventory | inbound, outbound, stock ATP, location management |
+| `purchase_sales_service.rs` | Purchase + Sales | PO/SO lifecycle, approval workflow |
+| `quality_service.rs` | Quality | cert creation, mechanical/NDT test entry |
+| `contract_service.rs` | Contracts | contract CRUD, milestone tracking |
+| `customer_service.rs` | Customers | customer CRUD, code uniqueness |
+| `supplier_service.rs` | Suppliers | supplier CRUD, qualification |
+| `label_service.rs` | Labels | label content generation |
+| `report_service.rs` | Reports | dashboard aggregation, statistical reports |
+| `data_io_service.rs` | Data IO | Excel/CSV import parsing, export formatting |
+| `trace_service.rs` | Trace | inventory movement audit trail |
 
 ## Service Conventions
-1. **Constructor**: `pub fn new(...repos..., db: Pool<Sqlite>) -> Self` — dependency injection via constructor
-2. **Return type**: Always `Result<T, AppError>` where T is entity-specific
-3. **Naming**: Methods mirror handler actions: `list_*`, `get_*`, `create_*`, `update_*`, `delete_*`
-4. **Transactions**: Wrap multi-repo operations in `sqlx::Transaction`:
-   ```rust
-   let mut tx = self.db.begin().await.map_err(AppError::from)?;
-   // ... repository calls with &mut *tx ...
-   tx.commit().await.map_err(AppError::from)?;
-   ```
-5. **Cross-entity ops**: Single service can call multiple repositories (e.g., inventory_service calls inventory_repo AND pipe_repo)
-6. **No HTTP logic**: Services never know about HTTP StatusCodes, response formatting, or headers
+1. **Pattern**: Unit struct with static methods — `pub struct XxxService;` then `impl XxxService { pub async fn ... }`
+2. **First parameter**: Always `pool: &SqlitePool`
+3. **Return type**: Always `Result<T, AppError>`
+4. **Naming**: `list_*`, `get_*`, `create_*`, `update_*`, `delete_*`
+5. **Transactions**: Use `sqlx::Transaction::begin(&pool).await`, pass `&mut *tx` to repos
+6. **Cross-entity ops**: Call multiple repositories directly (pool shared via parameter)
+7. **No HTTP logic**: Services never know about StatusCodes, response formatting, or headers
 
 ## Key patterns in `inventory_service.rs` (largest, most complex)
 - Stock-in / stock-out with quantity validation
@@ -61,5 +55,5 @@ impl PipeService {
 ## Adding a New Service
 1. Create `new_service.rs`
 2. Add `pub mod new_service;` to `mod.rs`
-3. Define `pub struct NewService { ... }` with constructor
-4. Register in `mod.rs` or pass to AppState in `main.rs`
+3. Define `pub struct NewService;` with static methods taking `pool: &SqlitePool`
+4. Route registration in `router.rs`

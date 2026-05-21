@@ -1,9 +1,11 @@
 use serde::Deserialize;
+use validator::Validate;
 
 // ━━━ Inbound DTOs ━━━
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateInboundRecordRequest {
+    #[validate(length(min = 1))]
     pub inbound_type: String,
     pub order_id: Option<i64>,
     pub supplier_id: Option<i64>,
@@ -11,9 +13,11 @@ pub struct CreateInboundRecordRequest {
     pub pipes: Vec<InboundPipeItem>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct InboundPipeItem {
+    #[validate(length(min = 1))]
     pub pipe_type: String,
+    #[validate(range(min = 1))]
     pub pipe_id: i64,
 }
 
@@ -31,8 +35,9 @@ pub struct InboundFilter {
 
 // ━━━ Outbound DTOs ━━━
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateOutboundRecordRequest {
+    #[validate(length(min = 1))]
     pub outbound_type: String,
     pub order_id: Option<i64>,
     pub customer_id: Option<i64>,
@@ -40,9 +45,11 @@ pub struct CreateOutboundRecordRequest {
     pub pipes: Vec<OutboundPipeItem>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct OutboundPipeItem {
+    #[validate(length(min = 1))]
     pub pipe_type: String,
+    #[validate(range(min = 1))]
     pub pipe_id: i64,
 }
 
@@ -72,16 +79,19 @@ pub struct InventoryFilter {
 
 // ━━━ Location DTOs ━━━
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateLocationRequest {
+    #[validate(length(min = 1))]
     pub zone_code: String,
+    #[validate(length(min = 1))]
     pub shelf_code: String,
+    #[validate(length(min = 1))]
     pub level_code: String,
     pub description: Option<String>,
     pub capacity: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateLocationRequest {
     pub description: Option<String>,
     pub capacity: Option<i64>,
@@ -90,27 +100,29 @@ pub struct UpdateLocationRequest {
 
 // ━━━ Check DTOs ━━━
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateCheckRequest {
     pub location_id: Option<i64>,
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct SubmitCheckItemRequest {
+    #[validate(length(min = 1))]
     pub found_status: String,
     pub notes: Option<String>,
 }
 
 // ━━━ Approval DTOs ━━━
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct ApproveRequest {
     #[allow(dead_code)]
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct RejectRequest {
+    #[validate(length(min = 1))]
     pub reason: String,
 }

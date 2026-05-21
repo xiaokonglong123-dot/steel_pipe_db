@@ -2,6 +2,8 @@ use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use sqlx::SqlitePool;
 
+use validator::Validate;
+
 use crate::dto::common::PaginationParams;
 use crate::dto::contract_dto::{
     ContractDetailResponse, ContractFilterParams, CreateContractItemRequest,
@@ -37,6 +39,7 @@ pub async fn create_contract_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateContractRequest>,
 ) -> Result<Json<ApiResponse<ContractDetailResponse>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let result = ContractService::create_contract(&pool, &req).await?;
     Ok(ApiResponse::ok(result))
 }
@@ -54,6 +57,7 @@ pub async fn update_contract_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateContractRequest>,
 ) -> Result<Json<ApiResponse<Contract>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let contract = ContractService::update_contract(&pool, id, &req).await?;
     Ok(ApiResponse::ok(contract))
 }
@@ -71,6 +75,7 @@ pub async fn update_contract_status_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateContractStatusRequest>,
 ) -> Result<Json<ApiResponse<Contract>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let contract = ContractService::update_status(&pool, id, &req.status).await?;
     Ok(ApiResponse::ok(contract))
 }
@@ -82,6 +87,7 @@ pub async fn add_contract_item_handler(
     Path(contract_id): Path<i64>,
     Json(req): Json<CreateContractItemRequest>,
 ) -> Result<Json<ApiResponse<ContractItem>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let item = ContractService::add_item(&pool, contract_id, &req).await?;
     Ok(ApiResponse::ok(item))
 }
@@ -91,6 +97,7 @@ pub async fn update_contract_item_handler(
     Path((contract_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<UpdateContractItemRequest>,
 ) -> Result<Json<ApiResponse<ContractItem>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let item = ContractService::update_item(&pool, contract_id, item_id, &req).await?;
     Ok(ApiResponse::ok(item))
 }
@@ -118,6 +125,7 @@ pub async fn add_contract_payment_handler(
     Path(contract_id): Path<i64>,
     Json(req): Json<CreatePaymentRequest>,
 ) -> Result<Json<ApiResponse<ContractPayment>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let payment = ContractService::add_payment(&pool, contract_id, &req).await?;
     Ok(ApiResponse::ok(payment))
 }
@@ -127,6 +135,7 @@ pub async fn update_contract_payment_handler(
     Path((contract_id, payment_id)): Path<(i64, i64)>,
     Json(req): Json<UpdatePaymentRequest>,
 ) -> Result<Json<ApiResponse<ContractPayment>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let payment = ContractService::update_payment(&pool, contract_id, payment_id, &req).await?;
     Ok(ApiResponse::ok(payment))
 }

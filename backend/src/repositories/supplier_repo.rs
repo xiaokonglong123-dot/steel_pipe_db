@@ -125,19 +125,20 @@ impl SupplierRepo {
         let offset = params.offset();
 
         let mut conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push(format!(
-                    "(name LIKE '%{}%' OR supplier_code LIKE '%{}%' OR contact_person LIKE '%{}%')",
-                    q.replace('\'', "''"),
-                    q.replace('\'', "''"),
-                    q.replace('\'', "''")
-                ));
+                conditions.push("(name LIKE ? OR supplier_code LIKE ? OR contact_person LIKE ?)".into());
+                let pattern = format!("%{}%", q);
+                bind_values.push(pattern.clone());
+                bind_values.push(pattern.clone());
+                bind_values.push(pattern);
             }
         }
         if let Some(val) = filter.is_active {
-            conditions.push(format!("is_active = {}", if val { 1 } else { 0 }));
+            conditions.push("is_active = ?".into());
+            bind_values.push(if val { "1" } else { "0" }.into());
         }
 
         let where_clause = conditions.join(" AND ");
@@ -151,16 +152,25 @@ impl SupplierRepo {
         let sort_order = params.sort_order_sql();
 
         let count_sql = format!("SELECT COUNT(*) as cnt FROM suppliers WHERE {}", where_clause);
-        let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await?;
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        for val in &bind_values {
+            count_q = count_q.bind(val.as_str());
+        }
+        let total: (i64,) = count_q.fetch_one(pool).await?;
 
         let list_sql = format!(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
-             FROM suppliers WHERE {} ORDER BY {} {} LIMIT {} OFFSET {}",
-            where_clause, sort_by, sort_order, page_size, offset
+             FROM suppliers WHERE {} ORDER BY {} {} LIMIT ? OFFSET ?",
+            where_clause, sort_by, sort_order
         );
-
-        let items = sqlx::query_as::<_, Supplier>(&list_sql)
+        let mut list_q = sqlx::query_as::<_, Supplier>(&list_sql);
+        for val in &bind_values {
+            list_q = list_q.bind(val.as_str());
+        }
+        let items = list_q
+            .bind(page_size as i64)
+            .bind(offset as i64)
             .fetch_all(pool)
             .await?;
 
@@ -171,7 +181,7 @@ impl SupplierRepo {
         pool: &SqlitePool,
         query: &str,
     ) -> Result<Vec<Supplier>, sqlx::Error> {
-        let like = format!("%{}%", query.replace('\'', "''"));
+        let like = format!("%{}%", query);
         sqlx::query_as::<_, Supplier>(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \

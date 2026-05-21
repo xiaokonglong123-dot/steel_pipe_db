@@ -1,14 +1,19 @@
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::models::contract::{Contract, ContractItem, ContractPayment};
 
 // ━━━ Contract ━━━
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateContractRequest {
+    #[validate(length(min = 1))]
     pub contract_type: String,
+    #[validate(length(min = 1))]
     pub title: String,
+    #[validate(length(min = 1))]
     pub party_a: String,
+    #[validate(length(min = 1))]
     pub party_b: String,
     pub sign_date: Option<String>,
     pub start_date: Option<String>,
@@ -17,7 +22,7 @@ pub struct CreateContractRequest {
     pub items: Vec<CreateContractItemRequest>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateContractRequest {
     pub title: Option<String>,
     pub party_a: Option<String>,
@@ -50,18 +55,23 @@ pub struct ContractDetailResponse {
 
 // ━━━ Contract Items ━━━
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct CreateContractItemRequest {
+    #[validate(length(min = 1))]
     pub pipe_type: String,
+    #[validate(length(min = 1))]
     pub grade: String,
+    #[validate(range(min = 0.0))]
     pub od: f64,
+    #[validate(range(min = 0.0))]
     pub wt: f64,
+    #[validate(range(min = 1))]
     pub quantity: i64,
     pub unit_price: Option<f64>,
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateContractItemRequest {
     pub pipe_type: Option<String>,
     pub grade: Option<String>,
@@ -74,15 +84,18 @@ pub struct UpdateContractItemRequest {
 
 // ━━━ Contract Payments ━━━
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreatePaymentRequest {
+    #[validate(length(min = 1))]
     pub due_date: String,
+    #[validate(range(min = 0.0))]
     pub amount: f64,
+    #[validate(length(min = 1))]
     pub payment_type: String,
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdatePaymentRequest {
     pub due_date: Option<String>,
     pub amount: Option<f64>,
@@ -94,7 +107,8 @@ pub struct UpdatePaymentRequest {
 
 // ━━━ Status Transition ━━━
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateContractStatusRequest {
+    #[validate(length(min = 1))]
     pub status: String,
 }

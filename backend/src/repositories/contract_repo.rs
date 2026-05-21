@@ -182,37 +182,34 @@ impl ContractRepo {
         let offset = params.offset();
 
         let mut conditions: Vec<String> = vec!["c.deleted_at IS NULL".into()];
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                let escaped = q.replace('\'', "''");
-                conditions.push(format!(
-                    "(c.contract_no LIKE '%{}%' OR c.title LIKE '%{}%' \
-                     OR c.party_a LIKE '%{}%' OR c.party_b LIKE '%{}%')",
-                    escaped, escaped, escaped, escaped
-                ));
+                conditions.push("(c.contract_no LIKE ? OR c.title LIKE ? \
+                 OR c.party_a LIKE ? OR c.party_b LIKE ?)".into());
+                let pattern = format!("%{}%", q);
+                bind_values.push(pattern.clone());
+                bind_values.push(pattern.clone());
+                bind_values.push(pattern.clone());
+                bind_values.push(pattern);
             }
         }
         if let Some(ref contract_type) = filter.contract_type {
-            conditions.push(format!(
-                "c.contract_type = '{}'",
-                contract_type.replace('\'', "''")
-            ));
+            conditions.push("c.contract_type = ?".into());
+            bind_values.push(contract_type.clone());
         }
         if let Some(ref status) = filter.status {
-            conditions.push(format!("c.status = '{}'", status.replace('\'', "''")));
+            conditions.push("c.status = ?".into());
+            bind_values.push(status.clone());
         }
         if let Some(ref date_from) = filter.date_from {
-            conditions.push(format!(
-                "c.sign_date >= '{}'",
-                date_from.replace('\'', "''")
-            ));
+            conditions.push("c.sign_date >= ?".into());
+            bind_values.push(date_from.clone());
         }
         if let Some(ref date_to) = filter.date_to {
-            conditions.push(format!(
-                "c.sign_date <= '{}'",
-                date_to.replace('\'', "''")
-            ));
+            conditions.push("c.sign_date <= ?".into());
+            bind_values.push(date_to.clone());
         }
 
         let where_clause = conditions.join(" AND ");
@@ -232,18 +229,27 @@ impl ContractRepo {
             "SELECT COUNT(*) as cnt FROM contracts c WHERE {}",
             where_clause
         );
-        let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await?;
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        for val in &bind_values {
+            count_q = count_q.bind(val.as_str());
+        }
+        let total: (i64,) = count_q.fetch_one(pool).await?;
 
         let list_sql = format!(
             "SELECT c.id, c.contract_no, c.contract_type, c.title, c.party_a, c.party_b, \
              c.sign_date, c.start_date, c.end_date, c.total_amount, c.status, c.notes, \
              c.created_by, c.created_at, c.updated_at, c.deleted_at \
              FROM contracts c WHERE {} \
-             ORDER BY {} {} LIMIT {} OFFSET {}",
-            where_clause, sort_by, sort_order, page_size, offset
+             ORDER BY {} {} LIMIT ? OFFSET ?",
+            where_clause, sort_by, sort_order
         );
-
-        let items = sqlx::query_as::<_, Contract>(&list_sql)
+        let mut list_q = sqlx::query_as::<_, Contract>(&list_sql);
+        for val in &bind_values {
+            list_q = list_q.bind(val.as_str());
+        }
+        let items = list_q
+            .bind(page_size as i64)
+            .bind(offset as i64)
             .fetch_all(pool)
             .await?;
 

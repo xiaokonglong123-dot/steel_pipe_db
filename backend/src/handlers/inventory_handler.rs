@@ -11,6 +11,8 @@ use crate::dto::inventory_dto::{
     CreateOutboundRecordRequest, InboundFilter, InventoryFilter, OutboundFilter, RejectRequest,
     SubmitCheckItemRequest, UpdateLocationRequest,
 };
+use validator::Validate;
+
 use crate::error::AppError;
 use crate::models::inventory::{
     InboundRecord, InventoryCheckItem, InventoryCheckRecord, InventoryLog, Location,
@@ -44,6 +46,7 @@ pub async fn create_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateInboundRecordRequest>,
 ) -> Result<Json<ApiResponse<InboundRecord>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let record = InventoryService::create_inbound(&pool, &req).await?;
     Ok(ApiResponse::ok(record))
 }
@@ -83,8 +86,9 @@ pub async fn get_inbound_handler(
 pub async fn approve_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-    Json(_req): Json<ApproveRequest>,
+    Json(req): Json<ApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     InventoryService::approve_inbound(&pool, id).await?;
     Ok(ApiResponse::ok("Inbound approved".into()))
 }
@@ -94,9 +98,7 @@ pub async fn reject_inbound_handler(
     Path(id): Path<i64>,
     Json(req): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    if req.reason.trim().is_empty() {
-        return Err(AppError::Validation("Rejection reason is required".into()));
-    }
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     InventoryService::reject_inbound(&pool, id, &req.reason).await?;
     Ok(ApiResponse::ok("Inbound rejected".into()))
 }
@@ -115,6 +117,7 @@ pub async fn create_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateOutboundRecordRequest>,
 ) -> Result<Json<ApiResponse<OutboundRecord>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let record = InventoryService::create_outbound(&pool, &req).await?;
     Ok(ApiResponse::ok(record))
 }
@@ -154,8 +157,9 @@ pub async fn get_outbound_handler(
 pub async fn approve_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-    Json(_req): Json<ApproveRequest>,
+    Json(req): Json<ApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     InventoryService::approve_outbound(&pool, id).await?;
     Ok(ApiResponse::ok("Outbound approved".into()))
 }
@@ -165,9 +169,7 @@ pub async fn reject_outbound_handler(
     Path(id): Path<i64>,
     Json(req): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    if req.reason.trim().is_empty() {
-        return Err(AppError::Validation("Rejection reason is required".into()));
-    }
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     InventoryService::reject_outbound(&pool, id, &req.reason).await?;
     Ok(ApiResponse::ok("Outbound rejected".into()))
 }
@@ -243,6 +245,7 @@ pub async fn create_location_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateLocationRequest>,
 ) -> Result<Json<ApiResponse<Location>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let location = InventoryService::create_location(&pool, &req).await?;
     Ok(ApiResponse::ok(location))
 }
@@ -260,6 +263,7 @@ pub async fn update_location_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateLocationRequest>,
 ) -> Result<Json<ApiResponse<Location>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let location = InventoryService::update_location(&pool, id, &req).await?;
     Ok(ApiResponse::ok(location))
 }
@@ -278,6 +282,7 @@ pub async fn create_check_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateCheckRequest>,
 ) -> Result<Json<ApiResponse<InventoryCheckRecord>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let record = InventoryService::create_check(&pool, &req).await?;
     Ok(ApiResponse::ok(record))
 }
@@ -319,6 +324,7 @@ pub async fn submit_check_item_handler(
     Path((check_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<SubmitCheckItemRequest>,
 ) -> Result<Json<ApiResponse<InventoryCheckItem>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let item = InventoryService::submit_check_item(&pool, check_id, item_id, &req).await?;
     Ok(ApiResponse::ok(item))
 }

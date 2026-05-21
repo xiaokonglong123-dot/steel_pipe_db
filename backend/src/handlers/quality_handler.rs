@@ -5,6 +5,8 @@ use axum::{
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
+use validator::Validate;
+
 use crate::dto::common::PaginationParams;
 use crate::dto::quality_dto::{
     CreateAttachmentRequest, CreateQualityCertRequest, QualityCertFilterParams,
@@ -50,6 +52,7 @@ pub async fn create_cert_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateQualityCertRequest>,
 ) -> Result<Json<ApiResponse<QualityCert>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let cert = QualityService::create_cert(&pool, &req).await?;
     Ok(ApiResponse::ok(cert))
 }
@@ -67,6 +70,7 @@ pub async fn update_cert_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateQualityCertRequest>,
 ) -> Result<Json<ApiResponse<QualityCert>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let cert = QualityService::update_cert(&pool, id, &req).await?;
     Ok(ApiResponse::ok(cert))
 }
@@ -102,6 +106,7 @@ pub async fn create_attachment_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateAttachmentRequest>,
 ) -> Result<Json<ApiResponse<PipeAttachment>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let attachment = QualityService::create_attachment(&pool, &req).await?;
     Ok(ApiResponse::ok(attachment))
 }

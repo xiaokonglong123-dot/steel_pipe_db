@@ -11,7 +11,6 @@
 - **i18next / react-i18next** — i18n (zh-CN primary, en-US fallback)
 - **dayjs** — Date handling
 - **zod** — Schema validation
-- **less** — Ant Design customization
 
 ## Build & Dev
 ```bash
@@ -34,19 +33,26 @@ frontend/
 │   ├── api/             ← Shared: axios instance, interceptors
 │   ├── components/      ← Shared: layout, common components
 │   ├── hooks/           ← Shared: custom React hooks
+│   ├── lib/             ← validateResponse.ts, runtime zod response validation
 │   ├── i18n/            ← Translation resources (zh, en)
 │   ├── routes/          ← Route definitions (react-router)
 │   ├── theme/           ← Ant Design theme config
+│   ├── zod-schemas/     ← 7 Zod schema files for API response validation
 │   ├── utils/           ← Utility functions
 │   └── features/        ← Feature modules (see features/AGENTS.md)
+│       ├── auth/
 │       ├── pipes/
 │       ├── inventory/
+│       ├── suppliers/
+│       ├── customers/
 │       ├── purchases/
+│       ├── sales/
+│       ├── quality/
+│       ├── contracts/
 │       ├── reports/
-│       ├── production/
-│       └── customers/
+│       └── labels/
 ├── index.html
-├── vite.config.ts       ← React plugin, proxy to backend
+├── vite.config.ts       ← React plugin, proxy, manualChunks vendor splitting
 ├── tsconfig.json        ← Strict TypeScript config
 ├── .eslintrc.cjs        ← ESLint config
 ├── .prettierrc          ← Prettier config (singleQuote, 2 space, noBracketSpacing)
@@ -62,7 +68,6 @@ frontend/
 - `i18next`, `react-i18next` — i18n
 - `dayjs` — Date utilities
 - `zod` — Schema validation
-- `less` — CSS preprocessing
 
 ## Conventions
 - Feature-based organization under `src/features/`
@@ -72,9 +77,10 @@ frontend/
 - Vite dev proxy: `/api/*` → `http://localhost:3000`
 - TypeScript strict mode enabled
 - No `as any`, `@ts-ignore`, or `@ts-expect-error` allowed
+- Vendor chunk splitting in vite.config.ts: antd→vendor-antd, react ecosystem→vendor-react, utils→vendor-utils, app→index (~162 kB gzip)
 
 ## Key Files
-- `vite.config.ts` — Vite config (React plugin, Less support, proxy)
+- `vite.config.ts` — Vite config (React plugin, proxy, manualChunks vendor splitting)
 - `tsconfig.json` — TypeScript config (strict, JSX react-jsx)
 - `.eslintrc.cjs` — ESLint rules
 - `.prettierrc` — `singleQuote: true, tabWidth: 2, bracketSpacing: false`

@@ -5,6 +5,8 @@ use axum::{
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
+use validator::Validate;
+
 use crate::dto::common::PaginationParams;
 use crate::dto::customer_dto::{
     CreateCustomerRequest, CustomerFilterParams, UpdateCustomerRequest,
@@ -41,6 +43,7 @@ pub async fn create_customer_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateCustomerRequest>,
 ) -> Result<Json<ApiResponse<Customer>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let customer = CustomerService::create(&pool, &req).await?;
     Ok(ApiResponse::ok(customer))
 }
@@ -58,6 +61,7 @@ pub async fn update_customer_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateCustomerRequest>,
 ) -> Result<Json<ApiResponse<Customer>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let customer = CustomerService::update(&pool, id, &req).await?;
     Ok(ApiResponse::ok(customer))
 }

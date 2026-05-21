@@ -51,23 +51,4 @@ impl<T: Serialize> PaginatedResponse<T> {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct ListParams {
-    pub page: u64,
-    pub page_size: u64,
-    pub sort_by: Option<String>,
-    pub sort_order: Option<String>,
-    pub q: Option<String>,
-}
 
-impl Default for ListParams {
-    fn default() -> Self {
-        Self {
-            page: 1,
-            page_size: 20,
-            sort_by: None,
-            sort_order: None,
-            q: None,
-        }
-    }
-}

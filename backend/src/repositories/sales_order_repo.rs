@@ -188,27 +188,31 @@ impl SalesOrderRepo {
         let offset = params.offset();
 
         let mut conditions: Vec<String> = vec!["so.deleted_at IS NULL".into()];
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push(format!(
-                    "(so.order_no LIKE '%{}%' OR c.name LIKE '%{}%')",
-                    q.replace('\'', "''"),
-                    q.replace('\'', "''")
-                ));
+                conditions.push("(so.order_no LIKE ? OR c.name LIKE ?)".into());
+                let pattern = format!("%{}%", q);
+                bind_values.push(pattern.clone());
+                bind_values.push(pattern);
             }
         }
         if let Some(ref status) = filter.status {
-            conditions.push(format!("so.status = '{}'", status.replace('\'', "''")));
+            conditions.push("so.status = ?".into());
+            bind_values.push(status.clone());
         }
         if let Some(customer_id) = filter.customer_id {
-            conditions.push(format!("so.customer_id = {}", customer_id));
+            conditions.push("so.customer_id = ?".into());
+            bind_values.push(customer_id.to_string());
         }
         if let Some(ref from) = filter.order_date_from {
-            conditions.push(format!("so.order_date >= '{}'", from.replace('\'', "''")));
+            conditions.push("so.order_date >= ?".into());
+            bind_values.push(from.clone());
         }
         if let Some(ref to) = filter.order_date_to {
-            conditions.push(format!("so.order_date <= '{}'", to.replace('\'', "''")));
+            conditions.push("so.order_date <= ?".into());
+            bind_values.push(to.clone());
         }
 
         let where_clause = conditions.join(" AND ");
@@ -227,18 +231,27 @@ impl SalesOrderRepo {
              LEFT JOIN customers c ON c.id = so.customer_id WHERE {}",
             where_clause
         );
-        let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await?;
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        for val in &bind_values {
+            count_q = count_q.bind(val.as_str());
+        }
+        let total: (i64,) = count_q.fetch_one(pool).await?;
 
         let list_sql = format!(
             "SELECT so.id, so.order_no, so.customer_id, so.order_date, so.status, \
              so.total_amount, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at \
              FROM sales_orders so \
              LEFT JOIN customers c ON c.id = so.customer_id \
-             WHERE {} ORDER BY {} {} LIMIT {} OFFSET {}",
-            where_clause, sort_by, sort_order, page_size, offset
+             WHERE {} ORDER BY {} {} LIMIT ? OFFSET ?",
+            where_clause, sort_by, sort_order
         );
-
-        let items = sqlx::query_as::<_, SalesOrder>(&list_sql)
+        let mut list_q = sqlx::query_as::<_, SalesOrder>(&list_sql);
+        for val in &bind_values {
+            list_q = list_q.bind(val.as_str());
+        }
+        let items = list_q
+            .bind(page_size as i64)
+            .bind(offset as i64)
             .fetch_all(pool)
             .await?;
 

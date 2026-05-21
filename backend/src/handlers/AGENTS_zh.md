@@ -1,43 +1,45 @@
-# `handlers/` — HTTP 层（13 个文件，110+ 个处理器）
+# `handlers/` — HTTP 层（12 个文件，约 50 个处理器）
 
 ## 模式
-每个处理器遵循：**提取 → 校验 → 调用服务 → 响应**
+每个处理器遵循：**提取 → 调用服务 → 响应**
 
 ```rust
-pub async fn list_pipes(
+pub async fn list_seamless_pipes_handler(
     Extension(pool): Extension<SqlitePool>,
-    Query(params): Query<PipeListParams>,
-) -> impl IntoResponse {
-    // 1. 校验参数（如需要）
-    // 2. 调用服务
-    match pipe_service::list_pipes(&pool, &params).await {
-        Ok(result) => Json(ApiResponse::success(result)).into_response(),
-        Err(e) => e.into_response(),
-    }
+    Query(filter): Query<PipeFilterParams>,
+) -> Result<Json<PaginatedResponse<SeamlessPipe>>, AppError> {
+    let (items, total) = PipeService::list_seamless_pipes(&pool, &filter, &pagination).await?;
+    Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 ```
 
-## 响应类型（来自 `dto/api_response.rs`）
-- `ApiResponse<T>` — 标准成功响应：`{ "code": 200, "message": "ok", "data": T }`
-- `PagedResponse<T>` — 分页响应：`{ "code": 200, "data": { "items": [...], "total": N, "page": P, "page_size": S } }`
-- `ErrorResponse` — 错误响应：`{ "code": N, "message": "..." }`
+要点：
+- 返回类型：`Result<Json<...>, AppError>` — 而非 `impl IntoResponse`
+- 使用 `?` 运算符进行错误传播（AppError 通过 `IntoResponse` 自动转换）
+- 无需手动调用 `.into_response()`
+- 处理器使用 `ApiResponse::ok()` 或 `PaginatedResponse::ok()` 静态构造函数
+
+## 响应类型（来自 `crate::response`）
+- `ApiResponse<T>` — 标准成功响应：`{ "success": true, "data": T }`
+- `PaginatedResponse<T>` — 分页响应：`{ "success": true, "data": { "items": [], "total": N, "page": P, "page_size": S, "total_pages": N } }`
+- `AppError` — 错误响应（通过 `IntoResponse`）：`{ "code": 11001, "message": "...", "details": null }`
 
 ## 处理器文件列表
-| 文件 | 实体 | 端点 |
-|------|--------|-----------|
-| `auth_handler.rs` | 认证 | login、register、profile、refresh |
-| `pipe_handler.rs` | 钢管（规格） | CRUD + 列表 |
-| `inventory_handler.rs` | 库存 | CRUD + 列表 |
-| `purchase_handler.rs` | 采购订单 | CRUD + 状态转换 |
-| `production_handler.rs` | 生产 | CRUD + 状态 |
-| `report_handler.rs` | 报表 | 各类报表端点 |
-| `contract_handler.rs` | 合同 | CRUD |
-| `customer_handler.rs` | 客户 | CRUD |
-| `supplier_handler.rs` | 供应商 | CRUD |
-| `category_handler.rs` | 实体分类 | CRUD |
-| `warehouse_handler.rs` | 仓库 | CRUD |
-| `dictionary_handler.rs` | 字典/配置 | CRUD |
-| `dashboard_handler.rs` | 仪表盘 | 摘要/统计 |
+
+| 文件 | 实体 | 描述 |
+|------|------|------|
+| `auth_handler.rs` | 认证 | 登录、登出、刷新令牌、个人信息 |
+| `pipe_handler.rs` | 钢管 | 无缝管 + 筛管 CRUD、列表、筛选 |
+| `inventory_handler.rs` | 库存 | 入库、出库、库存查询、库位、盘点 |
+| `purchase_handler.rs` | 采购订单 | CRUD、状态转换、审批 |
+| `sales_handler.rs` | 销售订单 | CRUD、状态转换、ATP 检查 |
+| `quality_handler.rs` | 质量 | 质检证书 CRUD、力学检测、无损检测 |
+| `contract_handler.rs` | 合同 | CRUD、里程碑 |
+| `customer_handler.rs` | 客户 | CRUD、列表 |
+| `supplier_handler.rs` | 供应商 | CRUD、列表 |
+| `report_handler.rs` | 报表 | 仪表盘、日报/月报/统计报表 |
+| `label_handler.rs` | 标签 | 条码/规格标签生成 |
+| `data_io_handler.rs` | 数据导入导出 | Excel/CSV 导入和导出 |
 
 ## 通用提取器模式
 - `Extension(pool): Extension<SqlitePool>` — 数据库池（每个处理器必需）
@@ -46,12 +48,15 @@ pub async fn list_pipes(
 - `Json(body): Json<T>` — POST/PUT 请求体（T: DeserializeOwned）
 - `Path(id): Path<i64>` — URL 路径参数
 - `AuthUser(user): AuthUser` — JWT 认证用户提取器
-- `ValidatedRequest<T>` — 校验后的 JSON 请求体（自定义提取器，使用 `validator` crate）
+
+校验通过 `validator::Validate::validate()` 内联完成：
+```rust
+req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+```
 
 ## 约定
 - 每个实体一个处理器文件
-- 处理函数为 `pub async fn` 返回 `impl IntoResponse`
-- 200 响应始终使用 `Json(ApiResponse::success(...))`
-- POST 创建使用 `StatusCode::CREATED`：`(StatusCode::CREATED, Json(ApiResponse::success(data)))`
-- 通过 `?` 运算符和 AppError 转换进行错误传播
+- 处理函数为 `pub async fn` 返回 `Result<Json<...>, AppError>`
+- 始终使用 `ApiResponse::ok()` / `PaginatedResponse::ok()` 静态构造函数
+- 通过 `?` 运算符和 AppError 自动转换进行错误传播
 - 大多数处理器较薄（5-15 行）—— 业务逻辑在服务层

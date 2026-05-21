@@ -36,16 +36,15 @@ docs/
 
 ### 单体仓库 vs 独立仓库
 - 单一仓库便于协调版本
-- Makefile 编排两个包
-- 生产环境中后端提供前端构建产物（通过 build.rs 嵌入）
-- 开发模式：Vite 代理到后端
+- 直接使用 cargo/npm 命令，每个包独立运行
+- 后端从内嵌静态文件提供前端构建产物；前端开发使用 Vite 代理到后端
 
 ## 决策记录
 
 | 决策 | 选择 | 备选方案 | 理据 |
 |----------|--------|-------------|-----------|
 | 数据库 | SQLite | PostgreSQL | 部署更简单，规模够用 |
-| HTTP 框架 | Axum 0.7 | Actix、Rocket | 生态系统、易用性、tower 生态 |
+| HTTP 框架 | Axum 0.8 | Actix、Rocket | 生态系统、易用性、tower 生态 |
 | ORM | SQLx | Diesel、SeaORM | 编译时 SQL 检查，无 ORM 开销 |
 | UI 库 | Ant Design 5 | MUI、ShadCN | 企业导向、中文生态、表格质量 |
 | 状态管理 | TanStack Query | Redux、Zustand | 服务端状态聚焦、缓存、去重 |

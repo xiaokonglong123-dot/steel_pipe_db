@@ -17,11 +17,13 @@ steel-pipe-db/
 │       └── middleware/   ← 认证、RBAC
 ├── frontend/         ← React 19 + Vite + Ant Design + TanStack Query
 │   └── src/
-│       └── features/    ← [pipes|inventory|purchases|reports|production|customers]
-│                            ├── api/       ← TanStack Query 钩子
-│                            ├── hooks/     ← 特性相关的 React 钩子
-│                            ├── pages/     ← 路由页面组件
-│                            └── types/     ← TypeScript 接口
+│       ├── features/    ← [pipes|inventory|purchases|reports|production|customers]
+│       │                   ├── api/       ← TanStack Query 钩子
+│       │                   ├── hooks/     ← 特性相关的 React 钩子
+│       │                   ├── pages/     ← 路由页面组件
+│       │                   └── types/     ← TypeScript 接口
+│       ├── lib/         ← validateResponse.ts, 运行时 zod 响应校验
+│       └── zod-schemas/ ← 7 个 Zod Schema 文件，用于响应校验
 └── docs/             ← 设计文档、ADR、任务分解
 ```
 
@@ -36,6 +38,7 @@ steel-pipe-db/
 | `make test` | 运行所有测试（后端 + 前端） |
 | `make run` | 生产环境完整构建 |
 | `make build` | 构建两个包 |
+| 前端 Chunk 分析 | `cd frontend && npx vite build --analyze`（通过 vite.config.ts 的 manualChunks） |
 
 后端运行在 `http://localhost:3000`，前端开发服务器在 `http://localhost:5173`。
 
@@ -64,6 +67,7 @@ steel-pipe-db/
 - **i18next / react-i18next** — 国际化（主要语言 zh-CN）
 - **dayjs** — 日期处理
 - **zod** — Schema 校验
+- **zod 运行时校验** — `src/lib/validateResponse.ts` 封装 `zod.response()` 用于 API 响应校验
 
 ## 核心约定
 
@@ -88,6 +92,8 @@ features/{feature}/
 ├── pages/    ← 页面组件（1 个文件 = 1 条路由）
 └── types/    ← TypeScript 接口
 ```
+
+- **死代码清理**：domain/dto/error/response/repo 模块中移除了 26 个未使用项。`#![allow(dead_code)]` 保留在 crate 根以压制合法的误报。
 
 ## 安全规则
 - 所有变更端点需要 JWT 认证（中间件强制执行）

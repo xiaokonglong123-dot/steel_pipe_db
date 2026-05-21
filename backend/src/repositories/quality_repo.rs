@@ -86,20 +86,6 @@ impl QualityCertRepo {
         .await
     }
 
-    pub async fn find_by_cert_number(
-        pool: &SqlitePool,
-        cert_number: &str,
-    ) -> Result<Option<QualityCert>, sqlx::Error> {
-        sqlx::query_as::<_, QualityCert>(
-            "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, \
-             inspection_body, notes, created_at, updated_at, deleted_at \
-             FROM quality_certs WHERE cert_number = ? AND deleted_at IS NULL",
-        )
-        .bind(cert_number)
-        .fetch_optional(pool)
-        .await
-    }
-
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE quality_certs SET deleted_at = datetime('now'), \
@@ -120,18 +106,19 @@ impl QualityCertRepo {
         let offset = params.offset();
 
         let mut conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref pipe_type) = filter.pipe_type {
-            conditions.push(format!(
-                "pipe_type = '{}'",
-                pipe_type.replace('\'', "''")
-            ));
+            conditions.push("pipe_type = ?".into());
+            bind_values.push(pipe_type.clone());
         }
         if let Some(pipe_id) = filter.pipe_id {
-            conditions.push(format!("pipe_id = {}", pipe_id));
+            conditions.push("pipe_id = ?".into());
+            bind_values.push(pipe_id.to_string());
         }
         if let Some(ref result) = filter.result {
-            conditions.push(format!("result = '{}'", result.replace('\'', "''")));
+            conditions.push("result = ?".into());
+            bind_values.push(result.clone());
         }
 
         let where_clause = conditions.join(" AND ");
@@ -150,17 +137,26 @@ impl QualityCertRepo {
             "SELECT COUNT(*) as cnt FROM quality_certs WHERE {}",
             where_clause
         );
-        let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await?;
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        for val in &bind_values {
+            count_q = count_q.bind(val.as_str());
+        }
+        let total: (i64,) = count_q.fetch_one(pool).await?;
 
         let list_sql = format!(
             "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, \
              inspection_body, notes, created_at, updated_at, deleted_at \
              FROM quality_certs WHERE {} \
-             ORDER BY {} {} LIMIT {} OFFSET {}",
-            where_clause, sort_by, sort_order, page_size, offset
+             ORDER BY {} {} LIMIT ? OFFSET ?",
+            where_clause, sort_by, sort_order
         );
-
-        let items = sqlx::query_as::<_, QualityCert>(&list_sql)
+        let mut list_q = sqlx::query_as::<_, QualityCert>(&list_sql);
+        for val in &bind_values {
+            list_q = list_q.bind(val.as_str());
+        }
+        let items = list_q
+            .bind(page_size as i64)
+            .bind(offset as i64)
             .fetch_all(pool)
             .await?;
 

@@ -149,38 +149,19 @@ impl LocationRepo {
             "SELECT id, zone_code, shelf_code, level_code, full_code, description, capacity, \
              used_count, is_active, created_at, updated_at, deleted_at \
              FROM locations WHERE {} ORDER BY zone_code ASC, shelf_code ASC, level_code ASC \
-             LIMIT {} OFFSET {}",
-            where_clause, page_size, offset
+             LIMIT ? OFFSET ?",
+            where_clause
         );
 
         let items = sqlx::query_as::<_, Location>(&list_sql)
+            .bind(page_size as i64)
+            .bind(offset as i64)
             .fetch_all(pool)
             .await?;
 
         Ok((items, total.0 as u64))
     }
 
-    pub async fn increment_used(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "UPDATE locations SET used_count = used_count + 1, updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
-        )
-        .bind(id)
-        .execute(pool)
-        .await?;
-        Ok(())
-    }
-
-    pub async fn decrement_used(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "UPDATE locations SET used_count = MAX(used_count - 1, 0), updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
-        )
-        .bind(id)
-        .execute(pool)
-        .await?;
-        Ok(())
-    }
 }
 
 // ━━━ InboundRepo ━━━
@@ -270,29 +251,25 @@ impl InboundRepo {
         let offset = pagination.offset();
 
         let mut conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push(format!(
-                    "inbound_no LIKE '%{}%'",
-                    q.replace('\'', "''")
-                ));
+                conditions.push("inbound_no LIKE ?".into());
+                bind_values.push(format!("%{}%", q));
             }
         }
         if let Some(ref inbound_type) = filter.inbound_type {
-            conditions.push(format!(
-                "inbound_type = '{}'",
-                inbound_type.replace('\'', "''")
-            ));
+            conditions.push("inbound_type = ?".into());
+            bind_values.push(inbound_type.clone());
         }
         if let Some(ref approval_status) = filter.approval_status {
-            conditions.push(format!(
-                "approval_status = '{}'",
-                approval_status.replace('\'', "''")
-            ));
+            conditions.push("approval_status = ?".into());
+            bind_values.push(approval_status.clone());
         }
         if let Some(order_id) = filter.order_id {
-            conditions.push(format!("order_id = {}", order_id));
+            conditions.push("order_id = ?".into());
+            bind_values.push(order_id.to_string());
         }
 
         let where_clause = conditions.join(" AND ");
@@ -309,17 +286,26 @@ impl InboundRepo {
             "SELECT COUNT(*) as cnt FROM inbound_records WHERE {}",
             where_clause
         );
-        let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await?;
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        for val in &bind_values {
+            count_q = count_q.bind(val.as_str());
+        }
+        let total: (i64,) = count_q.fetch_one(pool).await?;
 
         let list_sql = format!(
             "SELECT id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
              handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM inbound_records WHERE {} \
-             ORDER BY {} {} LIMIT {} OFFSET {}",
-            where_clause, sort_by, sort_order, page_size, offset
+             ORDER BY {} {} LIMIT ? OFFSET ?",
+            where_clause, sort_by, sort_order
         );
-
-        let items = sqlx::query_as::<_, InboundRecord>(&list_sql)
+        let mut list_q = sqlx::query_as::<_, InboundRecord>(&list_sql);
+        for val in &bind_values {
+            list_q = list_q.bind(val.as_str());
+        }
+        let items = list_q
+            .bind(page_size as i64)
+            .bind(offset as i64)
             .fetch_all(pool)
             .await?;
 
@@ -437,29 +423,25 @@ impl OutboundRepo {
         let offset = pagination.offset();
 
         let mut conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push(format!(
-                    "outbound_no LIKE '%{}%'",
-                    q.replace('\'', "''")
-                ));
+                conditions.push("outbound_no LIKE ?".into());
+                bind_values.push(format!("%{}%", q));
             }
         }
         if let Some(ref outbound_type) = filter.outbound_type {
-            conditions.push(format!(
-                "outbound_type = '{}'",
-                outbound_type.replace('\'', "''")
-            ));
+            conditions.push("outbound_type = ?".into());
+            bind_values.push(outbound_type.clone());
         }
         if let Some(ref approval_status) = filter.approval_status {
-            conditions.push(format!(
-                "approval_status = '{}'",
-                approval_status.replace('\'', "''")
-            ));
+            conditions.push("approval_status = ?".into());
+            bind_values.push(approval_status.clone());
         }
         if let Some(order_id) = filter.order_id {
-            conditions.push(format!("order_id = {}", order_id));
+            conditions.push("order_id = ?".into());
+            bind_values.push(order_id.to_string());
         }
 
         let where_clause = conditions.join(" AND ");
@@ -476,17 +458,26 @@ impl OutboundRepo {
             "SELECT COUNT(*) as cnt FROM outbound_records WHERE {}",
             where_clause
         );
-        let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await?;
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        for val in &bind_values {
+            count_q = count_q.bind(val.as_str());
+        }
+        let total: (i64,) = count_q.fetch_one(pool).await?;
 
         let list_sql = format!(
             "SELECT id, outbound_no, outbound_type, order_id, customer_id, notes, approval_status, \
              handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM outbound_records WHERE {} \
-             ORDER BY {} {} LIMIT {} OFFSET {}",
-            where_clause, sort_by, sort_order, page_size, offset
+             ORDER BY {} {} LIMIT ? OFFSET ?",
+            where_clause, sort_by, sort_order
         );
-
-        let items = sqlx::query_as::<_, OutboundRecord>(&list_sql)
+        let mut list_q = sqlx::query_as::<_, OutboundRecord>(&list_sql);
+        for val in &bind_values {
+            list_q = list_q.bind(val.as_str());
+        }
+        let items = list_q
+            .bind(page_size as i64)
+            .bind(offset as i64)
             .fetch_all(pool)
             .await?;
 
@@ -564,18 +555,16 @@ impl InventoryLogRepo {
         let offset = pagination.offset();
 
         let mut conditions: Vec<String> = Vec::new();
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref pipe_type) = filter.pipe_type {
-            conditions.push(format!(
-                "pipe_type = '{}'",
-                pipe_type.replace('\'', "''")
-            ));
+            conditions.push("pipe_type = ?".into());
+            bind_values.push(pipe_type.clone());
         }
         if let Some(location_id) = filter.location_id {
-            conditions.push(format!(
-                "(from_location_id = {} OR to_location_id = {})",
-                location_id, location_id
-            ));
+            conditions.push("(from_location_id = ? OR to_location_id = ?)".into());
+            bind_values.push(location_id.to_string());
+            bind_values.push(location_id.to_string());
         }
 
         let where_clause = if conditions.is_empty() {
@@ -588,39 +577,32 @@ impl InventoryLogRepo {
             "SELECT COUNT(*) as cnt FROM inventory_logs WHERE {}",
             where_clause
         );
-        let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await?;
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        for val in &bind_values {
+            count_q = count_q.bind(val.as_str());
+        }
+        let total: (i64,) = count_q.fetch_one(pool).await?;
 
         let list_sql = format!(
             "SELECT id, pipe_type, pipe_id, change_type, ref_type, ref_id, \
              from_location_id, to_location_id, notes, created_by, created_at \
              FROM inventory_logs WHERE {} \
-             ORDER BY created_at DESC LIMIT {} OFFSET {}",
-            where_clause, page_size, offset
+             ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            where_clause
         );
-
-        let items = sqlx::query_as::<_, InventoryLog>(&list_sql)
+        let mut list_q = sqlx::query_as::<_, InventoryLog>(&list_sql);
+        for val in &bind_values {
+            list_q = list_q.bind(val.as_str());
+        }
+        let items = list_q
+            .bind(page_size as i64)
+            .bind(offset as i64)
             .fetch_all(pool)
             .await?;
 
         Ok((items, total.0 as u64))
     }
 
-    pub async fn find_by_pipe(
-        pool: &SqlitePool,
-        pipe_type: &str,
-        pipe_id: i64,
-    ) -> Result<Vec<InventoryLog>, sqlx::Error> {
-        sqlx::query_as::<_, InventoryLog>(
-            "SELECT id, pipe_type, pipe_id, change_type, ref_type, ref_id, \
-             from_location_id, to_location_id, notes, created_by, created_at \
-             FROM inventory_logs WHERE pipe_type = ? AND pipe_id = ? \
-             ORDER BY created_at ASC",
-        )
-        .bind(pipe_type)
-        .bind(pipe_id)
-        .fetch_all(pool)
-        .await
-    }
 }
 
 // ━━━ CheckRepo ━━━
@@ -703,17 +685,16 @@ impl CheckRepo {
         let count_sql = "SELECT COUNT(*) as cnt FROM inventory_check_records WHERE deleted_at IS NULL";
         let total: (i64,) = sqlx::query_as(count_sql).fetch_one(pool).await?;
 
-        let list_sql = format!(
+        let items = sqlx::query_as::<_, InventoryCheckRecord>(
             "SELECT id, check_no, location_id, status, notes, created_by, \
              created_at, updated_at, deleted_at \
              FROM inventory_check_records WHERE deleted_at IS NULL \
-             ORDER BY created_at DESC LIMIT {} OFFSET {}",
-            page_size, offset
-        );
-
-        let items = sqlx::query_as::<_, InventoryCheckRecord>(&list_sql)
-            .fetch_all(pool)
-            .await?;
+             ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        )
+        .bind(page_size as i64)
+        .bind(offset as i64)
+        .fetch_all(pool)
+        .await?;
 
         Ok((items, total.0 as u64))
     }
@@ -741,15 +722,4 @@ impl CheckRepo {
         .await
     }
 
-    pub async fn update_status(pool: &SqlitePool, id: i64, status: &str) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "UPDATE inventory_check_records SET status = ?, updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
-        )
-        .bind(status)
-        .bind(id)
-        .execute(pool)
-        .await?;
-        Ok(())
-    }
 }

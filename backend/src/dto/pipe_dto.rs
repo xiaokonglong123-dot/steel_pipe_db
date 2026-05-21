@@ -1,12 +1,17 @@
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateSeamlessPipeRequest {
     pub pipe_number: Option<String>,
     pub batch_number: Option<String>,
+    #[validate(length(min = 1))]
     pub pipe_type: String,
+    #[validate(length(min = 1))]
     pub grade: String,
+    #[validate(range(min = 0.0))]
     pub od: f64,
+    #[validate(range(min = 0.0))]
     pub wt: f64,
     pub length: Option<f64>,
     pub weight_per_unit: Option<f64>,
@@ -22,7 +27,7 @@ pub struct CreateSeamlessPipeRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateSeamlessPipeRequest {
     pub batch_number: Option<String>,
     pub pipe_type: Option<String>,
@@ -43,15 +48,19 @@ pub struct UpdateSeamlessPipeRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateScreenPipeRequest {
     pub pipe_number: Option<String>,
     pub batch_number: Option<String>,
+    #[validate(length(min = 1))]
     pub screen_type: String,
     pub slot_size: Option<f64>,
     pub filtration_grade: Option<String>,
+    #[validate(range(min = 0.0))]
     pub base_od: f64,
+    #[validate(range(min = 0.0))]
     pub base_wt: f64,
+    #[validate(length(min = 1))]
     pub base_grade: String,
     pub base_end_type: Option<String>,
     pub length: Option<f64>,
@@ -64,7 +73,7 @@ pub struct CreateScreenPipeRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateScreenPipeRequest {
     pub batch_number: Option<String>,
     pub screen_type: Option<String>,

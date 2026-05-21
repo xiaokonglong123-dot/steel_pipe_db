@@ -1,5 +1,8 @@
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse, UserInfo } from '@/types';
+import { validateResponse, paginatedDataSchema } from '@/lib/validateResponse';
+import { z } from 'zod';
+import { userInfoSchema } from '@/zod-schemas/core';
 
 export interface CreateUserData {
   username: string;
@@ -31,21 +34,21 @@ export interface UserFilterParams {
 export const userApi = {
   list: async (params?: UserFilterParams) => {
     const res = await apiClient.get<PaginatedResponse<UserInfo>>('/users', { params });
-    return res.data.data;
+    return validateResponse(res.data.data, paginatedDataSchema(userInfoSchema));
   },
 
   create: async (data: CreateUserData) => {
     const res = await apiClient.post<ApiResponse<UserInfo>>('/users', data);
-    return res.data.data;
+    return validateResponse(res.data.data, userInfoSchema);
   },
 
   update: async (id: number, data: UpdateUserData) => {
     const res = await apiClient.put<ApiResponse<UserInfo>>(`/users/${id}`, data);
-    return res.data.data;
+    return validateResponse(res.data.data, userInfoSchema);
   },
 
   changePassword: async (id: number, data: ChangePasswordData) => {
     const res = await apiClient.post<ApiResponse<null>>(`/users/${id}/change-password`, data);
-    return res.data;
+    return validateResponse(res.data, z.object({ success: z.boolean(), data: z.null() }));
   },
 };

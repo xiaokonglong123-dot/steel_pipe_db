@@ -75,7 +75,7 @@ impl AuthService {
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .map_err(|e| AppError::Internal(format!("System time error: {}", e)))?
             .as_secs() as usize;
 
         let claims = Claims {
@@ -239,7 +239,7 @@ impl AuthService {
     ) -> Result<String, AppError> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .map_err(|e| AppError::Internal(format!("System time error: {}", e)))?
             .as_secs() as usize;
 
         let claims = Claims {

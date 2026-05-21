@@ -5,6 +5,8 @@ use axum::{
 use serde_json;
 use sqlx::SqlitePool;
 
+use validator::Validate;
+
 use crate::dto::common::PaginationParams;
 use crate::dto::sales_dto::{
     CreateSalesOrderRequest, SalesOrderFilterParams, SalesOrderStatusTransitionRequest,
@@ -38,6 +40,7 @@ pub async fn create_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<SalesOrder>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let order = PurchaseSalesService::create_sales_order(&pool, &req).await?;
     Ok(ApiResponse::ok(order))
 }
@@ -61,6 +64,7 @@ pub async fn update_sales_order_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<SalesOrder>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let order = PurchaseSalesService::update_sales_order(&pool, id, &req).await?;
     Ok(ApiResponse::ok(order))
 }
@@ -78,6 +82,7 @@ pub async fn transition_sales_order_status_handler(
     Path(id): Path<i64>,
     Json(req): Json<SalesOrderStatusTransitionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     PurchaseSalesService::transition_sales_status(&pool, id, &req).await?;
     Ok(ApiResponse::ok(format!(
         "Sales order status changed to '{}'",
@@ -90,6 +95,7 @@ pub async fn update_sales_item_handler(
     Path((order_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<UpdateSalesItemRequest>,
 ) -> Result<Json<ApiResponse<SalesOrder>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let (order, _item) =
         PurchaseSalesService::update_sales_item(&pool, order_id, item_id, &req).await?;
     Ok(ApiResponse::ok(order))

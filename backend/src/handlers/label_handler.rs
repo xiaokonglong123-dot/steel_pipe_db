@@ -5,6 +5,8 @@ use axum::{
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
+use validator::Validate;
+
 use crate::dto::label_dto::{BatchLabelRequest, ShippingLabelRequest};
 use crate::error::AppError;
 use crate::response::ApiResponse;
@@ -28,9 +30,7 @@ pub async fn create_batch_labels_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<BatchLabelRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    if req.pipe_ids.is_empty() {
-        return Err(AppError::Validation("pipe_ids must not be empty".into()));
-    }
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let html = LabelService::generate_batch_labels(&pool, &req).await?;
     Ok(ApiResponse::ok(html))
 }
@@ -47,6 +47,7 @@ pub async fn create_shipping_label_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<ShippingLabelRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let html = LabelService::generate_shipping_label(&pool, &req).await?;
     Ok(ApiResponse::ok(html))
 }

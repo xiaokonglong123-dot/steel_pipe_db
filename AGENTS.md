@@ -26,6 +26,7 @@ Backend runs on `http://localhost:3000`, frontend dev on `http://localhost:5173`
 | Backend tests | `cd backend && cargo test` | — |
 | Frontend type-check | `cd frontend && npx tsc --noEmit` | `tsc --noEmit` |
 | Frontend build | `cd frontend && npm run build` | `npm run build` |
+| Frontend chunk analysis | `cd frontend && npx vite build --analyze` (manualChunks via vite.config.ts) | — |
 | Full CI pipeline | `cargo check` + `tsc --noEmit` + `npm run build` (parallel) | `.github/workflows/ci.yml` |
 
 **Important**: There is **no Makefile** despite README mentioning `make` commands. Use direct commands above.
@@ -58,7 +59,9 @@ steel-pipe-db/
 │       ├── features/       ← 11 feature modules (auth, contracts, customers, ...)
 │       ├── layouts/        ← MainLayout (sidebar + header + Outlet)
 │       ├── stores/         ← Zustand authStore
+│       ├── lib/            ← validateResponse.ts, runtime zod response validation
 │       ├── styles/         ← Ant Design theme config
+│       ├── zod-schemas/    ← 7 Zod schema files for response validation
 │       ├── shared/         ← hooks (useDebounce), empty components/ and utils/
 │       └── i18n/           ← react-i18next (zh-CN primary)
 └── docs/             ← PRD, design docs, task breakdown
@@ -88,6 +91,7 @@ steel-pipe-db/
 - **Path alias**: `@/` → `./src/*`
 - **i18n**: react-i18next, zh-CN primary, per-feature namespaces
 - **zod** — schema validation
+- **zod runtime validation** — `src/lib/validateResponse.ts` wraps `zod.response()` for API response validation
 
 ## Backend Patterns (actual code, not aspirational)
 
@@ -141,8 +145,8 @@ Also static methods taking `pool: &SqlitePool`. Soft-delete: `WHERE deleted_at I
 | 100xx | General (Internal, Validation, NotFound) |
 | 110xx | Auth (Unauthorized, TokenExpired, Forbidden) |
 | 120xx | Pipe (NotFound, Duplicate, StatusConflict) |
-| 130xx | Inventory (InsufficientStock, LocationFull) |
-| 140xx | Orders (CannotModify, NotFound, NotApproved) |
+| 130xx | Inventory (InsufficientStock, LocationNotFound) |
+| 140xx | Orders (CannotModify, NotFound) |
 | 150xx | Quality (CertNotFound, AttachmentNotFound) |
 | 160xx | Supplier (NotFound, CodeDuplicate) |
 | 170xx | Customer (NotFound, CodeDuplicate) |
@@ -216,7 +220,7 @@ Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, D
 - **i18n**: zh-CN primary. Namespace per feature. AGENTS_zh.md files exist for Chinese-language agent sessions
 - **`AGENTS_zh.md`** files exist alongside most `AGENTS.md` for Chinese-language development
 - **Type safety**: CI enforces `cargo check` (not build) + `tsc --noEmit`. No Rust tests run in CI
-- **Dead code allowed**: `#![allow(dead_code)]` at crate root — unused code is normal
+- **Dead code cleanup**: 26 unused items removed from domain/dto/error/response/repo modules. `#![allow(dead_code)]` retained at crate root to suppress legitimate false positives.
 - **Path params**: Axum 0.8 uses `{id}` syntax (not `:id` as in Axum 0.7)
 - **Bare `Extension<String>`** for JWT secret — no newtype wrapper
 - **No State extractor** anywhere — all DI via Extension

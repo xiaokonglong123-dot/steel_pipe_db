@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use sqlx::SqlitePool;
+use validator::Validate;
 
 use crate::dto::auth_dto::{
     ChangePasswordRequest, CreateUserRequest, LoginRequest, LoginResponse, RefreshTokenRequest,
@@ -37,6 +38,7 @@ pub async fn login_handler(
     Extension(jwt_secret): Extension<String>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<ApiResponse<LoginResponse>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let cfg = crate::config::Config::from_env();
     let response = AuthService::login(&pool, &jwt_secret, cfg.jwt_expiry_hours, &req).await?;
 
@@ -61,6 +63,7 @@ pub async fn refresh_handler(
     Extension(jwt_secret): Extension<String>,
     Json(req): Json<RefreshTokenRequest>,
 ) -> Result<Json<ApiResponse<TokenResponse>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let cfg = crate::config::Config::from_env();
     let response = AuthService::refresh_token(&jwt_secret, cfg.jwt_expiry_hours, &req).await?;
     Ok(ApiResponse::ok(response))
@@ -126,6 +129,7 @@ pub async fn create_user_handler(
     AuthenticatedUser(auth): AuthenticatedUser,
     Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let user = AuthService::create_user(&pool, &req).await?;
 
     let _ = OperationLogRepo::create(
@@ -151,6 +155,7 @@ pub async fn update_user_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let user = AuthService::update_user(&pool, id, &req).await?;
 
     let _ = OperationLogRepo::create(
@@ -176,6 +181,7 @@ pub async fn change_password_handler(
     Path(id): Path<i64>,
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     AuthService::change_password(&pool, id, &auth.role, &req).await?;
 
     let _ = OperationLogRepo::create(

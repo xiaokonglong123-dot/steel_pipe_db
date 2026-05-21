@@ -11,6 +11,7 @@ This directory wires all backend source modules together. It is NOT the place to
 4. Add handler to the handler `mod.rs`
 
 ## `main.rs` — Entry Point
+- **File**: `src/main.rs` (NOT `src/bin/main.rs`)
 - `#![allow(dead_code)]` at crate root (suppresses unused code warnings)
 - `#[tokio::main]` async entry
 - Initializes: logging (tracing), DB pool (SqlitePool), Config from env
@@ -21,7 +22,7 @@ This directory wires all backend source modules together. It is NOT the place to
 ## Shared State Pattern — `Extension<>` not `State<>`
 **This project uses Axum `Extension<>` layers for dependency injection, NOT `State<Arc<AppState>>`.**
 ```rust
-// router.rs (line 423-426)
+// router.rs
 .layer(CorsLayer::permissive())
 .layer(TraceLayer::new_for_http())
 .layer(Extension(pool))
@@ -51,20 +52,36 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
 - Each handler receives DI via `Extension<SqlitePool>` and `Extension<String>` extractors
 - Auth middleware wraps individual sub-routers, not global
 
-## `error.rs` — Error Handling
-```rust
-pub enum AppError {
-    NotFound(String),
-    Unauthorized(String),
-    BadRequest(String),
-    Internal(String),
-}
-impl IntoResponse for AppError { ... }
-```
-- All service layer errors convert into HTTP 4xx/5xx via `IntoResponse`
-- Use `map_err(AppError::from)` or `?` operator with `From` impls
+## `error.rs` — Error Handling (Numeric Error Codes)
+- `AppError` enum has **~20 variants** grouped by domain prefix (100xx–50001)
+- Each variant maps to a **numeric `error_code()`** (e.g., `Validation` → 10002) and an **HTTP `status_code()`**
+- Uses `thiserror::Error` for `Display` derive
+- Implements `IntoResponse` to serialize into `ApiErrorResponse { code, message, details }`
+- `From<sqlx::Error>` impl converts DB errors to `AppError::Database`
+- All service errors convert via `?` operator with `From` impls
 
-## `auth.rs` — JWT Claims
-- `Claims` struct (JWT payload with `sub`, `role`, `scope`, `exp`)
-- Token generation and verification functions
-- `AuthUser` struct extracted by middleware
+Domain breakdown:
+
+| Range   | Domain       |
+|---------|--------------|
+| 100xx   | General (Internal, Validation, NotFound, BadRequest) |
+| 110xx   | Auth (Unauthorized, TokenExpired, Forbidden) |
+| 120xx   | Pipe (NotFound, Duplicate, StatusConflict) |
+| 130xx   | Inventory (InsufficientStock, LocationFull) |
+| 140xx   | Orders (CannotModify, NotFound) |
+| 150xx   | Quality (CertNotFound, AttachmentNotFound) |
+| 160xx   | Supplier (NotFound, CodeDuplicate) |
+| 170xx   | Customer (NotFound, CodeDuplicate) |
+| 180xx   | Data IO (ImportError, ExportError) |
+| 50001   | Database |
+
+## `middleware/auth.rs` — JWT Middleware
+- **`Claims`** struct — JWT payload (`sub` user_id, `username`, `role`, `exp`, `iat`)
+- **`AuthContext`** extractor — extracted from validated JWT token (contains `user_id`, `username`, `role`)
+- **`auth_middleware`** — Axum middleware layer that validates Bearer token from `Authorization` header
+  - Reads JWT secret from request extensions
+  - Decodes token with HS256 via `jsonwebtoken`
+  - On success: inserts `AuthContext` into request extensions
+  - On failure: returns 401 with numeric error code (11001/11002)
+- Middleware wraps individual sub-routers (not global)
+- Token generation logic lives in **handler/service layer** (not in middleware)

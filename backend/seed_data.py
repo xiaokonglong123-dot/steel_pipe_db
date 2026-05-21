@@ -5,8 +5,9 @@ import sqlite3
 import random
 import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
 
-DB_PATH = "/home/yzp/Documents/Ikari Shinji/backend/data/steel_pipe.db"
+DB_PATH = str(Path(__file__).parent / "data" / "steel_pipe.db")
 ADMIN_HASH = "$argon2id$v=19$m=19456,t=2,p=1$9F0inGzvTDuczkTmmoEwXg$uML7yfMlcbkW3Y/cQgm04ax2Rt+Yg+YaplX24lg2WS4"
 
 random.seed(42)

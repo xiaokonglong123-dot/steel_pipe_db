@@ -36,16 +36,15 @@ docs/
 
 ### Monorepo vs Separate Repos
 - Single repository for coordinated versioning
-- Makefile orchestrates both packages
-- Backend serves frontend dist in production (embeds via build.rs)
-- Dev mode: Vite proxy to backend
+- Direct cargo/npm commands, each package independent
+- Backend serves frontend dist from embedded static files; frontend dev uses Vite proxy to backend
 
 ## Decision Records
 
 | Decision | Choice | Alternative | Rationale |
 |----------|--------|-------------|-----------|
 | Database | SQLite | PostgreSQL | Simpler deployment, adequate scale |
-| HTTP framework | Axum 0.7 | Actix, Rocket | Ecosystem, ergonomics, tower ecosystem |
+| HTTP framework | Axum 0.8 | Actix, Rocket | Ecosystem, ergonomics, tower ecosystem |
 | ORM | SQLx | Diesel, SeaORM | Compile-time SQL checking, no ORM overhead |
 | UI library | Ant Design 5 | MUI, ShadCN | Enterprise focus, Chinese ecosystem, table quality |
 | State management | TanStack Query | Redux, Zustand | Server state focus, caching, deduplication |

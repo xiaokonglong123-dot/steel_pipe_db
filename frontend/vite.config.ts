@@ -17,4 +17,30 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@ant-design') || id.includes('antd')) return 'vendor-antd';
+            if (
+              id.includes('react') ||
+              id.includes('scheduler') ||
+              id.includes('zustand') ||
+              id.includes('@tanstack') ||
+              id.includes('react-i18next')
+            )
+              return 'vendor-react';
+            if (
+              id.includes('axios') ||
+              id.includes('dayjs') ||
+              id.includes('i18next') ||
+              id.includes('zod')
+            )
+              return 'vendor-utils';
+          }
+        },
+      },
+    },
+  },
 });

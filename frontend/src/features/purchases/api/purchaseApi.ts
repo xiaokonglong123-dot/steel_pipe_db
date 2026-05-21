@@ -6,6 +6,8 @@ import type {
   PurchaseOrderFilterParams,
   PurchaseOrderStatusTransitionRequest,
 } from '../types';
+import { validateResponse, paginatedDataSchema } from '@/lib/validateResponse';
+import { purchaseOrderSchema } from '@/zod-schemas/orders';
 
 export const purchaseApi = {
   list: async (params?: PurchaseOrderFilterParams) => {
@@ -13,22 +15,22 @@ export const purchaseApi = {
       '/purchase-orders',
       { params },
     );
-    return res.data.data;
+    return validateResponse(res.data.data, paginatedDataSchema(purchaseOrderSchema));
   },
 
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`);
-    return res.data.data;
+    return validateResponse(res.data.data, purchaseOrderSchema);
   },
 
   create: async (data: CreatePurchaseOrderData) => {
     const res = await apiClient.post<ApiResponse<PurchaseOrder>>('/purchase-orders', data);
-    return res.data.data;
+    return validateResponse(res.data.data, purchaseOrderSchema);
   },
 
   update: async (id: number, data: Partial<CreatePurchaseOrderData>) => {
     const res = await apiClient.put<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`, data);
-    return res.data.data;
+    return validateResponse(res.data.data, purchaseOrderSchema);
   },
 
   delete: async (id: number) => {
@@ -40,7 +42,7 @@ export const purchaseApi = {
       `/purchase-orders/${id}/transition`,
       data,
     );
-    return res.data.data;
+    return validateResponse(res.data.data, purchaseOrderSchema);
   },
 
   updateItem: async (orderId: number, itemId: number, data: Record<string, unknown>) => {
@@ -48,7 +50,7 @@ export const purchaseApi = {
       `/purchase-orders/${orderId}/items/${itemId}`,
       data,
     );
-    return res.data.data;
+    return validateResponse(res.data.data, purchaseOrderSchema);
   },
 
   deleteItem: async (orderId: number, itemId: number) => {

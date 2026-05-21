@@ -212,6 +212,11 @@ impl ReportRepo {
         pool: &SqlitePool,
         table: &str,
     ) -> Result<Vec<serde_json::Value>, AppError> {
+        // Whitelist table names to prevent SQL injection
+        let allowed_tables = ["purchase_orders", "sales_orders"];
+        if !allowed_tables.contains(&table) {
+            return Err(AppError::BadRequest(format!("Invalid table: {}", table)));
+        }
         let sql = format!(
             "SELECT status, COUNT(*) as cnt FROM {} \
              WHERE deleted_at IS NULL GROUP BY status ORDER BY cnt DESC",

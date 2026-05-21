@@ -193,46 +193,52 @@ impl SeamlessPipeRepo {
 
         // Build WHERE conditions
         let mut conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push(format!(
-                    "(pipe_number LIKE '%{}%' OR batch_number LIKE '%{}%' OR grade LIKE '%{}%')",
-                    q.replace('\'', "''"),
-                    q.replace('\'', "''"),
-                    q.replace('\'', "''")
-                ));
+                conditions.push("(pipe_number LIKE ? OR batch_number LIKE ? OR grade LIKE ?)".into());
+                let pattern = format!("%{}%", q);
+                bind_values.push(pattern.clone());
+                bind_values.push(pattern.clone());
+                bind_values.push(pattern);
             }
         }
         if let Some(ref grade) = filter.grade {
-            conditions.push(format!("grade = '{}'", grade.replace('\'', "''")));
+            conditions.push("grade = ?".into());
+            bind_values.push(grade.clone());
         }
         if let Some(ref pipe_type) = filter.pipe_type {
-            conditions.push(format!("pipe_type = '{}'", pipe_type.replace('\'', "''")));
+            conditions.push("pipe_type = ?".into());
+            bind_values.push(pipe_type.clone());
         }
         if let Some(ref status) = filter.status {
-            conditions.push(format!("status = '{}'", status.replace('\'', "''")));
+            conditions.push("status = ?".into());
+            bind_values.push(status.clone());
         }
         if let Some(od_min) = filter.od_min {
-            conditions.push(format!("od >= {}", od_min));
+            conditions.push("od >= ?".into());
+            bind_values.push(od_min.to_string());
         }
         if let Some(od_max) = filter.od_max {
-            conditions.push(format!("od <= {}", od_max));
+            conditions.push("od <= ?".into());
+            bind_values.push(od_max.to_string());
         }
         if let Some(wt_min) = filter.wt_min {
-            conditions.push(format!("wt >= {}", wt_min));
+            conditions.push("wt >= ?".into());
+            bind_values.push(wt_min.to_string());
         }
         if let Some(wt_max) = filter.wt_max {
-            conditions.push(format!("wt <= {}", wt_max));
+            conditions.push("wt <= ?".into());
+            bind_values.push(wt_max.to_string());
         }
         if let Some(location_id) = filter.location_id {
-            conditions.push(format!("location_id = {}", location_id));
+            conditions.push("location_id = ?".into());
+            bind_values.push(location_id.to_string());
         }
         if let Some(ref manufacturer) = filter.manufacturer {
-            conditions.push(format!(
-                "manufacturer = '{}'",
-                manufacturer.replace('\'', "''")
-            ));
+            conditions.push("manufacturer = ?".into());
+            bind_values.push(manufacturer.clone());
         }
 
         let where_clause = conditions.join(" AND ");
@@ -255,7 +261,11 @@ impl SeamlessPipeRepo {
             "SELECT COUNT(*) as cnt FROM seamless_pipes WHERE {}",
             where_clause
         );
-        let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await?;
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        for val in &bind_values {
+            count_q = count_q.bind(val.as_str());
+        }
+        let total: (i64,) = count_q.fetch_one(pool).await?;
 
         // Data
         let list_sql = format!(
@@ -264,11 +274,16 @@ impl SeamlessPipeRepo {
              heat_number, serial_number, manufacturer, production_date, cert_number, \
              location_id, status, notes, created_at, updated_at, deleted_at \
              FROM seamless_pipes WHERE {} \
-             ORDER BY {} {} LIMIT {} OFFSET {}",
-            where_clause, sort_by, sort_order, page_size, offset
+             ORDER BY {} {} LIMIT ? OFFSET ?",
+            where_clause, sort_by, sort_order
         );
-
-        let items = sqlx::query_as::<_, SeamlessPipe>(&list_sql)
+        let mut list_q = sqlx::query_as::<_, SeamlessPipe>(&list_sql);
+        for val in &bind_values {
+            list_q = list_q.bind(val.as_str());
+        }
+        let items = list_q
+            .bind(page_size as i64)
+            .bind(offset as i64)
             .fetch_all(pool)
             .await?;
 
@@ -279,7 +294,7 @@ impl SeamlessPipeRepo {
         pool: &SqlitePool,
         query: &str,
     ) -> Result<Vec<SeamlessPipe>, sqlx::Error> {
-        let like = format!("%{}%", query.replace('\'', "''"));
+        let like = format!("%{}%", query);
         sqlx::query_as::<_, SeamlessPipe>(
             "SELECT id, pipe_number, batch_number, pipe_type, grade, od, wt, length, \
              weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
@@ -475,54 +490,54 @@ impl ScreenPipeRepo {
         let offset = params.offset();
 
         let mut conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push(format!(
-                    "(pipe_number LIKE '%{}%' OR batch_number LIKE '%{}%' OR base_grade LIKE '%{}%')",
-                    q.replace('\'', "''"),
-                    q.replace('\'', "''"),
-                    q.replace('\'', "''")
-                ));
+                conditions.push("(pipe_number LIKE ? OR batch_number LIKE ? OR base_grade LIKE ?)".into());
+                let pattern = format!("%{}%", q);
+                bind_values.push(pattern.clone());
+                bind_values.push(pattern.clone());
+                bind_values.push(pattern);
             }
         }
         if let Some(ref grade) = filter.grade {
             // For screen pipes, grade filters base_grade
-            conditions.push(format!(
-                "base_grade = '{}'",
-                grade.replace('\'', "''")
-            ));
+            conditions.push("base_grade = ?".into());
+            bind_values.push(grade.clone());
         }
         if let Some(ref pipe_type) = filter.pipe_type {
             // For screen pipes, pipe_type filters screen_type
-            conditions.push(format!(
-                "screen_type = '{}'",
-                pipe_type.replace('\'', "''")
-            ));
+            conditions.push("screen_type = ?".into());
+            bind_values.push(pipe_type.clone());
         }
         if let Some(ref status) = filter.status {
-            conditions.push(format!("status = '{}'", status.replace('\'', "''")));
+            conditions.push("status = ?".into());
+            bind_values.push(status.clone());
         }
         if let Some(od_min) = filter.od_min {
-            conditions.push(format!("base_od >= {}", od_min));
+            conditions.push("base_od >= ?".into());
+            bind_values.push(od_min.to_string());
         }
         if let Some(od_max) = filter.od_max {
-            conditions.push(format!("base_od <= {}", od_max));
+            conditions.push("base_od <= ?".into());
+            bind_values.push(od_max.to_string());
         }
         if let Some(wt_min) = filter.wt_min {
-            conditions.push(format!("base_wt >= {}", wt_min));
+            conditions.push("base_wt >= ?".into());
+            bind_values.push(wt_min.to_string());
         }
         if let Some(wt_max) = filter.wt_max {
-            conditions.push(format!("base_wt <= {}", wt_max));
+            conditions.push("base_wt <= ?".into());
+            bind_values.push(wt_max.to_string());
         }
         if let Some(location_id) = filter.location_id {
-            conditions.push(format!("location_id = {}", location_id));
+            conditions.push("location_id = ?".into());
+            bind_values.push(location_id.to_string());
         }
         if let Some(ref manufacturer) = filter.manufacturer {
-            conditions.push(format!(
-                "manufacturer = '{}'",
-                manufacturer.replace('\'', "''")
-            ));
+            conditions.push("manufacturer = ?".into());
+            bind_values.push(manufacturer.clone());
         }
 
         let where_clause = conditions.join(" AND ");
@@ -543,7 +558,11 @@ impl ScreenPipeRepo {
             "SELECT COUNT(*) as cnt FROM screen_pipes WHERE {}",
             where_clause
         );
-        let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await?;
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        for val in &bind_values {
+            count_q = count_q.bind(val.as_str());
+        }
+        let total: (i64,) = count_q.fetch_one(pool).await?;
 
         let list_sql = format!(
             "SELECT id, pipe_number, batch_number, screen_type, slot_size, \
@@ -551,11 +570,16 @@ impl ScreenPipeRepo {
              weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
              cert_number, location_id, status, notes, created_at, updated_at, deleted_at \
              FROM screen_pipes WHERE {} \
-             ORDER BY {} {} LIMIT {} OFFSET {}",
-            where_clause, sort_by, sort_order, page_size, offset
+             ORDER BY {} {} LIMIT ? OFFSET ?",
+            where_clause, sort_by, sort_order
         );
-
-        let items = sqlx::query_as::<_, ScreenPipe>(&list_sql)
+        let mut list_q = sqlx::query_as::<_, ScreenPipe>(&list_sql);
+        for val in &bind_values {
+            list_q = list_q.bind(val.as_str());
+        }
+        let items = list_q
+            .bind(page_size as i64)
+            .bind(offset as i64)
             .fetch_all(pool)
             .await?;
 
@@ -566,7 +590,7 @@ impl ScreenPipeRepo {
         pool: &SqlitePool,
         query: &str,
     ) -> Result<Vec<ScreenPipe>, sqlx::Error> {
-        let like = format!("%{}%", query.replace('\'', "''"));
+        let like = format!("%{}%", query);
         sqlx::query_as::<_, ScreenPipe>(
             "SELECT id, pipe_number, batch_number, screen_type, slot_size, \
              filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \

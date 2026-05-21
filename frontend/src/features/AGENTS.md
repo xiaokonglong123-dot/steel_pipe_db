@@ -1,6 +1,6 @@
 # `features/` — Feature Module Pattern
 
-All 6 feature modules follow an identical pattern. This document serves as the template for understanding or adding any feature.
+All 11 feature modules follow an identical pattern. This document serves as the template for understanding or adding any feature.
 
 ## Feature Module Structure
 
@@ -12,9 +12,10 @@ features/{feature}/
 │   └── index.ts
 ├── pages/         ← Page components (1 file = 1 route)
 │   ├── ListPage.tsx
-│   ├── CreatePage.tsx
-│   ├── EditPage.tsx
+│   ├── FormPage.tsx       ← Create + Edit combined
 │   └── DetailPage.tsx
+├── stores/        ← Zustand stores (optional, for complex features)
+│   └── index.ts
 └── types/         ← TypeScript interfaces
     └── index.ts   ← Entity types, request/response types
 ```
@@ -23,12 +24,17 @@ features/{feature}/
 
 | Feature | Routes | Description |
 |---------|--------|-------------|
-| `pipes/` | `/pipes/*` | Pipe specification management (CRUD + list) |
-| `inventory/` | `/inventory/*` | Stock/inventory tracking |
-| `purchases/` | `/purchases/*` | Purchase order management |
-| `reports/` | `/reports/*` | View, filter, export reports |
-| `production/` | `/production/*` | Production order management |
-| `customers/` | `/customers/*` | Customer relationship management |
+| `auth/` | (via ProtectedRoute) | Login page, auth state management (Zustand) |
+| `pipes/` | `/pipes/seamless/*`, `/pipes/screen/*` | API 5CT pipe master data (seamless + screen) |
+| `inventory/` | `/inventory/inbound`, `/inventory/outbound`, `/inventory/stock`, `/inventory/locations`, `/inventory/check` | Stock tracking, inbound/outbound, location management, inventory checks |
+| `suppliers/` | `/suppliers/*` | Supplier management |
+| `customers/` | `/customers/*` | Customer management |
+| `purchases/` | `/purchases/*` | Purchase orders, approval workflow |
+| `sales/` | `/sales/*` | Sales orders, ATP check |
+| `quality/` | `/quality/certs/*` | Quality certificates, mechanical/NDT tests |
+| `contracts/` | `/contracts/*` | Sales/procurement contracts, payment milestones |
+| `reports/` | `/reports`, `/reports/dashboard` | Dashboard, daily/monthly/statistical reports |
+| `labels/` | `/labels` | Barcode and specification label generation |
 
 ## Template: `api/index.ts` (TanStack Query Hooks)
 ```ts
@@ -85,13 +91,15 @@ export default function ListPage() {
 - All API calls use the shared axios instance from `src/api/` (base URL: `/api/v1`)
 - Query keys follow convention: `['entity']` for list, `['entity', id]` for detail
 - Mutations invalidate the list query key on success
+- Some feature API modules integrate `lib/validateResponse.ts` for runtime response validation via Zod schemas in `zod-schemas/`
 
 ## Adding a New Feature Module
-1. Create `features/{new_feature}/` with `api/`, `hooks/`, `pages/`, `types/` subdirs
+1. Create `features/{new_feature}/` with `api/`, `hooks/`, `pages/`, `stores/`, `types/` subdirs
 2. Add TanStack Query hooks in `api/index.ts`
 3. Add page components in `pages/`
 4. Add route in `src/routes/index.tsx`
 5. Add i18n keys in `src/i18n/zh/{new_feature}.json` and `src/i18n/en/{new_feature}.json`
+6. Add Zod response schema in `src/zod-schemas/` if API validation is needed
 
 ## Conventions
 - `useFeatureQuery()` for list, `useFeatureQuery(id)` for detail

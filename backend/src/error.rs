@@ -18,6 +18,8 @@ pub enum AppError {
     Internal(String),
     #[error("Validation error: {0}")]
     Validation(String),
+    #[error("Bad request: {0}")]
+    BadRequest(String),
     #[error("Resource not found: {0}")]
     NotFound(String),
 
@@ -42,16 +44,12 @@ pub enum AppError {
     InsufficientStock,
     #[error("Location not found: {0}")]
     LocationNotFound(String),
-    #[error("Location is full")]
-    LocationFull,
 
     // Orders (140xx)
     #[error("Order cannot be modified: {0}")]
     OrderCannotModify(String),
     #[error("Order not found: {0}")]
     OrderNotFound(String),
-    #[error("Order not approved: {0}")]
-    OrderNotApproved(String),
 
     // Quality (150xx)
     #[error("Quality cert not found: {0}")]
@@ -87,6 +85,7 @@ impl AppError {
         match self {
             Self::Internal(_) => 10001,
             Self::Validation(_) => 10002,
+            Self::BadRequest(_) => 10004,
             Self::NotFound(_) => 10003,
             Self::Unauthorized(_) => 11001,
             Self::TokenExpired => 11002,
@@ -95,11 +94,9 @@ impl AppError {
             Self::PipeNumberDuplicate(_) => 12002,
             Self::PipeStatusConflict(_) => 12003,
             Self::InsufficientStock => 13001,
-            Self::LocationFull => 13002,
-            Self::LocationNotFound(_) => 13003,
+            Self::LocationNotFound(_) => 13002,
             Self::OrderCannotModify(_) => 14001,
             Self::OrderNotFound(_) => 14002,
-            Self::OrderNotApproved(_) => 14003,
             Self::QualityCertNotFound(_) => 15001,
             Self::AttachmentNotFound(_) => 15002,
             Self::SupplierNotFound(_) => 16001,
@@ -115,7 +112,7 @@ impl AppError {
     pub fn status_code(&self) -> StatusCode {
         match self {
             Self::Internal(_) | Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Validation(_) => StatusCode::BAD_REQUEST,
+            Self::Validation(_) | Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::NotFound(_)
             | Self::PipeNotFound(_)
             | Self::LocationNotFound(_)
@@ -125,9 +122,7 @@ impl AppError {
             Self::PipeNumberDuplicate(_) => StatusCode::CONFLICT,
             Self::PipeStatusConflict(_) => StatusCode::CONFLICT,
             Self::InsufficientStock => StatusCode::CONFLICT,
-            Self::LocationFull => StatusCode::CONFLICT,
             Self::OrderCannotModify(_) => StatusCode::CONFLICT,
-            Self::OrderNotApproved(_) => StatusCode::CONFLICT,
             Self::QualityCertNotFound(_) | Self::AttachmentNotFound(_) => StatusCode::NOT_FOUND,
             Self::SupplierNotFound(_) | Self::CustomerNotFound(_) => StatusCode::NOT_FOUND,
             Self::SupplierCodeDuplicate(_) | Self::CustomerCodeDuplicate(_) => StatusCode::CONFLICT,

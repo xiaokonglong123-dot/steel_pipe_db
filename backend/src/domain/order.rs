@@ -12,17 +12,6 @@ pub enum OrderStatus {
 }
 
 impl OrderStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Draft => "draft",
-            Self::Pending => "pending",
-            Self::Approved => "approved",
-            Self::Rejected => "rejected",
-            Self::Completed => "completed",
-            Self::Cancelled => "cancelled",
-        }
-    }
-
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "draft" => Some(Self::Draft),

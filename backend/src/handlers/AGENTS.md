@@ -1,43 +1,45 @@
-# `handlers/` — HTTP Layer (13 files, 110+ handlers)
+# `handlers/` — HTTP Layer (12 files, ~50 handlers)
 
 ## Pattern
-Every handler follows: **extract → validate → call service → respond**
+Every handler follows: **extract → call service → respond**
 
 ```rust
-pub async fn list_pipes(
+pub async fn list_seamless_pipes_handler(
     Extension(pool): Extension<SqlitePool>,
-    Query(params): Query<PipeListParams>,
-) -> impl IntoResponse {
-    // 1. Validate params (if needed)
-    // 2. Call service
-    match pipe_service::list_pipes(&pool, &params).await {
-        Ok(result) => Json(ApiResponse::success(result)).into_response(),
-        Err(e) => e.into_response(),
-    }
+    Query(filter): Query<PipeFilterParams>,
+) -> Result<Json<PaginatedResponse<SeamlessPipe>>, AppError> {
+    let (items, total) = PipeService::list_seamless_pipes(&pool, &filter, &pagination).await?;
+    Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 ```
 
-## Response Types (from `dto/api_response.rs`)
-- `ApiResponse<T>` — Standard success: `{ "code": 200, "message": "ok", "data": T }`
-- `PagedResponse<T>` — Paginated: `{ "code": 200, "data": { "items": [...], "total": N, "page": P, "page_size": S } }`
-- `ErrorResponse` — Error: `{ "code": N, "message": "..." }`
+Key points:
+- Return type: `Result<Json<...>, AppError>` — NOT `impl IntoResponse`
+- Use `?` operator for error propagation (AppError auto-converts via `IntoResponse`)
+- No manual `.into_response()` calls
+- Handlers use `ApiResponse::ok()` or `PaginatedResponse::ok()` static constructors
+
+## Response Types (from `crate::response`)
+- `ApiResponse<T>` — Standard success: `{ "success": true, "data": T }`
+- `PaginatedResponse<T>` — Paginated: `{ "success": true, "data": { "items": [], "total": N, "page": P, "page_size": S, "total_pages": N } }`
+- `AppError` — Error (via `IntoResponse`): `{ "code": 11001, "message": "...", "details": null }`
 
 ## Handler File List
-| File | Entity | Endpoints |
-|------|--------|-----------|
-| `auth_handler.rs` | Auth | login, register, profile, refresh |
-| `pipe_handler.rs` | Pipes (specifications) | CRUD + list |
-| `inventory_handler.rs` | Inventory stock | CRUD + list |
-| `purchase_handler.rs` | Purchase orders | CRUD + status transitions |
-| `production_handler.rs` | Production | CRUD + status |
-| `report_handler.rs` | Reports | Various report endpoints |
-| `contract_handler.rs` | Contracts | CRUD |
-| `customer_handler.rs` | Customers | CRUD |
-| `supplier_handler.rs` | Suppliers | CRUD |
-| `category_handler.rs` | Entity categories | CRUD |
-| `warehouse_handler.rs` | Warehouses | CRUD |
-| `dictionary_handler.rs` | Dictionaries/configs | CRUD |
-| `dashboard_handler.rs` | Dashboard | Summary/stats |
+
+| File | Entity | Description |
+|------|--------|-------------|
+| `auth_handler.rs` | Auth | login, logout, refresh, profile |
+| `pipe_handler.rs` | Pipes | seamless + screen pipe CRUD, list, filter |
+| `inventory_handler.rs` | Inventory | inbound, outbound, stock query, locations, check |
+| `purchase_handler.rs` | Purchase Orders | CRUD, status transitions, approval |
+| `sales_handler.rs` | Sales Orders | CRUD, status transitions, ATP check |
+| `quality_handler.rs` | Quality | certs CRUD, mechanical tests, NDT |
+| `contract_handler.rs` | Contracts | CRUD, milestones |
+| `customer_handler.rs` | Customers | CRUD, list |
+| `supplier_handler.rs` | Suppliers | CRUD, list |
+| `report_handler.rs` | Reports | dashboard, daily/monthly/statistical reports |
+| `label_handler.rs` | Labels | barcode/spec label generation |
+| `data_io_handler.rs` | Data IO | Excel/CSV import and export |
 
 ## Common Extractor Patterns
 - `Extension(pool): Extension<SqlitePool>` — DB pool (required on every handler)
@@ -46,12 +48,15 @@ pub async fn list_pipes(
 - `Json(body): Json<T>` — POST/PUT body (T: DeserializeOwned)
 - `Path(id): Path<i64>` — URL path param
 - `AuthUser(user): AuthUser` — JWT-authenticated user extractor
-- `ValidatedRequest<T>` — Validated JSON body (custom extractor, uses `validator` crate)
+
+Validation is done inline via `validator::Validate::validate()`:
+```rust
+req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+```
 
 ## Conventions
 - One handler file per entity
-- Handler functions are `pub async fn` returning `impl IntoResponse`
-- Always use `Json(ApiResponse::success(...))` for 200 responses
-- Use `StatusCode::CREATED` for POST creates: `(StatusCode::CREATED, Json(ApiResponse::success(data)))`
-- Error propagation via `?` operator with AppError conversion
+- Handler functions are `pub async fn` returning `Result<Json<...>, AppError>`
+- Always use `ApiResponse::ok()` / `PaginatedResponse::ok()` static constructors
+- Error propagation via `?` operator with AppError auto-conversion
 - Most handlers are thin (5-15 lines) — business logic lives in services

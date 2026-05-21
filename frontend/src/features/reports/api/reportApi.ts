@@ -1,6 +1,14 @@
 import apiClient from '@/api/client';
 import type { ApiResponse } from '@/types';
 import type { InventorySummary, OrderReport, QualityReport, DashboardData } from '../types';
+import { validateResponse } from '@/lib/validateResponse';
+import { z } from 'zod';
+import {
+  inventorySummarySchema,
+  orderReportSchema,
+  qualityReportSchema,
+  dashboardDataSchema,
+} from '@/zod-schemas/reports';
 
 export const reportApi = {
   getInventorySummary: async (params?: { location_id?: number; grade?: string }) => {
@@ -8,7 +16,7 @@ export const reportApi = {
       '/reports/inventory-summary',
       { params },
     );
-    return res.data.data;
+    return validateResponse(res.data.data, z.array(inventorySummarySchema));
   },
 
   getOrderReport: async (params?: { start_date?: string; end_date?: string; order_type?: string }) => {
@@ -16,7 +24,7 @@ export const reportApi = {
       '/reports/order-report',
       { params },
     );
-    return res.data.data;
+    return validateResponse(res.data.data, orderReportSchema);
   },
 
   getQualityReport: async (params?: { start_date?: string; end_date?: string; grade?: string }) => {
@@ -24,11 +32,11 @@ export const reportApi = {
       '/reports/quality-report',
       { params },
     );
-    return res.data.data;
+    return validateResponse(res.data.data, qualityReportSchema);
   },
 
   getDashboard: async () => {
     const res = await apiClient.get<ApiResponse<DashboardData>>('/reports/dashboard');
-    return res.data.data;
+    return validateResponse(res.data.data, dashboardDataSchema);
   },
 };

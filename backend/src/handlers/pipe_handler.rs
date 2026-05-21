@@ -5,6 +5,8 @@ use axum::{
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
+use validator::Validate;
+
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::{
     CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams,
@@ -46,6 +48,7 @@ pub async fn create_seamless_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSeamlessPipeRequest>,
 ) -> Result<Json<ApiResponse<SeamlessPipe>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let pipe = PipeService::create_seamless_pipe(&pool, &req).await?;
     Ok(ApiResponse::ok(pipe))
 }
@@ -63,6 +66,7 @@ pub async fn update_seamless_pipe_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateSeamlessPipeRequest>,
 ) -> Result<Json<ApiResponse<SeamlessPipe>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let pipe = PipeService::update_seamless_pipe(&pool, id, &req).await?;
     Ok(ApiResponse::ok(pipe))
 }
@@ -99,6 +103,7 @@ pub async fn create_screen_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateScreenPipeRequest>,
 ) -> Result<Json<ApiResponse<ScreenPipe>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let pipe = PipeService::create_screen_pipe(&pool, &req).await?;
     Ok(ApiResponse::ok(pipe))
 }
@@ -116,6 +121,7 @@ pub async fn update_screen_pipe_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateScreenPipeRequest>,
 ) -> Result<Json<ApiResponse<ScreenPipe>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let pipe = PipeService::update_screen_pipe(&pool, id, &req).await?;
     Ok(ApiResponse::ok(pipe))
 }

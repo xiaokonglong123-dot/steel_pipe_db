@@ -53,6 +53,11 @@ const api = axios.create({ baseURL: '/api/v1' })
 - `Loading.tsx` — Loading spinner
 - `ErrorBoundary.tsx` — Error fallback
 
+### `lib/` — Runtime Validation
+- `validateResponse.ts` — wraps Zod schemas for API response validation
+- Uses `zod.response()` pattern: validates API responses at runtime
+- Imported by feature API modules for type-safe data fetching
+
 ### `hooks/` — Shared Hooks
 - `useAuth.ts` — Auth context (login/logout/current user)
 - `usePagination.ts` — Pagination state management
@@ -71,19 +76,34 @@ i18n/
 - Namespace per feature: `'common'`, `'pipes'`, `'inventory'`, etc.
 - Use `useTranslation('feature_name')` in components
 
-### `routes/` — Route Definitions
-```tsx
-const routes = [
-  { path: '/', element: <Navigate to="/pipes" /> },
-  { path: '/pipes', element: <PipeListPage /> },
-  { path: '/pipes/create', element: <PipeCreatePage /> },
-  { path: '/pipes/:id', element: <PipeDetailPage /> },
-  // ... per feature
-]
+### `routes/` — Route Config (react-router-dom v7)
 ```
-- Flat route structure (no nested routing)
-- Each feature registers its routes here
-- Lazy loading via `React.lazy()` on large pages
+/login                     ← public
+/                          ← ProtectedRoute → MainLayout → Outlet
+  /pipes/seamless          ← SeamlessPipeListPage
+  /pipes/seamless/new      ← SeamlessPipeFormPage
+  /pipes/seamless/:id      ← SeamlessPipeDetailPage
+  /pipes/seamless/:id/edit ← SeamlessPipeFormPage
+  /pipes/screen/*          ← same pattern
+  /inventory/inbound       ← InboundListPage
+  /inventory/outbound      ← OutboundListPage
+  /inventory/stock         ← StockQueryPage
+  /inventory/locations     ← LocationListPage
+  /inventory/check         ← InventoryCheckListPage
+  /suppliers               ← SupplierListPage (+ /new, /:id/edit)
+  /customers               ← CustomerListPage (+ /new, /:id/edit)
+  /purchases               ← (+ /new, /:id, /:id/edit)
+  /sales                   ← (+ /new, /:id, /:id/edit)
+  /quality/certs           ← (+ /new, /:id, /:id/edit)
+  /contracts               ← (+ /new, /:id, /:id/edit)
+  /reports                 ← ReportListPage
+  /reports/dashboard       ← DashboardPage
+  /labels                  ← LabelPrintPage
+```
+- Uses `createBrowserRouter` (not flat route array)
+- `ProtectedRoute` wrapper checks auth before rendering `MainLayout`
+- `Outlet` pattern for nested layouts
+- No lazy loading currently (all pages eagerly loaded)
 
 ### `theme/` — Ant Design Theme
 ```ts
@@ -98,9 +118,24 @@ const theme: ThemeConfig = {
 - Consistent branding colors and spacing
 - Override Ant Design CSS via Less variables in `vite.config.ts`
 
+### `zod-schemas/` — Zod Validation Schemas
+```
+zod-schemas/
+├── core.ts        ← Common types (PaginatedResponse, ApiResponse wrapper)
+├── orders.ts      ← Purchase/Sales order schemas
+├── inventory.ts   ← Inventory, inbound, outbound schemas
+├── quality.ts     ← Quality certificate schemas
+├── reports.ts     ← Report parameter schemas
+├── labels.ts      ← Label data schemas
+```
+- Each schema file exports Zod types for API request/response validation
+- Used by `lib/validateResponse.ts` for runtime API response checking
+- Complements TypeScript static types with runtime validation
+
 ### `utils/` — Utility Functions
 - `formatters.ts` — Date, currency, decimal formatting
-- `validators.ts` — Zod schemas for form validation
+- `validators.ts` — Legacy form validation helpers (may reference zod-schemas/)
+- Primary validation schemas live in `zod-schemas/`
 - `constants.ts` — API endpoint paths, status enums
 
 ## How to Add a New Feature Page

@@ -53,6 +53,11 @@ const api = axios.create({ baseURL: '/api/v1' })
 - `Loading.tsx` — 加载动画
 - `ErrorBoundary.tsx` — 错误回退界面
 
+### `lib/` — 运行时验证
+- `validateResponse.ts` — 封装 Zod 模式用于 API 响应验证
+- 使用 `zod.response()` 模式：在运行时验证 API 响应
+- 被特性 API 模块导入，用于类型安全的数据获取
+
 ### `hooks/` — 共享 Hooks
 - `useAuth.ts` — 认证上下文（登录/登出/当前用户）
 - `usePagination.ts` — 分页状态管理
@@ -71,19 +76,34 @@ i18n/
 - 按特性划分命名空间：`'common'`、`'pipes'`、`'inventory'` 等
 - 组件中使用 `useTranslation('feature_name')`
 
-### `routes/` — 路由定义
-```tsx
-const routes = [
-  { path: '/', element: <Navigate to="/pipes" /> },
-  { path: '/pipes', element: <PipeListPage /> },
-  { path: '/pipes/create', element: <PipeCreatePage /> },
-  { path: '/pipes/:id', element: <PipeDetailPage /> },
-  // ... 每个特性一组
-]
+### `routes/` — 路由配置（react-router-dom v7）
 ```
-- 扁平路由结构（无嵌套路由）
-- 每个特性在此注册其路由
-- 大型页面通过 `React.lazy()` 实现懒加载
+/login                     ← 公开
+/                          ← ProtectedRoute → MainLayout → Outlet
+  /pipes/seamless          ← SeamlessPipeListPage
+  /pipes/seamless/new      ← SeamlessPipeFormPage
+  /pipes/seamless/:id      ← SeamlessPipeDetailPage
+  /pipes/seamless/:id/edit ← SeamlessPipeFormPage
+  /pipes/screen/*          ← 相同模式
+  /inventory/inbound       ← InboundListPage
+  /inventory/outbound      ← OutboundListPage
+  /inventory/stock         ← StockQueryPage
+  /inventory/locations     ← LocationListPage
+  /inventory/check         ← InventoryCheckListPage
+  /suppliers               ← SupplierListPage (+ /new, /:id/edit)
+  /customers               ← CustomerListPage (+ /new, /:id/edit)
+  /purchases               ← (+ /new, /:id, /:id/edit)
+  /sales                   ← (+ /new, /:id, /:id/edit)
+  /quality/certs           ← (+ /new, /:id, /:id/edit)
+  /contracts               ← (+ /new, /:id, /:id/edit)
+  /reports                 ← ReportListPage
+  /reports/dashboard       ← DashboardPage
+  /labels                  ← LabelPrintPage
+```
+- 使用 `createBrowserRouter`（非扁平路由数组）
+- `ProtectedRoute` 包装器在渲染 `MainLayout` 前检查认证
+- 嵌套布局使用 `Outlet` 模式
+- 当前未使用懒加载（所有页面即时加载）
 
 ### `theme/` — Ant Design 主题
 ```ts
@@ -98,9 +118,24 @@ const theme: ThemeConfig = {
 - 一致的品牌配色和间距
 - 在 `vite.config.ts` 中通过 Less 变量覆盖 Ant Design CSS
 
+### `zod-schemas/` — Zod 验证模式
+```
+zod-schemas/
+├── core.ts        ← 通用类型（PaginatedResponse、ApiResponse 包装器）
+├── orders.ts      ← 采购/销售订单模式
+├── inventory.ts   ← 库存、入库、出库模式
+├── quality.ts     ← 质量证书模式
+├── reports.ts     ← 报表参数模式
+├── labels.ts      ← 标签数据模式
+```
+- 每个模式文件导出用于 API 请求/响应验证的 Zod 类型
+- 被 `lib/validateResponse.ts` 用于运行时 API 响应检查
+- 以运行时验证补充 TypeScript 静态类型
+
 ### `utils/` — 工具函数
 - `formatters.ts` — 日期、货币、十进制格式化
-- `validators.ts` — 用于表单验证的 Zod 模式
+- `validators.ts` — 遗留表单验证辅助（可能引用 zod-schemas/）
+- 主要验证模式位于 `zod-schemas/`
 - `constants.ts` — API 端点路径、状态枚举
 
 ## 如何添加新特性页面

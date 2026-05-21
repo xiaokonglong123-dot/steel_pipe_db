@@ -5,6 +5,8 @@ use axum::{
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
+use validator::Validate;
+
 use crate::dto::common::PaginationParams;
 use crate::dto::supplier_dto::{
     CreateSupplierRequest, SupplierFilterParams, UpdateSupplierRequest,
@@ -41,6 +43,7 @@ pub async fn create_supplier_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSupplierRequest>,
 ) -> Result<Json<ApiResponse<Supplier>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let supplier = SupplierService::create(&pool, &req).await?;
     Ok(ApiResponse::ok(supplier))
 }
@@ -58,6 +61,7 @@ pub async fn update_supplier_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateSupplierRequest>,
 ) -> Result<Json<ApiResponse<Supplier>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let supplier = SupplierService::update(&pool, id, &req).await?;
     Ok(ApiResponse::ok(supplier))
 }
