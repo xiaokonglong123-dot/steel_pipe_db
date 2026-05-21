@@ -1,76 +1,113 @@
-# AGENTS.md — steel_pipe_db
+# Steel Pipe DB — Project Index
 
-## Project Identity
+## Architecture Overview
 
-- **What**: API 5CT seamless steel pipe & screen pipe inventory management system (oil & gas)
-- **Stack**: Rust (Axum 0.8+ / SQLx / SQLite WAL) + React 19 (Ant Design 5 / TanStack Query / Zustand / TypeScript / Vite 6)
-- **Remote**: `xiaokonglong123-dot/steel_pipe_db` on GitHub
-- **Current state**: All source files have been deleted (commit `3cd0d86`). Only design docs remain.
-
-## Source of Truth — Design Documents
-
-The repo is currently **design-first / spec-only**. All implementation source has been removed. The docs/ directory is the canonical reference:
-
-| File | What it contains |
-|------|-----------------|
-| `docs/需求文档.md` | Full PRD: features, data model, API 5CT standards, roadmap |
-| `docs/详细设计文档.md` | Architecture, module design, DB schema (19 tables), REST API, security |
-| `docs/前端设计文档.md` | React component tree, routing, state management, i18n, theme |
-| `docs/tasks/progress.md` | Master task breakdown: 12 backend + 12 frontend modules across 3 phases |
-| `docs/tasks/phase*/` | Individual task files (~320 items total) |
-
-## Project Structure
+Rust + React 19 dual-package monorepo. Inventory management system (steel pipe fabrication).
 
 ```
-docs/
-├── superpowers/specs/        # One optimization spec for rust-axum-vue3
-├── tasks/phase1/             # P0: pipe mgmt, inventory, auth, tracing (8 files)
-├── tasks/phase2/             # P1: quality, purchase, sales, data-io (8 files)
-├── tasks/phase3/             # P2: contracts, reports, labels, i18n (7 files)
-├── 需求文档.md               # PRD
-├── 详细设计文档.md            # Detailed design (architecture, DB, API)
-├── 前端设计文档.md             # Frontend design (component tree, routing)
-└── tasks/progress.md         # Master progress tracker
-.github/workflows/
-├── ci.yml                    # Rust cargo check + Node type-check+build (broken - dirs removed)
-└── python-test.yml           # Flask legacy tests (broken - dirs removed)
+steel-pipe-db/
+├── backend/          ← Rust Axum REST API (SQLite, JWT)
+│   └── src/
+│       ├── handlers/     ← HTTP layer: validate → call service → respond
+│       ├── services/     ← Business logic, orchestration
+│       ├── repositories/ ← SQL queries (SQLx)
+│       ├── models/       ← DB row structs
+│       ├── dto/          ← Request/response types
+│       ├── domain/       ← Enums, domain types
+│       └── middleware/   ← Auth, RBAC
+├── frontend/         ← React 19 + Vite + Ant Design + TanStack Query
+│   └── src/
+│       └── features/    ← [pipes|inventory|purchases|reports|production|customers]
+│                            ├── api/       ← TanStack Query hooks
+│                            ├── hooks/     ← Feature-specific logic
+│                            ├── pages/     ← Route page components
+│                            └── types/     ← TypeScript interfaces
+└── docs/             ← Design docs, ADR, task breakdown
 ```
 
-## Architecture Notes (from design docs)
+## Build & Run
 
-- **Backend layering**: Handler → Service → Repository → Domain (Axum + SQLx)
-- **DB strategy**: SQLite WAL mode, no foreign key constraints (app-level integrity), soft deletes via `deleted_at`, ISO 8601 text timestamps
-- **State management**: Zustand (client: auth, app, unit prefs) + TanStack Query (server: all business data)
-- **Auth**: JWT + Argon2 passwords, RBAC with 4 roles (admin / warehouse / qc / sales)
-- **i18n**: react-i18next, per-module namespaces (zh + en), unit system toggle (metric/imperial)
-- **Inbound/Outbound**: Header+Items pattern with approval workflow (auto-approve for purchase/sales, manual for production/return/transfer/scrapped)
-- **Inventory tracking**: Per-pipe granularity via `inventory_logs`, ATP calculation for sales
+| Command | What |
+|---------|------|
+| `make backend` | `cd backend && cargo build` |
+| `make frontend` | `cd frontend && npm install && npm run build` |
+| `make dev` | Start both backend (cargo run) and frontend (dev server) |
+| `make clean` | Clean all build artifacts |
+| `make test` | Run all tests (backend + frontend) |
+| `make run` | Full production build |
+| `make build` | Build both packages |
 
-## Critical Gotchas
+Backend runs on `http://localhost:3000`, frontend dev on `http://localhost:5173`.
 
-- **CI is broken**: Both `.github/workflows/ci.yml` and `python-test.yml` reference `backend/` and `frontend/` directories that no longer exist. Any rebuild must update or remove these.
-- **`.omo/` and `memory.md` are gitignored** — OpenCode working files are excluded from version control.
-- **SSL cert issue on this machine**: `git push` fails with `error adding trust anchors from file: /etc/ssl/certs/ca-certificates.crt`. Workaround: `git config http.sslVerify false` before push, then restore.
-- **Commit style**: Mixed Chinese/English commit messages, conventional-commits-ish but not strict.
+## Tech Stack
 
-## Commands
+### Backend
+- **Rust** — nightly toolchain (2024-02-08), 2021 edition
+- **Axum** 0.7 — HTTP framework
+- **SQLx** 0.8 — Async SQL with compile-time checking
+- **SQLite** — Database (no external DB needed)
+- **JWT** (jsonwebtoken) — Auth tokens
+- **bcrypt** — Password hashing
+- **serde** — JSON serialization
+- **tokio** — Async runtime
+- **tower-http** — CORS, logging middleware
+- **Dependencies**: Backpack (validator), rust_decimal, bigdecimal, chrono
 
-No runnable commands currently (source removed). When reimplementing from design docs:
+### Frontend
+- **React 19** — UI framework
+- **Vite** — Build tool
+- **TypeScript** — Type safety
+- **Ant Design 5** — UI component library
+- **TanStack Query (React Query)** — Server state management
+- **react-router-dom v7** — Routing
+- **axios** — HTTP client
+- **i18next / react-i18next** — Internationalization (zh-CN primary)
+- **dayjs** — Date handling
+- **zod** — Schema validation
 
-```bash
-# Backend (once backend/ exists)
-cd backend && cargo run          # Start Axum dev server
-cargo check                      # Type-check only (no full build)
-cargo test                       # Run tests
+## Core Conventions
 
-# Frontend (once frontend/ exists)
-cd frontend && npm run dev       # Vite dev server
-npx tsc --noEmit                 # TypeScript type check
-npm run build                    # Production build
+### Backend Layer Pattern
+```
+Request → Handler (validate) → Service (business logic) → Repository (SQL) → DB
+                                                                              ↓
+Response ← Handler (format)   ← Service (orchestrate)   ← Repository (rows) ←
 ```
 
-## Key Links
+- **Handlers**: Extract params, call one service method, return `ApiResponse<T>` | `ErrorResponse`
+- **Services**: Orchestrate business logic, cross-entity operations, transactions
+- **Repositories**: Pure SQL, single-entity CRUD, no business logic
+- **Models**: Row structs matching DB schema, no methods
+- **DTOs**: Request validation structs (serde::Deserialize with `validator`), response structs
 
-- Remote: `https://github.com/xiaokonglong123-dot/steel_pipe_db`
-- The PRD (`docs/需求文档.md`) is the best starting point for understanding the domain
-- Task files in `docs/tasks/phase*/` are the implementation roadmap — follow them in order
+### Frontend Feature Pattern
+```
+features/{feature}/
+├── api/      ← TanStack Query hooks (useQuery, useMutation)
+├── hooks/    ← Feature-specific React hooks
+├── pages/    ← Page components (1 file = 1 route)
+└── types/    ← TypeScript interfaces
+```
+
+## Safety Rules
+- JWT auth required on all mutating endpoints (middleware enforced)
+- RBAC scopes: `admin`, `manager`, `user`, `operator`
+- Never suppress type errors (`as any`, `// @ts-ignore`, `// @ts-expect-error`)
+- SQLx compile-time checked queries (no raw SQL strings)
+- All decimal values use `rust_decimal` / `BigDecimal` type
+
+## Key Entry Points
+- **Router**: `backend/src/bin/main.rs` → mounts all handlers at `/api/v1/{entity}`
+- **App**: `frontend/src/App.tsx` → React Router setup with layouts
+- **Build**: `Makefile` at root orchestrates both packages
+
+## Subordinate AGENTS.md Files
+- `backend/AGENTS.md` — Rust package details, build, dependencies
+- `backend/src/AGENTS.md` — Module wiring, router registration
+- `backend/src/handlers/AGENTS.md` — Handler patterns
+- `backend/src/services/AGENTS.md` — Service layer conventions
+- `backend/src/repositories/AGENTS.md` — Repository/CRUD patterns
+- `frontend/AGENTS.md` — Frontend package details
+- `frontend/src/AGENTS.md` — App structure, shared infrastructure
+- `frontend/src/features/AGENTS.md` — Feature module template
+- `docs/AGENTS.md` — Design docs index & architecture decisions
