@@ -1,3 +1,4 @@
+// 库存模块 Zod Schema — 出入库记录、库位、盘点、钢管搜索
 import { z } from 'zod';
 
 export const inboundRecordSchema = z.object({

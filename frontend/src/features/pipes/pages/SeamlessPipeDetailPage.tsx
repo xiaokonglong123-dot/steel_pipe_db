@@ -1,3 +1,4 @@
+// 无缝钢管详情页 — Descriptions 展示所有 API 5CT 规格参数，状态彩色标签
 import { Button, Descriptions, Space, Tag, Card } from 'antd';
 import { EditOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';

@@ -1,3 +1,8 @@
+// 采购订单仓库层
+// 创建订单时同步写入 items，自动汇总 total_amount。
+// 列表查询 LEFT JOIN suppliers 以支持按供应商名称搜索。
+// 行项目更新使用宏简化字段判空逻辑，注意这里硬 DELETE 而非软删除。
+
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;

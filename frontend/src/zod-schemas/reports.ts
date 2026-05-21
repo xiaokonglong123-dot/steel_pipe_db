@@ -1,3 +1,4 @@
+// 报表模块 Zod Schema — 库存汇总、订单报表、质量报表、仪表盘
 import { z } from 'zod';
 
 export const inventorySummarySchema = z.object({

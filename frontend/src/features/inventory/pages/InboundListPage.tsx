@@ -1,3 +1,4 @@
+// 入库管理页 — 入库记录列表 + 弹窗创建/编辑，支持采购/生产/退货/调拨等入库类型
 import { useState, useCallback } from 'react';
 import {
   Table,

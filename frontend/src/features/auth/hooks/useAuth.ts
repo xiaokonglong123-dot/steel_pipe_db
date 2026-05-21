@@ -17,11 +17,11 @@ export function useLogin() {
 }
 
 export function useLogout() {
-  const clearAuth = useAuthStore((s) => s.clearAuth);
+  const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
 
   return () => {
-    clearAuth();
+    logout();
     navigate('/login');
   };
 }

@@ -1,3 +1,4 @@
+// 出库管理页 — 出库记录列表 + 弹窗创建/编辑，支持销售/报废/调拨等出库类型
 import { useState, useCallback } from 'react';
 import {
   Table,

@@ -1,3 +1,7 @@
+// 采购订单 + 销售订单业务逻辑（共享同一套状态机）
+// 订单状态流转：draft → submitted → approved → delivered → completed，不可逆跳转
+// 只有 draft 状态的订单允许修改/删除
+
 use chrono::Utc;
 use sqlx::SqlitePool;
 

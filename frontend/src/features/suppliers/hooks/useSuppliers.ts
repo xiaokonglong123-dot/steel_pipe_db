@@ -1,16 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supplierApi } from '../api/supplierApi';
-import type { CreateSupplierData, SupplierFilterParams } from '../types';
+import type { Supplier, CreateSupplierData, SupplierFilterParams } from '../types';
+import type { PaginatedData } from '@/types';
 
 export function useSuppliers(params?: SupplierFilterParams) {
-  return useQuery({
+  return useQuery<PaginatedData<Supplier>>({
     queryKey: ['suppliers', params],
     queryFn: () => supplierApi.list(params),
   });
 }
 
 export function useSupplier(id: number) {
-  return useQuery({
+  return useQuery<Supplier>({
     queryKey: ['supplier', id],
     queryFn: () => supplierApi.getById(id),
     enabled: !!id,

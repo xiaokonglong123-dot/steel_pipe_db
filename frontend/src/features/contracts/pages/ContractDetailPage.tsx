@@ -1,3 +1,4 @@
+// 合同详情页 — 合同信息概览 + 行项表格 + 付款记录 + 状态流转
 import { useState } from 'react';
 import {
   Card,

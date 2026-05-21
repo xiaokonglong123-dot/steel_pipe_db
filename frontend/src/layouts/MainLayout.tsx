@@ -1,130 +1,130 @@
-import { useState } from 'react';
-import { Layout, Menu, Button, theme } from 'antd';
-import {
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  LogoutOutlined,
-} from '@ant-design/icons';
+// 主布局 — 左侧导航菜单 + 顶部用户信息栏 + 内容区域
+// 所有受保护业务页面都在此布局的 Outlet 中渲染
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Layout, Menu, Button, Typography, Dropdown } from 'antd';
+import {
+  TeamOutlined,
+  ShopOutlined,
+  ShoppingCartOutlined,
+  DollarOutlined,
+  SafetyCertificateOutlined,
+  FileTextOutlined,
+  BarChartOutlined,
+  BarcodeOutlined,
+  LogoutOutlined,
+  UserOutlined,
+  ContainerOutlined,
+} from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/authStore';
+import type { MenuProps } from 'antd';
 
 const { Header, Sider, Content } = Layout;
+const { Text } = Typography;
 
 export default function MainLayout() {
-  const [collapsed, setCollapsed] = useState(false);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
-  const clearAuth = useAuthStore((s) => s.clearAuth);
-  const {
-    token: { colorBgContainer, borderRadiusLG },
-  } = theme.useToken();
-
-  const flatKeys = ['/purchases', '/sales', '/contracts', '/labels', '/system'];
-  const selectedKey = (() => {
-    const p = location.pathname;
-    const segs = p.split('/').filter(Boolean);
-    if (segs.length === 0) return '/';
-    const parent = '/' + segs[0];
-    if (flatKeys.includes(parent)) return parent;
-    if (segs.length >= 2) return '/' + segs.slice(0, 2).join('/');
-    return p;
-  })();
-
-  const menuItems = [
-    {
-      key: '/pipes',
-      label: t('nav.pipes'),
-      children: [
-        { key: '/pipes/seamless', label: t('nav.seamless_pipes') },
-        { key: '/pipes/screen', label: t('nav.screen_pipes') },
-      ],
-    },
-    {
-      key: '/inventory',
-      label: t('nav.inventory'),
-      children: [
-        { key: '/inventory/inbound', label: t('nav.inbound') },
-        { key: '/inventory/outbound', label: t('nav.outbound') },
-        { key: '/inventory/stock', label: t('nav.stock_query') },
-        { key: '/inventory/check', label: t('nav.inventory_check') },
-        { key: '/inventory/locations', label: t('nav.locations') },
-      ],
-    },
-    {
-      key: '/suppliers_customers',
-      label: t('nav.suppliers_customers'),
-      children: [
-        { key: '/suppliers', label: t('nav.suppliers') },
-        { key: '/customers', label: t('nav.customers') },
-      ],
-    },
-    {
-      key: '/purchases',
-      label: t('nav.purchases'),
-    },
-    {
-      key: '/sales',
-      label: t('nav.sales'),
-    },
-    {
-      key: '/quality',
-      label: t('nav.quality'),
-      children: [
-        { key: '/quality/certs', label: t('nav.certificates') },
-      ],
-    },
-    {
-      key: '/contracts',
-      label: t('nav.contracts'),
-    },
-    {
-      key: 'reports_group',
-      label: t('nav.reports'),
-      children: [
-        { key: '/reports', label: t('nav.report_list') },
-        { key: '/reports/dashboard', label: t('nav.dashboard') },
-      ],
-    },
-    { key: '/labels', label: t('nav.labels') },
-    {
-      key: '/system',
-      label: t('nav.system'),
-      children: [
-        { key: '/system/users', label: t('nav.users') },
-      ],
-    },
-  ];
+  const logout = useAuthStore((s) => s.logout);
 
   const handleLogout = () => {
-    clearAuth();
+    logout();
     navigate('/login');
   };
 
+  // 侧边栏菜单结构：按业务模块分组
+  const menuItems: MenuProps['items'] = [
+    {
+      key: 'pipes',
+      icon: <ContainerOutlined />,
+      label: t('menu.pipes'),
+      children: [
+        { key: '/pipes/seamless', label: t('menu.seamless_pipes') },
+        { key: '/pipes/screen', label: t('menu.screen_pipes') },
+      ],
+    },
+    {
+      key: 'inventory',
+      icon: <ShopOutlined />,
+      label: t('menu.inventory'),
+      children: [
+        { key: '/inventory/inbound', label: t('menu.inbound') },
+        { key: '/inventory/outbound', label: t('menu.outbound') },
+        { key: '/inventory/stock', label: t('menu.stock_query') },
+        { key: '/inventory/locations', label: t('menu.locations') },
+        { key: '/inventory/check', label: t('menu.inventory_check') },
+      ],
+    },
+    {
+      key: 'suppliers',
+      icon: <TeamOutlined />,
+      label: t('menu.suppliers'),
+      children: [{ key: '/suppliers', label: t('menu.supplier_list') }],
+    },
+    {
+      key: 'customers',
+      icon: <TeamOutlined />,
+      label: t('menu.customers'),
+      children: [{ key: '/customers', label: t('menu.customer_list') }],
+    },
+    {
+      key: 'purchases',
+      icon: <ShoppingCartOutlined />,
+      label: t('menu.purchases'),
+      children: [{ key: '/purchases', label: t('menu.purchase_orders') }],
+    },
+    {
+      key: 'sales',
+      icon: <DollarOutlined />,
+      label: t('menu.sales'),
+      children: [{ key: '/sales', label: t('menu.sales_orders') }],
+    },
+    {
+      key: 'quality',
+      icon: <SafetyCertificateOutlined />,
+      label: t('menu.quality'),
+      children: [{ key: '/quality/certs', label: t('menu.quality_certs') }],
+    },
+    {
+      key: 'contracts',
+      icon: <FileTextOutlined />,
+      label: t('menu.contracts'),
+      children: [{ key: '/contracts', label: t('menu.contract_list') }],
+    },
+    {
+      key: 'reports',
+      icon: <BarChartOutlined />,
+      label: t('menu.reports'),
+      children: [
+        { key: '/reports', label: t('menu.report_list') },
+        { key: '/reports/dashboard', label: t('menu.dashboard') },
+      ],
+    },
+    {
+      key: 'labels',
+      icon: <BarcodeOutlined />,
+      label: t('menu.labels'),
+      children: [{ key: '/labels', label: t('menu.label_print') }],
+    },
+  ];
+
+  // 根据当前路径高亮对应菜单项
+  const selectedKeys = [location.pathname];
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider trigger={null} collapsible collapsed={collapsed}>
-        <div
-          style={{
-            height: 32,
-            margin: 16,
-            color: '#fff',
-            fontWeight: 'bold',
-            fontSize: collapsed ? 14 : 18,
-            textAlign: 'center',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-          }}
-        >
-          {collapsed ? 'SPDB' : t('app.title')}
+      <Sider theme="dark" collapsible>
+        <div style={{ padding: 16, textAlign: 'center' }}>
+          <Text strong style={{ color: '#fff', fontSize: 16 }}>
+            {t('app.title')}
+          </Text>
         </div>
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[selectedKey]}
-          defaultOpenKeys={['/pipes', '/inventory', '/suppliers_customers', '/quality', 'reports_group']}
+          selectedKeys={selectedKeys}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
         />
@@ -132,40 +132,32 @@ export default function MainLayout() {
       <Layout>
         <Header
           style={{
-            padding: '0 16px',
-            background: colorBgContainer,
+            background: '#fff',
+            padding: '0 24px',
             display: 'flex',
+            justifyContent: 'flex-end',
             alignItems: 'center',
-            justifyContent: 'space-between',
           }}
         >
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-          />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <span>
-              {user?.display_name} ({user?.role})
-            </span>
-            <Button
-              type="text"
-              icon={<LogoutOutlined />}
-              onClick={handleLogout}
-            >
-              {t('user.logout')}
+          {/* 右上角用户信息 & 登出下拉 */}
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'logout',
+                  icon: <LogoutOutlined />,
+                  label: t('common.logout'),
+                  onClick: handleLogout,
+                },
+              ],
+            }}
+          >
+            <Button type="text" icon={<UserOutlined />}>
+              {user?.username ?? '-'}
             </Button>
-          </div>
+          </Dropdown>
         </Header>
-        <Content
-          style={{
-            margin: 16,
-            padding: 24,
-            background: colorBgContainer,
-            borderRadius: borderRadiusLG,
-            minHeight: 280,
-          }}
-        >
+        <Content style={{ margin: 24 }}>
           <Outlet />
         </Content>
       </Layout>

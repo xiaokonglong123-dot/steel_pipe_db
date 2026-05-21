@@ -1,3 +1,4 @@
+// 销售订单详情页 — 完整订单信息 + 行项表格 + 状态流转操作
 import { Button, Descriptions, Space, Tag, Card, Table, Select, Input, message } from 'antd';
 import { EditOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';

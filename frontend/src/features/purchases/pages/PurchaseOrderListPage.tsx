@@ -1,3 +1,4 @@
+// 采购订单列表页 — 分页查询、状态彩色标签、搜索、新建/编辑/删除/审核流转
 import { useState } from 'react';
 import { Table, Button, Space, Tag, Input, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';

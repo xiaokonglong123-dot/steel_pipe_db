@@ -1,3 +1,7 @@
+// 销售订单仓库层
+// 和采购订单对称：创建时写 items + 算合计，列表 JOIN customers 支持按客户名搜索。
+// delivered_quantity 跟踪已发货数量，供 ATP（可用库存）校验使用。
+
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;

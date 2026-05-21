@@ -1,3 +1,6 @@
+// 标签生成业务逻辑：输出 HTML 格式标签（可直接浏览器打印），支持钢管标签/质检标签/发货标签/批量标签
+// 每张标签包含 API 5CT 规格信息，质检标签不合格项红色高亮
+
 use sqlx::SqlitePool;
 
 use crate::dto::label_dto::{BatchLabelRequest, ShippingLabelRequest};

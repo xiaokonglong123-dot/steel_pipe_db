@@ -1,3 +1,4 @@
+// 销售订单新增/编辑表单页 — 表头信息 + 从库存选取钢管作为行项，自动 ATP 校验
 import { useEffect, useState } from 'react';
 import {
   Form, Input, DatePicker, InputNumber, Button, Space, message,

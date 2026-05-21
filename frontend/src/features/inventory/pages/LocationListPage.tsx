@@ -1,3 +1,4 @@
+// 库位管理页 — 库位（区/架/层）CRUD，支持容量与已用数量跟踪
 import { useState } from 'react';
 import {
   Table,

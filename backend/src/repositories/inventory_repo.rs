@@ -1,3 +1,7 @@
+// 出入库 + 库位 + 盘点 + 操作日志的仓库层
+// 核心逻辑：采购入库自动审核，销售出库自动审核，其它类型走审批。
+// 所有库存变动同时写入 inventory_logs，形成完整追溯链。
+
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;

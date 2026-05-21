@@ -1,3 +1,7 @@
+// 钢管主数据仓库层
+// 无缝管 + 筛管两张表的 CRUD、分页检索、按管号唯一性查找、模糊搜索。
+// 筛管（screen pipe）本质是无缝管基管 + 筛缝/滤网结构，所以两套接口几乎对称。
+
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;

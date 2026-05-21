@@ -1,3 +1,4 @@
+// 质检证书列表页 — 分页查询、状态标签、按管类型/钢级筛选
 import { useState } from 'react';
 import { Table, Button, Space, Tag, Input, Select, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';

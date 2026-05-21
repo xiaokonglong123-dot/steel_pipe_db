@@ -1,3 +1,5 @@
+// 报表入口：库存汇总、订单统计、质量统计、驾驶舱看板
+
 use axum::extract::{Extension, Query};
 use axum::Json;
 use sqlx::SqlitePool;
@@ -21,6 +23,8 @@ pub async fn order_report_handler(
     let order_type = query.r#type.as_deref().unwrap_or("purchase");
     let period = query.period.as_deref().unwrap_or("monthly");
 
+    // 前端传参校验：只允许 purchase/sales 两种订单类型
+    // period 只支持月/季/年三种统计粒度
     if order_type != "purchase" && order_type != "sales" {
         return Err(AppError::Validation(
             "type must be 'purchase' or 'sales'".into(),

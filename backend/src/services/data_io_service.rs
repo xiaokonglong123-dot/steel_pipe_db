@@ -1,3 +1,6 @@
+// 数据导入导出业务逻辑：支持 6 种实体的 Excel/CSV 导入导出，含模板下载和操作日志
+// 导入时自动匹配表头（忽略大小写和下划线格式），导出时按预定义列顺序生成文件
+
 use std::collections::HashMap;
 use std::io::Cursor;
 

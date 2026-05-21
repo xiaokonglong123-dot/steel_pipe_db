@@ -1,3 +1,4 @@
+// 报表 API — 库存汇总/订单报表/质量报表/仪表盘数据
 import apiClient from '@/api/client';
 import type { ApiResponse } from '@/types';
 import type { InventorySummary, OrderReport, QualityReport, DashboardData } from '../types';
@@ -16,7 +17,7 @@ export const reportApi = {
       '/reports/inventory-summary',
       { params },
     );
-    return validateResponse(res.data.data, z.array(inventorySummarySchema));
+    return validateResponse(z.array(inventorySummarySchema), res.data.data);
   },
 
   getOrderReport: async (params?: { start_date?: string; end_date?: string; order_type?: string }) => {
@@ -24,7 +25,7 @@ export const reportApi = {
       '/reports/order-report',
       { params },
     );
-    return validateResponse(res.data.data, orderReportSchema);
+    return validateResponse(orderReportSchema, res.data.data);
   },
 
   getQualityReport: async (params?: { start_date?: string; end_date?: string; grade?: string }) => {
@@ -32,11 +33,11 @@ export const reportApi = {
       '/reports/quality-report',
       { params },
     );
-    return validateResponse(res.data.data, qualityReportSchema);
+    return validateResponse(qualityReportSchema, res.data.data);
   },
 
   getDashboard: async () => {
     const res = await apiClient.get<ApiResponse<DashboardData>>('/reports/dashboard');
-    return validateResponse(res.data.data, dashboardDataSchema);
+    return validateResponse(dashboardDataSchema, res.data.data);
   },
 };

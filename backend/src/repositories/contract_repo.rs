@@ -1,3 +1,8 @@
+// 合同仓库层
+// 支持采购合同/销售合同两种类型，自动生成合同编号（CT-SAL-000001 / CT-PUR-000001）。
+// 合同项更新时自动重算 total_price（数量×单价），并同步更新合同总金额。
+// 付款计划按 due_date 排序，支持部分付款标记。
+
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;

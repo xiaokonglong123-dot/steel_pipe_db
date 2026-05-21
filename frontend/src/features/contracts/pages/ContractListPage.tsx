@@ -1,3 +1,4 @@
+// 合同列表页 — 采购/销售合同分页查询、状态标签、搜索、新建/编辑/删除
 import { useState } from 'react';
 import { Table, Button, Space, Tag, Input, Select, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';

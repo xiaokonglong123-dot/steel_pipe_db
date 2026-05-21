@@ -1,3 +1,6 @@
+// 库存管理入口：入库/出库/仓位/盘点/追溯
+// 核心业务 —— 钢管按根管理，每根都有独立状态和位置
+
 use axum::{
     extract::{Extension, Path, Query},
     Json,
@@ -41,6 +44,8 @@ pub struct CheckListQuery {
 }
 
 // ━━━ Inbound Handlers ━━━
+// 入库单：关联采购收货、生产入库、退货入库、移库入库
+// 创建后需要审批，审批通过才真正增加库存
 
 pub async fn create_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -112,6 +117,8 @@ pub async fn delete_inbound_handler(
 }
 
 // ━━━ Outbound Handlers ━━━
+// 出库单：关联销售发货、报废出库、移库出库
+// 出库前会检查 ATP（可用库存），不允许超量出库
 
 pub async fn create_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -183,6 +190,8 @@ pub async fn delete_outbound_handler(
 }
 
 // ━━━ Inventory Handlers ━━━
+// 库存查询：按规格汇总库存量，支持按批次/炉号/仓位过滤
+// 库存日志：记录每根管子的出入库流水
 
 pub async fn list_inventory_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -221,6 +230,7 @@ pub async fn list_inventory_logs_handler(
 }
 
 // ━━━ Location Handlers ━━━
+// 仓位管理：仓库物理位置的增删改查，active_only 过滤停用仓位
 
 pub async fn list_locations_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -277,6 +287,7 @@ pub async fn delete_location_handler(
 }
 
 // ━━━ Check Handlers ━━━
+// 库存盘点：按仓位/规格创建盘点任务，逐项提交实盘结果
 
 pub async fn create_check_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -330,6 +341,7 @@ pub async fn submit_check_item_handler(
 }
 
 // ━━━ Trace Handlers ━━━
+// 追溯查询：按管子编号/炉号/订单号追溯全生命周期
 
 pub async fn trace_pipe_handler(
     Extension(pool): Extension<SqlitePool>,

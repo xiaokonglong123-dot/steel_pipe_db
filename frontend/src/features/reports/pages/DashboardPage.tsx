@@ -1,3 +1,4 @@
+// 仪表盘页 — 关键经营指标卡片（钢管总数/库存量/待处理订单/质检数）+ 按类型/状态分布图表
 import { Card, Row, Col, Statistic, Spin, Table, Typography } from 'antd';
 import {
   DatabaseOutlined,

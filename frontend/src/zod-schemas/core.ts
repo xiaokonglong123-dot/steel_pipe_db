@@ -1,3 +1,4 @@
+// 核心数据模型 Zod Schema — 钢管、筛管、客户、供应商、用户、认证
 import { z } from 'zod';
 
 export const seamlessPipeSchema = z.object({

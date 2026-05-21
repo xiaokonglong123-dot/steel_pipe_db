@@ -1,3 +1,7 @@
+// 库存业务逻辑（最复杂的业务模块）：入库/出库/盘点/货位管理/库存查询/ATP校验
+// 入库单支持自动审批（auto_approved），通过后立即更新钢管状态为 in_stock 并记录日志
+// 出库时必须验证钢管状态为 in_stock，防止重复出库
+
 use chrono::Utc;
 use sqlx::SqlitePool;
 

@@ -1,3 +1,6 @@
+// 数据导入导出入口：Excel/CSV 批量导入、导出、模板下载
+// 支持管子/供应商/客户/合同等多实体类型
+
 use axum::{
     extract::{Extension, Multipart, Path, Query},
     http::header,

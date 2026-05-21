@@ -1,3 +1,4 @@
+// 认证 API — 登录、获取当前用户、刷新 Token
 import apiClient from '@/api/client';
 import type { ApiResponse, UserInfo } from '@/types';
 import { validateResponse } from '@/lib/validateResponse';
@@ -14,18 +15,21 @@ export interface LoginResponse {
 }
 
 export const authApi = {
+  // 登录：返回 JWT Token + 用户信息，由 authStore.setAuth 持久化
   login: async (data: LoginRequest) => {
     const res = await apiClient.post<ApiResponse<LoginResponse>>('/auth/login', data);
-    return validateResponse(res.data.data, loginResponseSchema);
+    return validateResponse(loginResponseSchema, res.data.data);
   },
 
+  // 获取当前登录用户信息
   getMe: async () => {
     const res = await apiClient.get<ApiResponse<UserInfo>>('/auth/me');
-    return validateResponse(res.data.data, userInfoSchema);
+    return validateResponse(userInfoSchema, res.data.data);
   },
 
+  // 刷新 Token（当前未在前端主动调用）
   refreshToken: async (token: string) => {
     const res = await apiClient.post<ApiResponse<{ token: string }>>('/auth/refresh', { token });
-    return validateResponse(res.data.data, tokenResponseSchema);
+    return validateResponse(tokenResponseSchema, res.data.data);
   },
 };

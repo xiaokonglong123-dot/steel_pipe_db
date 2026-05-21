@@ -1,3 +1,4 @@
+// 采购订单详情页 — 完整订单信息 + 行项表格 + 审核状态流转操作
 import { useState } from 'react';
 import { Button, Descriptions, Space, Tag, Card, Table, Select, message, Modal, Input } from 'antd';
 import { EditOutlined, ArrowLeftOutlined } from '@ant-design/icons';

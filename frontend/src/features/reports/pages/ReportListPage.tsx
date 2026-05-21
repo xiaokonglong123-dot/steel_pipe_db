@@ -1,3 +1,4 @@
+// 报表菜单页 — 库存汇总/订单报表/质量报表/仪表盘各报表入口卡片
 import { Card, Row, Col, Typography } from 'antd';
 import {
   BarChartOutlined,

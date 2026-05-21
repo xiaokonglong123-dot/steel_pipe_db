@@ -1,3 +1,5 @@
+// 前端路由配置 — createBrowserRouter，公共路由 + 受保护的业务路由
+// 所有业务页面挂载在 ProtectedRoute + MainLayout 下，自动带侧边栏和顶栏
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import MainLayout from '@/layouts/MainLayout';
 import ProtectedRoute from './ProtectedRoute';
@@ -46,7 +48,9 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
+      // 首页默认跳转到无缝钢管列表
       { index: true, element: <Navigate to="/pipes/seamless" replace /> },
+      // --- 钢管管理 ---
       {
         path: 'pipes/seamless',
         element: <SeamlessPipeListPage />,
@@ -79,33 +83,40 @@ export const router = createBrowserRouter([
         path: 'pipes/screen/:id/edit',
         element: <ScreenPipeFormPage />,
       },
+      // --- 库存管理：入库/出库/库存查询/库位/盘点 ---
       { path: 'inventory/inbound', element: <InboundListPage /> },
       { path: 'inventory/outbound', element: <OutboundListPage /> },
       { path: 'inventory/stock', element: <StockQueryPage /> },
       { path: 'inventory/locations', element: <LocationListPage /> },
       { path: 'inventory/check', element: <InventoryCheckListPage /> },
+      // --- 供应商与客户管理 ---
       { path: 'suppliers', element: <SupplierListPage /> },
       { path: 'suppliers/new', element: <SupplierFormPage key="new" /> },
       { path: 'suppliers/:id/edit', element: <SupplierFormPage key="edit" /> },
       { path: 'customers', element: <CustomerListPage /> },
       { path: 'customers/new', element: <CustomerFormPage key="new" /> },
       { path: 'customers/:id/edit', element: <CustomerFormPage key="edit" /> },
+      // --- 采购订单 ---
       { path: 'purchases', element: <PurchaseOrderListPage /> },
       { path: 'purchases/new', element: <PurchaseOrderFormPage key="new" /> },
       { path: 'purchases/:id', element: <PurchaseOrderDetailPage /> },
       { path: 'purchases/:id/edit', element: <PurchaseOrderFormPage key="edit" /> },
+      // --- 销售订单 ---
       { path: 'sales', element: <SalesOrderListPage /> },
       { path: 'sales/new', element: <SalesOrderFormPage key="new" /> },
       { path: 'sales/:id', element: <SalesOrderDetailPage /> },
       { path: 'sales/:id/edit', element: <SalesOrderFormPage key="edit" /> },
+      // --- 质量证书 ---
       { path: 'quality/certs', element: <CertListPage /> },
       { path: 'quality/certs/new', element: <CertFormPage key="new" /> },
       { path: 'quality/certs/:id', element: <CertDetailPage /> },
       { path: 'quality/certs/:id/edit', element: <CertFormPage key="edit" /> },
+      // --- 合同管理 ---
       { path: 'contracts', element: <ContractListPage /> },
       { path: 'contracts/new', element: <ContractFormPage key="new" /> },
       { path: 'contracts/:id', element: <ContractDetailPage /> },
       { path: 'contracts/:id/edit', element: <ContractFormPage key="edit" /> },
+      // --- 报表与标签打印 ---
       { path: 'reports', element: <ReportListPage /> },
       { path: 'reports/dashboard', element: <DashboardPage /> },
       { path: 'labels', element: <LabelPrintPage /> },

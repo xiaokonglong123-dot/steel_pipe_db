@@ -1,3 +1,4 @@
+// 质检证书新增/编辑表单 — 力学性能（屈服/抗拉/延伸率）、NDT（UT/MI/MPI）等检测数据录入
 import { useEffect } from 'react';
 import { Form, Input, Select, DatePicker, InputNumber, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';

@@ -1,3 +1,8 @@
+// 质量模块仓库层
+// 质检证书 + API 5CT 钢级参考数据 + 附件管理。
+// Api5ctGradeRef 表是静态参考数据（非业务数据），不做软删除。
+// PipeAttachment 为物理文件记录，同样不做软删（文件系统由外部管理）。
+
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;

@@ -1,3 +1,6 @@
+// 钢管追溯业务逻辑：按钢管/炉批号/订单查询全生命周期轨迹
+// 从 inventory_logs 表中提取入库/出库/移库等变更记录，同时关联当前状态
+
 use sqlx::SqlitePool;
 
 use crate::error::AppError;

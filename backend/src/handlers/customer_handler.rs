@@ -1,3 +1,6 @@
+// 客户管理入口：客户主数据 CRUD + 搜索
+// 客户编码自动生成，支持按名称/编码搜索
+
 use axum::{
     extract::{Extension, Path, Query},
     Json,

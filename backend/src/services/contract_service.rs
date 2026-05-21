@@ -1,3 +1,6 @@
+// 合同业务逻辑：销售/采购合同统一管理，支持多明细行和付款里程碑
+// 合同状态机：draft → active → completed/terminated，激活时必须签署日期
+
 use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;

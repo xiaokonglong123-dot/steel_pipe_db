@@ -1,3 +1,4 @@
+// 用户管理 API — 系统用户的 CRUD 和密码修改（仅 admin 角色可用）
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse, UserInfo } from '@/types';
 import { validateResponse, paginatedDataSchema } from '@/lib/validateResponse';
@@ -34,21 +35,21 @@ export interface UserFilterParams {
 export const userApi = {
   list: async (params?: UserFilterParams) => {
     const res = await apiClient.get<PaginatedResponse<UserInfo>>('/users', { params });
-    return validateResponse(res.data.data, paginatedDataSchema(userInfoSchema));
+    return validateResponse(paginatedDataSchema(userInfoSchema), res.data.data);
   },
 
   create: async (data: CreateUserData) => {
     const res = await apiClient.post<ApiResponse<UserInfo>>('/users', data);
-    return validateResponse(res.data.data, userInfoSchema);
+    return validateResponse(userInfoSchema, res.data.data);
   },
 
   update: async (id: number, data: UpdateUserData) => {
     const res = await apiClient.put<ApiResponse<UserInfo>>(`/users/${id}`, data);
-    return validateResponse(res.data.data, userInfoSchema);
+    return validateResponse(userInfoSchema, res.data.data);
   },
 
   changePassword: async (id: number, data: ChangePasswordData) => {
     const res = await apiClient.post<ApiResponse<null>>(`/users/${id}/change-password`, data);
-    return validateResponse(res.data, z.object({ success: z.boolean(), data: z.null() }));
+    return validateResponse(z.object({ success: z.boolean(), data: z.null() }), res.data);
   },
 };

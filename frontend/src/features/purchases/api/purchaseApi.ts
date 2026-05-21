@@ -1,3 +1,4 @@
+// 采购订单 API — CRUD + 状态流转 + 行项管理
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
 import type {
@@ -15,42 +16,44 @@ export const purchaseApi = {
       '/purchase-orders',
       { params },
     );
-    return validateResponse(res.data.data, paginatedDataSchema(purchaseOrderSchema));
+    return validateResponse(paginatedDataSchema(purchaseOrderSchema), res.data.data);
   },
 
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`);
-    return validateResponse(res.data.data, purchaseOrderSchema);
+    return validateResponse(purchaseOrderSchema, res.data.data);
   },
 
   create: async (data: CreatePurchaseOrderData) => {
     const res = await apiClient.post<ApiResponse<PurchaseOrder>>('/purchase-orders', data);
-    return validateResponse(res.data.data, purchaseOrderSchema);
+    return validateResponse(purchaseOrderSchema, res.data.data);
   },
 
   update: async (id: number, data: Partial<CreatePurchaseOrderData>) => {
     const res = await apiClient.put<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`, data);
-    return validateResponse(res.data.data, purchaseOrderSchema);
+    return validateResponse(purchaseOrderSchema, res.data.data);
   },
 
   delete: async (id: number) => {
     await apiClient.delete(`/purchase-orders/${id}`);
   },
 
+  // 状态流转：pending → approved → received 等，具体流转由后端校验
   transition: async (id: number, data: PurchaseOrderStatusTransitionRequest) => {
     const res = await apiClient.post<ApiResponse<PurchaseOrder>>(
       `/purchase-orders/${id}/transition`,
       data,
     );
-    return validateResponse(res.data.data, purchaseOrderSchema);
+    return validateResponse(purchaseOrderSchema, res.data.data);
   },
 
+  // 修改订单行项（数量、单价等）
   updateItem: async (orderId: number, itemId: number, data: Record<string, unknown>) => {
     const res = await apiClient.put<ApiResponse<PurchaseOrder>>(
       `/purchase-orders/${orderId}/items/${itemId}`,
       data,
     );
-    return validateResponse(res.data.data, purchaseOrderSchema);
+    return validateResponse(purchaseOrderSchema, res.data.data);
   },
 
   deleteItem: async (orderId: number, itemId: number) => {

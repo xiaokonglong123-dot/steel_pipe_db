@@ -1,3 +1,6 @@
+// 采购订单入口：含订单 CRUD、状态流转、明细行管理
+// 采购与销售共用 PurchaseSalesService，业务逻辑层统一管理
+
 use axum::{
     extract::{Extension, Path, Query},
     Json,
@@ -77,6 +80,8 @@ pub async fn delete_purchase_order_handler(
     Ok(ApiResponse::ok("Purchase order deleted successfully".into()))
 }
 
+// 采购单状态流转：待审批→已批准→已发货→已收货→已完成
+// 各状态之间的跃迁有前置条件校验，不可随意跳转
 pub async fn transition_purchase_order_status_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,

@@ -1,3 +1,6 @@
+// 用户认证与系统用户管理入口
+// 登录/登出/刷新令牌 + 管理员操作用户 CRUD
+
 use axum::{
     extract::{Extension, FromRequestParts, Path, Query},
     http::request::Parts,
@@ -18,6 +21,8 @@ use crate::repositories::operation_log_repo::{CreateOperationLog, OperationLogRe
 use crate::response::ApiResponse;
 use crate::services::auth_service::AuthService;
 
+// 自定义 Extract 器：从请求扩展中取出已认证用户信息
+// 比每次都手动调用 auth_middleware 提取更简洁，搭配 FromRequestParts 实现
 pub struct AuthenticatedUser(pub AuthContext);
 
 impl<S: Sync> FromRequestParts<S> for AuthenticatedUser {
@@ -42,6 +47,7 @@ pub async fn login_handler(
     let cfg = crate::config::Config::from_env();
     let response = AuthService::login(&pool, &jwt_secret, cfg.jwt_expiry_hours, &req).await?;
 
+    // 操作日志记录失败不影响登录 —— 使用 let _ = 忽略错误
     let _ = OperationLogRepo::create(
         &pool,
         &CreateOperationLog {
@@ -98,6 +104,8 @@ pub async fn me_handler(
     Ok(ApiResponse::ok(user))
 }
 
+// 用户列表用了手动拼 JSON 而非 PaginatedResponse::ok()
+// 因为该 handler 是权限管理独有，不跟标准分页响应复用同一个返回结构
 pub async fn list_users_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(params): Query<UserListQuery>,

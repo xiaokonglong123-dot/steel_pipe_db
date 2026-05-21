@@ -1,3 +1,4 @@
+// 无缝钢管新增/编辑表单页 — 支持 API 5CT 规格参数录入（钢级、端部类型、热处理号等）
 import { useEffect } from 'react';
 import { Form, Input, Select, DatePicker, InputNumber, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';

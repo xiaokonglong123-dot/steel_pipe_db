@@ -1,3 +1,4 @@
+// 质检证书详情页 — 完整检测数据展示 + 附件上传/下载/删除
 import { Button, Descriptions, Space, Tag, Card, Table, Upload, Popconfirm, message } from 'antd';
 import { EditOutlined, ArrowLeftOutlined, UploadOutlined, LinkOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';

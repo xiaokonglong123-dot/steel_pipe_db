@@ -1,3 +1,4 @@
+// 库存查询页 — 按钢管类型/钢级/库位多维度实时查询库存状态
 import { useState } from 'react';
 import { Table, Space, Tag, Input, Select } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';

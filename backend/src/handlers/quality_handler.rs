@@ -1,3 +1,5 @@
+// 质检入口：质量证书 CRUD、力学/无损检测数据、API 5CT 钢级参考
+
 use axum::{
     extract::{Extension, Path, Query},
     Json,
@@ -84,6 +86,7 @@ pub async fn delete_cert_handler(
 }
 
 // ━━━ API 5CT Grade Ref Handlers ━━━
+// 钢级参考数据：按钢级代号查询 API 5CT 标准的力学性能要求
 
 pub async fn get_grade_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -101,6 +104,7 @@ pub async fn list_grades_handler(
 }
 
 // ━━━ Pipe Attachment Handlers ━━━
+// 管子附件管理：关联质量证书/检测报告的扫描件或图片
 
 pub async fn create_attachment_handler(
     Extension(pool): Extension<SqlitePool>,

@@ -1,3 +1,6 @@
+// 供应商管理入口：供应商主数据 CRUD + 搜索
+// 供应商编码自动生成，支持按名称/编码/资质状态搜索
+
 use axum::{
     extract::{Extension, Path, Query},
     Json,

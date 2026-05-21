@@ -1,3 +1,4 @@
+// 库存盘点页 — 盘点任务创建、逐项核对（期望 vs 实际）、差异标记
 import { useState } from 'react';
 import {
   Table,

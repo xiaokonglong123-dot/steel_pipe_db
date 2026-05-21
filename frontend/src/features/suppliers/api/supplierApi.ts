@@ -1,3 +1,4 @@
+// 供应商管理 API — CRUD + 搜索 + 活跃供应商列表
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
 import type { Supplier, CreateSupplierData, SupplierFilterParams } from '../types';
@@ -8,22 +9,22 @@ import { supplierSchema } from '@/zod-schemas/core';
 export const supplierApi = {
   list: async (params?: SupplierFilterParams) => {
     const res = await apiClient.get<PaginatedResponse<Supplier>>('/suppliers', { params });
-    return validateResponse(res.data.data, paginatedDataSchema(supplierSchema));
+    return validateResponse(paginatedDataSchema(supplierSchema), res.data.data);
   },
 
   getById: async (id: number) => {
     const res = await apiClient.get<ApiResponse<Supplier>>(`/suppliers/${id}`);
-    return validateResponse(res.data.data, supplierSchema);
+    return validateResponse(supplierSchema, res.data.data);
   },
 
   create: async (data: CreateSupplierData) => {
     const res = await apiClient.post<ApiResponse<Supplier>>('/suppliers', data);
-    return validateResponse(res.data.data, supplierSchema);
+    return validateResponse(supplierSchema, res.data.data);
   },
 
   update: async (id: number, data: Partial<CreateSupplierData>) => {
     const res = await apiClient.put<ApiResponse<Supplier>>(`/suppliers/${id}`, data);
-    return validateResponse(res.data.data, supplierSchema);
+    return validateResponse(supplierSchema, res.data.data);
   },
 
   delete: async (id: number) => {
@@ -32,11 +33,11 @@ export const supplierApi = {
 
   search: async (q: string) => {
     const res = await apiClient.get<ApiResponse<Supplier[]>>('/suppliers/search', { params: { q } });
-    return validateResponse(res.data.data, z.array(supplierSchema));
+    return validateResponse(z.array(supplierSchema), res.data.data);
   },
 
   listActive: async () => {
     const res = await apiClient.get<ApiResponse<Supplier[]>>('/suppliers/active');
-    return validateResponse(res.data.data, z.array(supplierSchema));
+    return validateResponse(z.array(supplierSchema), res.data.data);
   },
 };

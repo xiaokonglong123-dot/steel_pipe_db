@@ -1,3 +1,4 @@
+// 筛管详情页 — 展示筛缝尺寸、过滤精度、基管规格等完整参数
 import { Button, Descriptions, Space, Tag, Card } from 'antd';
 import { EditOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';

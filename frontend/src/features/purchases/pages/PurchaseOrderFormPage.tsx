@@ -1,3 +1,4 @@
+// 采购订单新增/编辑表单页 — 表头信息 + 可动态增删的多行采购项（钢管规格、数量、单价）
 import { useEffect } from 'react';
 import {
   Form,

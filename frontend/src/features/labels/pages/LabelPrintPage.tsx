@@ -1,3 +1,4 @@
+// 标签打印页 — 钢管标签/质检标签/发货标签/批量标签生成与打印
 import { useState } from 'react';
 import { Card, Form, Input, InputNumber, Select, Button, Row, Col, Typography, Divider, message } from 'antd';
 import { PrinterOutlined, BarcodeOutlined, FileTextOutlined } from '@ant-design/icons';

@@ -1,3 +1,6 @@
+// 认证业务逻辑：登录/登出/令牌刷新/用户管理
+// 密码使用 Argon2id 哈希存储，不放明文
+
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -26,6 +29,7 @@ impl AuthService {
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::Unauthorized("Invalid username or password".into()))?;
 
+        // 禁用账号不允许登录，即使密码正确
         if !user.is_active {
             return Err(AppError::Forbidden("Account is disabled".into()));
         }
@@ -159,7 +163,7 @@ impl AuthService {
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
-        // Allow admin to change any password without old_password check
+            // admin 改任何人的密码不用输旧密码，普通用户改自己的密码必须验证旧密码
         if current_user_role != "admin" {
             let parsed_hash = PasswordHash::new(&user.password_hash)
                 .map_err(|_| AppError::Internal("Invalid stored password hash".into()))?;

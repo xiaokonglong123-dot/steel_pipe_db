@@ -1,3 +1,4 @@
+// 标签打印模块 Zod Schema — 钢管标签与通用标签数据
 import { z } from 'zod';
 
 export const pipeLabelSchema = z.object({

@@ -1,3 +1,4 @@
+// 销售订单 API — CRUD + 状态流转 + 行项管理（含 ATP 库存校验）
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
 import type {
@@ -16,31 +17,32 @@ export const salesApi = {
       '/sales-orders',
       { params },
     );
-    return validateResponse(res.data.data, paginatedDataSchema(salesOrderSchema));
+    return validateResponse(paginatedDataSchema(salesOrderSchema), res.data.data);
   },
 
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<SalesOrder>>(`/sales-orders/${id}`);
-    return validateResponse(res.data.data, salesOrderSchema);
+    return validateResponse(salesOrderSchema, res.data.data);
   },
 
   create: async (data: CreateSalesOrderData) => {
     const res = await apiClient.post<ApiResponse<SalesOrder>>('/sales-orders', data);
-    return validateResponse(res.data.data, salesOrderSchema);
+    return validateResponse(salesOrderSchema, res.data.data);
   },
 
   update: async (id: number, data: Partial<CreateSalesOrderData>) => {
     const res = await apiClient.put<ApiResponse<SalesOrder>>(`/sales-orders/${id}`, data);
-    return validateResponse(res.data.data, salesOrderSchema);
+    return validateResponse(salesOrderSchema, res.data.data);
   },
 
   delete: async (id: number) => {
     await apiClient.delete(`/sales-orders/${id}`);
   },
 
+  // 状态流转：pending → approved → delivered → invoiced
   transition: async (id: number, data: SalesOrderStatusTransitionRequest) => {
     const res = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/transition`, data);
-    return validateResponse(res.data.data, salesOrderSchema);
+    return validateResponse(salesOrderSchema, res.data.data);
   },
 
   updateItem: async (orderId: number, itemId: number, data: UpdateSalesOrderItemData) => {
@@ -48,7 +50,7 @@ export const salesApi = {
       `/sales-orders/${orderId}/items/${itemId}`,
       data,
     );
-    return validateResponse(res.data.data, salesOrderSchema);
+    return validateResponse(salesOrderSchema, res.data.data);
   },
 
   deleteItem: async (orderId: number, itemId: number) => {

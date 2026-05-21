@@ -1,3 +1,4 @@
+// 质检模块 Zod Schema — 质量证书、钢级参考标准、附件
 import { z } from 'zod';
 
 export const qualityCertSchema = z.object({

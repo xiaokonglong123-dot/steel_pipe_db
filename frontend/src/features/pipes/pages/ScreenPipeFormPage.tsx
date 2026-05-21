@@ -1,3 +1,4 @@
+// 筛管新增/编辑表单页 — 支持筛管类型（绕丝/预填充/割缝等）及基管规格录入
 import { useEffect } from 'react';
 import { Form, Input, Select, DatePicker, InputNumber, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';

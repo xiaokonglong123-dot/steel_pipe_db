@@ -1,3 +1,6 @@
+// 钢管主数据业务逻辑：无缝管 + 筛管的 CRUD、编号生成、跨类型搜索
+// 编号规则：前缀-钢级-外径x壁厚-UUID短尾（SP-L80-177.8x8.05-a1b2c3d4）
+
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -100,6 +103,7 @@ impl PipeService {
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::PipeNotFound(format!("Seamless pipe id={} not found", id)))?;
 
+        // 只允许删除"在库"状态的钢管 — 已出库/质检中的钢管不允许物理删除
         if existing.status != "in_stock" {
             return Err(AppError::PipeStatusConflict(format!(
                 "Cannot delete pipe with status '{}'. Only 'in_stock' pipes can be deleted.",
