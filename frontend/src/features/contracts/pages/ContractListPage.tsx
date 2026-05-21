@@ -39,40 +39,40 @@ export default function ContractListPage() {
 
   const columns = [
     {
-      title: t('Contract Number'),
+      title: t('contracts.contract_number'),
       dataIndex: 'contract_number',
       key: 'contract_number',
     },
     {
-      title: t('Contract Name'),
+      title: t('contracts.contract_name'),
       dataIndex: 'contract_name',
       key: 'contract_name',
     },
     {
-      title: t('Contract Type'),
+      title: t('contracts.contract_type'),
       dataIndex: 'contract_type',
       key: 'contract_type',
       render: (type: string) => <Tag color={typeColors[type]}>{type}</Tag>,
     },
     {
-      title: t('Party A'),
+      title: t('contracts.party_a'),
       dataIndex: 'party_a',
       key: 'party_a',
     },
     {
-      title: t('Party B'),
+      title: t('contracts.party_b'),
       dataIndex: 'party_b',
       key: 'party_b',
     },
     {
-      title: t('Total Amount'),
+      title: t('contracts.total_amount'),
       dataIndex: 'total_amount',
       key: 'total_amount',
       align: 'right' as const,
       render: (val: number) => val?.toLocaleString(),
     },
     {
-      title: t('Status'),
+      title: t('contracts.status'),
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
@@ -97,10 +97,10 @@ export default function ContractListPage() {
             {t('common.edit')}
           </Button>
           <Popconfirm
-            title="确认删除?"
+            title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger>{t('common.delete')}</Button>
+            <Button type="link" danger loading={deleteMutation.isPending}>{t('common.delete')}</Button>
           </Popconfirm>
         </Space>
       ),
@@ -125,27 +125,27 @@ export default function ContractListPage() {
             style={{ width: 250 }}
           />
           <Select
-            placeholder={t('Contract Type')}
+            placeholder={t('contracts.contract_type')}
             allowClear
             style={{ width: 140 }}
             value={typeFilter}
             onChange={setTypeFilter}
             options={[
-              { label: 'Purchase', value: 'purchase' },
-              { label: 'Sales', value: 'sales' },
+              { label: t('contracts.purchase'), value: 'purchase' },
+              { label: t('contracts.sales'), value: 'sales' },
             ]}
           />
           <Select
-            placeholder={t('Status')}
+            placeholder={t('contracts.status')}
             allowClear
             style={{ width: 140 }}
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
-              { label: 'Draft', value: 'draft' },
-              { label: 'Active', value: 'active' },
-              { label: 'Completed', value: 'completed' },
-              { label: 'Terminated', value: 'terminated' },
+              { label: t('contracts.status.draft'), value: 'draft' },
+              { label: t('contracts.status.active'), value: 'active' },
+              { label: t('contracts.status.completed'), value: 'completed' },
+              { label: t('contracts.status.terminated'), value: 'terminated' },
             ]}
           />
         </Space>
@@ -171,7 +171,7 @@ export default function ContractListPage() {
             setPageSize(ps);
           },
           showSizeChanger: true,
-          showTotal: (total) => `Total ${total} items`,
+          showTotal: (total) => t('common.total_items', { total }),
         }}
       />
     </div>

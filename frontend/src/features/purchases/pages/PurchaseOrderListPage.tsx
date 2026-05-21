@@ -31,37 +31,37 @@ export default function PurchaseOrderListPage() {
 
   const columns = [
     {
-      title: 'Order Number',
+      title: t('purchases.order_number'),
       dataIndex: 'order_number',
       key: 'order_number',
       sorter: true,
     },
     {
-      title: 'Supplier',
+      title: t('purchases.supplier'),
       dataIndex: 'supplier_name',
       key: 'supplier_name',
     },
     {
-      title: 'Order Date',
+      title: t('purchases.order_date'),
       dataIndex: 'order_date',
       key: 'order_date',
     },
     {
-      title: 'Expected Date',
+      title: t('purchases.expected_delivery'),
       dataIndex: 'expected_date',
       key: 'expected_date',
       render: (val: string | undefined) => val ?? '-',
     },
     {
-      title: 'Status',
+      title: t('purchases.status'),
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
-        <Tag color={STATUS_COLORS[status] ?? 'default'}>{status}</Tag>
+        <Tag color={STATUS_COLORS[status] ?? 'default'}>{t('purchases.status.' + status)}</Tag>
       ),
     },
     {
-      title: 'Total Amount',
+      title: t('purchases.total_amount'),
       dataIndex: 'total_amount',
       key: 'total_amount',
       render: (val: number) => val.toFixed(2),
@@ -84,10 +84,10 @@ export default function PurchaseOrderListPage() {
             {t('common.edit')}
           </Button>
           <Popconfirm
-            title="确认删除?"
+            title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger>
+            <Button type="link" danger loading={deleteMutation.isPending}>
               {t('common.delete')}
             </Button>
           </Popconfirm>
@@ -136,7 +136,7 @@ export default function PurchaseOrderListPage() {
             setPageSize(ps);
           },
           showSizeChanger: true,
-          showTotal: (total) => `Total ${total} items`,
+          showTotal: (total) => t('common.total_items', { total }),
         }}
       />
     </div>

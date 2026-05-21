@@ -23,28 +23,28 @@ export default function SupplierListPage() {
 
   const columns = [
     {
-      title: t('Code'),
+      title: t('suppliers.code'),
       dataIndex: 'code',
       key: 'code',
       sorter: true,
     },
     {
-      title: t('Name'),
+      title: t('suppliers.name'),
       dataIndex: 'name',
       key: 'name',
     },
     {
-      title: t('Contact Person'),
+      title: t('suppliers.contact_person'),
       dataIndex: 'contact_person',
       key: 'contact_person',
     },
     {
-      title: t('Phone'),
+      title: t('suppliers.phone'),
       dataIndex: 'phone',
       key: 'phone',
     },
     {
-      title: t('Grade Supply'),
+      title: t('suppliers.grade_supply'),
       dataIndex: 'grade_supply',
       key: 'grade_supply',
       render: (val: string) =>
@@ -57,7 +57,7 @@ export default function SupplierListPage() {
           : '-',
     },
     {
-      title: t('Status'),
+      title: t('suppliers.status'),
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
@@ -77,10 +77,10 @@ export default function SupplierListPage() {
             {t('common.edit')}
           </Button>
           <Popconfirm
-            title="确认删除?"
+            title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger>
+            <Button type="link" danger loading={deleteMutation.isPending}>
               {t('common.delete')}
             </Button>
           </Popconfirm>
@@ -129,7 +129,7 @@ export default function SupplierListPage() {
             setPageSize(ps);
           },
           showSizeChanger: true,
-          showTotal: (total) => `Total ${total} items`,
+          showTotal: (total) => t('common.total_items', { total }),
         }}
       />
     </div>

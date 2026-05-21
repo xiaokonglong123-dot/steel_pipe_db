@@ -36,39 +36,39 @@ export default function SalesOrderListPage() {
 
   const columns = [
     {
-      title: t('Order Number'),
+      title: t('sales.order_number'),
       dataIndex: 'order_number',
       key: 'order_number',
       sorter: true,
     },
     {
-      title: t('Customer'),
+      title: t('sales.customer'),
       dataIndex: 'customer_name',
       key: 'customer_name',
     },
     {
-      title: t('Order Date'),
+      title: t('sales.order_date'),
       dataIndex: 'order_date',
       key: 'order_date',
     },
     {
-      title: t('Expected Delivery'),
+      title: t('sales.expected_delivery'),
       dataIndex: 'expected_delivery',
       key: 'expected_delivery',
       render: (val: string | null) => val ?? '-',
     },
     {
-      title: t('Total Amount'),
+      title: t('sales.total_amount'),
       dataIndex: 'total_amount',
       key: 'total_amount',
       render: (val: number) => val.toLocaleString(),
     },
     {
-      title: t('Status'),
+      title: t('sales.status'),
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
-        <Tag color={STATUS_COLORS[status] ?? 'default'}>{status}</Tag>
+        <Tag color={STATUS_COLORS[status] ?? 'default'}>{t('sales.status.' + status)}</Tag>
       ),
     },
     {
@@ -83,10 +83,10 @@ export default function SalesOrderListPage() {
             {t('common.edit')}
           </Button>
           <Popconfirm
-            title="确认删除?"
+            title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger>
+            <Button type="link" danger loading={deleteMutation.isPending}>
               {t('common.delete')}
             </Button>
           </Popconfirm>
@@ -113,7 +113,7 @@ export default function SalesOrderListPage() {
             style={{ width: 250 }}
           />
           <Select
-            placeholder={t('Status')}
+            placeholder={t('sales.status')}
             allowClear
             value={statusFilter}
             onChange={(val) => setStatusFilter(val)}
@@ -121,7 +121,7 @@ export default function SalesOrderListPage() {
           >
             {ORDER_STATUSES.map((s) => (
               <Select.Option key={s} value={s}>
-                {s}
+                {t('sales.status.' + s)}
               </Select.Option>
             ))}
           </Select>
@@ -148,7 +148,7 @@ export default function SalesOrderListPage() {
             setPageSize(ps);
           },
           showSizeChanger: true,
-          showTotal: (total) => `Total ${total} items`,
+          showTotal: (total) => t('common.total_items', { total }),
         }}
       />
     </div>

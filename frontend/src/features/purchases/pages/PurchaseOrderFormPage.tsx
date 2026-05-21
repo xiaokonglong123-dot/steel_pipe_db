@@ -79,7 +79,7 @@ export default function PurchaseOrderFormPage() {
 
   const itemColumns = [
     {
-      title: 'Pipe Type',
+      title: t('purchases.pipe_type'),
       dataIndex: 'pipe_type',
       key: 'pipe_type',
       width: 120,
@@ -100,7 +100,7 @@ export default function PurchaseOrderFormPage() {
       ),
     },
     {
-      title: 'Grade',
+      title: t('purchases.grade'),
       dataIndex: 'grade',
       key: 'grade',
       width: 100,
@@ -121,7 +121,7 @@ export default function PurchaseOrderFormPage() {
       ),
     },
     {
-      title: 'OD (in)',
+      title: t('purchases.od'),
       dataIndex: 'od',
       key: 'od',
       width: 100,
@@ -136,7 +136,7 @@ export default function PurchaseOrderFormPage() {
       ),
     },
     {
-      title: 'WT (in)',
+      title: t('purchases.wt'),
       dataIndex: 'wt',
       key: 'wt',
       width: 100,
@@ -151,7 +151,7 @@ export default function PurchaseOrderFormPage() {
       ),
     },
     {
-      title: 'Length (m)',
+      title: t('purchases.length'),
       dataIndex: 'length',
       key: 'length',
       width: 100,
@@ -162,7 +162,7 @@ export default function PurchaseOrderFormPage() {
       ),
     },
     {
-      title: 'Quantity',
+      title: t('purchases.quantity'),
       dataIndex: 'quantity',
       key: 'quantity',
       width: 100,
@@ -177,7 +177,7 @@ export default function PurchaseOrderFormPage() {
       ),
     },
     {
-      title: 'Unit Price',
+      title: t('purchases.unit_price'),
       dataIndex: 'unit_price',
       key: 'unit_price',
       width: 120,
@@ -192,7 +192,7 @@ export default function PurchaseOrderFormPage() {
       ),
     },
     {
-      title: 'Notes',
+      title: t('purchases.notes'),
       dataIndex: 'notes',
       key: 'notes',
       width: 150,
@@ -208,7 +208,7 @@ export default function PurchaseOrderFormPage() {
       width: 80,
       render: (_: unknown, __: unknown, index: number) => (
         <Popconfirm
-          title="确认删除?"
+          title={t('common.confirm_delete')}
           onConfirm={() => {
             const items = form.getFieldValue('items') || [];
             items.splice(index, 1);
@@ -224,7 +224,7 @@ export default function PurchaseOrderFormPage() {
   return (
     <div>
       <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} Purchase Order
+        {isEdit ? t('purchases.edit_purchase') : t('purchases.create_purchase')}
       </h2>
       <Form
         form={form}
@@ -233,7 +233,7 @@ export default function PurchaseOrderFormPage() {
         style={{ maxWidth: 1000 }}
       >
         <Form.Item
-          label="Supplier ID"
+          label={t('purchases.supplier_id')}
           name="supplier_id"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -241,22 +241,22 @@ export default function PurchaseOrderFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="Order Date"
+          label={t('purchases.order_date')}
           name="order_date"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <DatePicker style={{ width: 200 }} />
         </Form.Item>
 
-        <Form.Item label="Expected Date" name="expected_date">
+        <Form.Item label={t('purchases.expected_delivery')} name="expected_date">
           <DatePicker style={{ width: 200 }} />
         </Form.Item>
 
-        <Form.Item label="Notes" name="notes">
+        <Form.Item label={t('purchases.notes')} name="notes">
           <Input.TextArea rows={3} style={{ maxWidth: 600 }} />
         </Form.Item>
 
-        <h3 style={{ marginBottom: 16 }}>Items</h3>
+        <h3 style={{ marginBottom: 16 }}>{t('purchases.items')}</h3>
 
         <Form.List name="items" initialValue={[]}>
           {(fields, { add, remove: _remove }) => (
@@ -284,7 +284,7 @@ export default function PurchaseOrderFormPage() {
                     icon={<PlusOutlined />}
                     style={{ width: '100%' }}
                   >
-                    Add Item
+                    {t('purchases.add_item')}
                   </Button>
                 )}
               />

@@ -71,7 +71,7 @@ export default function CertFormPage() {
   return (
     <div>
       <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} Certificate
+        {isEdit ? t('quality.edit_certificate') : t('quality.create_certificate')}
       </h2>
       <Form
         form={form}
@@ -80,19 +80,19 @@ export default function CertFormPage() {
         style={{ maxWidth: 800 }}
       >
         <Form.Item
-          label="Cert Number"
+          label={t('quality.cert_number')}
           name="cert_number"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <Input disabled={isEdit} />
         </Form.Item>
 
-        <Form.Item label="Batch Number" name="batch_number">
+        <Form.Item label={t('quality.batch_number')} name="batch_number">
           <Input />
         </Form.Item>
 
         <Form.Item
-          label="Pipe Type"
+          label={t('quality.pipe_type')}
           name="pipe_type"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -106,7 +106,7 @@ export default function CertFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="Grade"
+          label={t('quality.grade')}
           name="grade"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -120,7 +120,7 @@ export default function CertFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="OD (in)"
+          label={t('quality.od')}
           name="od"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -128,71 +128,71 @@ export default function CertFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="WT (in)"
+          label={t('quality.wt')}
           name="wt"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <InputNumber style={{ width: '100%' }} min={0} step={0.001} />
         </Form.Item>
 
-        <Form.Item label="Length (m)" name="length">
+        <Form.Item label={t('quality.length')} name="length">
           <InputNumber style={{ width: '100%' }} min={0} step={0.01} />
         </Form.Item>
 
         <Form.Item
-          label="Quantity"
+          label={t('quality.quantity')}
           name="quantity"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <InputNumber style={{ width: '100%' }} min={0} step={1} />
         </Form.Item>
 
-        <Form.Item label="Heat Number" name="heat_number">
+        <Form.Item label={t('quality.heat_number')} name="heat_number">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Manufacturer" name="manufacturer">
+        <Form.Item label={t('quality.manufacturer')} name="manufacturer">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Production Date" name="production_date">
+        <Form.Item label={t('quality.production_date')} name="production_date">
           <DatePicker style={{ width: '100%' }} />
         </Form.Item>
 
-        <Form.Item label="Test Pressure" name="test_pressure">
+        <Form.Item label={t('quality.test_pressure')} name="test_pressure">
           <InputNumber style={{ width: '100%' }} min={0} step={0.1} />
         </Form.Item>
 
-        <Form.Item label="Yield Strength" name="yield_strength">
+        <Form.Item label={t('quality.yield_strength')} name="yield_strength">
           <InputNumber style={{ width: '100%' }} min={0} step={0.1} />
         </Form.Item>
 
-        <Form.Item label="Tensile Strength" name="tensile_strength">
+        <Form.Item label={t('quality.tensile_strength')} name="tensile_strength">
           <InputNumber style={{ width: '100%' }} min={0} step={0.1} />
         </Form.Item>
 
-        <Form.Item label="Elongation (%)" name="elongation">
+        <Form.Item label={t('quality.elongation')} name="elongation">
           <InputNumber style={{ width: '100%' }} min={0} step={0.1} />
         </Form.Item>
 
-        <Form.Item label="Hardness" name="hardness">
+        <Form.Item label={t('quality.hardness')} name="hardness">
           <InputNumber style={{ width: '100%' }} min={0} step={0.1} />
         </Form.Item>
 
-        <Form.Item label="Inspection Standard" name="inspection_standard">
+        <Form.Item label={t('quality.inspection_standard')} name="inspection_standard">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Inspector" name="inspector">
+        <Form.Item label={t('quality.inspector')} name="inspector">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Cert Date" name="cert_date">
+        <Form.Item label={t('quality.cert_date')} name="cert_date">
           <DatePicker style={{ width: '100%' }} />
         </Form.Item>
 
         <Form.Item
-          label="Status"
+          label={t('quality.status')}
           name="status"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -205,7 +205,7 @@ export default function CertFormPage() {
           </Select>
         </Form.Item>
 
-        <Form.Item label="Notes" name="notes">
+        <Form.Item label={t('quality.notes')} name="notes">
           <Input.TextArea rows={3} />
         </Form.Item>
 

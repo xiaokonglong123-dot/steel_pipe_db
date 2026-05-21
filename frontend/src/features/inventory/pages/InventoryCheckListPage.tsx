@@ -32,11 +32,11 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   Cancelled: 'red',
 };
 
-const FOUND_STATUS_OPTIONS = [
-  { label: 'found', value: 'found' },
-  { label: 'missing', value: 'missing' },
-  { label: 'damaged', value: 'damaged' },
-  { label: 'wrong_location', value: 'wrong_location' },
+const getFoundStatusOptions = (t: (key: string) => string) => [
+  { label: t('inventory_check.found_status.found'), value: 'found' },
+  { label: t('inventory_check.found_status.missing'), value: 'missing' },
+  { label: t('inventory_check.found_status.damaged'), value: 'damaged' },
+  { label: t('inventory_check.found_status.wrong_location'), value: 'wrong_location' },
 ];
 
 export default function InventoryCheckListPage() {
@@ -155,6 +155,7 @@ export default function InventoryCheckListPage() {
       title: t('inventory_check.pipe_type'),
       dataIndex: 'pipe_type',
       key: 'pipe_type',
+      render: (v: string) => <Tag>{t('pipe_type.' + v)}</Tag>,
     },
     {
       title: t('inventory_check.pipe_id'),
@@ -165,7 +166,7 @@ export default function InventoryCheckListPage() {
       title: t('inventory_check.expected_status'),
       dataIndex: 'expected_status',
       key: 'expected_status',
-      render: (v: string) => <Tag>{v}</Tag>,
+      render: (v: string) => <Tag>{t('stock.status.' + v)}</Tag>,
     },
     {
       title: t('inventory_check.found_status'),
@@ -174,7 +175,7 @@ export default function InventoryCheckListPage() {
       render: (v: string | undefined) => {
         if (!v) return <Tag color="orange">{t('inventory_check.pending')}</Tag>;
         const color = v === 'found' ? 'green' : v === 'missing' ? 'red' : 'orange';
-        return <Tag color={color}>{v}</Tag>;
+        return <Tag color={color}>{t('inventory_check.found_status.' + v)}</Tag>;
       },
     },
     {
@@ -182,8 +183,8 @@ export default function InventoryCheckListPage() {
       dataIndex: 'is_match',
       key: 'is_match',
       render: (v: boolean | undefined | null) => {
-        if (v === true) return <Tag color="green">Match</Tag>;
-        if (v === false) return <Tag color="red">Mismatch</Tag>;
+        if (v === true) return <Tag color="green">{t('inventory_check.match')}</Tag>;
+        if (v === false) return <Tag color="red">{t('inventory_check.mismatch')}</Tag>;
         return '-';
       },
     },
@@ -198,7 +199,7 @@ export default function InventoryCheckListPage() {
               size="small"
               style={{ width: 120 }}
               placeholder={t('inventory_check.found_status')}
-              options={FOUND_STATUS_OPTIONS}
+              options={getFoundStatusOptions(t)}
               onChange={(val) => submitForm.setFieldsValue({ found_status: val })}
             />
             <Button

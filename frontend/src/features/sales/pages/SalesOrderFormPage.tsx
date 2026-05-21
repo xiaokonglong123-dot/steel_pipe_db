@@ -60,7 +60,7 @@ export default function SalesOrderFormPage() {
 
   const handleSubmit = async (values: CreateSalesOrderData) => {
     if (items.length === 0) {
-      message.error(t('Please add at least one item'));
+      message.error(t('sales.please_add_item'));
       return;
     }
     try {
@@ -78,18 +78,18 @@ export default function SalesOrderFormPage() {
   };
 
   const itemColumns = [
-    { title: t('Pipe Number'), dataIndex: 'pipe_number', key: 'pipe_number' },
-    { title: t('Pipe Type'), dataIndex: 'pipe_type', key: 'pipe_type' },
-    { title: t('Grade'), dataIndex: 'grade', key: 'grade' },
-    { title: 'OD', dataIndex: 'od', key: 'od', render: (v: number | null) => v ?? '-' },
-    { title: 'WT', dataIndex: 'wt', key: 'wt', render: (v: number | null) => v ?? '-' },
-    { title: t('Quantity'), dataIndex: 'quantity', key: 'quantity' },
-    { title: t('Unit Price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number) => v.toLocaleString() },
-    { title: t('Total Price'), dataIndex: 'total_price', key: 'total_price', render: (v: number | null) => v?.toLocaleString() ?? '-' },
+    { title: t('pipes.pipe_number'), dataIndex: 'pipe_number', key: 'pipe_number' },
+    { title: t('pipes.pipe_type'), dataIndex: 'pipe_type', key: 'pipe_type' },
+    { title: t('pipes.grade'), dataIndex: 'grade', key: 'grade' },
+  { title: t('sales.od'), dataIndex: 'od', key: 'od', render: (v: number | null) => v ?? '-' },
+  { title: t('sales.wt'), dataIndex: 'wt', key: 'wt', render: (v: number | null) => v ?? '-' },
+    { title: t('sales.quantity'), dataIndex: 'quantity', key: 'quantity' },
+    { title: t('sales.unit_price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number) => v.toLocaleString() },
+    { title: t('sales.total_price'), dataIndex: 'total_price', key: 'total_price', render: (v: number | null) => v?.toLocaleString() ?? '-' },
     {
       title: t('common.actions'), key: 'actions',
       render: (_: unknown, __: unknown, index: number) => (
-        <Popconfirm title="确认删除?" onConfirm={() => removeItem(index)}>
+        <Popconfirm title={t('common.confirm_delete')} onConfirm={() => removeItem(index)}>
           <Button type="link" danger icon={<DeleteOutlined />} />
         </Popconfirm>
       ),
@@ -103,7 +103,7 @@ export default function SalesOrderFormPage() {
   return (
     <div>
       <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} {t('Sales Order')}
+        {isEdit ? t('common.edit') : t('common.create')} {t('sales.sales_order')}
       </h2>
       <Form
         form={form}
@@ -112,38 +112,38 @@ export default function SalesOrderFormPage() {
         style={{ maxWidth: 800 }}
       >
         <Form.Item
-          label={t('Customer ID')}
+          label={t('sales.customer_id')}
           name="customer_id"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <InputNumber style={{ width: '100%' }} min={1} />
         </Form.Item>
 
-        <Form.Item label={t('Customer Name')} name="customer_name">
+        <Form.Item label={t('sales.customer_name')} name="customer_name">
           <Input />
         </Form.Item>
 
-        <Form.Item label={t('Order Date')} name="order_date">
+        <Form.Item label={t('sales.order_date')} name="order_date">
           <DatePicker style={{ width: '100%' }} />
         </Form.Item>
 
-        <Form.Item label={t('Expected Delivery')} name="expected_delivery">
+        <Form.Item label={t('sales.expected_delivery')} name="expected_delivery">
           <DatePicker style={{ width: '100%' }} />
         </Form.Item>
 
-        <Form.Item label={t('Notes')} name="notes">
+        <Form.Item label={t('common.notes')} name="notes">
           <Input.TextArea rows={3} />
         </Form.Item>
 
         <Card
-          title={t('Items')}
+          title={t('sales.items')}
           extra={
             <Button
               type="dashed"
               icon={<PlusOutlined />}
               onClick={() => {
                 Modal.info({
-                  title: t('Select Pipe'),
+                  title: t('sales.select_pipe'),
                   content: (
                     <PipeSelector
                       onSelect={(pipe) => {
@@ -165,7 +165,7 @@ export default function SalesOrderFormPage() {
                 });
               }}
             >
-              {t('Add Item')}
+              {t('sales.add_item')}
             </Button>
           }
           style={{ marginBottom: 24 }}
@@ -212,15 +212,14 @@ function PipeSelector({ onSelect }: { onSelect: (pipe: { id: number; pipe_number
   }, []);
 
   const columns = [
-    { title: tp.t('Pipe Number'), dataIndex: 'pipe_number', key: 'pipe_number' },
-    { title: tp.t('Grade'), dataIndex: 'grade', key: 'grade' },
-    { title: 'OD', dataIndex: 'od', key: 'od' },
-    { title: 'WT', dataIndex: 'wt', key: 'wt' },
+    { title: tp.t('pipes.pipe_number'), dataIndex: 'pipe_number', key: 'pipe_number' },
+    { title: tp.t('pipes.grade'), dataIndex: 'grade', key: 'grade' },
     {
-      title: tp.t('common.actions'), key: 'actions',
-      render: (_: unknown, record: typeof pipes[0]) => (
-        <Button type="link" onClick={() => onSelect(record)}>
-          {tp.t('Select')}
+      title: tp.t('common.actions'),
+      key: 'actions',
+      render: (_: unknown, record: { id: number; pipe_number: string; pipe_type?: string; grade?: string; od?: number; wt?: number; length?: number }) => (
+        <Button type="primary" size="small" onClick={() => onSelect(record)}>
+          {tp.t('sales.select')}
         </Button>
       ),
     },

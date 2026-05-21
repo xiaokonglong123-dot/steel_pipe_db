@@ -17,11 +17,11 @@ import { useUsers, useCreateUser, useUpdateUser, useChangePassword } from '../ho
 import type { UserInfo } from '@/types';
 import type { CreateUserData, UpdateUserData, ChangePasswordData } from '../api/userApi';
 
-const ROLE_OPTIONS = [
-  { label: 'Admin', value: 'admin' },
-  { label: 'Warehouse', value: 'warehouse' },
-  { label: 'QC', value: 'qc' },
-  { label: 'Sales', value: 'sales' },
+const getRoleOptions = (t: (key: string) => string) => [
+  { label: t('user.role.admin'), value: 'admin' },
+  { label: t('user.role.warehouse'), value: 'warehouse' },
+  { label: t('user.role.qc'), value: 'qc' },
+  { label: t('user.role.sales'), value: 'sales' },
 ];
 
 const ROLE_COLOR_MAP: Record<string, string> = {
@@ -259,7 +259,7 @@ export default function UserManagementPage() {
             rules={[{ required: true, message: t('common.required') }]}
             initialValue="warehouse"
           >
-            <Select options={ROLE_OPTIONS} />
+            <Select options={getRoleOptions(t)} />
           </Form.Item>
           <Form.Item name="email" label={t('user.email')}>
             <Input />
@@ -291,7 +291,7 @@ export default function UserManagementPage() {
             label={t('user.role')}
             rules={[{ required: true, message: t('common.required') }]}
           >
-            <Select options={ROLE_OPTIONS} />
+            <Select options={getRoleOptions(t)} />
           </Form.Item>
           <Form.Item name="email" label={t('user.email')}>
             <Input />

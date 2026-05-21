@@ -57,7 +57,7 @@ export default function CustomerFormPage() {
   return (
     <div>
       <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} {t('Customer')}
+        {isEdit ? t('common.edit') : t('common.create')} {t('customers.name')}
       </h2>
       <Form
         form={form}
@@ -66,7 +66,7 @@ export default function CustomerFormPage() {
         style={{ maxWidth: 800 }}
       >
         <Form.Item
-          label="Code"
+          label={t('customers.code')}
           name="code"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -74,49 +74,49 @@ export default function CustomerFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="Name"
+          label={t('customers.name')}
           name="name"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <Input />
         </Form.Item>
 
-        <Form.Item label="Contact Person" name="contact_person">
+        <Form.Item label={t('customers.contact_person')} name="contact_person">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Phone" name="phone">
+        <Form.Item label={t('customers.phone')} name="phone">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Email" name="email">
+        <Form.Item label={t('customers.email')} name="email">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Address" name="address">
+        <Form.Item label={t('customers.address')} name="address">
           <Input.TextArea rows={2} />
         </Form.Item>
 
-        <Form.Item label="Tax ID" name="tax_id">
+        <Form.Item label={t('customers.tax_id')} name="tax_id">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Bank Info" name="bank_info">
+        <Form.Item label={t('customers.bank_info')} name="bank_info">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Industry" name="industry">
+        <Form.Item label={t('customers.industry')} name="industry">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Status" name="status">
+        <Form.Item label={t('customers.status')} name="status">
           <Select>
-            <Select.Option value="active">Active</Select.Option>
-            <Select.Option value="inactive">Inactive</Select.Option>
+            <Select.Option value="active">{t('customers.status_active')}</Select.Option>
+            <Select.Option value="inactive">{t('customers.status_inactive')}</Select.Option>
           </Select>
         </Form.Item>
 
-        <Form.Item label="Notes" name="notes">
+        <Form.Item label={t('customers.notes')} name="notes">
           <Input.TextArea rows={3} />
         </Form.Item>
 

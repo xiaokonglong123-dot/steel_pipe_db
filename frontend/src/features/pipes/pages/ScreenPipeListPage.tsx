@@ -23,36 +23,36 @@ export default function ScreenPipeListPage() {
 
   const columns = [
     {
-      title: t('Pipe Number'),
+      title: t('pipes.pipe_number'),
       dataIndex: 'pipe_number',
       key: 'pipe_number',
       sorter: true,
     },
     {
-      title: 'Screen Type',
+      title: t('screen_pipes.screen_type'),
       dataIndex: 'screen_type',
       key: 'screen_type',
       render: (type: string) => <Tag color="cyan">{type}</Tag>,
     },
     {
-      title: 'Base Grade',
+      title: t('screen_pipes.base_grade'),
       dataIndex: 'base_grade',
       key: 'base_grade',
       render: (grade: string) => <Tag color="blue">{grade}</Tag>,
     },
     {
-      title: 'Base OD (in)',
+      title: t('pipes.od'),
       dataIndex: 'base_od',
       key: 'base_od',
     },
     {
-      title: t('Status'),
+      title: t('pipes.status'),
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
         const color =
           status === 'in_stock' ? 'green' : status === 'outbound' ? 'orange' : 'red';
-        return <Tag color={color}>{status}</Tag>;
+        return <Tag color={color}>{t(`pipes.status.${status}`)}</Tag>;
       },
     },
     {
@@ -67,10 +67,10 @@ export default function ScreenPipeListPage() {
             {t('common.edit')}
           </Button>
           <Popconfirm
-            title="确认删除?"
+            title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger>
+            <Button type="link" danger loading={deleteMutation.isPending}>
               {t('common.delete')}
             </Button>
           </Popconfirm>
@@ -119,7 +119,7 @@ export default function ScreenPipeListPage() {
             setPageSize(ps);
           },
           showSizeChanger: true,
-          showTotal: (total) => `Total ${total} items`,
+          showTotal: (total) => t('common.total_items', { total }),
         }}
       />
     </div>

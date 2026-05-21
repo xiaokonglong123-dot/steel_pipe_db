@@ -76,19 +76,19 @@ export default function ScreenPipeFormPage() {
         style={{ maxWidth: 800 }}
       >
         <Form.Item
-          label="Pipe Number"
+          label={t('pipes.pipe_number')}
           name="pipe_number"
           rules={isEdit ? [] : [{ required: true, message: t('common.required') }]}
         >
           <Input disabled={isEdit} placeholder={t('common.required')} />
         </Form.Item>
 
-        <Form.Item label="Batch Number" name="batch_number">
+        <Form.Item label={t('pipes.batch_number')} name="batch_number">
           <Input />
         </Form.Item>
 
         <Form.Item
-          label="Screen Type"
+          label={t('screen_pipes.screen_type')}
           name="screen_type"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -101,16 +101,16 @@ export default function ScreenPipeFormPage() {
           </Select>
         </Form.Item>
 
-        <Form.Item label="Slot Size" name="slot_size">
+        <Form.Item label={t('screen_pipes.slot_size')} name="slot_size">
           <InputNumber style={{ width: '100%' }} min={0} step={0.001} />
         </Form.Item>
 
-        <Form.Item label="Filtration Grade" name="filtration_grade">
+        <Form.Item label={t('screen_pipes.filtration_grade')} name="filtration_grade">
           <Input />
         </Form.Item>
 
         <Form.Item
-          label="Base OD (in)"
+          label={t('pipes.od')}
           name="base_od"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -118,7 +118,7 @@ export default function ScreenPipeFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="Base WT (in)"
+          label={t('pipes.wt')}
           name="base_wt"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -126,7 +126,7 @@ export default function ScreenPipeFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="Base Grade"
+          label={t('screen_pipes.base_grade')}
           name="base_grade"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -139,7 +139,7 @@ export default function ScreenPipeFormPage() {
           </Select>
         </Form.Item>
 
-        <Form.Item label="Base End Type" name="base_end_type">
+        <Form.Item label={t('screen_pipes.base_end_type')} name="base_end_type">
           <Select allowClear>
             {END_TYPES.map((type) => (
               <Select.Option key={type} value={type}>
@@ -149,35 +149,35 @@ export default function ScreenPipeFormPage() {
           </Select>
         </Form.Item>
 
-        <Form.Item label="Length (m)" name="length">
+        <Form.Item label={t('pipes.length')} name="length">
           <InputNumber style={{ width: '100%' }} min={0} step={0.01} />
         </Form.Item>
 
-        <Form.Item label="Weight per Unit" name="weight_per_unit">
+        <Form.Item label={t('pipes.weight_per_unit')} name="weight_per_unit">
           <InputNumber style={{ width: '100%' }} min={0} step={0.001} />
         </Form.Item>
 
-        <Form.Item label="Heat Number" name="heat_number">
+        <Form.Item label={t('pipes.heat_number')} name="heat_number">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Serial Number" name="serial_number">
+        <Form.Item label={t('pipes.serial_number')} name="serial_number">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Manufacturer" name="manufacturer">
+        <Form.Item label={t('pipes.manufacturer')} name="manufacturer">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Production Date" name="production_date">
+        <Form.Item label={t('pipes.production_date')} name="production_date">
           <DatePicker style={{ width: '100%' }} />
         </Form.Item>
 
-        <Form.Item label="Cert Number" name="cert_number">
+        <Form.Item label={t('pipes.cert_number')} name="cert_number">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Notes" name="notes">
+        <Form.Item label={t('common.notes')} name="notes">
           <Input.TextArea rows={3} />
         </Form.Item>
 

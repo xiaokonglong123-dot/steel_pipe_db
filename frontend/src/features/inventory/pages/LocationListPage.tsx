@@ -144,7 +144,7 @@ export default function LocationListPage() {
             {t('common.edit')}
           </Button>
           <Popconfirm
-            title="Confirm delete?"
+            title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
             <Button type="link" danger>

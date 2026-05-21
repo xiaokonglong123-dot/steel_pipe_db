@@ -137,7 +137,7 @@ export default function ContractFormPage() {
 
   const itemColumns = [
     {
-      title: t('Pipe Type'),
+      title: t('contracts.pipe_type'),
       dataIndex: 'pipe_type',
       key: 'pipe_type',
       width: 100,
@@ -147,14 +147,14 @@ export default function ContractFormPage() {
           onChange={(v) => updateItem(index, 'pipe_type', v)}
           style={{ width: 100 }}
           options={[
-            { label: 'Seamless', value: 'seamless' },
-            { label: 'Screen', value: 'screen' },
+            { label: t('labels.pipe_type.seamless'), value: 'seamless' },
+            { label: t('labels.pipe_type.screen'), value: 'screen' },
           ]}
         />
       ),
     },
     {
-      title: t('Grade'),
+      title: t('contracts.grade'),
       dataIndex: 'grade',
       key: 'grade',
       width: 100,
@@ -167,7 +167,7 @@ export default function ContractFormPage() {
       ),
     },
     {
-      title: 'OD',
+      title: t('contracts.od'),
       dataIndex: 'od',
       key: 'od',
       width: 80,
@@ -180,7 +180,7 @@ export default function ContractFormPage() {
       ),
     },
     {
-      title: 'WT',
+      title: t('contracts.wt'),
       dataIndex: 'wt',
       key: 'wt',
       width: 80,
@@ -193,7 +193,7 @@ export default function ContractFormPage() {
       ),
     },
     {
-      title: t('Quantity'),
+      title: t('contracts.quantity'),
       dataIndex: 'quantity',
       key: 'quantity',
       width: 80,
@@ -207,7 +207,7 @@ export default function ContractFormPage() {
       ),
     },
     {
-      title: t('Unit Price'),
+      title: t('contracts.unit_price'),
       dataIndex: 'unit_price',
       key: 'unit_price',
       width: 100,
@@ -222,7 +222,7 @@ export default function ContractFormPage() {
       ),
     },
     {
-      title: t('Total Price'),
+      title: t('contracts.total_price'),
       dataIndex: 'total_price',
       key: 'total_price',
       width: 100,
@@ -234,7 +234,7 @@ export default function ContractFormPage() {
       key: 'actions',
       width: 50,
       render: (_: unknown, __: unknown, index: number) => (
-        <Popconfirm title="确认删除?" onConfirm={() => removeItem(index)}>
+        <Popconfirm title={t('common.confirm_delete')} onConfirm={() => removeItem(index)}>
           <MinusCircleOutlined style={{ color: '#ff4d4f' }} />
         </Popconfirm>
       ),
@@ -249,70 +249,70 @@ export default function ContractFormPage() {
         onFinish={handleFinish}
         initialValues={{ contract_type: 'purchase' }}
       >
-        <Card title={isEdit ? t('Edit Contract') : t('Create Contract')} style={{ marginBottom: 16 }}>
+        <Card title={isEdit ? t('contracts.edit_contract') : t('contracts.create_contract')} style={{ marginBottom: 16 }}>
           <Space style={{ display: 'flex' }} wrap>
             {isEdit && (
-              <Form.Item label={t('Contract Number')}>
+              <Form.Item label={t('contracts.contract_number')}>
                 <Input value={contract?.contract_number} disabled />
               </Form.Item>
             )}
             <Form.Item
-              label={t('Contract Name')}
+              label={t('contracts.contract_name')}
               name="contract_name"
               rules={[{ required: true }]}
             >
               <Input style={{ width: 250 }} />
             </Form.Item>
             <Form.Item
-              label={t('Contract Type')}
+              label={t('contracts.contract_type')}
               name="contract_type"
               rules={[{ required: true }]}
             >
               <Select
                 style={{ width: 140 }}
                 options={[
-                  { label: 'Purchase', value: 'purchase' },
-                  { label: 'Sales', value: 'sales' },
+                  { label: t('contracts.purchase'), value: 'purchase' },
+                  { label: t('contracts.sales'), value: 'sales' },
                 ]}
               />
             </Form.Item>
             <Form.Item
-              label={t('Party A')}
+              label={t('contracts.party_a')}
               name="party_a"
               rules={[{ required: true }]}
             >
               <Input style={{ width: 200 }} />
             </Form.Item>
             <Form.Item
-              label={t('Party B')}
+              label={t('contracts.party_b')}
               name="party_b"
               rules={[{ required: true }]}
             >
               <Input style={{ width: 200 }} />
             </Form.Item>
-            <Form.Item label={t('Sign Date')} name="sign_date">
+            <Form.Item label={t('contracts.sign_date')} name="sign_date">
               <DatePicker />
             </Form.Item>
-            <Form.Item label={t('Start Date')} name="start_date">
+            <Form.Item label={t('contracts.start_date')} name="start_date">
               <DatePicker />
             </Form.Item>
-            <Form.Item label={t('End Date')} name="end_date">
+            <Form.Item label={t('contracts.end_date')} name="end_date">
               <DatePicker />
             </Form.Item>
             <Form.Item
-              label={t('Total Amount')}
+              label={t('contracts.total_amount')}
               name="total_amount"
               rules={[{ required: true }]}
             >
               <InputNumber min={0} step={0.01} style={{ width: 200 }} />
             </Form.Item>
-            <Form.Item label={t('Notes')} name="notes">
+            <Form.Item label={t('common.notes')} name="notes">
               <Input.TextArea rows={2} style={{ width: 300 }} />
             </Form.Item>
           </Space>
         </Card>
 
-        <Card title={t('Contract Items')} style={{ marginBottom: 16 }}>
+        <Card title={t('contracts.contract_items')} style={{ marginBottom: 16 }}>
           <Table
             columns={itemColumns}
             dataSource={items.map((_, i) => ({ key: i }))}
@@ -327,7 +327,7 @@ export default function ContractFormPage() {
             onClick={addItem}
             style={{ width: '100%', marginTop: 8 }}
           >
-            {t('Add Item')}
+            {t('contracts.add_item')}
           </Button>
         </Card>
 

@@ -31,38 +31,38 @@ export default function CertListPage() {
 
   const columns = [
     {
-      title: 'Cert Number',
+      title: t('quality.certificate_id'),
       dataIndex: 'cert_number',
       key: 'cert_number',
     },
     {
-      title: 'Grade',
+      title: t('pipes.grade'),
       dataIndex: 'grade',
       key: 'grade',
       render: (grade: string) => <Tag color="blue">{grade}</Tag>,
     },
     {
-      title: 'OD (in)',
+      title: t('pipes.od'),
       dataIndex: 'od',
       key: 'od',
     },
     {
-      title: 'WT (in)',
+      title: t('pipes.wt'),
       dataIndex: 'wt',
       key: 'wt',
     },
     {
-      title: 'Quantity',
+      title: t('quality.quantity'),
       dataIndex: 'quantity',
       key: 'quantity',
     },
     {
-      title: 'Inspector',
+      title: t('quality.inspector'),
       dataIndex: 'inspector',
       key: 'inspector',
     },
     {
-      title: t('Status'),
+      title: t('quality.status'),
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
@@ -78,10 +78,10 @@ export default function CertListPage() {
             {t('common.edit')}
           </Button>
           <Popconfirm
-            title="确认删除?"
+            title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger>
+            <Button type="link" danger loading={deleteMutation.isPending}>
               {t('common.delete')}
             </Button>
           </Popconfirm>
@@ -108,7 +108,7 @@ export default function CertListPage() {
             style={{ width: 250 }}
           />
           <Select
-            placeholder="Status"
+            placeholder={t('quality.status')}
             allowClear
             style={{ width: 120 }}
             value={statusFilter}
@@ -141,7 +141,7 @@ export default function CertListPage() {
             setPageSize(ps);
           },
           showSizeChanger: true,
-          showTotal: (total) => `Total ${total} items`,
+          showTotal: (total) => t('common.total_items', { total }),
         }}
       />
     </div>

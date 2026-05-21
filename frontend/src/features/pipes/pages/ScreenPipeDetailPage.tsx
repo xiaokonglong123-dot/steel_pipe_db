@@ -56,30 +56,30 @@ export default function ScreenPipeDetailPage() {
 
       <Card>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
-          <Descriptions.Item label="Pipe Number">{pipe.pipe_number}</Descriptions.Item>
-          <Descriptions.Item label="Batch Number">{pipe.batch_number || '-'}</Descriptions.Item>
-          <Descriptions.Item label="Screen Type">
+          <Descriptions.Item label={t('pipes.pipe_number')}>{pipe.pipe_number}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.batch_number')}>{pipe.batch_number || '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('screen_pipes.screen_type')}>
             <Tag color="cyan">{pipe.screen_type}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="Slot Size">{pipe.slot_size ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Filtration Grade">{pipe.filtration_grade ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Base OD (in)">{pipe.base_od}</Descriptions.Item>
-          <Descriptions.Item label="Base WT (in)">{pipe.base_wt}</Descriptions.Item>
-          <Descriptions.Item label="Base Grade">
+          <Descriptions.Item label={t('screen_pipes.slot_size')}>{pipe.slot_size ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('screen_pipes.filtration_grade')}>{pipe.filtration_grade ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.od')}>{pipe.base_od}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.wt')}>{pipe.base_wt}</Descriptions.Item>
+          <Descriptions.Item label={t('screen_pipes.base_grade')}>
             <Tag color="blue">{pipe.base_grade}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="Base End Type">{pipe.base_end_type ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Length (m)">{pipe.length ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Weight per Unit">{pipe.weight_per_unit ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Heat Number">{pipe.heat_number ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Serial Number">{pipe.serial_number ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Manufacturer">{pipe.manufacturer ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Production Date">{pipe.production_date ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Cert Number">{pipe.cert_number ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Status">
+          <Descriptions.Item label={t('screen_pipes.base_end_type')}>{pipe.base_end_type ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.length')}>{pipe.length ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.weight_per_unit')}>{pipe.weight_per_unit ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.heat_number')}>{pipe.heat_number ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.serial_number')}>{pipe.serial_number ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.manufacturer')}>{pipe.manufacturer ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.production_date')}>{pipe.production_date ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.cert_number')}>{pipe.cert_number ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('pipes.status')}>
             <Tag color={STATUS_COLORS[pipe.status] ?? 'default'}>{pipe.status}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="Notes" span={3}>{pipe.notes ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('common.notes')} span={3}>{pipe.notes ?? '-'}</Descriptions.Item>
         </Descriptions>
       </Card>
     </div>

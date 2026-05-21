@@ -60,51 +60,51 @@ export default function PurchaseOrderDetailPage() {
 
   const itemColumns = [
     {
-      title: 'Pipe Type',
+      title: t('purchases.pipe_type'),
       dataIndex: 'pipe_type',
       key: 'pipe_type',
     },
     {
-      title: 'Grade',
+      title: t('purchases.grade'),
       dataIndex: 'grade',
       key: 'grade',
       render: (grade: string) => <Tag color="blue">{grade}</Tag>,
     },
     {
-      title: 'OD (in)',
+      title: t('purchases.od'),
       dataIndex: 'od',
       key: 'od',
     },
     {
-      title: 'WT (in)',
+      title: t('purchases.wt'),
       dataIndex: 'wt',
       key: 'wt',
     },
     {
-      title: 'Length (m)',
+      title: t('purchases.length'),
       dataIndex: 'length',
       key: 'length',
       render: (val: number | undefined) => val ?? '-',
     },
     {
-      title: 'Quantity',
+      title: t('purchases.quantity'),
       dataIndex: 'quantity',
       key: 'quantity',
     },
     {
-      title: 'Unit Price',
+      title: t('purchases.unit_price'),
       dataIndex: 'unit_price',
       key: 'unit_price',
-      render: (val: number) => `$${val.toFixed(2)}`,
+      render: (val: number) => `¥${val.toFixed(2)}`,
     },
     {
-      title: 'Total Price',
+      title: t('purchases.total_price'),
       dataIndex: 'total_price',
       key: 'total_price',
-      render: (val: number) => `$${val.toFixed(2)}`,
+      render: (val: number) => `¥${val.toFixed(2)}`,
     },
     {
-      title: 'Notes',
+      title: t('purchases.notes'),
       dataIndex: 'notes',
       key: 'notes',
       render: (val: string | undefined) => val ?? '-',
@@ -121,14 +121,14 @@ export default function PurchaseOrderDetailPage() {
           marginBottom: 24,
         }}
       >
-        <h2 style={{ margin: 0 }}>Purchase Order — {order.order_number}</h2>
+        <h2 style={{ margin: 0 }}>{t('purchases.purchase_order')} — {order.order_number}</h2>
         <Space>
           {showTransitionBtn && (
             <Button
               type="primary"
               onClick={() => setTransitionModalOpen(true)}
             >
-              Update Status
+              {t('purchases.update_status')}
             </Button>
           )}
           <Button
@@ -146,23 +146,23 @@ export default function PurchaseOrderDetailPage() {
         </Space>
       </div>
 
-      <Card title="Order Info" style={{ marginBottom: 24 }}>
+      <Card title={t('purchases.order_info')} style={{ marginBottom: 24 }}>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
-          <Descriptions.Item label="Order Number">{order.order_number}</Descriptions.Item>
-          <Descriptions.Item label="Supplier Name">{order.supplier_name}</Descriptions.Item>
-          <Descriptions.Item label="Order Date">{order.order_date}</Descriptions.Item>
-          <Descriptions.Item label="Expected Date">{order.expected_date ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Status">
-            <Tag color={STATUS_COLORS[order.status] ?? 'default'}>{order.status}</Tag>
+          <Descriptions.Item label={t('purchases.order_number')}>{order.order_number}</Descriptions.Item>
+          <Descriptions.Item label={t('purchases.supplier')}>{order.supplier_name}</Descriptions.Item>
+          <Descriptions.Item label={t('purchases.order_date')}>{order.order_date}</Descriptions.Item>
+          <Descriptions.Item label={t('purchases.expected_delivery')}>{order.expected_date ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('purchases.status')}>
+            <Tag color={STATUS_COLORS[order.status] ?? 'default'}>{t(`purchases.status.${order.status}`)}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="Total Amount">${order.total_amount.toFixed(2)}</Descriptions.Item>
-          <Descriptions.Item label="Notes" span={3}>
+          <Descriptions.Item label={t('purchases.total_amount')}>¥{order.total_amount.toFixed(2)}</Descriptions.Item>
+          <Descriptions.Item label={t('purchases.notes')} span={3}>
             {order.notes ?? '-'}
           </Descriptions.Item>
         </Descriptions>
       </Card>
 
-      <Card title="Items">
+      <Card title={t('purchases.items')}>
         <Table
           columns={itemColumns}
           dataSource={order.items}
@@ -176,10 +176,10 @@ export default function PurchaseOrderDetailPage() {
             return (
               <Table.Summary.Row>
                 <Table.Summary.Cell index={0} colSpan={7}>
-                  <strong>Total</strong>
+                  <strong>{t('purchases.total')}</strong>
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={1}>
-                  <strong>${total.toFixed(2)}</strong>
+                  <strong>¥{total.toFixed(2)}</strong>
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={2} />
               </Table.Summary.Row>
@@ -189,7 +189,7 @@ export default function PurchaseOrderDetailPage() {
       </Card>
 
       <Modal
-        title="Update Status"
+        title={t('purchases.update_status')}
         open={transitionModalOpen}
         onOk={handleTransition}
         onCancel={() => setTransitionModalOpen(false)}
@@ -197,22 +197,22 @@ export default function PurchaseOrderDetailPage() {
       >
         <Space direction="vertical" style={{ width: '100%' }}>
           <div>
-            <div style={{ marginBottom: 4 }}>Target Status</div>
+            <div style={{ marginBottom: 4 }}>{t('purchases.target_status')}</div>
             <Select
               value={targetStatus || undefined}
               onChange={setTargetStatus}
-              placeholder="Select status"
+              placeholder={t('purchases.select_status')}
               style={{ width: '100%' }}
             >
               {availableTransitions.map((s) => (
                 <Select.Option key={s} value={s}>
-                  {s}
+                  {t('purchases.status.' + s)}
                 </Select.Option>
               ))}
             </Select>
           </div>
           <div>
-            <div style={{ marginBottom: 4 }}>Notes</div>
+            <div style={{ marginBottom: 4 }}>{t('purchases.notes')}</div>
             <Input.TextArea
               value={transitionNotes}
               onChange={(e) => setTransitionNotes(e.target.value)}

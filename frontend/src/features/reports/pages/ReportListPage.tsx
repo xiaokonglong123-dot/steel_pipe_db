@@ -16,22 +16,22 @@ export default function ReportListPage() {
 
   const reports = [
     {
-      title: t('Dashboard'),
+      title: t('reports.dashboard'),
       icon: <DashboardOutlined style={{ fontSize: 36, color: '#1890ff' }} />,
       path: '/reports/dashboard',
     },
     {
-      title: t('Inventory Summary'),
+      title: t('reports.inventory_summary'),
       icon: <BarChartOutlined style={{ fontSize: 36, color: '#52c41a' }} />,
       path: '/reports/inventory',
     },
     {
-      title: t('Order Report'),
+      title: t('reports.order_report'),
       icon: <ShoppingCartOutlined style={{ fontSize: 36, color: '#faad14' }} />,
       path: '/reports/orders',
     },
     {
-      title: t('Quality Report'),
+      title: t('reports.quality_report'),
       icon: <SafetyCertificateOutlined style={{ fontSize: 36, color: '#722ed1' }} />,
       path: '/reports/quality',
     },
@@ -39,7 +39,7 @@ export default function ReportListPage() {
 
   return (
     <div>
-      <Title level={3}>{t('Reports')}</Title>
+      <Title level={3}>{t('reports.reports')}</Title>
       <Row gutter={[16, 16]}>
         {reports.map((report) => (
           <Col key={report.path} xs={24} sm={12} lg={6}>

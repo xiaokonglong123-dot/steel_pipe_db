@@ -32,7 +32,7 @@ export default function StockQueryPage() {
       title: t('stock.pipe_type'),
       dataIndex: 'pipe_type',
       key: 'pipe_type',
-      render: (v: string) => <Tag>{v}</Tag>,
+      render: (v: string) => <Tag>{t('pipe_type.' + v)}</Tag>,
     },
     {
       title: t('stock.grade'),
@@ -58,7 +58,7 @@ export default function StockQueryPage() {
       render: (v: string) => {
         if (!v) return '-';
         const color = v === 'in_stock' ? 'green' : 'red';
-        return <Tag color={color}>{v}</Tag>;
+        return <Tag color={color}>{t('stock.status.' + v)}</Tag>;
       },
     },
   ];
@@ -104,7 +104,7 @@ export default function StockQueryPage() {
               setPipeTypeFilter(v);
               setPage(1);
             }}
-            options={PIPE_TYPE_OPTIONS.map((pt) => ({ label: pt, value: pt }))}
+            options={PIPE_TYPE_OPTIONS.map((pt) => ({ label: t('pipe_type.' + pt), value: pt }))}
           />
           <Select
             placeholder={t('stock.location')}

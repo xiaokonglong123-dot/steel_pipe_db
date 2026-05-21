@@ -77,19 +77,19 @@ export default function SeamlessPipeFormPage() {
         style={{ maxWidth: 800 }}
       >
         <Form.Item
-          label="Pipe Number"
+          label={t('pipes.pipe_number')}
           name="pipe_number"
           rules={isEdit ? [] : [{ required: true, message: t('common.required') }]}
         >
           <Input disabled={isEdit} placeholder={t('common.required')} />
         </Form.Item>
 
-        <Form.Item label="Batch Number" name="batch_number">
+        <Form.Item label={t('pipes.batch_number')} name="batch_number">
           <Input />
         </Form.Item>
 
         <Form.Item
-          label="Pipe Type"
+          label={t('pipes.pipe_type')}
           name="pipe_type"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -103,7 +103,7 @@ export default function SeamlessPipeFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="Grade"
+          label={t('pipes.grade')}
           name="grade"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -117,7 +117,7 @@ export default function SeamlessPipeFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="OD (in)"
+          label={t('pipes.od')}
           name="od"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -125,22 +125,22 @@ export default function SeamlessPipeFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="WT (in)"
+          label={t('pipes.wt')}
           name="wt"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <InputNumber style={{ width: '100%' }} min={0} step={0.001} />
         </Form.Item>
 
-        <Form.Item label="Length (m)" name="length">
+        <Form.Item label={t('pipes.length')} name="length">
           <InputNumber style={{ width: '100%' }} min={0} step={0.01} />
         </Form.Item>
 
-        <Form.Item label="Weight per Unit" name="weight_per_unit">
+        <Form.Item label={t('pipes.weight_per_unit')} name="weight_per_unit">
           <InputNumber style={{ width: '100%' }} min={0} step={0.001} />
         </Form.Item>
 
-        <Form.Item label="End Type" name="end_type">
+        <Form.Item label={t('pipes.end_type')} name="end_type">
           <Select allowClear>
             {END_TYPES.map((type) => (
               <Select.Option key={type} value={type}>
@@ -150,39 +150,39 @@ export default function SeamlessPipeFormPage() {
           </Select>
         </Form.Item>
 
-        <Form.Item label="Coupling Type" name="coupling_type">
+        <Form.Item label={t('pipes.coupling_type')} name="coupling_type">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Coupling OD" name="coupling_od">
+        <Form.Item label={t('pipes.coupling_od')} name="coupling_od">
           <InputNumber style={{ width: '100%' }} min={0} step={0.001} />
         </Form.Item>
 
-        <Form.Item label="Coupling Length" name="coupling_length">
+        <Form.Item label={t('pipes.coupling_length')} name="coupling_length">
           <InputNumber style={{ width: '100%' }} min={0} step={0.01} />
         </Form.Item>
 
-        <Form.Item label="Heat Number" name="heat_number">
+        <Form.Item label={t('pipes.heat_number')} name="heat_number">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Serial Number" name="serial_number">
+        <Form.Item label={t('pipes.serial_number')} name="serial_number">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Manufacturer" name="manufacturer">
+        <Form.Item label={t('pipes.manufacturer')} name="manufacturer">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Production Date" name="production_date">
+        <Form.Item label={t('pipes.production_date')} name="production_date">
           <DatePicker style={{ width: '100%' }} />
         </Form.Item>
 
-        <Form.Item label="Cert Number" name="cert_number">
+        <Form.Item label={t('pipes.cert_number')} name="cert_number">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Notes" name="notes">
+        <Form.Item label={t('pipes.notes')} name="notes">
           <Input.TextArea rows={3} />
         </Form.Item>
 

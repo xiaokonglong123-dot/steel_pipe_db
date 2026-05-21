@@ -27,15 +27,15 @@ export default function CertDetailPage() {
     formData.append('file', file);
     formData.append('cert_id', String(certId));
     createAttachmentMutation.mutate(formData, {
-      onSuccess: () => message.success('Upload success'),
-      onError: () => message.error('Upload failed'),
+      onSuccess: () => message.success(t('common.operate_success')),
+      onError: () => message.error(t('common.operate_failed')),
     });
     return false;
   };
 
   const attachmentColumns = [
     {
-      title: 'File Name',
+      title: t('quality.file_name'),
       dataIndex: 'file_name',
       key: 'file_name',
       render: (name: string, record: Attachment) => (
@@ -45,12 +45,12 @@ export default function CertDetailPage() {
       ),
     },
     {
-      title: 'File Type',
+      title: t('quality.file_type'),
       dataIndex: 'file_type',
       key: 'file_type',
     },
     {
-      title: 'Uploaded At',
+      title: t('quality.uploaded_at'),
       dataIndex: 'uploaded_at',
       key: 'uploaded_at',
     },
@@ -59,7 +59,7 @@ export default function CertDetailPage() {
       key: 'actions',
       render: (_: unknown, record: Attachment) => (
         <Popconfirm
-          title="确认删除?"
+          title={t('common.confirm_delete')}
           onConfirm={() => deleteAttachmentMutation.mutate(record.id)}
         >
           <Button type="link" danger>
@@ -88,7 +88,7 @@ export default function CertDetailPage() {
           marginBottom: 24,
         }}
       >
-        <h2 style={{ margin: 0 }}>Certificate — {cert.cert_number}</h2>
+        <h2 style={{ margin: 0 }}>{t('quality.certificate')} — {cert.cert_number}</h2>
         <Space>
           <Button
             type="primary"
@@ -106,53 +106,53 @@ export default function CertDetailPage() {
         </Space>
       </div>
 
-      <Card title="Basic Info" style={{ marginBottom: 24 }}>
+      <Card title={t('quality.basic_info')} style={{ marginBottom: 24 }}>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
-          <Descriptions.Item label="Cert Number">{cert.cert_number}</Descriptions.Item>
-          <Descriptions.Item label="Batch Number">{cert.batch_number || '-'}</Descriptions.Item>
-          <Descriptions.Item label="Pipe Type">{cert.pipe_type}</Descriptions.Item>
-          <Descriptions.Item label="Grade">
+          <Descriptions.Item label={t('quality.cert_number')}>{cert.cert_number}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.batch_number')}>{cert.batch_number || '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.pipe_type')}>{cert.pipe_type}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.grade')}>
             <Tag color="blue">{cert.grade}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="OD (in)">{cert.od}</Descriptions.Item>
-          <Descriptions.Item label="WT (in)">{cert.wt}</Descriptions.Item>
-          <Descriptions.Item label="Length (m)">{cert.length ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Quantity">{cert.quantity}</Descriptions.Item>
-          <Descriptions.Item label="Heat Number">{cert.heat_number ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Manufacturer">{cert.manufacturer ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Production Date">{cert.production_date ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Status">
+          <Descriptions.Item label={t('quality.od')}>{cert.od}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.wt')}>{cert.wt}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.length')}>{cert.length ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.quantity')}>{cert.quantity}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.heat_number')}>{cert.heat_number ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.manufacturer')}>{cert.manufacturer ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.production_date')}>{cert.production_date ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.status')}>
             <Tag color={STATUS_COLORS[cert.status] ?? 'default'}>{cert.status}</Tag>
           </Descriptions.Item>
         </Descriptions>
       </Card>
 
-      <Card title="Mechanical Properties" style={{ marginBottom: 24 }}>
+      <Card title={t('quality.mechanical_properties')} style={{ marginBottom: 24 }}>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
-          <Descriptions.Item label="Test Pressure">{cert.test_pressure ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Yield Strength">{cert.yield_strength ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Tensile Strength">{cert.tensile_strength ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Elongation (%)">{cert.elongation ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Hardness">{cert.hardness ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Inspection Standard">{cert.inspection_standard ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Inspector">{cert.inspector ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="Cert Date">{cert.cert_date ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.test_pressure')}>{cert.test_pressure ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.yield_strength')}>{cert.yield_strength ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.tensile_strength')}>{cert.tensile_strength ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.elongation')}>{cert.elongation ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.hardness')}>{cert.hardness ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.inspection_standard')}>{cert.inspection_standard ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.inspector')}>{cert.inspector ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.cert_date')}>{cert.cert_date ?? '-'}</Descriptions.Item>
         </Descriptions>
       </Card>
 
-      <Card title="Notes" style={{ marginBottom: 24 }}>
+      <Card title={t('quality.notes')} style={{ marginBottom: 24 }}>
         <p>{cert.notes || '-'}</p>
       </Card>
 
       <Card
-        title="Attachments"
+        title={t('quality.attachments')}
         extra={
           <Upload
             beforeUpload={handleUpload}
             showUploadList={false}
             accept=".pdf,.jpg,.png,.doc,.docx"
           >
-            <Button icon={<UploadOutlined />}>Upload</Button>
+            <Button icon={<UploadOutlined />}>{t('quality.upload')}</Button>
           </Upload>
         }
       >
@@ -161,7 +161,7 @@ export default function CertDetailPage() {
           dataSource={attachments}
           rowKey="id"
           pagination={false}
-          locale={{ emptyText: 'No attachments' }}
+          locale={{ emptyText: t('common.no_data') }}
         />
       </Card>
     </div>

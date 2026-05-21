@@ -59,7 +59,7 @@ export default function SupplierFormPage() {
   return (
     <div>
       <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} {t('Supplier')}
+        {isEdit ? t('common.edit') : t('common.create')} {t('suppliers.name')}
       </h2>
       <Form
         form={form}
@@ -68,7 +68,7 @@ export default function SupplierFormPage() {
         style={{ maxWidth: 800 }}
       >
         <Form.Item
-          label="Code"
+          label={t('suppliers.code')}
           name="code"
           rules={[{ required: true, message: t('common.required') }]}
         >
@@ -76,39 +76,39 @@ export default function SupplierFormPage() {
         </Form.Item>
 
         <Form.Item
-          label="Name"
+          label={t('suppliers.name')}
           name="name"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <Input />
         </Form.Item>
 
-        <Form.Item label="Contact Person" name="contact_person">
+        <Form.Item label={t('suppliers.contact_person')} name="contact_person">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Phone" name="phone">
+        <Form.Item label={t('suppliers.phone')} name="phone">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Email" name="email">
+        <Form.Item label={t('suppliers.email')} name="email">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Address" name="address">
+        <Form.Item label={t('suppliers.address')} name="address">
           <Input.TextArea rows={2} />
         </Form.Item>
 
-        <Form.Item label="Tax ID" name="tax_id">
+        <Form.Item label={t('suppliers.tax_id')} name="tax_id">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Bank Info" name="bank_info">
+        <Form.Item label={t('suppliers.bank_info')} name="bank_info">
           <Input />
         </Form.Item>
 
-        <Form.Item label="Grade Supply" name="grade_supply">
-          <Select mode="tags" placeholder="Select grades">
+        <Form.Item label={t('suppliers.grade_supply')} name="grade_supply">
+          <Select mode="tags" placeholder={t('suppliers.select_grades')}>
             {API_5CT_GRADES.map((g) => (
               <Select.Option key={g} value={g}>
                 {g}
@@ -117,14 +117,14 @@ export default function SupplierFormPage() {
           </Select>
         </Form.Item>
 
-        <Form.Item label="Status" name="status">
+        <Form.Item label={t('suppliers.status')} name="status">
           <Select>
-            <Select.Option value="active">Active</Select.Option>
-            <Select.Option value="inactive">Inactive</Select.Option>
+            <Select.Option value="active">{t('suppliers.status_active')}</Select.Option>
+            <Select.Option value="inactive">{t('suppliers.status_inactive')}</Select.Option>
           </Select>
         </Form.Item>
 
-        <Form.Item label="Notes" name="notes">
+        <Form.Item label={t('suppliers.notes')} name="notes">
           <Input.TextArea rows={3} />
         </Form.Item>
 

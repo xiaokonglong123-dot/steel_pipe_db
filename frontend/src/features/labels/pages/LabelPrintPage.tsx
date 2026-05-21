@@ -24,7 +24,7 @@ export default function LabelPrintPage() {
 
   const handlePrintPipeLabel = () => {
     if (!pipeLabel) return;
-    message.success(t('Pipe label ready for printing'));
+    message.success(t('labels.pipe_label_ready'));
   };
 
   const handleBatchPrint = () => {
@@ -34,45 +34,45 @@ export default function LabelPrintPage() {
       .filter(Boolean)
       .map(Number);
     if (ids.length === 0) {
-      message.warning(t('Please enter pipe IDs'));
+      message.warning(t('labels.please_enter_pipe_ids'));
       return;
     }
     batchMutation.mutate(
       { pipe_ids: ids, pipe_type: batchPipeType },
-      { onSuccess: () => message.success(t('Batch labels created')) },
+      { onSuccess: () => message.success(t('labels.batch_labels_created')) },
     );
   };
 
   const handlePrintQualityLabel = () => {
     if (!qualityLabel) return;
-    message.success(t('Quality label ready for printing'));
+    message.success(t('labels.quality_label_ready'));
   };
 
   const handlePrintShippingLabel = () => {
     if (!orderId) {
-      message.warning(t('Please enter order ID'));
+      message.warning(t('labels.please_enter_order_id'));
       return;
     }
     shippingMutation.mutate(
       { order_type: orderType, order_id: orderId },
-      { onSuccess: () => message.success(t('Shipping label created')) },
+      { onSuccess: () => message.success(t('labels.shipping_label_created')) },
     );
   };
 
   return (
     <div>
-      <Title level={3}>{t('Label Printing')}</Title>
+      <Title level={3}>{t('labels.page_title')}</Title>
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
-          <Card title={<><BarcodeOutlined /> {t('Pipe Label')}</>}>
+          <Card title={<><BarcodeOutlined /> {t('labels.pipe_label')}</>}>
             <Form layout="vertical">
-              <Form.Item label={t('Pipe Type')}>
+              <Form.Item label={t('labels.pipe_type')}>
                 <Select value={pipeType} onChange={setPipeType}>
-                  <Option value="seamless">Seamless</Option>
-                  <Option value="screen">Screen</Option>
+                  <Option value="seamless">{t('labels.pipe_type.seamless')}</Option>
+                  <Option value="screen">{t('labels.pipe_type.screen')}</Option>
                 </Select>
               </Form.Item>
-              <Form.Item label={t('Pipe ID')}>
+              <Form.Item label={t('labels.pipe_id')}>
                 <InputNumber
                   style={{ width: '100%' }}
                   value={pipeId}
@@ -87,25 +87,25 @@ export default function LabelPrintPage() {
                 disabled={!pipeId}
                 onClick={handlePrintPipeLabel}
               >
-                {t('Print Label')}
+                {t('labels.print_label')}
               </Button>
             </Form>
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title={<><BarcodeOutlined /> {t('Batch Labels')}</>}>
+          <Card title={<><BarcodeOutlined /> {t('labels.batch_labels')}</>}>
             <Form layout="vertical">
-              <Form.Item label={t('Pipe Type')}>
+              <Form.Item label={t('labels.pipe_type')}>
                 <Select value={batchPipeType} onChange={setBatchPipeType}>
-                  <Option value="seamless">Seamless</Option>
-                  <Option value="screen">Screen</Option>
+                  <Option value="seamless">{t('labels.pipe_type.seamless')}</Option>
+                  <Option value="screen">{t('labels.pipe_type.screen')}</Option>
                 </Select>
               </Form.Item>
-              <Form.Item label={t('Pipe IDs (comma separated)')}>
+              <Form.Item label={t('labels.pipe_ids_placeholder')}>
                 <Input
                   value={batchPipeIds}
                   onChange={(e) => setBatchPipeIds(e.target.value)}
-                  placeholder="1, 2, 3, ..."
+                  placeholder={t('labels.pipe_ids_example')}
                 />
               </Form.Item>
               <Button
@@ -114,7 +114,7 @@ export default function LabelPrintPage() {
                 loading={batchMutation.isPending}
                 onClick={handleBatchPrint}
               >
-                {t('Batch Print')}
+                {t('labels.batch_print')}
               </Button>
             </Form>
           </Card>
@@ -123,9 +123,9 @@ export default function LabelPrintPage() {
       <Divider />
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
-          <Card title={<><FileTextOutlined /> {t('Quality Certificate Label')}</>}>
+          <Card title={<><FileTextOutlined /> {t('labels.quality_label')}</>}>
             <Form layout="vertical">
-              <Form.Item label={t('Certificate ID')}>
+              <Form.Item label={t('labels.certificate_id')}>
                 <InputNumber
                   style={{ width: '100%' }}
                   value={certId}
@@ -140,23 +140,23 @@ export default function LabelPrintPage() {
                 disabled={!certId}
                 onClick={handlePrintQualityLabel}
               >
-                {t('Print Label')}
+                {t('labels.print_label')}
               </Button>
             </Form>
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title={<><FileTextOutlined /> {t('Shipping Label')}</>}>
+          <Card title={<><FileTextOutlined /> {t('labels.shipping_label')}</>}>
             <Form layout="vertical">
-              <Form.Item label={t('Order Type')}>
+              <Form.Item label={t('labels.order_type')}>
                 <Select value={orderType} onChange={setOrderType}>
-                  <Option value="purchase">Purchase</Option>
-                  <Option value="sales">Sales</Option>
-                  <Option value="return">Return</Option>
-                  <Option value="transfer">Transfer</Option>
+                  <Option value="purchase">{t('labels.order_type.purchase')}</Option>
+                  <Option value="sales">{t('labels.order_type.sales')}</Option>
+                  <Option value="return">{t('labels.order_type.return')}</Option>
+                  <Option value="transfer">{t('labels.order_type.transfer')}</Option>
                 </Select>
               </Form.Item>
-              <Form.Item label={t('Order ID')}>
+              <Form.Item label={t('labels.order_id')}>
                 <InputNumber
                   style={{ width: '100%' }}
                   value={orderId}
@@ -171,7 +171,7 @@ export default function LabelPrintPage() {
                 disabled={!orderId}
                 onClick={handlePrintShippingLabel}
               >
-                {t('Print Label')}
+                {t('labels.print_label')}
               </Button>
             </Form>
           </Card>

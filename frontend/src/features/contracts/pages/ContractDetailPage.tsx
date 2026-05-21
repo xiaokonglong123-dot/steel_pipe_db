@@ -83,17 +83,17 @@ export default function ContractDetailPage() {
   };
 
   const itemColumns = [
-    { title: t('Pipe Type'), dataIndex: 'pipe_type', key: 'pipe_type', render: (v: string) => <Tag>{v}</Tag> },
-    { title: t('Grade'), dataIndex: 'grade', key: 'grade' },
-    { title: 'OD', dataIndex: 'od', key: 'od' },
-    { title: 'WT', dataIndex: 'wt', key: 'wt' },
-    { title: t('Quantity'), dataIndex: 'quantity', key: 'quantity' },
-    { title: t('Unit Price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number) => v?.toLocaleString() },
-    { title: t('Total Price'), dataIndex: 'total_price', key: 'total_price', render: (v: number) => v?.toLocaleString() },
+    { title: t('contracts.pipe_type'), dataIndex: 'pipe_type', key: 'pipe_type', render: (v: string) => <Tag>{v}</Tag> },
+    { title: t('contracts.grade'), dataIndex: 'grade', key: 'grade' },
+    { title: t('contracts.od'), dataIndex: 'od', key: 'od' },
+    { title: t('contracts.wt'), dataIndex: 'wt', key: 'wt' },
+    { title: t('contracts.quantity'), dataIndex: 'quantity', key: 'quantity' },
+    { title: t('contracts.unit_price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number) => v?.toLocaleString() },
+    { title: t('contracts.total_price'), dataIndex: 'total_price', key: 'total_price', render: (v: number) => v?.toLocaleString() },
     {
       key: 'actions',
       render: (_: unknown, record: ContractItem) => (
-        <Popconfirm title="确认删除?" onConfirm={() => deleteItemMutation.mutate(record.id)}>
+        <Popconfirm title={t('common.confirm_delete')} onConfirm={() => deleteItemMutation.mutate(record.id)}>
           <Button type="link" danger size="small">{t('common.delete')}</Button>
         </Popconfirm>
       ),
@@ -101,14 +101,14 @@ export default function ContractDetailPage() {
   ];
 
   const paymentColumns = [
-    { title: t('Payment Date'), dataIndex: 'payment_date', key: 'payment_date' },
-    { title: t('Amount'), dataIndex: 'amount', key: 'amount', render: (v: number) => v?.toLocaleString() },
-    { title: t('Payment Method'), dataIndex: 'payment_method', key: 'payment_method' },
-    { title: t('Reference Number'), dataIndex: 'reference_number', key: 'reference_number' },
+    { title: t('contracts.payment_date'), dataIndex: 'payment_date', key: 'payment_date' },
+    { title: t('contracts.amount'), dataIndex: 'amount', key: 'amount', render: (v: number) => v?.toLocaleString() },
+    { title: t('contracts.payment_method'), dataIndex: 'payment_method', key: 'payment_method' },
+    { title: t('contracts.reference_number'), dataIndex: 'reference_number', key: 'reference_number' },
     {
       key: 'actions',
       render: (_: unknown, record: ContractPayment) => (
-        <Popconfirm title="确认删除?" onConfirm={() => deletePaymentMutation.mutate(record.id)}>
+        <Popconfirm title={t('common.confirm_delete')} onConfirm={() => deletePaymentMutation.mutate(record.id)}>
           <Button type="link" danger size="small">{t('common.delete')}</Button>
         </Popconfirm>
       ),
@@ -124,7 +124,7 @@ export default function ContractDetailPage() {
   return (
     <div>
       <Card
-        title={`${t('Contract')} #${contract.contract_number}`}
+        title={`${t('contracts.contract')} #${contract.contract_number}`}
         extra={
           <Space>
             <Button onClick={() => navigate(`/contracts/${contract.id}/edit`)}>
@@ -132,7 +132,7 @@ export default function ContractDetailPage() {
             </Button>
             {availableStatuses.length > 0 && (
               <Select
-                placeholder={t('Update Status')}
+                placeholder={t('contracts.update_status')}
                 style={{ width: 150 }}
                 onChange={handleStatusUpdate}
                 options={availableStatuses.map((s) => ({ label: s, value: s }))}
@@ -143,32 +143,32 @@ export default function ContractDetailPage() {
         style={{ marginBottom: 16 }}
       >
         <Descriptions bordered column={2}>
-          <Descriptions.Item label={t('Contract Name')}>{contract.contract_name}</Descriptions.Item>
-          <Descriptions.Item label={t('Contract Type')}>
+          <Descriptions.Item label={t('contracts.contract_name')}>{contract.contract_name}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.contract_type')}>
             <Tag color={contract.contract_type === 'purchase' ? 'blue' : 'green'}>{contract.contract_type}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label={t('Party A')}>{contract.party_a}</Descriptions.Item>
-          <Descriptions.Item label={t('Party B')}>{contract.party_b}</Descriptions.Item>
-          <Descriptions.Item label={t('Sign Date')}>{contract.sign_date}</Descriptions.Item>
-          <Descriptions.Item label={t('Status')}>
+          <Descriptions.Item label={t('contracts.party_a')}>{contract.party_a}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.party_b')}>{contract.party_b}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.sign_date')}>{contract.sign_date}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.status')}>
             <Tag color={statusColors[contract.status]}>{contract.status}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label={t('Start Date')}>{contract.start_date}</Descriptions.Item>
-          <Descriptions.Item label={t('End Date')}>{contract.end_date}</Descriptions.Item>
-          <Descriptions.Item label={t('Total Amount')} span={2}>
+          <Descriptions.Item label={t('contracts.start_date')}>{contract.start_date}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.end_date')}>{contract.end_date}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.total_amount')} span={2}>
             {contract.total_amount?.toLocaleString()}
           </Descriptions.Item>
-          <Descriptions.Item label={t('Paid Amount')} span={2}>
+          <Descriptions.Item label={t('contracts.paid_amount')} span={2}>
             {contract.paid_amount?.toLocaleString()}
           </Descriptions.Item>
-          <Descriptions.Item label={t('Notes')} span={2}>
+          <Descriptions.Item label={t('common.notes')} span={2}>
             {contract.notes}
           </Descriptions.Item>
         </Descriptions>
       </Card>
 
       <Card
-        title={t('Contract Items')}
+        title={t('contracts.contract_items')}
         style={{ marginBottom: 16 }}
       >
         <Table
@@ -182,14 +182,14 @@ export default function ContractDetailPage() {
       </Card>
 
       <Card
-        title={t('Payments')}
+        title={t('contracts.payments')}
         extra={
           <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => setPaymentModalOpen(true)}
           >
-            {t('Add Payment')}
+            {t('contracts.add_payment')}
           </Button>
         }
       >
@@ -204,7 +204,7 @@ export default function ContractDetailPage() {
       </Card>
 
       <Modal
-        title={t('Add Payment')}
+        title={t('contracts.add_payment')}
         open={paymentModalOpen}
         onCancel={() => setPaymentModalOpen(false)}
         onOk={() => paymentForm.submit()}
@@ -217,33 +217,33 @@ export default function ContractDetailPage() {
           initialValues={{ payment_method: 'bank_transfer' }}
         >
           <Form.Item
-            label={t('Payment Date')}
+            label={t('contracts.payment_date')}
             name="payment_date"
             rules={[{ required: true }]}
           >
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item
-            label={t('Amount')}
+            label={t('contracts.amount')}
             name="amount"
             rules={[{ required: true }]}
           >
             <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item label={t('Payment Method')} name="payment_method">
+          <Form.Item label={t('contracts.payment_method')} name="payment_method">
             <Select
               options={[
-                { label: 'Bank Transfer', value: 'bank_transfer' },
-                { label: 'Cash', value: 'cash' },
-                { label: 'Check', value: 'check' },
-                { label: 'Other', value: 'other' },
+                { label: t('contracts.bank_transfer'), value: 'bank_transfer' },
+                { label: t('contracts.cash'), value: 'cash' },
+                { label: t('contracts.check'), value: 'check' },
+                { label: t('contracts.other'), value: 'other' },
               ]}
             />
           </Form.Item>
-          <Form.Item label={t('Reference Number')} name="reference_number">
+          <Form.Item label={t('contracts.reference_number')} name="reference_number">
             <Input />
           </Form.Item>
-          <Form.Item label={t('Notes')} name="notes">
+          <Form.Item label={t('common.notes')} name="notes">
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>
