@@ -1,6 +1,6 @@
 <div align="center">
 
-> **🤖 本仓库全部代码由 AI 生成** — 从架构设计到每一行代码，均为大语言模型自动产出，仅做技术演示与能力验证用途。
+> **🤖 All code in this repository is AI-generated** — from architecture design to every line of code, produced entirely by large language models for technical demonstration and capability validation purposes.
 
 </div>
 
@@ -9,7 +9,7 @@
   <img alt="API 5CT" src="https://img.shields.io/badge/API-5CT-1f2937?style=flat-square&logo=rust&logoColor=white">
 </picture>
 
-# Steel Pipe DB — API 5CT 无缝钢管 & 筛管库存管理系统
+# Steel Pipe DB — API 5CT Seamless Steel Pipe & Screen Pipe Inventory Management System
 
 > Oil & gas industry inventory management system for API 5CT seamless steel pipe and screen pipe. Built with Rust + React.
 
