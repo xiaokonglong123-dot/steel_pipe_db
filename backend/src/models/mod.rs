@@ -1,4 +1,10 @@
+pub mod contract;
+pub mod customer;
 pub mod inventory;
+pub mod purchase_order;
+pub mod quality;
+pub mod sales_order;
 pub mod seamless_pipe;
 pub mod screen_pipe;
+pub mod supplier;
 pub mod user;

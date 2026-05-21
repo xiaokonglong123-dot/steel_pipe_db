@@ -22,6 +22,17 @@ export default function MainLayout() {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
+  const flatKeys = ['/purchases', '/sales', '/contracts', '/labels', '/system'];
+  const selectedKey = (() => {
+    const p = location.pathname;
+    const segs = p.split('/').filter(Boolean);
+    if (segs.length === 0) return '/';
+    const parent = '/' + segs[0];
+    if (flatKeys.includes(parent)) return parent;
+    if (segs.length >= 2) return '/' + segs.slice(0, 2).join('/');
+    return p;
+  })();
+
   const menuItems = [
     {
       key: '/pipes',
@@ -42,11 +53,41 @@ export default function MainLayout() {
         { key: '/inventory/locations', label: t('nav.locations') },
       ],
     },
-    { key: '/quality', label: t('nav.quality') },
-    { key: '/purchases', label: t('nav.purchases') },
-    { key: '/sales', label: t('nav.sales') },
-    { key: '/contracts', label: t('nav.contracts') },
-    { key: '/reports', label: t('nav.reports') },
+    {
+      key: '/suppliers_customers',
+      label: t('nav.suppliers_customers'),
+      children: [
+        { key: '/suppliers', label: t('nav.suppliers') },
+        { key: '/customers', label: t('nav.customers') },
+      ],
+    },
+    {
+      key: '/purchases',
+      label: t('nav.purchases'),
+    },
+    {
+      key: '/sales',
+      label: t('nav.sales'),
+    },
+    {
+      key: '/quality',
+      label: t('nav.quality'),
+      children: [
+        { key: '/quality/certs', label: t('nav.certificates') },
+      ],
+    },
+    {
+      key: '/contracts',
+      label: t('nav.contracts'),
+    },
+    {
+      key: 'reports_group',
+      label: t('nav.reports'),
+      children: [
+        { key: '/reports', label: t('nav.report_list') },
+        { key: '/reports/dashboard', label: t('nav.dashboard') },
+      ],
+    },
     { key: '/labels', label: t('nav.labels') },
     {
       key: '/system',
@@ -82,8 +123,8 @@ export default function MainLayout() {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
-          defaultOpenKeys={['/pipes', '/inventory']}
+          selectedKeys={[selectedKey]}
+          defaultOpenKeys={['/pipes', '/inventory', '/suppliers_customers', '/quality', 'reports_group']}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
         />

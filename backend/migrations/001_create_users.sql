@@ -18,4 +18,4 @@ CREATE INDEX idx_users_role ON users(role);
 
 -- Insert default admin user (password: admin123)
 INSERT INTO users (username, password_hash, display_name, role)
-VALUES ('admin', '$argon2id$v=19$m=19456,t=2,p=1$PLACEHOLDER', 'Administrator', 'admin');
+VALUES ('admin', '$argon2id$v=19$m=19456,t=2,p=1$+YobHflrRI2qxqqUqIIB8A$0ECSCWpGHdX73H5CVw1n3YYAQJABRnRHQ76Mg3f+ebI', 'Administrator', 'admin');

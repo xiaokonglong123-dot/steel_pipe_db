@@ -1,3 +1,12 @@
 pub mod auth_handler;
+pub mod contract_handler;
+pub mod customer_handler;
+pub mod data_io_handler;
 pub mod inventory_handler;
+pub mod label_handler;
 pub mod pipe_handler;
+pub mod purchase_handler;
+pub mod quality_handler;
+pub mod report_handler;
+pub mod sales_handler;
+pub mod supplier_handler;

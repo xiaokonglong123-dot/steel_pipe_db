@@ -36,7 +36,7 @@ pub async fn login_handler(
     Extension(pool): Extension<SqlitePool>,
     Extension(jwt_secret): Extension<String>,
     Json(req): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, AppError> {
+) -> Result<Json<ApiResponse<LoginResponse>>, AppError> {
     let cfg = crate::config::Config::from_env();
     let response = AuthService::login(&pool, &jwt_secret, cfg.jwt_expiry_hours, &req).await?;
 
@@ -54,16 +54,16 @@ pub async fn login_handler(
     )
     .await;
 
-    Ok(Json(response))
+    Ok(ApiResponse::ok(response))
 }
 
 pub async fn refresh_handler(
     Extension(jwt_secret): Extension<String>,
     Json(req): Json<RefreshTokenRequest>,
-) -> Result<Json<TokenResponse>, AppError> {
+) -> Result<Json<ApiResponse<TokenResponse>>, AppError> {
     let cfg = crate::config::Config::from_env();
     let response = AuthService::refresh_token(&jwt_secret, cfg.jwt_expiry_hours, &req).await?;
-    Ok(Json(response))
+    Ok(ApiResponse::ok(response))
 }
 
 pub async fn logout_handler(
@@ -90,9 +90,9 @@ pub async fn logout_handler(
 pub async fn me_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
-) -> Result<Json<UserInfo>, AppError> {
+) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
     let user = AuthService::get_me(&pool, auth.user_id).await?;
-    Ok(Json(user))
+    Ok(ApiResponse::ok(user))
 }
 
 pub async fn list_users_handler(
@@ -125,7 +125,7 @@ pub async fn create_user_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
     Json(req): Json<CreateUserRequest>,
-) -> Result<Json<UserInfo>, AppError> {
+) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
     let user = AuthService::create_user(&pool, &req).await?;
 
     let _ = OperationLogRepo::create(
@@ -142,7 +142,7 @@ pub async fn create_user_handler(
     )
     .await;
 
-    Ok(Json(user))
+    Ok(ApiResponse::ok(user))
 }
 
 pub async fn update_user_handler(
@@ -150,7 +150,7 @@ pub async fn update_user_handler(
     AuthenticatedUser(auth): AuthenticatedUser,
     Path(id): Path<i64>,
     Json(req): Json<UpdateUserRequest>,
-) -> Result<Json<UserInfo>, AppError> {
+) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
     let user = AuthService::update_user(&pool, id, &req).await?;
 
     let _ = OperationLogRepo::create(
@@ -167,7 +167,7 @@ pub async fn update_user_handler(
     )
     .await;
 
-    Ok(Json(user))
+    Ok(ApiResponse::ok(user))
 }
 
 pub async fn change_password_handler(

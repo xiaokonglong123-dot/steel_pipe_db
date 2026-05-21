@@ -1,0 +1,7 @@
+[http]
+cainfo = "/etc/ssl/certs/ca-certificates.crt"
+check-revoke = false
+timeout = 120
+
+[net]
+retry = 3

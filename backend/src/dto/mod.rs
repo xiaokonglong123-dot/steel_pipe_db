@@ -1,4 +1,13 @@
 pub mod auth_dto;
 pub mod common;
+pub mod contract_dto;
+pub mod customer_dto;
+pub mod data_io_dto;
 pub mod inventory_dto;
+pub mod label_dto;
 pub mod pipe_dto;
+pub mod purchase_dto;
+pub mod quality_dto;
+pub mod report_dto;
+pub mod sales_dto;
+pub mod supplier_dto;
