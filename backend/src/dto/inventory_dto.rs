@@ -1,9 +1,9 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 // ━━━ Inbound DTOs ━━━
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateInboundRecordRequest {
     #[validate(length(min = 1))]
     pub inbound_type: String,
@@ -13,7 +13,7 @@ pub struct CreateInboundRecordRequest {
     pub pipes: Vec<InboundPipeItem>,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate)]
 pub struct InboundPipeItem {
     #[validate(length(min = 1))]
     pub pipe_type: String,
@@ -125,4 +125,44 @@ pub struct ApproveRequest {
 pub struct RejectRequest {
     #[validate(length(min = 1))]
     pub reason: String,
+}
+
+// ━━━ ATP DTOs ━━━
+
+#[derive(Debug, Deserialize)]
+pub struct AtpQuery {
+    pub pipe_type: Option<String>,
+    pub grade: Option<String>,
+    pub location_id: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AtpItem {
+    pub pipe_type: String,
+    pub grade: String,
+    pub quantity: i64,
+    pub location_id: Option<i64>,
+}
+
+// ━━━ Location Assignment DTOs ━━━
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct AssignLocationRequest {
+    #[validate(length(min = 1))]
+    pub pipe_type: String,
+    #[validate(range(min = 1))]
+    pub pipe_id: i64,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct TransferLocationRequest {
+    #[validate(range(min = 1))]
+    pub to_location_id: i64,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct BatchCreateInboundRequest {
+    #[validate(length(min = 1))]
+    pub records: Vec<CreateInboundRecordRequest>,
 }

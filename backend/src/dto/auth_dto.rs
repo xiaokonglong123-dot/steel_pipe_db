@@ -52,6 +52,12 @@ pub struct UpdateUserRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+pub struct ChangeUserRoleRequest {
+    #[validate(length(min = 1))]
+    pub role: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
 pub struct ChangePasswordRequest {
     #[validate(length(min = 1))]
     pub old_password: String,

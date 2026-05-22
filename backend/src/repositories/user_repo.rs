@@ -188,4 +188,36 @@ impl UserRepo {
         .await?;
         Ok(())
     }
+
+    pub async fn update_role(
+        pool: &SqlitePool,
+        user_id: i64,
+        role: &str,
+    ) -> Result<User, sqlx::Error> {
+        sqlx::query_as::<_, User>(
+            "UPDATE users SET role = ?1, updated_at = datetime('now')
+             WHERE id = ?2 AND deleted_at IS NULL
+             RETURNING id, username, password_hash, display_name, role, email, phone,
+                       is_active, created_at, updated_at, deleted_at",
+        )
+        .bind(role)
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+    }
+
+    pub async fn delete_soft(
+        pool: &SqlitePool,
+        user_id: i64,
+    ) -> Result<Option<User>, sqlx::Error> {
+        sqlx::query_as::<_, User>(
+            "UPDATE users SET deleted_at = datetime('now')
+             WHERE id = ? AND deleted_at IS NULL
+             RETURNING id, username, password_hash, display_name, role, email, phone,
+                       is_active, created_at, updated_at, deleted_at",
+        )
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+    }
 }

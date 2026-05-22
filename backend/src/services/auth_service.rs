@@ -261,4 +261,53 @@ impl AuthService {
         )
         .map_err(|_| AppError::Internal("Failed to generate token".into()))
     }
+
+    pub async fn change_role(
+        pool: &SqlitePool,
+        user_id: i64,
+        new_role: &str,
+    ) -> Result<UserInfo, AppError> {
+        let user = UserRepo::find_by_id(pool, user_id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+        match new_role {
+            "admin" | "warehouse" | "qc" | "sales" => {}
+            _ => {
+                return Err(AppError::Validation(
+                    "Invalid role. Must be one of: admin, warehouse, qc, sales".into(),
+                ))
+            }
+        }
+
+        let updated = UserRepo::update_role(pool, user.id, new_role)
+            .await
+            .map_err(AppError::from)?;
+
+        Ok(UserInfo {
+            id: updated.id,
+            username: updated.username,
+            display_name: updated.display_name,
+            role: updated.role,
+            email: updated.email,
+            phone: updated.phone,
+        })
+    }
+
+    pub async fn delete_user(
+        pool: &SqlitePool,
+        user_id: i64,
+    ) -> Result<(), AppError> {
+        let user = UserRepo::find_by_id(pool, user_id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+        UserRepo::delete_soft(pool, user.id)
+            .await
+            .map_err(AppError::from)?;
+
+        Ok(())
+    }
 }

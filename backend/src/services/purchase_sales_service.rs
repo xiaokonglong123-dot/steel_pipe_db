@@ -11,14 +11,19 @@ use crate::dto::purchase_dto::{
     CreatePurchaseOrderRequest, PurchaseOrderFilterParams, PurchaseOrderStatusTransitionRequest,
     UpdatePurchaseItemRequest, UpdatePurchaseOrderRequest,
 };
+use crate::dto::purchase_dto::{
+    ApproveOrderRequest as PurchaseApproveReq, LinkInboundRequest, RejectOrderRequest as PurchaseRejectReq,
+};
 use crate::dto::sales_dto::{
-    CreateSalesOrderRequest, SalesOrderFilterParams, SalesOrderStatusTransitionRequest,
+    ApproveOrderRequest as SalesApproveReq, CreateSalesOrderRequest, LinkOutboundRequest,
+    RejectOrderRequest as SalesRejectReq, SalesOrderFilterParams, SalesOrderStatusTransitionRequest,
     UpdateSalesItemRequest, UpdateSalesOrderRequest,
 };
 use crate::error::AppError;
 use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderItem};
 use crate::models::sales_order::{SalesOrder, SalesOrderItem};
 use crate::repositories::customer_repo::CustomerRepo;
+use crate::repositories::inventory_repo::{InboundRepo, InventoryRepo, OutboundRepo};
 use crate::repositories::purchase_order_repo::PurchaseOrderRepo;
 use crate::repositories::sales_order_repo::SalesOrderRepo;
 use crate::repositories::supplier_repo::SupplierRepo;
@@ -440,6 +445,192 @@ impl PurchaseSalesService {
         }
 
         SalesOrderRepo::delete_item(pool, item_id)
+            .await
+            .map_err(AppError::from)
+    }
+
+    // ━━━ Purchase Order Approve / Reject / Link ━━━
+
+    pub async fn approve_purchase_order(
+        pool: &SqlitePool,
+        id: i64,
+        _dto: &PurchaseApproveReq,
+    ) -> Result<(), AppError> {
+        let existing = PurchaseOrderRepo::find_by_id(pool, id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", id)))?;
+
+        if existing.deleted_at.is_some() {
+            return Err(AppError::OrderNotFound(format!(
+                "Purchase order id={} has been deleted",
+                id
+            )));
+        }
+
+        if existing.status != "pending" {
+            return Err(AppError::OrderCannotModify(format!(
+                "Cannot approve order with status '{}'. Only 'pending' orders can be approved.",
+                existing.status
+            )));
+        }
+
+        PurchaseOrderRepo::update_status(pool, id, "approved")
+            .await
+            .map_err(AppError::from)
+    }
+
+    pub async fn reject_purchase_order(
+        pool: &SqlitePool,
+        id: i64,
+        dto: &PurchaseRejectReq,
+    ) -> Result<(), AppError> {
+        let existing = PurchaseOrderRepo::find_by_id(pool, id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", id)))?;
+
+        if existing.deleted_at.is_some() {
+            return Err(AppError::OrderNotFound(format!(
+                "Purchase order id={} has been deleted",
+                id
+            )));
+        }
+
+        if existing.status != "pending" {
+            return Err(AppError::OrderCannotModify(format!(
+                "Cannot reject order with status '{}'. Only 'pending' orders can be rejected.",
+                existing.status
+            )));
+        }
+
+        PurchaseOrderRepo::reject(pool, id, &dto.reason)
+            .await
+            .map_err(AppError::from)
+    }
+
+    pub async fn link_inbound_to_order(
+        pool: &SqlitePool,
+        purchase_order_id: i64,
+        dto: &LinkInboundRequest,
+    ) -> Result<(), AppError> {
+        let existing = PurchaseOrderRepo::find_by_id(pool, purchase_order_id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", purchase_order_id)))?;
+
+        if existing.deleted_at.is_some() {
+            return Err(AppError::OrderNotFound(format!(
+                "Purchase order id={} has been deleted",
+                purchase_order_id
+            )));
+        }
+
+        InboundRepo::link_to_order(pool, dto.inbound_record_id, purchase_order_id)
+            .await
+            .map_err(AppError::from)
+    }
+
+    // ━━━ Sales Order Approve / Reject / Link ━━━
+
+    pub async fn approve_sales_order(
+        pool: &SqlitePool,
+        id: i64,
+        _dto: &SalesApproveReq,
+    ) -> Result<(), AppError> {
+        let existing = SalesOrderRepo::find_by_id(pool, id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::OrderNotFound(format!("Sales order id={} not found", id)))?;
+
+        if existing.deleted_at.is_some() {
+            return Err(AppError::OrderNotFound(format!(
+                "Sales order id={} has been deleted",
+                id
+            )));
+        }
+
+        if existing.status != "pending" {
+            return Err(AppError::OrderCannotModify(format!(
+                "Cannot approve order with status '{}'. Only 'pending' orders can be approved.",
+                existing.status
+            )));
+        }
+
+        // ATP check: verify sufficient stock for each item
+        let items = SalesOrderRepo::find_items(pool, id)
+            .await
+            .map_err(AppError::from)?;
+
+        for item in &items {
+            let atp_rows = InventoryRepo::find_atp(
+                pool,
+                &Some(item.pipe_type.clone()),
+                &Some(item.grade.clone()),
+                &None,
+            )
+            .await
+            .map_err(AppError::from)?;
+
+            let available: i64 = atp_rows.iter().map(|(_, _, cnt, _)| cnt).sum();
+
+            if available < item.quantity {
+                return Err(AppError::InsufficientStock);
+            }
+        }
+
+        SalesOrderRepo::update_status(pool, id, "approved")
+            .await
+            .map_err(AppError::from)
+    }
+
+    pub async fn reject_sales_order(
+        pool: &SqlitePool,
+        id: i64,
+        dto: &SalesRejectReq,
+    ) -> Result<(), AppError> {
+        let existing = SalesOrderRepo::find_by_id(pool, id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::OrderNotFound(format!("Sales order id={} not found", id)))?;
+
+        if existing.deleted_at.is_some() {
+            return Err(AppError::OrderNotFound(format!(
+                "Sales order id={} has been deleted",
+                id
+            )));
+        }
+
+        if existing.status != "pending" {
+            return Err(AppError::OrderCannotModify(format!(
+                "Cannot reject order with status '{}'. Only 'pending' orders can be rejected.",
+                existing.status
+            )));
+        }
+
+        SalesOrderRepo::reject(pool, id, &dto.reason)
+            .await
+            .map_err(AppError::from)
+    }
+
+    pub async fn link_outbound_to_order(
+        pool: &SqlitePool,
+        sales_order_id: i64,
+        dto: &LinkOutboundRequest,
+    ) -> Result<(), AppError> {
+        let existing = SalesOrderRepo::find_by_id(pool, sales_order_id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::OrderNotFound(format!("Sales order id={} not found", sales_order_id)))?;
+
+        if existing.deleted_at.is_some() {
+            return Err(AppError::OrderNotFound(format!(
+                "Sales order id={} has been deleted",
+                sales_order_id
+            )));
+        }
+
+        OutboundRepo::link_to_order(pool, dto.outbound_record_id, sales_order_id)
             .await
             .map_err(AppError::from)
     }

@@ -2,6 +2,23 @@ use serde::Deserialize;
 use validator::Validate;
 
 #[derive(Debug, Deserialize, Validate)]
+pub struct ApproveOrderRequest {
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct RejectOrderRequest {
+    #[validate(length(min = 1))]
+    pub reason: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct LinkOutboundRequest {
+    #[validate(range(min = 1))]
+    pub outbound_record_id: i64,
+}
+
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateSalesOrderRequest {
     pub order_no: Option<String>,
     #[validate(range(min = 1))]

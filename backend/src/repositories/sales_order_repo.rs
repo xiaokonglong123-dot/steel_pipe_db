@@ -172,6 +172,18 @@ impl SalesOrderRepo {
         Ok(())
     }
 
+    pub async fn reject(pool: &SqlitePool, id: i64, reason: &str) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE sales_orders SET status = 'rejected', notes = ?, updated_at = datetime('now') \
+             WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(reason)
+        .bind(id)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE sales_orders SET deleted_at = datetime('now'), \

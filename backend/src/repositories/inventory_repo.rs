@@ -38,6 +38,198 @@ pub struct CheckInitItem {
     pub expected_status: String,
 }
 
+// ━━━ InventoryRepo (ATP queries) ━━━
+
+pub struct InventoryRepo;
+
+impl InventoryRepo {
+    pub async fn find_atp(
+        pool: &SqlitePool,
+        pipe_type: &Option<String>,
+        grade: &Option<String>,
+        location_id: &Option<i64>,
+    ) -> Result<Vec<(String, String, i64, Option<i64>)>, sqlx::Error> {
+        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            "SELECT pipe_type, grade, SUM(cnt) as quantity, location_id FROM ( \
+             SELECT pipe_type, grade, COUNT(*) as cnt, location_id \
+             FROM seamless_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
+        );
+
+        if let Some(ref pt) = pipe_type {
+            builder.push(" AND pipe_type = ");
+            builder.push_bind(pt);
+        }
+        if let Some(ref g) = grade {
+            builder.push(" AND grade = ");
+            builder.push_bind(g);
+        }
+        if let Some(loc) = location_id {
+            builder.push(" AND location_id = ");
+            builder.push_bind(loc);
+        }
+
+        builder.push(
+            " GROUP BY pipe_type, grade, location_id \
+             UNION ALL \
+             SELECT screen_type as pipe_type, base_grade as grade, COUNT(*) as cnt, location_id \
+             FROM screen_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
+        );
+
+        if let Some(ref pt) = pipe_type {
+            builder.push(" AND screen_type = ");
+            builder.push_bind(pt);
+        }
+        if let Some(ref g) = grade {
+            builder.push(" AND base_grade = ");
+            builder.push_bind(g);
+        }
+        if let Some(loc) = location_id {
+            builder.push(" AND location_id = ");
+            builder.push_bind(loc);
+        }
+
+        builder.push(
+            " GROUP BY screen_type, base_grade, location_id \
+             ) GROUP BY pipe_type, grade, location_id ORDER BY pipe_type, grade",
+        );
+
+        builder
+            .build_query_as::<(String, String, i64, Option<i64>)>()
+            .fetch_all(pool)
+            .await
+    }
+
+    // ━━ Statistics ━━
+
+    pub async fn get_total_in_stock(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
+        let (seamless,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM seamless_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
+        )
+        .fetch_one(pool)
+        .await?;
+
+        let (screen,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM screen_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
+        )
+        .fetch_one(pool)
+        .await?;
+
+        Ok(seamless + screen)
+    }
+
+    pub async fn get_count_by_grade(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, sqlx::Error> {
+        let seamless: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT grade, COUNT(*) as cnt FROM seamless_pipes \
+             WHERE status = 'in_stock' AND deleted_at IS NULL GROUP BY grade ORDER BY grade",
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let screen: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT base_grade as grade, COUNT(*) as cnt FROM screen_pipes \
+             WHERE status = 'in_stock' AND deleted_at IS NULL GROUP BY base_grade ORDER BY base_grade",
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let mut result = Vec::new();
+        for (grade, cnt) in seamless {
+            result.push(serde_json::json!({"grade": grade, "count": cnt, "pipe_type": "seamless"}));
+        }
+        for (grade, cnt) in screen {
+            result.push(serde_json::json!({"grade": grade, "count": cnt, "pipe_type": "screen"}));
+        }
+        Ok(result)
+    }
+
+    pub async fn get_count_by_location(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, sqlx::Error> {
+        let seamless: Vec<(Option<i64>, i64)> = sqlx::query_as(
+            "SELECT location_id, COUNT(*) as cnt FROM seamless_pipes \
+             WHERE status = 'in_stock' AND deleted_at IS NULL GROUP BY location_id",
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let screen: Vec<(Option<i64>, i64)> = sqlx::query_as(
+            "SELECT location_id, COUNT(*) as cnt FROM screen_pipes \
+             WHERE status = 'in_stock' AND deleted_at IS NULL GROUP BY location_id",
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let mut result = Vec::new();
+        for (loc_id, cnt) in seamless {
+            result.push(serde_json::json!({"location_id": loc_id, "count": cnt, "pipe_type": "seamless"}));
+        }
+        for (loc_id, cnt) in screen {
+            result.push(serde_json::json!({"location_id": loc_id, "count": cnt, "pipe_type": "screen"}));
+        }
+        Ok(result)
+    }
+
+    // ━━ Location assignment ━━
+
+    pub async fn update_pipe_location(
+        pool: &SqlitePool,
+        pipe_type: &str,
+        pipe_id: i64,
+        location_id: i64,
+    ) -> Result<(), sqlx::Error> {
+        match pipe_type {
+            "seamless" | "casing" | "tubing" => {
+                sqlx::query(
+                    "UPDATE seamless_pipes SET location_id = ?, updated_at = datetime('now') \
+                     WHERE id = ? AND deleted_at IS NULL",
+                )
+                .bind(location_id)
+                .bind(pipe_id)
+                .execute(pool)
+                .await?;
+            }
+            "screen" | "screened" => {
+                sqlx::query(
+                    "UPDATE screen_pipes SET location_id = ?, updated_at = datetime('now') \
+                     WHERE id = ? AND deleted_at IS NULL",
+                )
+                .bind(location_id)
+                .bind(pipe_id)
+                .execute(pool)
+                .await?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub async fn get_pipe_location_id(
+        pool: &SqlitePool,
+        pipe_type: &str,
+        pipe_id: i64,
+    ) -> Result<Option<i64>, sqlx::Error> {
+        match pipe_type {
+            "seamless" | "casing" | "tubing" => {
+                let row: Option<(Option<i64>,)> = sqlx::query_as(
+                    "SELECT location_id FROM seamless_pipes WHERE id = ? AND deleted_at IS NULL",
+                )
+                .bind(pipe_id)
+                .fetch_optional(pool)
+                .await?;
+                Ok(row.and_then(|r| r.0))
+            }
+            "screen" | "screened" => {
+                let row: Option<(Option<i64>,)> = sqlx::query_as(
+                    "SELECT location_id FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
+                )
+                .bind(pipe_id)
+                .fetch_optional(pool)
+                .await?;
+                Ok(row.and_then(|r| r.0))
+            }
+            _ => Ok(None),
+        }
+    }
+}
+
 // ━━━ LocationRepo ━━━
 
 pub struct LocationRepo;
@@ -184,7 +376,7 @@ impl InboundRepo {
             "INSERT INTO inbound_records (inbound_no, inbound_type, order_id, supplier_id, notes, approval_status) \
              VALUES (?, ?, ?, ?, ?, ?) \
              RETURNING id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
-               handled_by, handled_at, created_at, updated_at, deleted_at",
+               rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
         )
         .bind(inbound_no)
         .bind(&dto.inbound_type)
@@ -220,7 +412,7 @@ impl InboundRepo {
     ) -> Result<Option<InboundRecord>, sqlx::Error> {
         sqlx::query_as::<_, InboundRecord>(
             "SELECT id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
-             handled_by, handled_at, created_at, updated_at, deleted_at \
+             rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM inbound_records WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
@@ -298,7 +490,7 @@ impl InboundRepo {
 
         let list_sql = format!(
             "SELECT id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
-             handled_by, handled_at, created_at, updated_at, deleted_at \
+             rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM inbound_records WHERE {} \
              ORDER BY {} {} LIMIT ? OFFSET ?",
             where_clause, sort_by, sort_order
@@ -316,13 +508,47 @@ impl InboundRepo {
         Ok((items, total.0 as u64))
     }
 
-    pub async fn update_status(pool: &SqlitePool, id: i64, status: &str) -> Result<(), sqlx::Error> {
+    pub async fn update_status(
+        pool: &SqlitePool,
+        id: i64,
+        status: &str,
+        rejection_reason: Option<&str>,
+    ) -> Result<(), sqlx::Error> {
+        if let Some(reason) = rejection_reason {
+            sqlx::query(
+                "UPDATE inbound_records SET approval_status = ?, rejection_reason = ?, \
+                 updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            )
+            .bind(status)
+            .bind(reason)
+            .bind(id)
+            .execute(pool)
+            .await?;
+        } else {
+            sqlx::query(
+                "UPDATE inbound_records SET approval_status = ?, \
+                 rejection_reason = NULL, updated_at = datetime('now') \
+                 WHERE id = ? AND deleted_at IS NULL",
+            )
+            .bind(status)
+            .bind(id)
+            .execute(pool)
+            .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn link_to_order(
+        pool: &SqlitePool,
+        inbound_id: i64,
+        order_id: i64,
+    ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE inbound_records SET approval_status = ?, updated_at = datetime('now') \
+            "UPDATE inbound_records SET order_id = ?, updated_at = datetime('now') \
              WHERE id = ? AND deleted_at IS NULL",
         )
-        .bind(status)
-        .bind(id)
+        .bind(order_id)
+        .bind(inbound_id)
         .execute(pool)
         .await?;
         Ok(())
@@ -356,7 +582,7 @@ impl OutboundRepo {
             "INSERT INTO outbound_records (outbound_no, outbound_type, order_id, customer_id, notes, approval_status) \
              VALUES (?, ?, ?, ?, ?, ?) \
              RETURNING id, outbound_no, outbound_type, order_id, customer_id, notes, approval_status, \
-               handled_by, handled_at, created_at, updated_at, deleted_at",
+               rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
         )
         .bind(outbound_no)
         .bind(&dto.outbound_type)
@@ -392,7 +618,7 @@ impl OutboundRepo {
     ) -> Result<Option<OutboundRecord>, sqlx::Error> {
         sqlx::query_as::<_, OutboundRecord>(
             "SELECT id, outbound_no, outbound_type, order_id, customer_id, notes, approval_status, \
-             handled_by, handled_at, created_at, updated_at, deleted_at \
+             rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM outbound_records WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
@@ -470,7 +696,7 @@ impl OutboundRepo {
 
         let list_sql = format!(
             "SELECT id, outbound_no, outbound_type, order_id, customer_id, notes, approval_status, \
-             handled_by, handled_at, created_at, updated_at, deleted_at \
+             rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM outbound_records WHERE {} \
              ORDER BY {} {} LIMIT ? OFFSET ?",
             where_clause, sort_by, sort_order
@@ -492,13 +718,43 @@ impl OutboundRepo {
         pool: &SqlitePool,
         id: i64,
         status: &str,
+        rejection_reason: Option<&str>,
+    ) -> Result<(), sqlx::Error> {
+        if let Some(reason) = rejection_reason {
+            sqlx::query(
+                "UPDATE outbound_records SET approval_status = ?, rejection_reason = ?, \
+                 updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            )
+            .bind(status)
+            .bind(reason)
+            .bind(id)
+            .execute(pool)
+            .await?;
+        } else {
+            sqlx::query(
+                "UPDATE outbound_records SET approval_status = ?, \
+                 rejection_reason = NULL, updated_at = datetime('now') \
+                 WHERE id = ? AND deleted_at IS NULL",
+            )
+            .bind(status)
+            .bind(id)
+            .execute(pool)
+            .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn link_to_order(
+        pool: &SqlitePool,
+        outbound_id: i64,
+        order_id: i64,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE outbound_records SET approval_status = ?, updated_at = datetime('now') \
+            "UPDATE outbound_records SET order_id = ?, updated_at = datetime('now') \
              WHERE id = ? AND deleted_at IS NULL",
         )
-        .bind(status)
-        .bind(id)
+        .bind(order_id)
+        .bind(outbound_id)
         .execute(pool)
         .await?;
         Ok(())
@@ -701,6 +957,36 @@ impl CheckRepo {
         .await?;
 
         Ok((items, total.0 as u64))
+    }
+
+    pub async fn update_status(
+        pool: &SqlitePool,
+        check_id: i64,
+        status: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE inventory_check_records SET status = ?, updated_at = datetime('now') \
+             WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(status)
+        .bind(check_id)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_mismatch_count(
+        pool: &SqlitePool,
+        check_id: i64,
+    ) -> Result<i64, sqlx::Error> {
+        let (cnt,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM inventory_check_items \
+             WHERE check_id = ? AND (is_match IS NULL OR is_match = 0)",
+        )
+        .bind(check_id)
+        .fetch_one(pool)
+        .await?;
+        Ok(cnt)
     }
 
     pub async fn update_item_result(

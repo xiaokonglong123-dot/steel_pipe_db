@@ -7,9 +7,10 @@ use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{
-    CreateCheckRequest, CreateInboundRecordRequest, CreateLocationRequest,
-    CreateOutboundRecordRequest, InboundFilter, InventoryFilter, OutboundFilter,
-    SubmitCheckItemRequest, UpdateLocationRequest,
+    AssignLocationRequest, AtpItem, AtpQuery, BatchCreateInboundRequest, CreateCheckRequest,
+    CreateInboundRecordRequest, CreateLocationRequest, CreateOutboundRecordRequest, InboundFilter,
+    InventoryFilter, OutboundFilter, SubmitCheckItemRequest, TransferLocationRequest,
+    UpdateLocationRequest,
 };
 use crate::error::AppError;
 use crate::models::inventory::{
@@ -20,6 +21,7 @@ use crate::repositories::inventory_repo::{
     CheckInitItem, CheckRepo, CreateInventoryLog, InboundRepo, InventoryLogRepo, LocationRepo,
     OutboundRepo,
 };
+use crate::repositories::inventory_repo::InventoryRepo;
 
 pub struct InventoryService;
 
@@ -66,6 +68,7 @@ impl InventoryService {
         record_id: i64,
         item: &crate::dto::inventory_dto::InboundPipeItem,
     ) -> Result<(), AppError> {
+        let mut tx = pool.begin().await.map_err(AppError::from)?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
         match item.pipe_type.as_str() {
@@ -75,7 +78,7 @@ impl InventoryService {
                 )
                 .bind(&now)
                 .bind(item.pipe_id)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await
                 .map_err(AppError::from)?;
             }
@@ -85,7 +88,7 @@ impl InventoryService {
                 )
                 .bind(&now)
                 .bind(item.pipe_id)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await
                 .map_err(AppError::from)?;
             }
@@ -97,22 +100,25 @@ impl InventoryService {
             }
         }
 
-        let _ = InventoryLogRepo::create(
-            pool,
-            &CreateInventoryLog {
-                pipe_type: item.pipe_type.clone(),
-                pipe_id: item.pipe_id,
-                change_type: "inbound".into(),
-                ref_type: Some("inbound".into()),
-                ref_id: Some(record_id),
-                from_location_id: None,
-                to_location_id: None,
-                notes: None,
-                created_by: None,
-            },
+        sqlx::query(
+            "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
+             from_location_id, to_location_id, notes, created_by) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .await;
+        .bind(&item.pipe_type)
+        .bind(item.pipe_id)
+        .bind("inbound")
+        .bind(Some("inbound"))
+        .bind(Some(record_id))
+        .bind(None::<i64>)
+        .bind(None::<i64>)
+        .bind(None::<String>)
+        .bind(None::<i64>)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::from)?;
 
+        tx.commit().await.map_err(AppError::from)?;
         Ok(())
     }
 
@@ -138,25 +144,76 @@ impl InventoryService {
 
         let items = InboundRepo::find_items(pool, id).await.map_err(AppError::from)?;
 
-        InboundRepo::update_status(pool, id, "approved")
-            .await
-            .map_err(AppError::from)?;
+        let mut tx = pool.begin().await.map_err(AppError::from)?;
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+        sqlx::query(
+            "UPDATE inbound_records SET approval_status = 'approved', \
+             rejection_reason = NULL, updated_at = datetime('now') \
+             WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::from)?;
 
         for item in &items {
-            let pipe_item = crate::dto::inventory_dto::InboundPipeItem {
-                pipe_type: item.pipe_type.clone(),
-                pipe_id: item.pipe_id,
-            };
-            Self::execute_inbound(pool, id, &pipe_item).await?;
+            match item.pipe_type.as_str() {
+                "seamless" | "casing" | "tubing" => {
+                    sqlx::query(
+                        "UPDATE seamless_pipes SET status = 'in_stock', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    )
+                    .bind(&now)
+                    .bind(item.pipe_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(AppError::from)?;
+                }
+                "screen" | "screened" => {
+                    sqlx::query(
+                        "UPDATE screen_pipes SET status = 'in_stock', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    )
+                    .bind(&now)
+                    .bind(item.pipe_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(AppError::from)?;
+                }
+                _ => {
+                    return Err(AppError::Validation(format!(
+                        "Unknown pipe_type: {}",
+                        item.pipe_type
+                    )));
+                }
+            }
+
+            sqlx::query(
+                "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
+                 from_location_id, to_location_id, notes, created_by) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(&item.pipe_type)
+            .bind(item.pipe_id)
+            .bind("inbound")
+            .bind(Some("inbound"))
+            .bind(Some(id))
+            .bind(Option::<i64>::None)
+            .bind(Option::<i64>::None)
+            .bind(Option::<String>::None)
+            .bind(Option::<i64>::None)
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::from)?;
         }
 
+        tx.commit().await.map_err(AppError::from)?;
         Ok(())
     }
 
     pub async fn reject_inbound(
         pool: &SqlitePool,
         id: i64,
-        _reason: &str,
+        reason: &str,
     ) -> Result<(), AppError> {
         let record = InboundRepo::find_by_id(pool, id)
             .await
@@ -170,7 +227,7 @@ impl InventoryService {
             )));
         }
 
-        InboundRepo::update_status(pool, id, "rejected")
+        InboundRepo::update_status(pool, id, "rejected", Some(reason))
             .await
             .map_err(AppError::from)?;
 
@@ -307,6 +364,7 @@ impl InventoryService {
         record_id: i64,
         item: &crate::dto::inventory_dto::OutboundPipeItem,
     ) -> Result<(), AppError> {
+        let mut tx = pool.begin().await.map_err(AppError::from)?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
         match item.pipe_type.as_str() {
@@ -316,7 +374,7 @@ impl InventoryService {
                 )
                 .bind(&now)
                 .bind(item.pipe_id)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await
                 .map_err(AppError::from)?;
             }
@@ -326,7 +384,7 @@ impl InventoryService {
                 )
                 .bind(&now)
                 .bind(item.pipe_id)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await
                 .map_err(AppError::from)?;
             }
@@ -338,22 +396,25 @@ impl InventoryService {
             }
         }
 
-        let _ = InventoryLogRepo::create(
-            pool,
-            &CreateInventoryLog {
-                pipe_type: item.pipe_type.clone(),
-                pipe_id: item.pipe_id,
-                change_type: "outbound".into(),
-                ref_type: Some("outbound".into()),
-                ref_id: Some(record_id),
-                from_location_id: None,
-                to_location_id: None,
-                notes: None,
-                created_by: None,
-            },
+        sqlx::query(
+            "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
+             from_location_id, to_location_id, notes, created_by) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .await;
+        .bind(&item.pipe_type)
+        .bind(item.pipe_id)
+        .bind("outbound")
+        .bind(Some("outbound"))
+        .bind(Some(record_id))
+        .bind(None::<i64>)
+        .bind(None::<i64>)
+        .bind(None::<String>)
+        .bind(None::<i64>)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::from)?;
 
+        tx.commit().await.map_err(AppError::from)?;
         Ok(())
     }
 
@@ -381,25 +442,76 @@ impl InventoryService {
             .await
             .map_err(AppError::from)?;
 
-        OutboundRepo::update_status(pool, id, "approved")
-            .await
-            .map_err(AppError::from)?;
+        let mut tx = pool.begin().await.map_err(AppError::from)?;
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+        sqlx::query(
+            "UPDATE outbound_records SET approval_status = 'approved', \
+             rejection_reason = NULL, updated_at = datetime('now') \
+             WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::from)?;
 
         for item in &items {
-            let pipe_item = crate::dto::inventory_dto::OutboundPipeItem {
-                pipe_type: item.pipe_type.clone(),
-                pipe_id: item.pipe_id,
-            };
-            Self::execute_outbound(pool, id, &pipe_item).await?;
+            match item.pipe_type.as_str() {
+                "seamless" | "casing" | "tubing" => {
+                    sqlx::query(
+                        "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    )
+                    .bind(&now)
+                    .bind(item.pipe_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(AppError::from)?;
+                }
+                "screen" | "screened" => {
+                    sqlx::query(
+                        "UPDATE screen_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    )
+                    .bind(&now)
+                    .bind(item.pipe_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(AppError::from)?;
+                }
+                _ => {
+                    return Err(AppError::Validation(format!(
+                        "Unknown pipe_type: {}",
+                        item.pipe_type
+                    )));
+                }
+            }
+
+            sqlx::query(
+                "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
+                 from_location_id, to_location_id, notes, created_by) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(&item.pipe_type)
+            .bind(item.pipe_id)
+            .bind("outbound")
+            .bind(Some("outbound"))
+            .bind(Some(id))
+            .bind(Option::<i64>::None)
+            .bind(Option::<i64>::None)
+            .bind(Option::<String>::None)
+            .bind(Option::<i64>::None)
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::from)?;
         }
 
+        tx.commit().await.map_err(AppError::from)?;
         Ok(())
     }
 
     pub async fn reject_outbound(
         pool: &SqlitePool,
         id: i64,
-        _reason: &str,
+        reason: &str,
     ) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
@@ -413,7 +525,7 @@ impl InventoryService {
             )));
         }
 
-        OutboundRepo::update_status(pool, id, "rejected")
+        OutboundRepo::update_status(pool, id, "rejected", Some(reason))
             .await
             .map_err(AppError::from)?;
 
@@ -478,66 +590,85 @@ impl InventoryService {
         let page_size = pagination.page_size();
         let offset = pagination.offset();
 
-        let mut conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
+        let mut seamless_conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
+        let mut screen_conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
+        let mut bind_values: Vec<String> = Vec::new();
+
         if let Some(ref grade) = filter.grade {
-            conditions.push(format!("grade = '{}'", grade.replace('\'', "''")));
+            seamless_conditions.push("grade = ?".into());
+            screen_conditions.push("base_grade = ?".into());
+            bind_values.push(grade.clone());
         }
         if let Some(location_id) = filter.location_id {
-            conditions.push(format!("location_id = {}", location_id));
+            seamless_conditions.push("location_id = ?".into());
+            screen_conditions.push("location_id = ?".into());
+            bind_values.push(location_id.to_string());
         }
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push(format!(
-                    "pipe_number LIKE '%{}%'",
-                    q.replace('\'', "''")
-                ));
+                seamless_conditions.push("pipe_number LIKE ?".into());
+                screen_conditions.push("pipe_number LIKE ?".into());
+                bind_values.push(format!("%{}%", q));
             }
         }
-        let where_clause = conditions.join(" AND ");
 
+        let seamless_where = seamless_conditions.join(" AND ");
+        let screen_where = screen_conditions.join(" AND ");
         let pipe_type_filter = filter.pipe_type.clone();
+        let is_single_table = pipe_type_filter
+            .as_deref()
+            .map_or(false, |pt| pt == "seamless" || pt == "casing" || pt == "tubing" || pt == "screen" || pt == "screened");
 
-        let count_sql = match &pipe_type_filter {
-            Some(pt) if pt == "seamless" || pt == "casing" || pt == "tubing" => {
+        let count_sql = match pipe_type_filter.as_deref() {
+            Some("seamless" | "casing" | "tubing") => {
                 format!(
                     "SELECT COUNT(*) as cnt FROM seamless_pipes WHERE {}",
-                    where_clause
+                    seamless_where
                 )
             }
-            Some(pt) if pt == "screen" || pt == "screened" => {
+            Some("screen" | "screened") => {
                 format!(
                     "SELECT COUNT(*) as cnt FROM screen_pipes WHERE {}",
-                    where_clause
+                    screen_where
                 )
             }
             _ => {
                 format!(
                     "SELECT (SELECT COUNT(*) FROM seamless_pipes WHERE {}) + \
                      (SELECT COUNT(*) FROM screen_pipes WHERE {}) as cnt",
-                    where_clause,
-                    where_clause.replace("grade", "base_grade")
+                    seamless_where, screen_where
                 )
             }
         };
 
-        let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await.map_err(AppError::from)?;
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        for val in &bind_values {
+            count_q = count_q.bind(val.as_str());
+        }
+        if !is_single_table {
+            // Double-bind for UNION ALL (two subqueries)
+            for val in &bind_values {
+                count_q = count_q.bind(val.as_str());
+            }
+        }
+        let total: (i64,) = count_q.fetch_one(pool).await.map_err(AppError::from)?;
 
-        let list_sql = match &pipe_type_filter {
-            Some(pt) if pt == "seamless" || pt == "casing" || pt == "tubing" => {
+        let list_sql = match pipe_type_filter.as_deref() {
+            Some("seamless" | "casing" | "tubing") => {
                 format!(
                     "SELECT id, pipe_number, grade, od, wt, pipe_type, status, location_id, \
                      created_at, updated_at FROM seamless_pipes WHERE {} \
-                     ORDER BY created_at DESC LIMIT {} OFFSET {}",
-                    where_clause, page_size, offset
+                     ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    seamless_where
                 )
             }
-            Some(pt) if pt == "screen" || pt == "screened" => {
+            Some("screen" | "screened") => {
                 format!(
                     "SELECT id, pipe_number, base_grade as grade, base_od as od, base_wt as wt, \
                      screen_type as pipe_type, status, location_id, created_at, updated_at \
                      FROM screen_pipes WHERE {} \
-                     ORDER BY created_at DESC LIMIT {} OFFSET {}",
-                    where_clause, page_size, offset
+                     ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    screen_where
                 )
             }
             _ => {
@@ -548,37 +679,45 @@ impl InventoryService {
                      SELECT id, pipe_number, base_grade as grade, base_od as od, base_wt as wt, \
                      screen_type as pipe_type, status, location_id, created_at, updated_at \
                      FROM screen_pipes WHERE {} \
-                     ORDER BY created_at DESC LIMIT {} OFFSET {}",
-                    where_clause,
-                    where_clause.replace("grade", "base_grade"),
-                    page_size,
-                    offset
+                     ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    seamless_where, screen_where
                 )
             }
         };
 
-        let items: Vec<serde_json::Value> = sqlx::query_as::<_, (i64, String, String, f64, f64, String, String, Option<i64>, String, String)>(
+        let mut list_q = sqlx::query_as::<_, (i64, String, String, f64, f64, String, String, Option<i64>, String, String)>(
             &list_sql,
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?
-        .into_iter()
-        .map(|(id, pipe_number, grade, od, wt, pipe_type, status, location_id, created_at, updated_at)| {
-            serde_json::json!({
-                "id": id,
-                "pipe_number": pipe_number,
-                "grade": grade,
-                "od": od,
-                "wt": wt,
-                "pipe_type": pipe_type,
-                "status": status,
-                "location_id": location_id,
-                "created_at": created_at,
-                "updated_at": updated_at,
+        );
+        for val in &bind_values {
+            list_q = list_q.bind(val.as_str());
+        }
+        if !is_single_table {
+            for val in &bind_values {
+                list_q = list_q.bind(val.as_str());
+            }
+        }
+        let items: Vec<serde_json::Value> = list_q
+            .bind(page_size as i64)
+            .bind(offset as i64)
+            .fetch_all(pool)
+            .await
+            .map_err(AppError::from)?
+            .into_iter()
+            .map(|(id, pipe_number, grade, od, wt, pipe_type, status, location_id, created_at, updated_at)| {
+                serde_json::json!({
+                    "id": id,
+                    "pipe_number": pipe_number,
+                    "grade": grade,
+                    "od": od,
+                    "wt": wt,
+                    "pipe_type": pipe_type,
+                    "status": status,
+                    "location_id": location_id,
+                    "created_at": created_at,
+                    "updated_at": updated_at,
+                })
             })
-        })
-        .collect();
+            .collect();
 
         Ok((items, total.0 as u64))
     }
@@ -764,5 +903,224 @@ impl InventoryService {
         CheckRepo::update_item_result(pool, check_id, item_id, &dto.found_status, &dto.notes)
             .await
             .map_err(AppError::from)
+    }
+
+    // ━━━ Statistics ━━━
+
+    pub async fn inventory_statistics(
+        pool: &SqlitePool,
+    ) -> Result<serde_json::Value, AppError> {
+        let total = InventoryRepo::get_total_in_stock(pool)
+            .await
+            .map_err(AppError::from)?;
+
+        let by_grade = InventoryRepo::get_count_by_grade(pool)
+            .await
+            .map_err(AppError::from)?;
+
+        let by_location = InventoryRepo::get_count_by_location(pool)
+            .await
+            .map_err(AppError::from)?;
+
+        Ok(serde_json::json!({
+            "total_in_stock": total,
+            "by_grade": by_grade,
+            "by_location": by_location,
+        }))
+    }
+
+    // ━━━ Inbound / Outbound Items ━━━
+
+    pub async fn list_inbound_items(
+        pool: &SqlitePool,
+        inbound_id: i64,
+    ) -> Result<Vec<InboundItem>, AppError> {
+        InboundRepo::find_items(pool, inbound_id)
+            .await
+            .map_err(AppError::from)
+    }
+
+    pub async fn list_outbound_items(
+        pool: &SqlitePool,
+        outbound_id: i64,
+    ) -> Result<Vec<OutboundItem>, AppError> {
+        OutboundRepo::find_items(pool, outbound_id)
+            .await
+            .map_err(AppError::from)
+    }
+
+    // ━━━ Complete Check ━━━
+
+    pub async fn complete_check(
+        pool: &SqlitePool,
+        check_id: i64,
+    ) -> Result<serde_json::Value, AppError> {
+        let record = CheckRepo::find_by_id(pool, check_id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::NotFound(format!("Check record id={} not found", check_id)))?;
+
+        if record.status != "in_progress" {
+            return Err(AppError::Validation(format!(
+                "Cannot complete check with status '{}'. Only in_progress checks can be completed.",
+                record.status
+            )));
+        }
+
+        CheckRepo::update_status(pool, check_id, "completed")
+            .await
+            .map_err(AppError::from)?;
+
+        let mismatch_count = CheckRepo::get_mismatch_count(pool, check_id)
+            .await
+            .map_err(AppError::from)?;
+
+        Ok(serde_json::json!({
+            "check_id": check_id,
+            "status": "completed",
+            "mismatch_count": mismatch_count,
+            "message": format!("Check completed with {} mismatches", mismatch_count),
+        }))
+    }
+
+    // ━━━ Assign Location ━━━
+
+    pub async fn assign_location(
+        pool: &SqlitePool,
+        location_id: i64,
+        dto: &AssignLocationRequest,
+    ) -> Result<serde_json::Value, AppError> {
+        let location = LocationRepo::find_by_id(pool, location_id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::LocationNotFound(format!("Location id={} not found", location_id)))?;
+
+        if !location.is_active {
+            return Err(AppError::Validation(format!(
+                "Location id={} is not active",
+                location_id
+            )));
+        }
+
+        InventoryRepo::update_pipe_location(pool, &dto.pipe_type, dto.pipe_id, location_id)
+            .await
+            .map_err(AppError::from)?;
+
+        let _ = InventoryLogRepo::create(
+            pool,
+            &CreateInventoryLog {
+                pipe_type: dto.pipe_type.clone(),
+                pipe_id: dto.pipe_id,
+                change_type: "location_assign".into(),
+                ref_type: None,
+                ref_id: None,
+                from_location_id: None,
+                to_location_id: Some(location_id),
+                notes: None,
+                created_by: None,
+            },
+        )
+        .await;
+
+        Ok(serde_json::json!({
+            "pipe_type": dto.pipe_type,
+            "pipe_id": dto.pipe_id,
+            "location_id": location_id,
+            "location_code": location.full_code,
+        }))
+    }
+
+    // ━━━ Transfer Location ━━━
+
+    pub async fn transfer_location(
+        pool: &SqlitePool,
+        pipe_type: &str,
+        pipe_id: i64,
+        dto: &TransferLocationRequest,
+    ) -> Result<serde_json::Value, AppError> {
+        let from_location_id = InventoryRepo::get_pipe_location_id(pool, pipe_type, pipe_id)
+            .await
+            .map_err(AppError::from)?;
+
+        let to_location = LocationRepo::find_by_id(pool, dto.to_location_id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| {
+                AppError::LocationNotFound(format!("Location id={} not found", dto.to_location_id))
+            })?;
+
+        if !to_location.is_active {
+            return Err(AppError::Validation(format!(
+                "Target location id={} is not active",
+                dto.to_location_id
+            )));
+        }
+
+        InventoryRepo::update_pipe_location(pool, pipe_type, pipe_id, dto.to_location_id)
+            .await
+            .map_err(AppError::from)?;
+
+        let _ = InventoryLogRepo::create(
+            pool,
+            &CreateInventoryLog {
+                pipe_type: pipe_type.into(),
+                pipe_id,
+                change_type: "location_transfer".into(),
+                ref_type: None,
+                ref_id: None,
+                from_location_id,
+                to_location_id: Some(dto.to_location_id),
+                notes: dto.notes.clone(),
+                created_by: None,
+            },
+        )
+        .await;
+
+        Ok(serde_json::json!({
+            "pipe_type": pipe_type,
+            "pipe_id": pipe_id,
+            "from_location_id": from_location_id,
+            "to_location_id": dto.to_location_id,
+            "to_location_code": to_location.full_code,
+        }))
+    }
+
+    // ━━━ Batch Inbound ━━━
+
+    pub async fn batch_create_inbound(
+        pool: &SqlitePool,
+        dto: &BatchCreateInboundRequest,
+    ) -> Result<Vec<InboundRecord>, AppError> {
+        if dto.records.is_empty() {
+            return Err(AppError::Validation("At least one inbound record is required".into()));
+        }
+
+        let mut results = Vec::new();
+        for record_dto in &dto.records {
+            let record = Self::create_inbound(pool, record_dto).await?;
+            results.push(record);
+        }
+
+        Ok(results)
+    }
+
+    // ━━━ ATP check ━━━
+
+    pub async fn check_atp(
+        pool: &SqlitePool,
+        query: &AtpQuery,
+    ) -> Result<Vec<AtpItem>, AppError> {
+        let rows = InventoryRepo::find_atp(pool, &query.pipe_type, &query.grade, &query.location_id)
+            .await
+            .map_err(AppError::from)?;
+        Ok(rows
+            .into_iter()
+            .map(|(pipe_type, grade, quantity, location_id)| AtpItem {
+                pipe_type,
+                grade,
+                quantity,
+                location_id,
+            })
+            .collect())
     }
 }
