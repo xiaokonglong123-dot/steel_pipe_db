@@ -1,0 +1,23 @@
+{
+  "required": "Required",
+  "loading": "Loading...",
+  "no_data": "No Data",
+  "operate_success": "Operation successful",
+  "operate_failed": "Operation failed",
+  "total_items": "Total {{total}} items",
+  "active": "Active",
+  "inactive": "Inactive",
+  "all": "All",
+  "actions": "Actions",
+  "view": "View",
+  "detail": "Detail",
+  "notFound": "Not Found",
+  "updateSuccess": "Update Successful",
+  "createSuccess": "Create Successful",
+  "operationFailed": "Operation Failed",
+  "code": "Code",
+  "name": "Name",
+  "action": "Action",
+  "notes": "Notes",
+  "confirm_delete": "Confirm deletion?"
+}

@@ -1,0 +1,21 @@
+{
+  "app.title": "管材管理系统",
+  "app.subtitle": "API 5CT 无缝钢管与筛管管理",
+  "user.login": "登录",
+  "user.logout": "退出登录",
+  "user.username": "用户名",
+  "user.password": "密码",
+  "user.display_name": "显示名称",
+  "user.role": "角色",
+  "user.role.admin": "管理员",
+  "user.role.warehouse": "仓库",
+  "user.role.qc": "质检",
+  "user.role.sales": "销售",
+  "user.email": "邮箱",
+  "user.phone": "电话",
+  "user.is_active": "启用",
+  "user.change_password": "修改密码",
+  "user.new_password": "新密码",
+  "user.create_user": "新增用户",
+  "user.edit_user": "编辑用户"
+}

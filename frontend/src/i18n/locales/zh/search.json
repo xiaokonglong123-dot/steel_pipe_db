@@ -1,0 +1,11 @@
+{
+  "search.title": "全局搜索",
+  "search.placeholder": "输入关键词搜索管材、入库单、出库单、采购订单、销售订单...",
+  "search.tabs.pipes": "管材",
+  "search.tabs.inbound": "入库记录",
+  "search.tabs.outbound": "出库记录",
+  "search.tabs.purchases": "采购订单",
+  "search.tabs.sales": "销售订单",
+  "search.noResults": "暂无搜索结果",
+  "search.startTyping": "输入关键词开始搜索"
+}

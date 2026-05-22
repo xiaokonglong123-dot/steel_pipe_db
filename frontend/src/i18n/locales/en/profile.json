@@ -1,0 +1,16 @@
+{
+  "profile.title": "Profile Settings",
+  "profile.displayName": "Display Name",
+  "profile.email": "Email",
+  "profile.phone": "Phone",
+  "profile.currentPassword": "Current Password",
+  "profile.newPassword": "New Password",
+  "profile.confirmPassword": "Confirm New Password",
+  "profile.save": "Save",
+  "profile.success": "Profile updated successfully",
+  "profile.passwordChanged": "Password changed successfully",
+  "profile.passwordMismatch": "Passwords do not match",
+  "profile.passwordRequired": "Please fill in all password fields",
+  "profile.profileInfo": "Profile Information",
+  "profile.changePassword": "Change Password"
+}

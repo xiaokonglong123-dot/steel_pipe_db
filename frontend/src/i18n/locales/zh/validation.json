@@ -1,0 +1,23 @@
+{
+  "required": "必填",
+  "loading": "加载中...",
+  "no_data": "暂无数据",
+  "operate_success": "操作成功",
+  "operate_failed": "操作失败",
+  "total_items": "共 {{total}} 条",
+  "active": "启用",
+  "inactive": "禁用",
+  "all": "全部",
+  "actions": "操作",
+  "view": "查看",
+  "detail": "详情",
+  "notFound": "未找到",
+  "updateSuccess": "更新成功",
+  "createSuccess": "创建成功",
+  "operationFailed": "操作失败",
+  "code": "编码",
+  "name": "名称",
+  "action": "操作",
+  "notes": "备注",
+  "confirm_delete": "确认删除?"
+}

@@ -1,0 +1,11 @@
+{
+  "search.title": "Global Search",
+  "search.placeholder": "Search pipes, inbound/outbound records, purchase orders, sales orders...",
+  "search.tabs.pipes": "Pipes",
+  "search.tabs.inbound": "Inbound Records",
+  "search.tabs.outbound": "Outbound Records",
+  "search.tabs.purchases": "Purchase Orders",
+  "search.tabs.sales": "Sales Orders",
+  "search.noResults": "No results found",
+  "search.startTyping": "Type a keyword to start searching"
+}
