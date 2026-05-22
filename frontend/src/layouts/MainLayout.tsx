@@ -14,6 +14,8 @@ import {
   LogoutOutlined,
   UserOutlined,
   ContainerOutlined,
+  SearchOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/authStore';
@@ -108,6 +110,18 @@ export default function MainLayout() {
       label: t('menu.labels'),
       children: [{ key: '/labels', label: t('menu.label_print') }],
     },
+    {
+      key: 'search',
+      icon: <SearchOutlined />,
+      label: t('menu.search'),
+      children: [{ key: '/search', label: t('menu.search_global') }],
+    },
+    {
+      key: 'profile',
+      icon: <SettingOutlined />,
+      label: t('menu.profile'),
+      children: [{ key: '/profile/settings', label: t('menu.profile_settings') }],
+    },
   ];
 
   // 根据当前路径高亮对应菜单项
@@ -143,6 +157,13 @@ export default function MainLayout() {
           <Dropdown
             menu={{
               items: [
+                {
+                  key: 'profile',
+                  icon: <SettingOutlined />,
+                  label: t('menu.profile_settings'),
+                  onClick: () => navigate('/profile/settings'),
+                },
+                { type: 'divider' },
                 {
                   key: 'logout',
                   icon: <LogoutOutlined />,

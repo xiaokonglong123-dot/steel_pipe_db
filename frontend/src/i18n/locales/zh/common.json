@@ -37,6 +37,7 @@
   "common.export": "导出",
   "common.import": "导入",
   "common.required": "必填",
+  "common.select": "选择",
   "common.loading": "加载中...",
   "common.no_data": "暂无数据",
   "common.operate_success": "操作成功",

@@ -1,11 +1,12 @@
-// 根组件 — 挂载 Ant Design 主题 + TanStack Query 全局配置
-// Outlet 由 react-router 注入子路由内容（MainLayout 或 LoginPage）
+// 根组件 — 挂载 Ant Design 主题 + TanStack Query 全局配置 + 路由
+// RouterProvider 消费 routes/index.tsx 中的 createBrowserRouter
 import { ConfigProvider } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Outlet } from 'react-router-dom';
+import { RouterProvider } from 'react-router-dom';
 import { theme } from '@/styles/theme';
+import { router } from '@/routes';
 
-// TODO: staleTime 2 分钟适合大部分业务数据，实时性要求高的页面应单独设置 refetchInterval
+// staleTime 2 分钟适合大部分业务数据，实时性要求高的页面应单独设置 refetchInterval
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -21,7 +22,7 @@ export default function App() {
   return (
     <ConfigProvider theme={theme}>
       <QueryClientProvider client={queryClient}>
-        <Outlet />
+        <RouterProvider router={router} />
       </QueryClientProvider>
     </ConfigProvider>
   );

@@ -11,7 +11,9 @@ import ScreenPipeListPage from '@/features/pipes/pages/ScreenPipeListPage';
 import ScreenPipeFormPage from '@/features/pipes/pages/ScreenPipeFormPage';
 import ScreenPipeDetailPage from '@/features/pipes/pages/ScreenPipeDetailPage';
 import InboundListPage from '@/features/inventory/pages/InboundListPage';
+import InboundFormPage from '@/features/inventory/pages/InboundFormPage';
 import OutboundListPage from '@/features/inventory/pages/OutboundListPage';
+import OutboundFormPage from '@/features/inventory/pages/OutboundFormPage';
 import StockQueryPage from '@/features/inventory/pages/StockQueryPage';
 import LocationListPage from '@/features/inventory/pages/LocationListPage';
 import InventoryCheckListPage from '@/features/inventory/pages/InventoryCheckListPage';
@@ -34,6 +36,8 @@ import ContractDetailPage from '@/features/contracts/pages/ContractDetailPage';
 import ReportListPage from '@/features/reports/pages/ReportListPage';
 import DashboardPage from '@/features/reports/pages/DashboardPage';
 import LabelPrintPage from '@/features/labels/pages/LabelPrintPage';
+import ProfileSettingsPage from '@/features/profile/pages/ProfileSettingsPage';
+import SearchPage from '@/features/search/pages/SearchPage';
 
 export const router = createBrowserRouter([
   {
@@ -85,7 +89,11 @@ export const router = createBrowserRouter([
       },
       // --- 库存管理：入库/出库/库存查询/库位/盘点 ---
       { path: 'inventory/inbound', element: <InboundListPage /> },
+      { path: 'inventory/inbound/new', element: <InboundFormPage key="new" /> },
+      { path: 'inventory/inbound/:id/edit', element: <InboundFormPage key="edit" /> },
       { path: 'inventory/outbound', element: <OutboundListPage /> },
+      { path: 'inventory/outbound/new', element: <OutboundFormPage key="new" /> },
+      { path: 'inventory/outbound/:id/edit', element: <OutboundFormPage key="edit" /> },
       { path: 'inventory/stock', element: <StockQueryPage /> },
       { path: 'inventory/locations', element: <LocationListPage /> },
       { path: 'inventory/check', element: <InventoryCheckListPage /> },
@@ -120,6 +128,9 @@ export const router = createBrowserRouter([
       { path: 'reports', element: <ReportListPage /> },
       { path: 'reports/dashboard', element: <DashboardPage /> },
       { path: 'labels', element: <LabelPrintPage /> },
+      // --- 全局搜索与个人设置 ---
+      { path: 'search', element: <SearchPage /> },
+      { path: 'profile/settings', element: <ProfileSettingsPage /> },
     ],
   },
 ]);

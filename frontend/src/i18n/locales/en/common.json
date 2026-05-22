@@ -37,6 +37,7 @@
   "common.export": "Export",
   "common.import": "Import",
   "common.required": "Required",
+  "common.select": "Select",
   "common.loading": "Loading...",
   "common.no_data": "No Data",
   "common.operate_success": "Operation successful",
