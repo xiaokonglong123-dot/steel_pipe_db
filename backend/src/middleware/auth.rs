@@ -7,6 +7,7 @@ use axum::{
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::error::ApiErrorResponse;
 
@@ -46,7 +47,9 @@ pub async fn auth_middleware(
         Some(t) => t,
         None => {
             return (StatusCode::UNAUTHORIZED, Json(ApiErrorResponse {
+                success: false,
                 code: 11001,
+                request_id: format!("req_{}", Uuid::new_v4()),
                 message: "Missing authorization token".to_string(),
                 details: None,
             })).into_response()
@@ -75,7 +78,9 @@ pub async fn auth_middleware(
                 _ => (11001, "Invalid token".to_string()),
             };
             (StatusCode::UNAUTHORIZED, Json(ApiErrorResponse {
+                success: false,
                 code,
+                request_id: format!("req_{}", Uuid::new_v4()),
                 message: msg,
                 details: None,
             })).into_response()

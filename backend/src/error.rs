@@ -2,10 +2,13 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Serialize;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiErrorResponse {
+    pub success: bool,
     pub code: u32,
+    pub request_id: String,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
@@ -135,7 +138,9 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = self.status_code();
         let body = ApiErrorResponse {
+            success: false,
             code: self.error_code(),
+            request_id: format!("req_{}", Uuid::new_v4()),
             message: self.to_string(),
             details: None,
         };

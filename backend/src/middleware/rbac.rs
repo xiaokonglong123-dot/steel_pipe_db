@@ -5,6 +5,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use uuid::Uuid;
 
 use crate::error::ApiErrorResponse;
 
@@ -23,14 +24,18 @@ pub async fn require_role(
         }
         Some(_) => {
             (StatusCode::FORBIDDEN, Json(ApiErrorResponse {
+                success: false,
                 code: 11003,
+                request_id: format!("req_{}", Uuid::new_v4()),
                 message: "Insufficient permissions".to_string(),
                 details: None,
             })).into_response()
         }
         None => {
             (StatusCode::UNAUTHORIZED, Json(ApiErrorResponse {
+                success: false,
                 code: 11001,
+                request_id: format!("req_{}", Uuid::new_v4()),
                 message: "Authentication required".to_string(),
                 details: None,
             })).into_response()
