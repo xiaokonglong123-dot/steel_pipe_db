@@ -1,3 +1,4 @@
+pub mod atp_handler;
 pub mod auth_handler;
 pub mod contract_handler;
 pub mod customer_handler;

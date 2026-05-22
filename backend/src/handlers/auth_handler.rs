@@ -10,8 +10,8 @@ use sqlx::SqlitePool;
 use validator::Validate;
 
 use crate::dto::auth_dto::{
-    ChangePasswordRequest, CreateUserRequest, LoginRequest, LoginResponse, RefreshTokenRequest,
-    TokenResponse, UpdateUserRequest,
+    ChangePasswordRequest, ChangeUserRoleRequest, CreateUserRequest, LoginRequest, LoginResponse,
+    RefreshTokenRequest, TokenResponse, UpdateUserRequest,
 };
 use crate::dto::common::PaginationParams;
 use crate::error::AppError;
@@ -209,4 +209,52 @@ pub async fn change_password_handler(
     Ok(ApiResponse::ok("Password changed".into()))
 }
 
+pub async fn change_role_handler(
+    Extension(pool): Extension<SqlitePool>,
+    AuthenticatedUser(auth): AuthenticatedUser,
+    Path(id): Path<i64>,
+    Json(req): Json<ChangeUserRoleRequest>,
+) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    let user = AuthService::change_role(&pool, id, &req.role).await?;
 
+    let _ = OperationLogRepo::create(
+        &pool,
+        &CreateOperationLog {
+            user_id: Some(auth.user_id),
+            username: Some(auth.username),
+            action: "change_role".into(),
+            entity_type: "user".into(),
+            entity_id: Some(user.id),
+            details: Some(format!("Changed role to: {}", req.role)),
+            ip_address: None,
+        },
+    )
+    .await;
+
+    Ok(ApiResponse::ok(user))
+}
+
+pub async fn delete_user_handler(
+    Extension(pool): Extension<SqlitePool>,
+    AuthenticatedUser(auth): AuthenticatedUser,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    AuthService::delete_user(&pool, id).await?;
+
+    let _ = OperationLogRepo::create(
+        &pool,
+        &CreateOperationLog {
+            user_id: Some(auth.user_id),
+            username: Some(auth.username),
+            action: "delete_user".into(),
+            entity_type: "user".into(),
+            entity_id: Some(id),
+            details: Some(format!("Deleted user id: {}", id)),
+            ip_address: None,
+        },
+    )
+    .await;
+
+    Ok(ApiResponse::ok("User deleted".into()))
+}

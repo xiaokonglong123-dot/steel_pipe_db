@@ -12,8 +12,9 @@ use validator::Validate;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::sales_dto::{
-    CreateSalesOrderRequest, SalesOrderFilterParams, SalesOrderStatusTransitionRequest,
-    UpdateSalesItemRequest, UpdateSalesOrderRequest,
+    ApproveOrderRequest, CreateSalesOrderRequest, LinkOutboundRequest, RejectOrderRequest,
+    SalesOrderFilterParams, SalesOrderStatusTransitionRequest, UpdateSalesItemRequest,
+    UpdateSalesOrderRequest,
 };
 use crate::error::AppError;
 use crate::models::sales_order::SalesOrder;
@@ -112,4 +113,31 @@ pub async fn delete_sales_item_handler(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     PurchaseSalesService::delete_sales_item(&pool, order_id, item_id).await?;
     Ok(ApiResponse::ok("Sales order item deleted".into()))
+}
+
+pub async fn approve_sales_order_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path(id): Path<i64>,
+    Json(dto): Json<ApproveOrderRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    PurchaseSalesService::approve_sales_order(&pool, id, &dto).await?;
+    Ok(ApiResponse::ok("Sales order approved".into()))
+}
+
+pub async fn reject_sales_order_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path(id): Path<i64>,
+    Json(dto): Json<RejectOrderRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    PurchaseSalesService::reject_sales_order(&pool, id, &dto).await?;
+    Ok(ApiResponse::ok("Sales order rejected".into()))
+}
+
+pub async fn link_outbound_to_order_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path(order_id): Path<i64>,
+    Json(dto): Json<LinkOutboundRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    PurchaseSalesService::link_outbound_to_order(&pool, order_id, &dto).await?;
+    Ok(ApiResponse::ok("Outbound record linked to sales order".into()))
 }

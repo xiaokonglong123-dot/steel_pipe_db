@@ -1,6 +1,7 @@
 use axum::{middleware, Router};
 use sqlx::SqlitePool;
 
+use crate::handlers::atp_handler;
 use crate::handlers::auth_handler;
 use crate::handlers::contract_handler;
 use crate::handlers::customer_handler;
@@ -47,7 +48,12 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         )
         .route(
             "/api/v1/users/{id}",
-            axum::routing::put(auth_handler::update_user_handler),
+            axum::routing::put(auth_handler::update_user_handler)
+                .delete(auth_handler::delete_user_handler),
+        )
+        .route(
+            "/api/v1/users/{id}/role",
+            axum::routing::put(auth_handler::change_role_handler),
         )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
@@ -168,6 +174,39 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
             "/api/v1/trace/order/{order_type}/{order_id}",
             axum::routing::get(inventory_handler::trace_order_handler),
         )
+        // ━━ New 8 endpoints ━━
+        .route(
+            "/api/v1/inventory/statistics",
+            axum::routing::get(inventory_handler::inventory_statistics_handler),
+        )
+        .route(
+            "/api/v1/inbound-records/{id}/items",
+            axum::routing::get(inventory_handler::list_inbound_items_handler),
+        )
+        .route(
+            "/api/v1/outbound-records/{id}/items",
+            axum::routing::get(inventory_handler::list_outbound_items_handler),
+        )
+        .route(
+            "/api/v1/inventory/checks/{id}/complete",
+            axum::routing::post(inventory_handler::complete_check_handler),
+        )
+        .route(
+            "/api/v1/inventory/locations/{id}/assign",
+            axum::routing::post(inventory_handler::assign_location_handler),
+        )
+        .route(
+            "/api/v1/inventory/pipes/{pipe_type}/{pipe_id}/transfer-location",
+            axum::routing::post(inventory_handler::transfer_location_handler),
+        )
+        .route(
+            "/api/v1/inbound-records/batch",
+            axum::routing::post(inventory_handler::batch_create_inbound_handler),
+        )
+        .route(
+            "/api/v1/atp",
+            axum::routing::get(atp_handler::check_atp_handler),
+        )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
         ));
@@ -262,6 +301,18 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
             axum::routing::put(purchase_handler::update_purchase_item_handler)
                 .delete(purchase_handler::delete_purchase_item_handler),
         )
+        .route(
+            "/api/v1/purchase-orders/{id}/approve",
+            axum::routing::post(purchase_handler::approve_purchase_order_handler),
+        )
+        .route(
+            "/api/v1/purchase-orders/{id}/reject",
+            axum::routing::post(purchase_handler::reject_purchase_order_handler),
+        )
+        .route(
+            "/api/v1/purchase-orders/{id}/link-inbound",
+            axum::routing::post(purchase_handler::link_inbound_to_order_handler),
+        )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
         ));
@@ -286,6 +337,18 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
             "/api/v1/sales-orders/{order_id}/items/{item_id}",
             axum::routing::put(sales_handler::update_sales_item_handler)
                 .delete(sales_handler::delete_sales_item_handler),
+        )
+        .route(
+            "/api/v1/sales-orders/{id}/approve",
+            axum::routing::post(sales_handler::approve_sales_order_handler),
+        )
+        .route(
+            "/api/v1/sales-orders/{id}/reject",
+            axum::routing::post(sales_handler::reject_sales_order_handler),
+        )
+        .route(
+            "/api/v1/sales-orders/{id}/link-outbound",
+            axum::routing::post(sales_handler::link_outbound_to_order_handler),
         )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,

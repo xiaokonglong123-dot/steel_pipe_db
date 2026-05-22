@@ -10,16 +10,17 @@ use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{
-    ApproveRequest, CreateCheckRequest, CreateInboundRecordRequest, CreateLocationRequest,
-    CreateOutboundRecordRequest, InboundFilter, InventoryFilter, OutboundFilter, RejectRequest,
-    SubmitCheckItemRequest, UpdateLocationRequest,
+    ApproveRequest, AssignLocationRequest, BatchCreateInboundRequest, CreateCheckRequest,
+    CreateInboundRecordRequest, CreateLocationRequest, CreateOutboundRecordRequest, InboundFilter,
+    InventoryFilter, OutboundFilter, RejectRequest, SubmitCheckItemRequest,
+    TransferLocationRequest, UpdateLocationRequest,
 };
 use validator::Validate;
 
 use crate::error::AppError;
 use crate::models::inventory::{
-    InboundRecord, InventoryCheckItem, InventoryCheckRecord, InventoryLog, Location,
-    OutboundRecord,
+    InboundItem, InboundRecord, InventoryCheckItem, InventoryCheckRecord, InventoryLog, Location,
+    OutboundItem, OutboundRecord,
 };
 use crate::response::{ApiResponse, PaginatedResponse};
 use crate::services::inventory_service::InventoryService;
@@ -368,4 +369,76 @@ pub async fn trace_order_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let result = TraceService::trace_by_order(&pool, &order_type, order_id).await?;
     Ok(Json(serde_json::json!({ "success": true, "data": result })))
+}
+
+// ━━━ Statistics ━━━
+
+pub async fn inventory_statistics_handler(
+    Extension(pool): Extension<SqlitePool>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let stats = InventoryService::inventory_statistics(&pool).await?;
+    Ok(ApiResponse::ok(stats))
+}
+
+// ━━━ Inbound / Outbound Items ━━━
+
+pub async fn list_inbound_items_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<Vec<InboundItem>>>, AppError> {
+    let items = InventoryService::list_inbound_items(&pool, id).await?;
+    Ok(ApiResponse::ok(items))
+}
+
+pub async fn list_outbound_items_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<Vec<OutboundItem>>>, AppError> {
+    let items = InventoryService::list_outbound_items(&pool, id).await?;
+    Ok(ApiResponse::ok(items))
+}
+
+// ━━━ Complete Check ━━━
+
+pub async fn complete_check_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let result = InventoryService::complete_check(&pool, id).await?;
+    Ok(ApiResponse::ok(result))
+}
+
+// ━━━ Assign Location ━━━
+
+pub async fn assign_location_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path(location_id): Path<i64>,
+    Json(req): Json<AssignLocationRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    let result = InventoryService::assign_location(&pool, location_id, &req).await?;
+    Ok(ApiResponse::ok(result))
+}
+
+// ━━━ Transfer Location ━━━
+
+pub async fn transfer_location_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path((pipe_type, pipe_id)): Path<(String, i64)>,
+    Json(req): Json<TransferLocationRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    let result = InventoryService::transfer_location(&pool, &pipe_type, pipe_id, &req).await?;
+    Ok(ApiResponse::ok(result))
+}
+
+// ━━━ Batch Inbound ━━━
+
+pub async fn batch_create_inbound_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Json(req): Json<BatchCreateInboundRequest>,
+) -> Result<Json<ApiResponse<Vec<InboundRecord>>>, AppError> {
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    let records = InventoryService::batch_create_inbound(&pool, &req).await?;
+    Ok(ApiResponse::ok(records))
 }
