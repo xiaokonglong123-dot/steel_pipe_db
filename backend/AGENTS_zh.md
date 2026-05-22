@@ -110,7 +110,7 @@ src/
 │   ├── report_service.rs
 │   ├── data_io_service.rs
 │   └── trace_service.rs
-├── handlers/            ← 12 个文件，薄处理器（提取参数 → 调用服务 → 响应）
+├── handlers/            ← 13 个文件，薄处理器（提取参数 → 调用服务 → 响应）
 │   ├── mod.rs
 │   ├── auth_handler.rs
 │   ├── pipe_handler.rs
@@ -123,7 +123,8 @@ src/
 │   ├── supplier_handler.rs
 │   ├── report_handler.rs
 │   ├── label_handler.rs
-│   └── data_io_handler.rs
+│   ├── data_io_handler.rs
+│   └── atp_handler.rs
 └── middleware/          ← 2 个文件，认证 + RBAC
     ├── mod.rs
     ├── auth.rs          ← JWT 验证、Claims、AuthContext、auth_middleware
@@ -133,7 +134,7 @@ src/
 ## 关键文件
 - `Cargo.toml` — 包清单
 - `.env.example` — 环境变量模板（DATABASE_URL、JWT_SECRET 等）
-- `migrations/` — SQLx 时间戳前缀迁移文件
+- `migrations/` — SQLx 时间戳前缀迁移文件（11 个文件，含 `011_add_rejection_reason.sql`）
 
 ## Rust 约定
 - 函数/变量使用 `snake_case`，类型使用 `PascalCase`
@@ -144,7 +145,8 @@ src/
 - **所有处理器返回 `Result<Json<...>, AppError>`**（不是 `impl IntoResponse`）
 - 服务是**带静态方法的单元结构体**（无构造函数 DI）：`PipeService::list(...)`
 - 服务返回 `Result<T, AppError>`
-- 仓库接受 `&SqlitePool` 并返回 `Result<Vec<T>, sqlx::Error>`
+  - 仓库接受 `&SqlitePool` 并返回 `Result<Vec<T>, sqlx::Error>`
+- `inventory_service.rs` 已大幅扩展，新增了 ATP 计算、拒收原因处理及其他库存管理逻辑。
 
 ## DI 模式：Extension 层，而非 State<Arc<AppState>>
 ```rust
@@ -164,9 +166,9 @@ pub async fn list_pipes(
 
 ## 响应格式
 ```json
-// 成功：    { "success": true, "data": T }
-// 分页：    { "success": true, "data": { "items": [], "total": N, "page": P, "page_size": S, "total_pages": N } }
-// 错误：    { "code": 11001, "message": "..." , "details": null }
+// 成功：    { "success": true, "request_id": "req_...", "data": T }
+// 分页：    { "success": true, "request_id": "req_...", "meta": { "total": N, "page": P, "page_size": S, "total_pages": N }, "data": { "items": [], ... } }
+// 错误：    { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
 
 ## 错误码（数字，按领域前缀）

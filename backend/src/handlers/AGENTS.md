@@ -1,4 +1,4 @@
-# `handlers/` — HTTP Layer (12 files, ~50 handlers)
+# `handlers/` — HTTP Layer (13 files, ~55 handlers)
 
 ## Pattern
 Every handler follows: **extract → call service → respond**
@@ -20,9 +20,11 @@ Key points:
 - Handlers use `ApiResponse::ok()` or `PaginatedResponse::ok()` static constructors
 
 ## Response Types (from `crate::response`)
-- `ApiResponse<T>` — Standard success: `{ "success": true, "data": T }`
-- `PaginatedResponse<T>` — Paginated: `{ "success": true, "data": { "items": [], "total": N, "page": P, "page_size": S, "total_pages": N } }`
-- `AppError` — Error (via `IntoResponse`): `{ "code": 11001, "message": "...", "details": null }`
+- `ApiResponse<T>` — Standard success: `{ "success": true, "request_id": "req_...", "data": T }`
+- `PaginatedResponse<T>` — Paginated: `{ "success": true, "request_id": "req_...", "meta": { total, page, page_size, total_pages }, "data": { "items": [], ... } }`
+- `AppError` — Error (via `IntoResponse`): `{ "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }`
+- Handlers can use `ApiResponse::created(data)` for 201 Created responses
+- Handlers can use `no_content()` for 204 No Content responses (e.g., deletions)
 
 ## Handler File List
 
@@ -39,6 +41,7 @@ Key points:
 | `supplier_handler.rs` | Suppliers | CRUD, list |
 | `report_handler.rs` | Reports | dashboard, daily/monthly/statistical reports |
 | `label_handler.rs` | Labels | barcode/spec label generation |
+| `atp_handler.rs` | ATP | ATP check (stock availability) before sales order approval |
 | `data_io_handler.rs` | Data IO | Excel/CSV import and export |
 
 ## Common Extractor Patterns

@@ -35,7 +35,7 @@ This directory wires all backend source modules together. It is NOT the place to
 ## `router.rs` — Route Mounting
 ```rust
 pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
-    // ~50 endpoints, grouped by entity via .merge()
+    // ~70 endpoints, grouped by entity via .merge()
     Router::new()
         .route("/api/v1/auth/login", post(handlers::auth_handler::login))
         .route("/api/v1/pipes", get(handlers::pipe_handler::list))
@@ -56,7 +56,7 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
 - `AppError` enum has **~20 variants** grouped by domain prefix (100xx–50001)
 - Each variant maps to a **numeric `error_code()`** (e.g., `Validation` → 10002) and an **HTTP `status_code()`**
 - Uses `thiserror::Error` for `Display` derive
-- Implements `IntoResponse` to serialize into `ApiErrorResponse { code, message, details }`
+- Implements `IntoResponse` to serialize into `ApiErrorResponse { success: false, code, request_id, message, details }`
 - `From<sqlx::Error>` impl converts DB errors to `AppError::Database`
 - All service errors convert via `?` operator with `From` impls
 
@@ -75,6 +75,12 @@ Domain breakdown:
 | 180xx   | Data IO (ImportError, ExportError) |
 | 50001   | Database |
 
+## `response.rs` — Response Types
+- `ApiResponse<T>` has `success: bool`, `request_id: String`, `data: T`
+- `PaginatedResponse<T>` has `success`, `request_id`, `meta: Meta`, `data: PaginatedData<T>`
+- `ApiResponse::created(data)` returns 201
+- `no_content()` function returns 204
+
 ## `middleware/auth.rs` — JWT Middleware
 - **`Claims`** struct — JWT payload (`sub` user_id, `username`, `role`, `exp`, `iat`)
 - **`AuthContext`** extractor — extracted from validated JWT token (contains `user_id`, `username`, `role`)
@@ -82,6 +88,6 @@ Domain breakdown:
   - Reads JWT secret from request extensions
   - Decodes token with HS256 via `jsonwebtoken`
   - On success: inserts `AuthContext` into request extensions
-  - On failure: returns 401 with numeric error code (11001/11002)
+  - On failure: returns 401 with `ApiErrorResponse` containing `success: false`, `request_id`, and numeric error code (11001/11002)
 - Middleware wraps individual sub-routers (not global)
 - Token generation logic lives in **handler/service layer** (not in middleware)

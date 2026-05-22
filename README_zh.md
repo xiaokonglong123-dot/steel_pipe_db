@@ -178,10 +178,10 @@ steel_pipe_db/
 │   ├── src/
 │   │   ├── main.rs           # 入口点，服务启动
 │   │   ├── lib.rs             # 应用状态，共享类型
-│   │   ├── router.rs          # 路由定义（约 50 个端点）
+│   │   ├── router.rs          # 路由定义（约 70 个端点）
 │   │   ├── config.rs          # 环境配置
-│   │   ├── error.rs           # AppError 与 ApiResponse 映射
-│   │   ├── response.rs        # ApiResponse<T> / PaginatedResponse<T>
+│   │   ├── error.rs           # AppError 与 ApiResponse 映射；ApiErrorResponse 含 success + request_id
+│   │   ├── response.rs        # ApiResponse<T> / PaginatedResponse<T> / Meta 结构体，含 request_id（uuid v4）
 │   │   ├── domain/            # 领域枚举与常量（钢管规格等）
 │   │   ├── dto/               # 请求/响应 DTO
 │   │   ├── models/            # 数据库模型（19 张表）
@@ -237,8 +237,9 @@ steel_pipe_db/
 
 所有响应格式：
 ```json
-{ "success": true, "data": { ... } }
+{ "success": true, "request_id": "req_...", "data": { ... } }
 ```
+分页响应包含 `meta: { total, page, page_size, total_pages }`。错误响应包含 `success: false` 和 `request_id`。
 
 ---
 
@@ -257,4 +258,4 @@ steel_pipe_db/
 
 ## 📄 许可证
 
-[MIT](./LICENSE)
+[GNU General Public License v2](./LICENSE)

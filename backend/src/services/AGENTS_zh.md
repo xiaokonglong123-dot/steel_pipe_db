@@ -25,8 +25,8 @@ impl PipeService {
 |------|------|-------------|
 | `auth_service.rs` | 认证 | 登录、令牌刷新、密码验证 |
 | `pipe_service.rs` | 钢管 | 钢管 CRUD、钢级/热处理校验 |
-| `inventory_service.rs` | 库存 | 入库、出库、ATP 库存、库位管理 |
-| `purchase_sales_service.rs` | 采购 + 销售 | 采购单/销售单生命周期、审批流程 |
+| `inventory_service.rs` | 库存 | 入库、出库、ATP 计算、库位管理、库存校验 |
+| `purchase_sales_service.rs` | 采购 + 销售 | 采购单/销售单生命周期、审批流程、驳回原因、ATP 校验 |
 | `quality_service.rs` | 质量 | 质检证书创建、力学/无损检测录入 |
 | `contract_service.rs` | 合同 | 合同 CRUD、里程碑跟踪 |
 | `customer_service.rs` | 客户 | 客户 CRUD、编码唯一性 |
@@ -48,9 +48,11 @@ impl PipeService {
 ## `inventory_service.rs` 中的关键模式（最大、最复杂）
 - 入库/出库及数量校验
 - 库存移动追踪
+- ATP（可承诺量）计算
 - 带动态过滤器的查询构建
 - 批量操作
 - 报表计算
+- 销售订单履约库存校验
 
 ## 添加新服务
 1. 创建 `new_service.rs`

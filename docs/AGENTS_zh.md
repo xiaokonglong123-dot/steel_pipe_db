@@ -4,16 +4,21 @@
 
 ```
 docs/
-├── AGENTS_zh.md         ← 本文档：索引与架构决策
-├── backend/            ← 后端设计文档
-│   ├── project-plan.md
-│   ├── prd.md
-│   └── requirements.md
-├── frontend/           ← 前端设计文档
-│   └── tech-stack.md
-└── tasks/              ← 任务分解 / 迭代规划
-    ├── backend-tasks.md
-    └── frontend-tasks.md
+├── AGENTS.md              ← 英文版
+├── AGENTS_zh.md           ← 本文档
+├── 需求文档.md             ← 产品需求文档（中文）
+├── 详细设计文档.md          ← 架构与设计（中文）
+├── 前端设计文档.md           ← 前端设计（中文）
+├── requirements.en.md     ← 产品需求文档（英文）
+├── detailed-design.en.md  ← 详细设计（英文）
+├── frontend-design.en.md  ← 前端设计（英文）
+├── tasks/                 ← 任务分解
+│   ├── progress.md
+│   ├── phase1/            ← 认证、钢管、库存
+│   ├── phase2/            ← 业务功能
+│   └── phase3/            ← 企业功能
+└── superpowers/           ← 架构规范
+    └── specs/
 ```
 
 ## 架构决策
@@ -52,12 +57,13 @@ docs/
 | 认证 | JWT + RBAC | Session 方案 | 无状态、移动端友好 |
 
 ## 关键设计文档
-- `backend/prd.md` — 产品需求、用户故事
-- `backend/requirements.md` — 功能需求、验收标准
-- `backend/project-plan.md` — 实施计划、里程碑
-- `frontend/tech-stack.md` — 前端技术决策与理据
-- `tasks/backend-tasks.md` — 后端任务分解、状态追踪
-- `tasks/frontend-tasks.md` — 前端任务分解、状态追踪
+- `需求文档.md` — 产品需求文档（中文）
+- `详细设计文档.md` — 架构与数据库设计（中文）
+- `前端设计文档.md` — 前端组件树与路由（中文）
+- `requirements.en.md` — 产品需求文档（英文）
+- `detailed-design.en.md` — 架构与设计（英文）
+- `frontend-design.en.md` — 前端设计（英文）
+- `tasks/progress.md` — 各阶段主任务追踪
 
 ## 流程说明
 - 文档是活文档——实施过程中如发现设计缺口，应及时更新

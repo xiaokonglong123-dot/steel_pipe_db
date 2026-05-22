@@ -4,16 +4,21 @@
 
 ```
 docs/
-├── AGENTS.md           ← This file: index & architecture decisions
-├── backend/            ← Backend design docs
-│   ├── project-plan.md
-│   ├── prd.md
-│   └── requirements.md
-├── frontend/           ← Frontend design docs
-│   └── tech-stack.md
-└── tasks/              ← Task breakdown / sprint planning
-    ├── backend-tasks.md
-    └── frontend-tasks.md
+├── AGENTS.md              ← This file
+├── AGENTS_zh.md           ← Chinese version
+├── 需求文档.md             ← PRD (Chinese)
+├── 详细设计文档.md          ← Architecture & design (Chinese)
+├── 前端设计文档.md           ← Frontend design (Chinese)
+├── requirements.en.md     ← PRD (English)
+├── detailed-design.en.md  ← Detailed design (English)
+├── frontend-design.en.md  ← Frontend design (English)
+├── tasks/                 ← Task breakdown
+│   ├── progress.md
+│   ├── phase1/            ← Auth, pipes, inventory
+│   ├── phase2/            ← Business features
+│   └── phase3/            ← Enterprise features
+└── superpowers/           ← Architecture specs
+    └── specs/
 ```
 
 ## Architecture Decisions
@@ -52,12 +57,13 @@ docs/
 | Auth | JWT + RBAC | Session-based | Stateless, mobile-friendly |
 
 ## Key Design Docs
-- `backend/prd.md` — Product requirements, user stories
-- `backend/requirements.md` — Functional requirements, acceptance criteria
-- `backend/project-plan.md` — Implementation plan, milestones
-- `frontend/tech-stack.md` — Frontend technology decisions and rationale
-- `tasks/backend-tasks.md` — Backend task breakdown, status tracking
-- `tasks/frontend-tasks.md` — Frontend task breakdown, status tracking
+- `需求文档.md` — Product requirements (Chinese)
+- `详细设计文档.md` — Architecture & database design (Chinese)
+- `前端设计文档.md` — Frontend component tree & routing (Chinese)
+- `requirements.en.md` — Product requirements (English)
+- `detailed-design.en.md` — Architecture & design (English)
+- `frontend-design.en.md` — Frontend design (English)
+- `tasks/progress.md` — Master task tracking across phases
 
 ## Process Notes
 - Docs are living documents — update when implementation reveals design gaps

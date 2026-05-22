@@ -1,6 +1,6 @@
 # `features/` — 特性模块模式
 
-所有 11 个特性模块遵循相同的模式。本文档作为理解或添加任何特性的模板。
+所有 13 个特性模块遵循相同的模式。本文档作为理解或添加任何特性的模板。
 
 ## 特性模块结构
 
@@ -35,6 +35,8 @@ features/{特性}/
 | `contracts/` | `/contracts/*` | 销售/采购合同、付款里程碑 |
 | `reports/` | `/reports`, `/reports/dashboard` | 仪表板、日报/月报/统计报表 |
 | `labels/` | `/labels` | 条码和规格标签生成 |
+| `search/` | `/search` | 钢管、库存、订单全局搜索 |
+| `profile/` | `/profile/settings` | 用户个人资料设置、修改密码 |
 
 ## 模板：`api/index.ts`（TanStack Query Hooks）
 ```ts

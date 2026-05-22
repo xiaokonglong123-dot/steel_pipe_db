@@ -39,17 +39,17 @@ steel-pipe-db/
 │   └── src/
 │       ├── main.rs         ← Entry: tracing, DB pool, migrate, start server
 │       ├── lib.rs          ← Module declarations re-exported
-│       ├── router.rs       ← ~50 endpoints, all routes assembled here
-│       ├── handlers/       ← 14 files, 1 per entity (thin: extract → call service → respond)
+│       ├── router.rs       ← ~70 endpoints, all routes assembled here
+│       ├── handlers/       ← 13 files, 1 per entity (thin: extract → call service → respond)
 │       ├── services/       ← 12 files, business logic (unit structs, static methods)
 │       ├── repositories/   ← 13 files, pure SQL, soft-delete aware
 │       ├── models/         ← 11 files, DB row structs (sqlx::FromRow)
 │       ├── dto/            ← 14 files, request/response types
 │       ├── domain/         ← 4 files, enums/domain types
-│       ├── middleware/     ← auth.rs + rbac.rs
+│       ├── middleware/     ← auth.rs + rbac.rs (updated with success/request_id in error responses)
 │       ├── config.rs       ← Env-based config (DATABASE_URL, JWT_SECRET, etc.)
-│       ├── error.rs        ← AppError enum, numeric error codes per domain
-│       └── response.rs     ← ApiResponse<T>, PaginatedResponse<T>
+│       ├── error.rs        ← AppError enum, numeric error codes; ApiErrorResponse with success+request_id
+│       └── response.rs     ← ApiResponse<T>, PaginatedResponse<T>, Meta struct, request_id (uuid v4), ::created(), no_content()
 ├── frontend/         ← React 19 + Vite + Ant Design + TanStack Query
 │   └── src/
 │       ├── main.tsx        ← React DOM entry
@@ -58,11 +58,11 @@ steel-pipe-db/
 │       ├── routes/         ← createBrowserRouter + ProtectedRoute
 │       ├── features/       ← 11 feature modules (auth, contracts, customers, ...)
 │       ├── layouts/        ← MainLayout (sidebar + header + Outlet)
-│       ├── stores/         ← Zustand authStore
+│       ├── stores/         ← Zustand authStore, appStore (global state), unitStore (unit conversion)
 │       ├── lib/            ← validateResponse.ts, runtime zod response validation
 │       ├── styles/         ← Ant Design theme config
 │       ├── zod-schemas/    ← 7 Zod schema files for response validation
-│       ├── shared/         ← hooks (useDebounce), empty components/ and utils/
+│       ├── shared/         ← hooks (useDebounce), components/ (9 shared components), utils/
 │       └── i18n/           ← react-i18next (zh-CN primary)
 └── docs/             ← PRD, design docs, task breakdown
 ```
@@ -104,10 +104,11 @@ No `AppState` struct exists. Pool and JWT secret injected as raw types.
 
 ### Response Shapes
 ```rust
-// Success:    { "success": true, "data": T }
-// Paginated:  { "success": true, "data": { "items": [], "total": N, "page": P, "page_size": S, "total_pages": N } }
-// Error:      { "code": 11001, "message": "...", "details": null }
+// Success:    { "success": true, "request_id": "req_...", "data": T }
+// Paginated:  { "success": true, "request_id": "req_...", "data": { "items": [], ... }, "meta": { "total": N, "page": P, "page_size": S, "total_pages": N } }
+// Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
+`request_id` is auto-generated via uuid v4. `Meta` struct with total/page/page_size/total_pages. `ApiErrorResponse` includes `success: bool` (always false) and `request_id` filled automatically by `AppError::into_response()`.
 
 ### Handler Pattern
 ```rust
@@ -153,8 +154,8 @@ Also static methods taking `pool: &SqlitePool`. Soft-delete: `WHERE deleted_at I
 | 180xx | Data IO (ImportError, ExportError) |
 | 50001 | Database |
 
-### Handler Files (12)
-`auth_handler`, `pipe_handler`, `inventory_handler`, `purchase_handler`, `sales_handler`, `quality_handler`, `contract_handler`, `customer_handler`, `supplier_handler`, `report_handler`, `label_handler`, `data_io_handler`
+### Handler Files (13)
+`auth_handler`, `pipe_handler`, `inventory_handler`, `purchase_handler`, `sales_handler`, `quality_handler`, `contract_handler`, `customer_handler`, `supplier_handler`, `report_handler`, `label_handler`, `data_io_handler`, `atp_handler`
 
 ### Service Files (12)
 `auth_service`, `pipe_service`, `inventory_service`, `purchase_sales_service`, `quality_service`, `contract_service`, `customer_service`, `supplier_service`, `label_service`, `report_service`, `data_io_service`, `trace_service`
@@ -162,8 +163,8 @@ Also static methods taking `pool: &SqlitePool`. Soft-delete: `WHERE deleted_at I
 ### Repository Files (13)
 `pipe_repo`, `inventory_repo`, `purchase_order_repo`, `sales_order_repo`, `quality_repo`, `contract_repo`, `customer_repo`, `supplier_repo`, `label_repo`, `report_repo`, `data_io_repo`, `user_repo`, `operation_log_repo`
 
-### DB Migrations (10 files in `backend/migrations/`)
-`001_create_users` → `002_create_seamless_pipes` → `003_create_screen_pipes` → `004_create_locations` → `005_create_inventory` → `006_create_orders` → `007_create_quality` → `008_create_logs` → `009_create_ref_data` → `010_seed_api_5ct_data`
+### DB Migrations (11 files in `backend/migrations/`)
+`001_create_users` → `002_create_seamless_pipes` → `003_create_screen_pipes` → `004_create_locations` → `005_create_inventory` → `006_create_orders` → `007_create_quality` → `008_create_logs` → `009_create_ref_data` → `010_seed_api_5ct_data` → `011_add_rejection_reason`
 
 ## Frontend Patterns
 
@@ -177,7 +178,9 @@ Also static methods taking `pool: &SqlitePool`. Soft-delete: `WHERE deleted_at I
   /pipes/seamless/:id/edit ← SeamlessPipeFormPage
   /pipes/screen/*          ← same pattern
   /inventory/inbound       ← InboundListPage
+  /inventory/inbound/new   ← InboundFormPage
   /inventory/outbound      ← OutboundListPage
+  /inventory/outbound/new  ← OutboundFormPage
   /inventory/stock         ← StockQueryPage
   /inventory/locations     ← LocationListPage
   /inventory/check         ← InventoryCheckListPage
@@ -190,6 +193,8 @@ Also static methods taking `pool: &SqlitePool`. Soft-delete: `WHERE deleted_at I
   /reports                 ← ReportListPage
   /reports/dashboard       ← DashboardPage
   /labels                  ← LabelPrintPage
+  /profile/settings        ← ProfileSettingsPage
+  /search                  ← SearchPage
 ```
 
 ### Feature Modules (11)
@@ -224,6 +229,8 @@ Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, D
 - **Path params**: Axum 0.8 uses `{id}` syntax (not `:id` as in Axum 0.7)
 - **Bare `Extension<String>`** for JWT secret — no newtype wrapper
 - **No State extractor** anywhere — all DI via Extension
-- **`shared/components/` and `shared/utils/` are empty** — don't expect shared utilities there
+- **`shared/components/` is populated** — 9 shared components: ConfirmModal, EmptyState, ErrorBoundary, FileUploader, LoadingSpin, PageContainer, PageHeader, SearchBar, StatusTag
 - **`docs/AGENTS.md`** exists as index for design docs in Chinese
 - **Seed data**: `backend/seed_data.py` and `backend/seed_data_enhanced.py` available
+- **New routes**: InboundFormPage, OutboundFormPage, ProfileSettingsPage, SearchPage added
+- **New i18n namespaces**: inventory, pipes, profile, purchase, quality, sales, search, system, validation (zh + en each)

@@ -4,35 +4,33 @@
 
 ### `main.tsx`
 ```tsx
+import './i18n'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter } from 'react-router-dom'
+import { RouterProvider } from 'react-router-dom'
+import { router } from './routes'
 
-// Init i18n
-// Create QueryClient
-// Render: <QueryClientProvider> → <BrowserRouter> → <App />
+// Create QueryClient with defaults
+// Render: <QueryClientProvider> → <RouterProvider router={router} />
 ```
-- Initializes i18next (detect language, load resources)
+- Imports i18n (side-effect import) before rendering
 - Creates QueryClient with default staleTime
-- Renders React app into `#root`
+- Renders React app into `#root` with RouterProvider
 
 ### `App.tsx`
 ```tsx
 function App() {
   return (
     <ConfigProvider theme={theme}>
-      <AppLayout>
-        <AuthGuard>
-          <AppRoutes />
-        </AuthGuard>
-      </AppLayout>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
     </ConfigProvider>
   )
 }
 ```
 - Wraps app in Ant Design `ConfigProvider` with custom theme
-- `AppLayout` — sidebar + header + content area
-- `AuthGuard` — checks JWT token, redirects to login if expired
-- `AppRoutes` — renders the matched route from `routes/`
+- `QueryClientProvider` provides TanStack Query context
+- `RouterProvider` renders routes from `createBrowserRouter`
 
 ## Shared Infrastructure
 
@@ -46,13 +44,6 @@ const api = axios.create({ baseURL: '/api/v1' })
 - Attaches `Authorization: Bearer <token>` header
 - Automatically redirects on 401
 
-### `components/` — Shared Components
-- `AppLayout.tsx` — Sidebar + Header + Content shell
-- `Sidebar.tsx` — Navigation menu
-- `PrivateRoute.tsx` — Auth guard wrapper
-- `Loading.tsx` — Loading spinner
-- `ErrorBoundary.tsx` — Error fallback
-
 ### `lib/` — Runtime Validation
 - `validateResponse.ts` — wraps Zod schemas for API response validation
 - Uses `zod.response()` pattern: validates API responses at runtime
@@ -62,17 +53,34 @@ const api = axios.create({ baseURL: '/api/v1' })
 - `useAuth.ts` — Auth context (login/logout/current user)
 - `usePagination.ts` — Pagination state management
 
+### `stores/` — Zustand State Management
+- `authStore.ts` — Authentication state (token, user, login/logout)
+- `appStore.ts` — Global app state (sidebar collapsed, theme, etc.)
+- `unitStore.ts` — Unit conversion state (metric/imperial toggle)
+
 ### `i18n/` — Translations
 ```
 i18n/
 ├── index.ts        ← i18next init
-├── zh/             ← Chinese translations
+├── zh/             ← Chinese translations (15 namespaces)
 │   ├── common.json
 │   ├── pipes.json
 │   ├── inventory.json
-│   └── ...
+│   ├── purchase.json
+│   ├── sales.json
+│   ├── quality.json
+│   ├── contracts.json
+│   ├── suppliers.json
+│   ├── customers.json
+│   ├── reports.json
+│   ├── labels.json
+│   ├── profile.json
+│   ├── search.json
+│   ├── system.json
+│   └── validation.json
 └── en/             ← English translations (same structure)
 ```
+- 15 namespaces across zh/ and en/
 - Namespace per feature: `'common'`, `'pipes'`, `'inventory'`, etc.
 - Use `useTranslation('feature_name')` in components
 
@@ -86,7 +94,9 @@ i18n/
   /pipes/seamless/:id/edit ← SeamlessPipeFormPage
   /pipes/screen/*          ← same pattern
   /inventory/inbound       ← InboundListPage
+  /inventory/inbound/new   ← InboundFormPage
   /inventory/outbound      ← OutboundListPage
+  /inventory/outbound/new  ← OutboundFormPage
   /inventory/stock         ← StockQueryPage
   /inventory/locations     ← LocationListPage
   /inventory/check         ← InventoryCheckListPage
@@ -99,11 +109,27 @@ i18n/
   /reports                 ← ReportListPage
   /reports/dashboard       ← DashboardPage
   /labels                  ← LabelPrintPage
+  /profile/settings        ← ProfileSettingsPage
+  /search                  ← SearchPage
 ```
 - Uses `createBrowserRouter` (not flat route array)
 - `ProtectedRoute` wrapper checks auth before rendering `MainLayout`
 - `Outlet` pattern for nested layouts
 - No lazy loading currently (all pages eagerly loaded)
+
+### `shared/` — Shared Components & Utilities
+- `components/` — 9 reusable UI components:
+  - `ConfirmModal` — Confirmation dialog with customizable content
+  - `EmptyState` — Empty state placeholder with icon and message
+  - `ErrorBoundary` — React error boundary with fallback UI
+  - `FileUploader` — File upload with drag-and-drop
+  - `LoadingSpin` — Centered loading spinner
+  - `PageContainer` — Standard page layout wrapper
+  - `PageHeader` — Page title with breadcrumb and actions
+  - `SearchBar` — Search input with debounce
+  - `StatusTag` — Colored status tag badge
+- `hooks/` — Shared hooks:
+  - `useDebounce` — Debounce value changes
 
 ### `theme/` — Ant Design Theme
 ```ts
@@ -143,3 +169,4 @@ zod-schemas/
 2. Add route in `src/routes/index.tsx`
 3. Add i18n namespace in `src/i18n/zh/{feature}.json` and `src/i18n/en/{feature}.json`
 4. Import api instance from `src/api/` for data fetching
+5. Create Zustand store in `src/stores/` if the feature needs client-side state

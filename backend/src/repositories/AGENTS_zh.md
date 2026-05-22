@@ -2,6 +2,8 @@
 
 ## repositories/（13 个文件，SQL 层）
 
+> **注意**：`user_repo.rs` 最近有更新（+32 行），但仓库文件数仍为 13 个。
+
 ### 模式
 ```rust
 pub struct SeamlessPipeRepo;  // 无字段，无构造函数
@@ -75,6 +77,8 @@ impl SeamlessPipeRepo {
 - **事务**：Repository 方法可在事务中接受 `&mut Transaction<'_, Sqlite>`
 
 ## models/（10 个文件——数据库行结构体）
+
+> **注意**：`inventory.rs` 模型最近有更新（新增字段），但模型文件数仍为 10 个。
 
 ### 模式
 ```rust

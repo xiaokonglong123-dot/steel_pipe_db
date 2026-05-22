@@ -29,13 +29,15 @@ frontend/
 ├── public/              ← 静态资源
 ├── src/
 │   ├── main.tsx         ← React 入口、i18n 初始化、QueryClient 设置
-│   ├── App.tsx          ← 路由设置、布局、认证守卫
+│   ├── App.tsx          ← RouterProvider 设置、ConfigProvider + QueryClient
 │   ├── api/             ← 共享：axios 实例、拦截器
-│   ├── components/      ← 共享：布局、通用组件
-│   ├── hooks/           ← 共享：自定义 React hooks
 │   ├── lib/             ← validateResponse.ts，运行时 zod 响应验证
-│   ├── i18n/            ← 翻译资源 (zh, en)
+│   ├── stores/          ← Zustand 状态管理 (authStore, appStore, unitStore)
+│   ├── i18n/            ← 翻译资源 (zh, en) — 15 个命名空间
 │   ├── routes/          ← 路由定义 (react-router)
+│   ├── shared/          ← 共享：组件、hooks
+│   │   ├── components/  ← ConfirmModal, EmptyState, ErrorBoundary, FileUploader, LoadingSpin, PageContainer, PageHeader, SearchBar, StatusTag
+│   │   └── hooks/       ← useDebounce
 │   ├── theme/           ← Ant Design 主题配置
 │   ├── zod-schemas/     ← 7 个 Zod 模式文件，用于 API 响应验证
 │   ├── utils/           ← 工具函数
@@ -50,7 +52,9 @@ frontend/
 │       ├── quality/
 │       ├── contracts/
 │       ├── reports/
-│       └── labels/
+│       ├── labels/
+│       ├── search/
+│       └── profile/
 ├── index.html
 ├── vite.config.ts       ← React 插件、代理、manualChunks 供应商分包
 ├── tsconfig.json        ← 严格 TypeScript 配置
@@ -72,7 +76,7 @@ frontend/
 ## 约定
 - 基于特性组织的目录结构，位于 `src/features/`
 - 所有 API 调用通过 `@tanstack/react-query` hooks（组件中不直接 fetch）
-- i18n 命名空间按特性划分：`pipes:`、`inventory:` 等
+- i18n 命名空间按特性划分（zh/ 和 en/ 共 15 个命名空间）：common、pipes、inventory、purchase、sales、quality、contracts、suppliers、customers、reports、labels、profile、search、system、validation
 - Ant Design 组件 + 主题配置位于 `src/theme/`
 - Vite 开发代理：`/api/*` → `http://localhost:3000`
 - TypeScript 严格模式已启用

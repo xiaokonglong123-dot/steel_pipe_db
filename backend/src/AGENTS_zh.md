@@ -35,7 +35,7 @@
 ## `router.rs` — 路由挂载
 ```rust
 pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
-    // ~50 个端点，按实体通过 .merge() 分组
+    // ~70 个端点，按实体通过 .merge() 分组
     Router::new()
         .route("/api/v1/auth/login", post(handlers::auth_handler::login))
         .route("/api/v1/pipes", get(handlers::pipe_handler::list))
@@ -56,7 +56,7 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
 - `AppError` 枚举包含 **约 20 个变体**，按领域前缀分组（100xx–50001）
 - 每个变体对应一个 **数字 `error_code()`**（例如 `Validation` → 10002）和一个 **HTTP `status_code()`**
 - 使用 `thiserror::Error` 派生 `Display`
-- 实现 `IntoResponse`，序列化为 `ApiErrorResponse { code, message, details }`
+- 实现 `IntoResponse`，序列化为 `ApiErrorResponse { success: false, code, request_id, message, details }`
 - `From<sqlx::Error>` 实现将 DB 错误转换为 `AppError::Database`
 - 所有服务层错误通过 `?` 运算符配合 `From` 实现自动转换
 
@@ -75,6 +75,12 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
 | 180xx  | 数据导入导出（ImportError, ExportError） |
 | 50001  | 数据库 |
 
+## `response.rs` — 响应类型
+- `ApiResponse<T>` 包含 `success: bool`、`request_id: String`、`data: T`
+- `PaginatedResponse<T>` 包含 `success`、`request_id`、`meta: Meta`、`data: PaginatedData<T>`
+- `ApiResponse::created(data)` 返回 201
+- `no_content()` 函数返回 204
+
 ## `middleware/auth.rs` — JWT 中间件
 - **`Claims`** 结构体 — JWT 载荷（`sub` 用户ID, `username`, `role`, `exp`, `iat`）
 - **`AuthContext`** 提取器 — 从验证后的 JWT 中提取（包含 `user_id`, `username`, `role`）
@@ -82,6 +88,6 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
   - 从请求扩展中读取 JWT 密钥
   - 使用 HS256 通过 `jsonwebtoken` 解码令牌
   - 成功时：将 `AuthContext` 插入请求扩展
-  - 失败时：返回 401 及数字错误码（11001/11002）
+  - 失败时：返回包含 `success: false`、`request_id` 及数字错误码（11001/11002）的 `ApiErrorResponse`
 - 中间件包裹单个子路由器，而非全局
 - 令牌生成逻辑位于 **handler/service 层**（不在中间件中）

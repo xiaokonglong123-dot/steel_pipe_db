@@ -1,4 +1,4 @@
-# `handlers/` — HTTP 层（12 个文件，约 50 个处理器）
+# `handlers/` — HTTP 层（13 个文件，约 55 个处理器）
 
 ## 模式
 每个处理器遵循：**提取 → 调用服务 → 响应**
@@ -20,9 +20,11 @@ pub async fn list_seamless_pipes_handler(
 - 处理器使用 `ApiResponse::ok()` 或 `PaginatedResponse::ok()` 静态构造函数
 
 ## 响应类型（来自 `crate::response`）
-- `ApiResponse<T>` — 标准成功响应：`{ "success": true, "data": T }`
-- `PaginatedResponse<T>` — 分页响应：`{ "success": true, "data": { "items": [], "total": N, "page": P, "page_size": S, "total_pages": N } }`
-- `AppError` — 错误响应（通过 `IntoResponse`）：`{ "code": 11001, "message": "...", "details": null }`
+- `ApiResponse<T>` — 标准成功响应：`{ "success": true, "request_id": "req_...", "data": T }`
+- `PaginatedResponse<T>` — 分页响应：`{ "success": true, "request_id": "req_...", "meta": { total, page, page_size, total_pages }, "data": { "items": [], ... } }`
+- `AppError` — 错误响应（通过 `IntoResponse`）：`{ "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }`
+- 处理器可使用 `ApiResponse::created(data)` 返回 201 Created 响应
+- 处理器可使用 `no_content()` 返回 204 No Content 响应（如删除操作）
 
 ## 处理器文件列表
 
@@ -39,6 +41,7 @@ pub async fn list_seamless_pipes_handler(
 | `supplier_handler.rs` | 供应商 | CRUD、列表 |
 | `report_handler.rs` | 报表 | 仪表盘、日报/月报/统计报表 |
 | `label_handler.rs` | 标签 | 条码/规格标签生成 |
+| `atp_handler.rs` | 可用库存 | 销售订单审批前的 ATP 库存可用量检查 |
 | `data_io_handler.rs` | 数据导入导出 | Excel/CSV 导入和导出 |
 
 ## 通用提取器模式

@@ -110,7 +110,7 @@ src/
 │   ├── report_service.rs
 │   ├── data_io_service.rs
 │   └── trace_service.rs
-├── handlers/            ← 12 files, thin handlers (extract → call service → respond)
+├── handlers/            ← 13 files, thin handlers (extract → call service → respond)
 │   ├── mod.rs
 │   ├── auth_handler.rs
 │   ├── pipe_handler.rs
@@ -123,7 +123,8 @@ src/
 │   ├── supplier_handler.rs
 │   ├── report_handler.rs
 │   ├── label_handler.rs
-│   └── data_io_handler.rs
+│   ├── data_io_handler.rs
+│   └── atp_handler.rs
 └── middleware/          ← 2 files, auth + RBAC
     ├── mod.rs
     ├── auth.rs          ← JWT verification, Claims, AuthContext, auth_middleware
@@ -133,7 +134,7 @@ src/
 ## Key Files
 - `Cargo.toml` — Package manifest
 - `.env.example` — Environment template (DATABASE_URL, JWT_SECRET, etc.)
-- `migrations/` — SQLx timestamp-prefixed migration files
+- `migrations/` — SQLx timestamp-prefixed migration files (11 files, including `011_add_rejection_reason.sql`)
 
 ## Rust Conventions
 - `snake_case` for functions/variables, `PascalCase` for types
@@ -144,7 +145,8 @@ src/
 - All handlers return `Result<Json<...>, AppError>` (NOT `impl IntoResponse`)
 - Services are **unit structs with static methods** (no constructor DI): `PipeService::list(...)`
 - Services return `Result<T, AppError>`
-- Repositories accept `&SqlitePool` and return `Result<Vec<T>, sqlx::Error>`
+  - Repositories accept `&SqlitePool` and return `Result<Vec<T>, sqlx::Error>`
+- `inventory_service.rs` has been significantly expanded with ATP calculation, rejection reason handling, and other inventory management logic.
 
 ## DI Pattern: Extension layers, NOT State<Arc<AppState>>
 ```rust
@@ -164,9 +166,9 @@ No `AppState` struct exists. Pool and JWT secret injected as raw types.
 
 ## Response Shapes
 ```json
-// Success:    { "success": true, "data": T }
-// Paginated:  { "success": true, "data": { "items": [], "total": N, "page": P, "page_size": S, "total_pages": N } }
-// Error:      { "code": 11001, "message": "...", "details": null }
+// Success:    { "success": true, "request_id": "req_...", "data": T }
+// Paginated:  { "success": true, "request_id": "req_...", "meta": { "total": N, "page": P, "page_size": S, "total_pages": N }, "data": { "items": [], ... } }
+// Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
 
 ## Error Codes (numeric, domain-prefixed)

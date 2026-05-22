@@ -2,6 +2,8 @@
 
 ## repositories/ (13 files, SQL layer)
 
+> **Note**: `user_repo.rs` was recently updated (+32 lines) but repo file count remains 13.
+
 ### Pattern
 ```rust
 pub struct SeamlessPipeRepo;  // No fields, no constructor
@@ -75,6 +77,8 @@ Key facts:
 - **Transactions**: Repository methods can accept `&mut Transaction<'_, Sqlite>` when part of a transaction
 
 ## models/ (10 files — DB row structs)
+
+> **Note**: `inventory.rs` model was recently updated (field added) but model file count remains 10.
 
 ### Pattern
 ```rust

@@ -25,8 +25,8 @@ impl PipeService {
 |------|--------|-------------|
 | `auth_service.rs` | Auth | login, token refresh, password verify |
 | `pipe_service.rs` | Pipes | pipe CRUD, steel grade/heat treatment validation |
-| `inventory_service.rs` | Inventory | inbound, outbound, stock ATP, location management |
-| `purchase_sales_service.rs` | Purchase + Sales | PO/SO lifecycle, approval workflow |
+| `inventory_service.rs` | Inventory | inbound, outbound, ATP calculations, location management, inventory checks |
+| `purchase_sales_service.rs` | Purchase + Sales | PO/SO lifecycle, approval workflow, rejection reason, ATP validation |
 | `quality_service.rs` | Quality | cert creation, mechanical/NDT test entry |
 | `contract_service.rs` | Contracts | contract CRUD, milestone tracking |
 | `customer_service.rs` | Customers | customer CRUD, code uniqueness |
@@ -48,9 +48,11 @@ impl PipeService {
 ## Key patterns in `inventory_service.rs` (largest, most complex)
 - Stock-in / stock-out with quantity validation
 - Inventory movement tracking
+- ATP (Available-to-Promise) calculations
 - Query building with dynamic filters
 - Batch operations
 - Report calculations
+- Inventory checks for sales order fulfillment
 
 ## Adding a New Service
 1. Create `new_service.rs`

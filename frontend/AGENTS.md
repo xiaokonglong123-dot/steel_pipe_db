@@ -29,13 +29,15 @@ frontend/
 ├── public/              ← Static assets
 ├── src/
 │   ├── main.tsx         ← React entry, i18n init, QueryClient setup
-│   ├── App.tsx          ← Router setup, layout, auth guard
+│   ├── App.tsx          ← RouterProvider setup, ConfigProvider + QueryClient
 │   ├── api/             ← Shared: axios instance, interceptors
-│   ├── components/      ← Shared: layout, common components
-│   ├── hooks/           ← Shared: custom React hooks
 │   ├── lib/             ← validateResponse.ts, runtime zod response validation
-│   ├── i18n/            ← Translation resources (zh, en)
+│   ├── stores/          ← Zustand stores (authStore, appStore, unitStore)
+│   ├── i18n/            ← Translation resources (zh, en) — 15 namespaces
 │   ├── routes/          ← Route definitions (react-router)
+│   ├── shared/          ← Shared: components, hooks
+│   │   ├── components/  ← ConfirmModal, EmptyState, ErrorBoundary, FileUploader, LoadingSpin, PageContainer, PageHeader, SearchBar, StatusTag
+│   │   └── hooks/       ← useDebounce
 │   ├── theme/           ← Ant Design theme config
 │   ├── zod-schemas/     ← 7 Zod schema files for API response validation
 │   ├── utils/           ← Utility functions
@@ -50,7 +52,9 @@ frontend/
 │       ├── quality/
 │       ├── contracts/
 │       ├── reports/
-│       └── labels/
+│       ├── labels/
+│       ├── search/
+│       └── profile/
 ├── index.html
 ├── vite.config.ts       ← React plugin, proxy, manualChunks vendor splitting
 ├── tsconfig.json        ← Strict TypeScript config
@@ -72,7 +76,7 @@ frontend/
 ## Conventions
 - Feature-based organization under `src/features/`
 - All API calls go through `@tanstack/react-query` hooks (no direct fetch in components)
-- i18n namespace per feature: `pipes:`, `inventory:`, etc.
+- i18n namespace per feature (15 total across zh/ and en/): common, pipes, inventory, purchase, sales, quality, contracts, suppliers, customers, reports, labels, profile, search, system, validation
 - Ant Design components + theme config in `src/theme/`
 - Vite dev proxy: `/api/*` → `http://localhost:3000`
 - TypeScript strict mode enabled

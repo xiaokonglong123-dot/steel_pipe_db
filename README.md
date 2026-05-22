@@ -178,10 +178,10 @@ steel_pipe_db/
 │   ├── src/
 │   │   ├── main.rs           # Entry point, server startup
 │   │   ├── lib.rs             # App state, shared types
-│   │   ├── router.rs          # Route definitions (~50 endpoints)
+│   │   ├── router.rs          # Route definitions (~70 endpoints)
 │   │   ├── config.rs          # Environment config
-│   │   ├── error.rs           # AppError with ApiResponse mapping
-│   │   ├── response.rs        # ApiResponse<T> / PaginatedResponse<T>
+│   │   ├── error.rs           # AppError with ApiResponse mapping; ApiErrorResponse includes success + request_id
+│   │   ├── response.rs        # ApiResponse<T> / PaginatedResponse<T> / Meta struct with request_id (uuid v4)
 │   │   ├── domain/            # Domain enums & constants (pipe specs, etc.)
 │   │   ├── dto/               # Request/Response DTOs
 │   │   ├── models/            # DB models (19 tables)
@@ -237,8 +237,9 @@ All endpoints under `/api/v1/`:
 
 All responses wrapped in:
 ```json
-{ "success": true, "data": { ... } }
+{ "success": true, "request_id": "req_...", "data": { ... } }
 ```
+Paginated responses include `meta: { total, page, page_size, total_pages }`. Error responses include `success: false` and `request_id`.
 
 ---
 

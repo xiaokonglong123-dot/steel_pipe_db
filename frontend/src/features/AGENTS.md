@@ -1,6 +1,6 @@
 # `features/` — Feature Module Pattern
 
-All 11 feature modules follow an identical pattern. This document serves as the template for understanding or adding any feature.
+All 13 feature modules follow an identical pattern. This document serves as the template for understanding or adding any feature.
 
 ## Feature Module Structure
 
@@ -35,6 +35,8 @@ features/{feature}/
 | `contracts/` | `/contracts/*` | Sales/procurement contracts, payment milestones |
 | `reports/` | `/reports`, `/reports/dashboard` | Dashboard, daily/monthly/statistical reports |
 | `labels/` | `/labels` | Barcode and specification label generation |
+| `search/` | `/search` | Global search across pipes, inventory, orders |
+| `profile/` | `/profile/settings` | User profile settings, password change |
 
 ## Template: `api/index.ts` (TanStack Query Hooks)
 ```ts
