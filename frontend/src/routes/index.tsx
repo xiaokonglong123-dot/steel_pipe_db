@@ -38,6 +38,7 @@ import DashboardPage from '@/features/reports/pages/DashboardPage';
 import LabelPrintPage from '@/features/labels/pages/LabelPrintPage';
 import ProfileSettingsPage from '@/features/profile/pages/ProfileSettingsPage';
 import SearchPage from '@/features/search/pages/SearchPage';
+import UserManagementPage from '@/features/auth/pages/UserManagementPage';
 
 export const router = createBrowserRouter([
   {
@@ -128,6 +129,8 @@ export const router = createBrowserRouter([
       { path: 'reports', element: <ReportListPage /> },
       { path: 'reports/dashboard', element: <DashboardPage /> },
       { path: 'labels', element: <LabelPrintPage /> },
+      // --- 系统管理 ---
+      { path: 'system/users', element: <UserManagementPage /> },
       // --- 全局搜索与个人设置 ---
       { path: 'search', element: <SearchPage /> },
       { path: 'profile/settings', element: <ProfileSettingsPage /> },

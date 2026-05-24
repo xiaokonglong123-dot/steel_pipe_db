@@ -65,9 +65,8 @@ export default function UserManagementPage() {
     editForm.setFieldsValue({
       display_name: user.display_name,
       role: user.role,
-      email: user.email,
-      phone: user.phone,
-      is_active: user.is_active,
+      email: user.email ?? undefined,
+      phone: user.phone ?? undefined,
     });
     setModalMode('edit');
   };

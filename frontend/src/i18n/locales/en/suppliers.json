@@ -1,0 +1,16 @@
+{
+  "code": "Supplier Code",
+  "name": "Supplier Name",
+  "contact_person": "Contact Person",
+  "phone": "Phone",
+  "email": "Email",
+  "address": "Address",
+  "tax_id": "Tax ID",
+  "bank_info": "Bank Info",
+  "grade_supply": "Grade Supply",
+  "select_grades": "Select Grades",
+  "status": "Status",
+  "status_active": "Active",
+  "status_inactive": "Inactive",
+  "notes": "Notes"
+}

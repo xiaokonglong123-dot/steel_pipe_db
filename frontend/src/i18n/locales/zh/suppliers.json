@@ -1,0 +1,16 @@
+{
+  "code": "供应商编码",
+  "name": "供应商名称",
+  "contact_person": "联系人",
+  "phone": "联系电话",
+  "email": "邮箱",
+  "address": "地址",
+  "tax_id": "税号",
+  "bank_info": "银行信息",
+  "grade_supply": "供应钢级",
+  "select_grades": "选择钢级",
+  "status": "状态",
+  "status_active": "启用",
+  "status_inactive": "停用",
+  "notes": "备注"
+}

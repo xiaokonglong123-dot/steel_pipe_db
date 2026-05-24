@@ -1,0 +1,12 @@
+{
+  "full_code": "库位编码",
+  "zone_code": "区域代码",
+  "shelf_code": "货架代码",
+  "level_code": "层代码",
+  "capacity": "容量",
+  "used_count": "已用数量",
+  "is_active": "启用",
+  "description": "描述",
+  "create": "新增库位",
+  "edit": "编辑库位"
+}

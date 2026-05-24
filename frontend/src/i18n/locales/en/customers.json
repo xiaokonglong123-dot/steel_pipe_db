@@ -1,0 +1,15 @@
+{
+  "code": "Customer Code",
+  "name": "Customer Name",
+  "contact_person": "Contact Person",
+  "phone": "Phone",
+  "email": "Email",
+  "address": "Address",
+  "tax_id": "Tax ID",
+  "bank_info": "Bank Info",
+  "industry": "Industry",
+  "status": "Status",
+  "status_active": "Active",
+  "status_inactive": "Inactive",
+  "notes": "Notes"
+}

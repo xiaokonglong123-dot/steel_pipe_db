@@ -1,0 +1,12 @@
+{
+  "full_code": "Location Code",
+  "zone_code": "Zone Code",
+  "shelf_code": "Shelf Code",
+  "level_code": "Level Code",
+  "capacity": "Capacity",
+  "used_count": "Used Count",
+  "is_active": "Active",
+  "description": "Description",
+  "create": "Create Location",
+  "edit": "Edit Location"
+}

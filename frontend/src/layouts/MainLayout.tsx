@@ -19,6 +19,7 @@ import {
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/authStore';
+import { useAppStore } from '@/stores/appStore';
 import type { MenuProps } from 'antd';
 
 const { Header, Sider, Content } = Layout;
@@ -30,6 +31,8 @@ export default function MainLayout() {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar);
 
   const handleLogout = () => {
     logout();
@@ -117,8 +120,16 @@ export default function MainLayout() {
       children: [{ key: '/search', label: t('menu.search_global') }],
     },
     {
-      key: 'profile',
+      key: 'system',
       icon: <SettingOutlined />,
+      label: t('menu.system'),
+      children: [
+        { key: '/system/users', label: t('menu.user_management') },
+      ],
+    },
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
       label: t('menu.profile'),
       children: [{ key: '/profile/settings', label: t('menu.profile_settings') }],
     },
@@ -129,7 +140,7 @@ export default function MainLayout() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="dark" collapsible>
+      <Sider theme="dark" collapsible collapsed={sidebarCollapsed} onCollapse={toggleSidebar}>
         <div style={{ padding: 16, textAlign: 'center' }}>
           <Text strong style={{ color: '#fff', fontSize: 16 }}>
             {t('app.title')}

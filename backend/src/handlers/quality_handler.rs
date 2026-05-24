@@ -19,10 +19,11 @@ use crate::models::quality::{Api5ctGradeRef, PipeAttachment, QualityCert};
 use crate::response::{ApiResponse, PaginatedResponse};
 use crate::services::quality_service::QualityService;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct AttachmentListQuery {
-    pub pipe_type: String,
-    pub pipe_id: i64,
+    pub pipe_type: Option<String>,
+    pub pipe_id: Option<i64>,
+    pub cert_id: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -127,6 +128,19 @@ pub async fn list_attachments_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<AttachmentListQuery>,
 ) -> Result<Json<ApiResponse<Vec<PipeAttachment>>>, AppError> {
-    let attachments = QualityService::list_attachments(&pool, &query.pipe_type, query.pipe_id).await?;
+    let (pipe_type, pipe_id) = if let Some(cert_id) = query.cert_id {
+        let cert = QualityService::get_cert(&pool, cert_id).await?;
+        (cert.pipe_type, cert.pipe_id)
+    } else if let Some(ref pipe_type) = query.pipe_type {
+        let pipe_id = query
+            .pipe_id
+            .ok_or_else(|| AppError::Validation("pipe_id is required when pipe_type is provided".into()))?;
+        (pipe_type.clone(), pipe_id)
+    } else {
+        return Err(AppError::Validation(
+            "Either cert_id or pipe_type+pipe_id must be provided".into(),
+        ));
+    };
+    let attachments = QualityService::list_attachments(&pool, &pipe_type, pipe_id).await?;
     Ok(ApiResponse::ok(attachments))
 }

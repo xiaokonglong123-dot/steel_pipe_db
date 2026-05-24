@@ -21,9 +21,8 @@ export interface UserInfo {
   username: string;
   display_name: string;
   role: string;
-  email?: string;
-  phone?: string;
-  is_active: boolean;
+  email?: string | null;
+  phone?: string | null;
 }
 
 export interface SeamlessPipe {

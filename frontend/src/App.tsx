@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router-dom';
 import { theme } from '@/styles/theme';
 import { router } from '@/routes';
+import ErrorBoundary from '@/shared/components/ErrorBoundary';
 
 // staleTime 2 分钟适合大部分业务数据，实时性要求高的页面应单独设置 refetchInterval
 const queryClient = new QueryClient({
@@ -20,10 +21,12 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
-    <ConfigProvider theme={theme}>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
-    </ConfigProvider>
+    <ErrorBoundary>
+      <ConfigProvider theme={theme}>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </ConfigProvider>
+    </ErrorBoundary>
   );
 }

@@ -57,6 +57,7 @@ env/
 
 # ── Development artifacts ──
 .omo/
+.opencode/
 memory.md
 
 # ── Build artifacts ──

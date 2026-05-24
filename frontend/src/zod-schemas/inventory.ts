@@ -121,3 +121,41 @@ export const pipeSearchResultSchema = z.object({
   status: z.string(),
   location_id: z.number().optional(),
 }).strict();
+
+// Stock query result (dynamically built from seamless/screen pipes with location join)
+export const stockItemSchema = z.object({
+  id: z.number(),
+  pipe_type: z.string(),
+  pipe_number: z.string().optional(),
+  grade: z.string().optional(),
+  od: z.number().optional(),
+  wt: z.number().optional(),
+  status: z.string(),
+  location_id: z.number().optional(),
+  full_code: z.string().optional(),
+  total_count: z.number().optional(),
+}).passthrough();
+
+// Trace pipe lifecycle result
+export const tracePipeSchema = z.object({
+  pipe_type: z.string(),
+  pipe_number: z.string(),
+  grade: z.string(),
+  od: z.number(),
+  wt: z.number(),
+  current_status: z.string(),
+  current_location_id: z.number().nullable(),
+}).passthrough();
+
+// Trace heat number result item
+export const traceHeatItemSchema = z.object({
+  pipe_type: z.string(),
+  pipe_number: z.string(),
+  grade: z.string().optional(),
+  od: z.number().optional(),
+  wt: z.number().optional(),
+  status: z.string().optional(),
+}).passthrough();
+
+// Trace order result
+export const traceOrderSchema = z.record(z.unknown());

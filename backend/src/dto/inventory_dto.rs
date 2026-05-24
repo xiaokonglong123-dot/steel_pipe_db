@@ -117,8 +117,6 @@ pub struct SubmitCheckItemRequest {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ApproveRequest {
-    #[allow(dead_code)]
-    pub reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

@@ -31,11 +31,11 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <Result
           status="error"
-          title="页面出现错误"
+          title="An error occurred"
           subTitle={this.state.error?.message}
           extra={
             <Button type="primary" onClick={this.handleReset}>
-              重试
+              Retry
             </Button>
           }
         />

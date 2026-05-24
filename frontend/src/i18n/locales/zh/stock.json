@@ -1,0 +1,10 @@
+{
+  "pipe_type": "管材类型",
+  "grade": "钢级",
+  "location": "库位",
+  "quantity": "数量",
+  "status": "状态",
+  "status.in_stock": "在库",
+  "status.outbound": "已出库",
+  "status.scrapped": "已报废"
+}

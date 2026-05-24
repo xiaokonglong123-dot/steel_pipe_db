@@ -1,0 +1,21 @@
+{
+  "dashboard": "Dashboard",
+  "reports": "Reports",
+  "inventory_summary": "Inventory Summary",
+  "inventory_by_type": "Inventory by Type",
+  "order_report": "Order Report",
+  "orders_by_status": "Orders by Status",
+  "quality_report": "Quality Report",
+  "recent_quality_certs": "Recent Quality Certs",
+  "recent_activities": "Recent Activities",
+  "pending_orders": "Pending Orders",
+  "total_inventory": "Total Inventory",
+  "total_pipes": "Total Pipes",
+  "pipe_type": "Pipe Type",
+  "quantity": "Quantity",
+  "status": "Status",
+  "count": "Count",
+  "action": "Action",
+  "detail": "Detail",
+  "time": "Time"
+}

@@ -8,6 +8,8 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSalesOrder, useCreateSalesOrder, useUpdateSalesOrder } from '../hooks/useSales';
+import { usePipeSearch } from '@/features/inventory/hooks/useInventory';
+import type { PipeSearchResult } from '@/features/inventory/hooks/useInventory';
 import type { CreateSalesOrderData, CreateSalesOrderItemData, SalesOrderItem } from '../types';
 
 export default function SalesOrderFormPage() {
@@ -199,28 +201,18 @@ export default function SalesOrderFormPage() {
 }
 
 function PipeSelector({ onSelect }: { onSelect: (pipe: { id: number; pipe_number: string; pipe_type?: string; grade?: string; od?: number; wt?: number; length?: number }) => void }) {
-  const [pipes, setPipes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const tp = useTranslation();
-
-  useEffect(() => {
-    setLoading(true);
-    import('@/api/client').then(({ default: apiClient }) =>
-      apiClient.get('/inventory?page_size=50').then((res) => {
-        setPipes(res.data.data?.items ?? []);
-      }).finally(() => setLoading(false)),
-    );
-  }, []);
+  const { data: pipes, isLoading } = usePipeSearch({ status: 'in_stock' });
+  const { t: tp } = useTranslation();
 
   const columns = [
-    { title: tp.t('pipes.pipe_number'), dataIndex: 'pipe_number', key: 'pipe_number' },
-    { title: tp.t('pipes.grade'), dataIndex: 'grade', key: 'grade' },
+    { title: tp('pipes.pipe_number'), dataIndex: 'pipe_number', key: 'pipe_number' },
+    { title: tp('pipes.grade'), dataIndex: 'grade', key: 'grade' },
     {
-      title: tp.t('common.actions'),
+      title: tp('common.actions'),
       key: 'actions',
-      render: (_: unknown, record: { id: number; pipe_number: string; pipe_type?: string; grade?: string; od?: number; wt?: number; length?: number }) => (
+      render: (_: unknown, record: PipeSearchResult) => (
         <Button type="primary" size="small" onClick={() => onSelect(record)}>
-          {tp.t('sales.select')}
+          {tp('sales.select')}
         </Button>
       ),
     },
@@ -229,9 +221,9 @@ function PipeSelector({ onSelect }: { onSelect: (pipe: { id: number; pipe_number
   return (
     <Table
       columns={columns}
-      dataSource={pipes}
+      dataSource={pipes ?? []}
       rowKey="id"
-      loading={loading}
+      loading={isLoading}
       pagination={{ pageSize: 10 }}
     />
   );

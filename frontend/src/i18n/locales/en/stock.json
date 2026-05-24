@@ -1,0 +1,10 @@
+{
+  "pipe_type": "Pipe Type",
+  "grade": "Grade",
+  "location": "Location",
+  "quantity": "Quantity",
+  "status": "Status",
+  "status.in_stock": "In Stock",
+  "status.outbound": "Outbound",
+  "status.scrapped": "Scrapped"
+}

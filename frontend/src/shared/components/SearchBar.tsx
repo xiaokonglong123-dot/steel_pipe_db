@@ -1,5 +1,6 @@
 import { Input, Button, Space } from 'antd';
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 
 interface SearchBarProps {
   value: string;
@@ -8,11 +9,12 @@ interface SearchBarProps {
   placeholder?: string;
 }
 
-export default function SearchBar({ value, onChange, onReset, placeholder = '搜索...' }: SearchBarProps) {
+export default function SearchBar({ value, onChange, onReset, placeholder }: SearchBarProps) {
+  const { t } = useTranslation('common');
   return (
     <Space>
       <Input
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('common.search')}
         prefix={<SearchOutlined />}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -20,7 +22,7 @@ export default function SearchBar({ value, onChange, onReset, placeholder = '搜
         allowClear
         onPressEnter={() => {}}
       />
-      <Button icon={<ReloadOutlined />} onClick={onReset}>重置</Button>
+      <Button icon={<ReloadOutlined />} onClick={onReset}>{t('common.reset')}</Button>
     </Space>
   );
 }

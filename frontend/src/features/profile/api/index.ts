@@ -1,7 +1,7 @@
-// 个人设置 API — 更新资料 + 修改密码
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
+import type { ApiResponse } from '@/types';
 import type { UserInfo } from '@/types';
 
 export interface UpdateProfileData {
@@ -39,6 +39,6 @@ export function useUpdateProfile() {
 export function useChangePassword() {
   return useMutation({
     mutationFn: (data: ChangePasswordData) =>
-      apiClient.put('/auth/me/change-password', data),
+      apiClient.put<ApiResponse<string>>('/auth/me/change-password', data),
   });
 }

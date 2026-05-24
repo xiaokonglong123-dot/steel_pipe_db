@@ -4,17 +4,6 @@ import { SearchOutlined, StockOutlined, PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useStockQuery } from '../hooks/useInventory';
 
-interface StockPipe {
-  id: number;
-  pipe_number: string;
-  grade: string;
-  od: number;
-  wt: number;
-  pipe_type: string;
-  status: string;
-  location_id?: number;
-}
-
 interface StockSelectorProps {
   open: boolean;
   onCancel: () => void;
@@ -45,7 +34,7 @@ export default function StockSelector({ open, onCancel, onSelect }: StockSelecto
 
   const inStockItems = useMemo(() => {
     if (!stockData?.items) return [];
-    return (stockData.items as unknown as StockPipe[]).filter(
+    return stockData.items.filter(
       (item) => item.status === 'in_stock',
     );
   }, [stockData]);

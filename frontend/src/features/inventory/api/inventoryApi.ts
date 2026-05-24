@@ -14,6 +14,10 @@ import {
   inventoryCheckItemSchema,
   checkDetailSchema,
   pipeSearchResultSchema,
+  stockItemSchema,
+  tracePipeSchema,
+  traceHeatItemSchema,
+  traceOrderSchema,
 } from '@/zod-schemas/inventory';
 
 // ━━━ Types ━━━
@@ -228,14 +232,12 @@ export const inboundApi = {
 
   approve: async (id: number, reason?: string) => {
     const res = await apiClient.post<ApiResponse<string>>(`/inbound-records/${id}/approve`, { reason });
-    validateResponse(z.string(), res.data.data);
-    return res.data;
+    return validateResponse(z.string(), res.data.data);
   },
 
   reject: async (id: number, reason: string) => {
     const res = await apiClient.post<ApiResponse<string>>(`/inbound-records/${id}/reject`, { reason });
-    validateResponse(z.string(), res.data.data);
-    return res.data;
+    return validateResponse(z.string(), res.data.data);
   },
 
   delete: async (id: number) => {
@@ -263,14 +265,12 @@ export const outboundApi = {
 
   approve: async (id: number, reason?: string) => {
     const res = await apiClient.post<ApiResponse<string>>(`/outbound-records/${id}/approve`, { reason });
-    validateResponse(z.string(), res.data.data);
-    return res.data;
+    return validateResponse(z.string(), res.data.data);
   },
 
   reject: async (id: number, reason: string) => {
     const res = await apiClient.post<ApiResponse<string>>(`/outbound-records/${id}/reject`, { reason });
-    validateResponse(z.string(), res.data.data);
-    return res.data;
+    return validateResponse(z.string(), res.data.data);
   },
 
   delete: async (id: number) => {
@@ -283,7 +283,7 @@ export const outboundApi = {
 export const inventoryApi = {
   queryStock: async (params?: StockFilter) => {
     const res = await apiClient.get<PaginatedResponse<Record<string, unknown>>>('/inventory', { params });
-    return res.data.data;
+    return validateResponse(paginatedDataSchema(stockItemSchema), res.data.data);
   },
 
   queryLogs: async (params?: StockFilter) => {
@@ -293,17 +293,17 @@ export const inventoryApi = {
 
   tracePipe: async (pipeType: string, pipeId: number) => {
     const res = await apiClient.get<ApiResponse<Record<string, unknown>>>(`/trace/pipe/${pipeType}/${pipeId}`);
-    return res.data.data;
+    return validateResponse(tracePipeSchema, res.data.data);
   },
 
   traceHeat: async (heatNumber: string) => {
     const res = await apiClient.get<ApiResponse<unknown[]>>(`/trace/heat-number/${heatNumber}`);
-    return res.data.data;
+    return validateResponse(z.array(traceHeatItemSchema), res.data.data);
   },
 
   traceOrder: async (orderType: string, orderId: number) => {
     const res = await apiClient.get<ApiResponse<unknown>>(`/trace/order/${orderType}/${orderId}`);
-    return res.data.data;
+    return validateResponse(traceOrderSchema, res.data.data);
   },
 };
 

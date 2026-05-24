@@ -14,9 +14,15 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   // 初始化时从 localStorage 恢复登录态（刷新保持）
   token: localStorage.getItem('auth_token'),
-  user: localStorage.getItem('auth_user')
-    ? JSON.parse(localStorage.getItem('auth_user')!)
-    : null,
+  user: (() => {
+    try {
+      const raw = localStorage.getItem('auth_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      localStorage.removeItem('auth_user');
+      return null;
+    }
+  })(),
   // 登录成功：写入 store 并持久化到 localStorage
   setAuth: (token, user) => {
     localStorage.setItem('auth_token', token);

@@ -1,0 +1,21 @@
+{
+  "dashboard": "数据看板",
+  "reports": "报表中心",
+  "inventory_summary": "库存汇总",
+  "inventory_by_type": "按类型库存",
+  "order_report": "订单报表",
+  "orders_by_status": "按状态订单",
+  "quality_report": "质量报表",
+  "recent_quality_certs": "最近质量证书",
+  "recent_activities": "最近活动",
+  "pending_orders": "待处理订单",
+  "total_inventory": "总库存量",
+  "total_pipes": "管材总数",
+  "pipe_type": "管材类型",
+  "quantity": "数量",
+  "status": "状态",
+  "count": "计数",
+  "action": "操作",
+  "detail": "详情",
+  "time": "时间"
+}

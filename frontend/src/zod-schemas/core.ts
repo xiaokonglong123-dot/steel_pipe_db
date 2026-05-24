@@ -91,9 +91,8 @@ export const userInfoSchema = z.object({
   username: z.string(),
   display_name: z.string(),
   role: z.string(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  is_active: z.boolean(),
+  email: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
 }).strict();
 
 export const loginResponseSchema = z.object({

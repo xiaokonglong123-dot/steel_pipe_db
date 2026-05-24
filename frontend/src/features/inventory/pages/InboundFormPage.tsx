@@ -75,14 +75,24 @@ export default function InboundFormPage() {
       return;
     }
     form.setFieldsValue({
-      pipes: [...pipes, { pipe_type: pipe.pipe_type, pipe_id: pipe.id }],
+      pipes: [...pipes, { pipe_type: pipe.pipe_type, pipe_id: pipe.id, pipe_number: pipe.pipe_number, grade: pipe.grade, od: pipe.od, wt: pipe.wt }],
     });
     setSearchModalOpen(false);
   };
 
   const handleSubmit = async (values: Record<string, unknown>) => {
     try {
-      await createMutation.mutateAsync(values as unknown as CreateInboundData);
+      const cleanValues: CreateInboundData = {
+        inbound_type: values.inbound_type as string,
+        order_id: values.order_id as number | undefined,
+        supplier_id: values.supplier_id as number | undefined,
+        notes: values.notes as string | undefined,
+        pipes: ((values.pipes as Array<Record<string, unknown>>) ?? []).map((p) => ({
+          pipe_type: p.pipe_type as string,
+          pipe_id: p.pipe_id as number,
+        })),
+      };
+      await createMutation.mutateAsync(cleanValues);
       message.success(t('common.operate_success'));
       navigate('/inventory/inbound');
     } catch {
@@ -119,6 +129,20 @@ export default function InboundFormPage() {
       dataIndex: 'grade',
       key: 'grade',
       width: 80,
+    },
+    {
+      title: t('pipes.od'),
+      dataIndex: 'od',
+      key: 'od',
+      width: 80,
+      render: (val: number) => (val != null ? val : '-'),
+    },
+    {
+      title: t('pipes.wt'),
+      dataIndex: 'wt',
+      key: 'wt',
+      width: 80,
+      render: (val: number) => (val != null ? val : '-'),
     },
     {
       title: t('common.actions'),
@@ -168,6 +192,34 @@ export default function InboundFormPage() {
           <InputNumber min={1} style={{ width: '100%' }} />
         </Form.Item>
       ),
+    },
+    {
+      title: t('pipes.pipe_number'),
+      dataIndex: 'pipe_number',
+      key: 'pipe_number',
+      width: 120,
+      render: (val: string) => <span>{val || '-'}</span>,
+    },
+    {
+      title: t('pipes.grade'),
+      dataIndex: 'grade',
+      key: 'grade',
+      width: 80,
+      render: (val: string) => <span>{val || '-'}</span>,
+    },
+    {
+      title: t('pipes.od'),
+      dataIndex: 'od',
+      key: 'od',
+      width: 90,
+      render: (val: number) => <span>{val != null ? val : '-'}</span>,
+    },
+    {
+      title: t('pipes.wt'),
+      dataIndex: 'wt',
+      key: 'wt',
+      width: 90,
+      render: (val: number) => <span>{val != null ? val : '-'}</span>,
     },
     {
       title: t('common.actions'),

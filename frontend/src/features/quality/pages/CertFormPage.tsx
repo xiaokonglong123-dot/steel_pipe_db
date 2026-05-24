@@ -100,7 +100,7 @@ export default function CertFormPage() {
           <Select>
             {PIPE_TYPES.map((type) => (
               <Select.Option key={type} value={type}>
-                {type}
+                {t('pipe_type.' + type)}
               </Select.Option>
             ))}
           </Select>
@@ -200,7 +200,7 @@ export default function CertFormPage() {
           <Select>
             {CERT_STATUSES.map((s) => (
               <Select.Option key={s} value={s}>
-                {s}
+                {t('quality.cert_status_' + s)}
               </Select.Option>
             ))}
           </Select>

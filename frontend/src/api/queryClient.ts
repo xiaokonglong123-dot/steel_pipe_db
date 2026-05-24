@@ -8,5 +8,10 @@ export const queryClient = new QueryClient({
       retry: 1,
       refetchOnWindowFocus: false,
     },
+    mutations: {
+      onError: (error) => {
+        console.error('[Mutation Error]', error);
+      },
+    },
   },
 });
