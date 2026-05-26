@@ -9,16 +9,13 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
-  const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
 
-  // 未登录 → 登录页
-  if (!token) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // 已登录但角色不符 → 首页（不展示 403，静默降级）
-  if (roles && user && !roles.includes(user.role)) {
+  if (roles && !roles.includes(user.role)) {
     return <Navigate to="/" replace />;
   }
 

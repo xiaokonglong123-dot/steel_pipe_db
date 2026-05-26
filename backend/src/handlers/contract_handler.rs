@@ -16,8 +16,6 @@ use crate::response::{ApiResponse, PaginatedResponse};
 use crate::services::contract_service::ContractService;
 
 // ━━━ Contract Handlers ━━━
-// 合同管理：销售合同/采购合同的统一管理，含付款里程碑
-// 合同类型由前端区分，后端统一存储
 
 pub async fn list_contracts_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -83,7 +81,6 @@ pub async fn update_contract_status_handler(
 }
 
 // ━━━ Item Handlers ━━━
-// 合同明细：每个合同下可关联多条管子规格明细
 
 pub async fn add_contract_item_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -114,7 +111,6 @@ pub async fn delete_contract_item_handler(
 }
 
 // ━━━ Payment Handlers ━━━
-// 付款里程碑：按合同跟踪分期付款节点和实际付款记录
 
 pub async fn list_contract_payments_handler(
     Extension(pool): Extension<SqlitePool>,

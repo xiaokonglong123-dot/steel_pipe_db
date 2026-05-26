@@ -1,9 +1,21 @@
+// vite.config.analyze.ts
+// Run with: npm run analyze  (vite build --config vite.config.analyze.ts)
+// Generates an interactive treemap at dist/stats.html showing bundle composition.
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    visualizer({
+      filename: 'dist/stats.html',
+      open: true,
+      gzipSize: true,
+      brotliSize: true,
+    }),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

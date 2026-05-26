@@ -1,6 +1,3 @@
-// 标签打印入口：管子标签、质量合格证标签、发货标签
-// 标签生成为 HTML 格式，前端直接打印
-
 use axum::{
     extract::{Extension, Path},
     Json,

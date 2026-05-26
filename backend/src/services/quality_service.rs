@@ -1,6 +1,3 @@
-// 质检证书业务逻辑：证书编号自动生成、力学/NDT检测结果验证、钢管附件管理
-// 证书编号格式：QC-{pipe_type}-{自增ID}，创建时预留临时编号，入库后替换为正式编号
-
 use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;

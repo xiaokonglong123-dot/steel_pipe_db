@@ -127,10 +127,11 @@ pub struct RejectRequest {
 
 // ━━━ ATP DTOs ━━━
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct AtpQuery {
     pub pipe_type: Option<String>,
     pub grade: Option<String>,
+    #[validate(range(min = 1, message = "Location ID must be positive"))]
     pub location_id: Option<i64>,
 }
 

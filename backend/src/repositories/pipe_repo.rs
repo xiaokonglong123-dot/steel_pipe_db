@@ -1,7 +1,3 @@
-// 钢管主数据仓库层
-// 无缝管 + 筛管两张表的 CRUD、分页检索、按管号唯一性查找、模糊搜索。
-// 筛管（screen pipe）本质是无缝管基管 + 筛缝/滤网结构，所以两套接口几乎对称。
-
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;
@@ -158,6 +154,29 @@ impl SeamlessPipeRepo {
         .bind(id)
         .fetch_optional(pool)
         .await
+    }
+
+    pub async fn find_by_ids(
+        pool: &SqlitePool,
+        ids: &[i64],
+    ) -> Result<Vec<SeamlessPipe>, sqlx::Error> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let placeholders: Vec<String> = ids.iter().map(|_| "?".to_string()).collect();
+        let query = format!(
+            "SELECT id, pipe_number, batch_number, pipe_type, grade, od, wt, length, \
+             weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
+             heat_number, serial_number, manufacturer, production_date, cert_number, \
+             location_id, status, notes, created_at, updated_at, deleted_at \
+             FROM seamless_pipes WHERE id IN ({}) AND deleted_at IS NULL",
+            placeholders.join(",")
+        );
+        let mut q = sqlx::query_as::<_, SeamlessPipe>(&query);
+        for id in ids {
+            q = q.bind(id);
+        }
+        q.fetch_all(pool).await
     }
 
     pub async fn find_by_pipe_number(
@@ -456,6 +475,29 @@ impl ScreenPipeRepo {
         .bind(id)
         .fetch_optional(pool)
         .await
+    }
+
+    pub async fn find_by_ids(
+        pool: &SqlitePool,
+        ids: &[i64],
+    ) -> Result<Vec<ScreenPipe>, sqlx::Error> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let placeholders: Vec<String> = ids.iter().map(|_| "?".to_string()).collect();
+        let query = format!(
+            "SELECT id, pipe_number, batch_number, screen_type, slot_size, \
+             filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
+             weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
+             cert_number, location_id, status, notes, created_at, updated_at, deleted_at \
+             FROM screen_pipes WHERE id IN ({}) AND deleted_at IS NULL",
+            placeholders.join(",")
+        );
+        let mut q = sqlx::query_as::<_, ScreenPipe>(&query);
+        for id in ids {
+            q = q.bind(id);
+        }
+        q.fetch_all(pool).await
     }
 
     pub async fn find_by_pipe_number(

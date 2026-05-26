@@ -1,6 +1,3 @@
-// 钢管主数据入口：无缝管和筛管的 CRUD + 搜索
-// 两种 pipe 共享同一套钢级/热处理/螺纹规格体系，但各自有独立表
-
 use axum::{
     extract::{Extension, Path, Query},
     Json,
@@ -27,7 +24,6 @@ pub struct SearchQuery {
 }
 
 // ━━━ Seamless Pipe Handlers ━━━
-// 无缝管主数据：按钢级/规格/标准筛选，带分页
 
 pub async fn list_seamless_pipes_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -139,7 +135,6 @@ pub async fn delete_screen_pipe_handler(
 }
 
 // ━━━ Search Handler ━━━
-// 跨库搜索：同时匹配无缝管和筛管，返回通用结构
 
 pub async fn search_pipes_handler(
     Extension(pool): Extension<SqlitePool>,

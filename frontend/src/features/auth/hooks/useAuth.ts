@@ -10,7 +10,7 @@ export function useLogin() {
   return useMutation({
     mutationFn: authApi.login,
     onSuccess: (data) => {
-      setAuth(data.token, data.user);
+      setAuth(data.user);
       navigate('/');
     },
   });

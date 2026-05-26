@@ -1,6 +1,3 @@
-// 销售订单入口：含订单 CRUD、状态流转、明细行管理
-// 出库前自动检查 ATP，库存不足时不允许确认发货
-
 use axum::{
     extract::{Extension, Path, Query},
     Json,
@@ -81,8 +78,6 @@ pub async fn delete_sales_order_handler(
     Ok(ApiResponse::ok("Sales order deleted successfully".into()))
 }
 
-// 销售单状态流转：待审批→已批准→已发货→已完成
-// 发货前自动触发 ATP 检查，库存不足时拒绝流转
 pub async fn transition_sales_order_status_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,

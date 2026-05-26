@@ -1,7 +1,3 @@
-// 采购订单 + 销售订单业务逻辑（共享同一套状态机）
-// 订单状态流转：draft → submitted → approved → delivered → completed，不可逆跳转
-// 只有 draft 状态的订单允许修改/删除
-
 use chrono::Utc;
 use sqlx::SqlitePool;
 
@@ -557,7 +553,6 @@ impl PurchaseSalesService {
             )));
         }
 
-        // ATP check: verify sufficient stock for each item
         let items = SalesOrderRepo::find_items(pool, id)
             .await
             .map_err(AppError::from)?;
@@ -579,9 +574,33 @@ impl PurchaseSalesService {
             }
         }
 
-        SalesOrderRepo::update_status(pool, id, "approved")
+        let mut tx = pool.begin().await.map_err(AppError::from)?;
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *tx)
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?;
+
+        let rows_affected = sqlx::query(
+            "UPDATE sales_orders SET status = 'approved', updated_at = datetime('now') \
+             WHERE id = ? AND status = 'pending' AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::from)?
+        .rows_affected();
+
+        if rows_affected == 0 {
+            sqlx::query("ROLLBACK")
+                .execute(&mut *tx)
+                .await
+                .map_err(AppError::from)?;
+            return Err(AppError::OrderCannotModify(
+                "Order status changed or already processed".into(),
+            ));
+        }
+
+        tx.commit().await.map_err(AppError::from)
     }
 
     pub async fn reject_sales_order(

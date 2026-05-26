@@ -1,6 +1,3 @@
-// 数据导入导出入口：Excel/CSV 批量导入、导出、模板下载
-// 支持管子/供应商/客户/合同等多实体类型
-
 use axum::{
     extract::{Extension, Multipart, Path, Query},
     http::header,
@@ -8,6 +5,7 @@ use axum::{
     Json,
 };
 use sqlx::SqlitePool;
+use validator::Validate;
 
 use crate::dto::data_io_dto::*;
 use crate::error::AppError;
@@ -74,6 +72,7 @@ pub async fn export_handler(
     Path(entity_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    query.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let entity_type = entity_type.to_lowercase();
     let format = query.format.unwrap_or_else(|| "xlsx".into());
 
@@ -108,6 +107,7 @@ pub async fn template_handler(
     Path(entity_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    query.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let entity_type = entity_type.to_lowercase();
     let format = query.format.unwrap_or_else(|| "xlsx".into());
 
@@ -141,6 +141,7 @@ pub async fn list_operation_logs_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<OperationLogQuery>,
 ) -> Result<Json<PaginatedResponse<OperationLog>>, AppError> {
+    query.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let page = query.page.unwrap_or(1).max(1);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 

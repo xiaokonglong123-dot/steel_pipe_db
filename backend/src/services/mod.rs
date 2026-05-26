@@ -1,9 +1,13 @@
 pub mod auth_service;
+pub mod check_service;
 pub mod contract_service;
 pub mod customer_service;
 pub mod data_io_service;
-pub mod inventory_service;
+pub mod inbound_service;
+pub mod inventory_query_service;
 pub mod label_service;
+pub mod location_service;
+pub mod outbound_service;
 pub mod pipe_service;
 pub mod purchase_sales_service;
 pub mod quality_service;
