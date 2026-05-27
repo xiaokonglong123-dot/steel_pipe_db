@@ -238,7 +238,7 @@ impl ContractService {
             )));
         }
 
-        let items = ContractRepo::create_items(pool, contract_id, &[dto.clone()]).await?;
+        let items = ContractRepo::create_items(pool, contract_id, std::slice::from_ref(dto)).await?;
         ContractRepo::update_total_amount(pool, contract_id).await?;
 
         items.into_iter().next().ok_or_else(|| AppError::Internal("Failed to create item".into()))

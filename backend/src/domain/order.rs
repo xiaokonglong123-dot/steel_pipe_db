@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 /// Lifecycle state for purchase and sales orders.
 ///
@@ -18,20 +19,25 @@ pub enum OrderStatus {
     Cancelled,
 }
 
-impl OrderStatus {
-    /// Parse a string into an order status. Returns `None` if the string's garbage.
+impl FromStr for OrderStatus {
+    type Err = ();
+
+    /// Parse a string into an order status. Returns `Err(())` if the string's garbage.
     /// Valid values: `"draft" | "pending" | "approved" | "rejected" | "completed" | "cancelled"`
-    pub fn from_str(s: &str) -> Option<Self> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "draft" => Some(Self::Draft),
-            "pending" => Some(Self::Pending),
-            "approved" => Some(Self::Approved),
-            "rejected" => Some(Self::Rejected),
-            "completed" => Some(Self::Completed),
-            "cancelled" => Some(Self::Cancelled),
-            _ => None,
+            "draft" => Ok(Self::Draft),
+            "pending" => Ok(Self::Pending),
+            "approved" => Ok(Self::Approved),
+            "rejected" => Ok(Self::Rejected),
+            "completed" => Ok(Self::Completed),
+            "cancelled" => Ok(Self::Cancelled),
+            _ => Err(()),
         }
     }
+}
+
+impl OrderStatus {
 
     /// Check whether transitioning from the current status to the target is kosher.
     /// Valid transition matrix:

@@ -54,7 +54,7 @@ impl InventoryQueryService {
         let pipe_type_filter = filter.pipe_type.clone();
         let is_single_table = pipe_type_filter
             .as_deref()
-            .map_or(false, |pt| pt == "seamless" || pt == "casing" || pt == "tubing" || pt == "screen" || pt == "screened");
+            .is_some_and(|pt| pt == "seamless" || pt == "casing" || pt == "tubing" || pt == "screen" || pt == "screened");
 
         let count_sql = match pipe_type_filter.as_deref() {
             Some("seamless" | "casing" | "tubing") => {

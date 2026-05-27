@@ -5,8 +5,9 @@
  * The sidebar groups menu items by module (pipes, inventory, suppliers, customers, purchase/sales orders, etc),
  * and the top-right shows the current user with a logout dropdown.
  */
+import { Suspense } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, Typography, Dropdown } from 'antd';
+import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
 import {
   TeamOutlined,
   ShopOutlined,
@@ -195,7 +196,15 @@ export default function MainLayout() {
           </Dropdown>
         </Header>
         <Content style={{ margin: 24 }}>
-          <Outlet />
+          <Suspense
+            fallback={
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: 300 }}>
+                <Spin size="large" />
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </Content>
       </Layout>
     </Layout>

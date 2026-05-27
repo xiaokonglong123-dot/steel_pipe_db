@@ -470,6 +470,7 @@ impl DataIOService {
     }
 
     /// Record an operation log entry — called by handlers after user actions.
+    #[allow(clippy::too_many_arguments)]
     pub async fn log_operation(
         pool: &SqlitePool,
         user_id: Option<i64>,

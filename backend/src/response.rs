@@ -76,7 +76,7 @@ impl<T: Serialize> PaginatedResponse<T> {
         let total_pages = if total == 0 {
             0
         } else {
-            (total + page_size - 1) / page_size
+            total.div_ceil(page_size)
         };
         Json(Self {
             success: true,

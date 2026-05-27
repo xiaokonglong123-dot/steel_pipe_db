@@ -2,6 +2,10 @@ use sqlx::{Row, SqlitePool};
 
 use crate::error::AppError;
 
+type InventoryExportRow = (i64, String, String, String, f64, f64, String, Option<i64>, Option<String>);
+type OrderExportRow = (i64, String, i64, String, String, Option<f64>, Option<String>, Option<i64>);
+type QualityCertExportRow = (i64, String, String, i64, Option<String>, String, Option<String>, Option<String>, Option<String>);
+
 /// Bulk data export/import for Excel/CSV operations.
 pub struct DataIORepo;
 
@@ -87,7 +91,7 @@ impl DataIORepo {
     pub async fn export_inventory(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
-        let seamless: Vec<(i64, String, String, String, f64, f64, String, Option<i64>, Option<String>)> = sqlx::query_as(
+        let seamless: Vec<InventoryExportRow> = sqlx::query_as(
             "SELECT sp.id, sp.pipe_number, 'seamless', sp.grade, sp.od, sp.wt, sp.status, sp.location_id, sp.heat_number \
              FROM seamless_pipes sp WHERE sp.deleted_at IS NULL AND sp.status != 'outbound'"
         )
@@ -95,7 +99,7 @@ impl DataIORepo {
         .await
         .map_err(AppError::from)?;
 
-        let screen: Vec<(i64, String, String, String, f64, f64, String, Option<i64>, Option<String>)> = sqlx::query_as(
+        let screen: Vec<InventoryExportRow> = sqlx::query_as(
             "SELECT sp.id, sp.pipe_number, 'screen', sp.base_grade, sp.base_od, sp.base_wt, sp.status, sp.location_id, sp.heat_number \
              FROM screen_pipes sp WHERE sp.deleted_at IS NULL AND sp.status != 'outbound'"
         )
@@ -137,7 +141,7 @@ impl DataIORepo {
     pub async fn export_purchase_orders(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows: Vec<(i64, String, i64, String, String, Option<f64>, Option<String>, Option<i64>)> = sqlx::query_as(
+        let rows: Vec<OrderExportRow> = sqlx::query_as(
             "SELECT id, order_no, supplier_id, order_date, status, total_amount, notes, created_by \
              FROM purchase_orders WHERE deleted_at IS NULL ORDER BY id"
         )
@@ -174,7 +178,7 @@ impl DataIORepo {
     pub async fn export_sales_orders(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows: Vec<(i64, String, i64, String, String, Option<f64>, Option<String>, Option<i64>)> = sqlx::query_as(
+        let rows: Vec<OrderExportRow> = sqlx::query_as(
             "SELECT id, order_no, customer_id, order_date, status, total_amount, notes, created_by \
              FROM sales_orders WHERE deleted_at IS NULL ORDER BY id"
         )
@@ -211,7 +215,7 @@ impl DataIORepo {
     pub async fn export_quality_certs(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows: Vec<(i64, String, String, i64, Option<String>, String, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+        let rows: Vec<QualityCertExportRow> = sqlx::query_as(
             "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, inspection_body, notes \
              FROM quality_certs WHERE deleted_at IS NULL ORDER BY id"
         )
