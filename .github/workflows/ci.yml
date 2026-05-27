@@ -22,9 +22,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
+          # Clear any stale cache from prior Rust versions
+          cache-on-failure: true
       - name: Toolchain info
         run: rustc --version && cargo --version
-      - run: cargo check 2>&1
+      - name: cargo check
+        run: cargo check --verbose 2>&1
+        continue-on-error: false
         env:
           RUST_BACKTRACE: 1
 
@@ -41,12 +45,9 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - name: Check environment
-        run: |
-          node --version
-          npx tsc --version
-          npm ls zod typescript 2>&1 || true
-          ls node_modules/zod/index.ts 2>/dev/null && echo "zod ESM entry exists"
-      - run: npx tsc --noEmit 2>&1
-      - run: npm run build
+      - name: Install dependencies
+        run: npm ci
+      - name: TypeScript type-check
+        run: npx tsc --noEmit 2>&1
+      - name: Vite build
+        run: npm run build
