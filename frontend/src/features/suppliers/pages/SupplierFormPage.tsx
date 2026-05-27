@@ -1,4 +1,4 @@
-// 供应商新增/编辑表单 — 供应商资质信息（供应钢级、联系人、税号等）
+// Supplier create/edit form — qualification info (supply grades, contact, tax ID, etc.)
 import { useEffect } from 'react';
 import { Form, Input, Select, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';

@@ -1,3 +1,9 @@
+/**
+ * Auth state management — currently logged-in user info, backed by localStorage
+ *
+ * Provides setAuth/setUser to update user, logout to clear auth state.
+ * Recovers user from localStorage on page refresh.
+ */
 import { create } from 'zustand';
 import type { UserInfo } from '@/types';
 

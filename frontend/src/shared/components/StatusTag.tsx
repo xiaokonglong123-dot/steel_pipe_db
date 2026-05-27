@@ -1,3 +1,9 @@
+/**
+ * 状态标签 — 根据状态值自动匹配颜色
+ *
+ * 内置常见业务状态的色值映射（如 active→绿、rejected→红、draft→灰），
+ * 支持自定义显示文字。适用于列表页状态列。
+ */
 import { Tag } from 'antd';
 
 const STATUS_COLOR: Record<string, string> = {

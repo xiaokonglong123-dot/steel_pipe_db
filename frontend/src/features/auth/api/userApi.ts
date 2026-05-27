@@ -1,4 +1,4 @@
-// 用户管理 API — 系统用户的 CRUD 和密码修改（仅 admin 角色可用）
+// User management API — CRUD for system users + password change (admin only)
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse, UserInfo } from '@/types';
 import { validateResponse, paginatedDataSchema } from '@/lib/validateResponse';

@@ -1,3 +1,8 @@
+/**
+ * Centered loading spinner — shown while a page or section is fetching data
+ *
+ * Defaults to "Loading...", but you can override it with the tip prop.
+ */
 import { Spin } from 'antd';
 
 interface LoadingSpinProps {

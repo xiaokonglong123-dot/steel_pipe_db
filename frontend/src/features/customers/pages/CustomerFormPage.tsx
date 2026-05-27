@@ -1,4 +1,4 @@
-// 客户新增/编辑表单 — 客户基本信息（联系人、税号、银行信息、行业分类等）
+// Customer create/edit form — basic info (contact, tax ID, bank info, industry, etc.)
 import { useEffect } from 'react';
 import { Form, Input, Select, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';

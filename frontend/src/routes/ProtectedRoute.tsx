@@ -1,4 +1,4 @@
-// 路由守卫 — 未登录跳转登录页，可选角色鉴权
+// Route guard — redirects to login if not authenticated, optional role check
 import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import type { ReactNode } from 'react';

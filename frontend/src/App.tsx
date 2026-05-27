@@ -1,5 +1,5 @@
-// 根组件 — 挂载 Ant Design 主题 + TanStack Query 全局配置 + 路由
-// RouterProvider 消费 routes/index.tsx 中的 createBrowserRouter
+// Root component — mounts Ant Design theme + TanStack Query global config + router
+// RouterProvider consumes createBrowserRouter from routes/index.tsx
 import { ConfigProvider } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router-dom';
@@ -7,7 +7,7 @@ import { theme } from '@/styles/theme';
 import { router } from '@/routes';
 import ErrorBoundary from '@/shared/components/ErrorBoundary';
 
-// staleTime 2 分钟适合大部分业务数据，实时性要求高的页面应单独设置 refetchInterval
+// 2min staleTime works for most biz data; pages needing real-time should set refetchInterval individually
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

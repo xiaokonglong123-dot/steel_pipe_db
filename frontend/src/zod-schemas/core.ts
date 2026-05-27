@@ -1,4 +1,9 @@
-// 核心数据模型 Zod Schema — 钢管、筛管、客户、供应商、用户、认证
+/**
+ * 核心数据模型 Zod Schema — 钢管、筛管、客户、供应商、用户、认证
+ *
+ * 定义系统中最基础的业务实体结构，
+ * 用于 API 响应运行时校验和 TypeScript 类型推导。
+ */
 import { z } from 'zod';
 
 export const seamlessPipeSchema = z.object({

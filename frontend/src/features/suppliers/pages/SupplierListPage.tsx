@@ -1,4 +1,4 @@
-// 供应商列表页 — 分页查询、搜索、状态标签、新建/编辑/删除
+// Supplier list page — paginated query, search, status tags, CRUD
 import { useState } from 'react';
 import { Table, Button, Space, Tag, Input, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';

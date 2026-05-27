@@ -1,3 +1,8 @@
+/**
+ * Empty state placeholder — friendly message when lists or tables have no data
+ *
+ * Lets you customize the description text, add an action button (like a "Create" link), and toss in extra content.
+ */
 import { Empty, Button } from 'antd';
 import type { ReactNode } from 'react';
 

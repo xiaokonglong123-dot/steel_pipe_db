@@ -1,5 +1,10 @@
-// 主布局 — 左侧导航菜单 + 顶部用户信息栏 + 内容区域
-// 所有受保护业务页面都在此布局的 Outlet 中渲染
+/**
+ * Main layout — sidebar nav + top bar with user info + content area
+ *
+ * All protected pages render inside this layout's Outlet.
+ * The sidebar groups menu items by module (pipes, inventory, suppliers, customers, purchase/sales orders, etc),
+ * and the top-right shows the current user with a logout dropdown.
+ */
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Button, Typography, Dropdown } from 'antd';
 import {

@@ -1,3 +1,9 @@
+/**
+ * Global search module Zod schemas — pipe, inbound/outbound, order search results
+ *
+ * Validates the response shapes for different result types from the unified search,
+ * covering pipes, inbound/outbound docs, purchase/sales orders.
+ */
 import { z } from 'zod';
 
 export const searchPipeResultSchema = z.object({

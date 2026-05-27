@@ -1,4 +1,4 @@
-// 供应商管理 API — CRUD + 搜索 + 活跃供应商列表
+// Supplier API — CRUD + search + active supplier list
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
 import type { Supplier, CreateSupplierData, SupplierFilterParams } from '../types';

@@ -1,4 +1,4 @@
-// 应用入口 — React 19 StrictMode + 根组件 App
+// App entry point — React 19 StrictMode + root App component
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';

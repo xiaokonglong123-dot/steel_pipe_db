@@ -1,4 +1,4 @@
-// 合同管理 API — CRUD + 状态流转 + 合同行项 + 付款里程碑
+// Contract API — CRUD + status transitions + contract items + payment milestones
 import { z } from 'zod';
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
@@ -39,13 +39,13 @@ export const contractApi = {
     await apiClient.delete(`/contracts/${id}`);
   },
 
-  // 合同状态更新（生效/完成/终止等）
+  // Contract status update (activate/complete/terminate, etc.)
   updateStatus: async (id: number, status: string) => {
     const res = await apiClient.post<ApiResponse<Contract>>(`/contracts/${id}/status`, { status });
     return validateResponse(contractSchema, res.data.data);
   },
 
-  // ━━ 合同行项（产品明细） ━━
+  // ━━ Contract items (product details) ━━
   addItem: async (contractId: number, data: CreateContractItemData) => {
     const res = await apiClient.post<ApiResponse<ContractItem>>(`/contracts/${contractId}/items`, data);
     return validateResponse(contractItemSchema, res.data.data);
@@ -63,7 +63,7 @@ export const contractApi = {
     await apiClient.delete(`/contracts/${contractId}/items/${itemId}`);
   },
 
-  // ━━ 付款里程碑 ━━
+  // ━━ Payment milestones ━━
   listPayments: async (contractId: number) => {
     const res = await apiClient.get<ApiResponse<ContractPayment[]>>(`/contracts/${contractId}/payments`);
     return validateResponse(z.array(contractPaymentSchema), res.data.data);

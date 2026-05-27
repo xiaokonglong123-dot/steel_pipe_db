@@ -1,4 +1,9 @@
-// 库存模块 Zod Schema — 出入库记录、库位、盘点、钢管搜索
+/**
+ * Inventory module Zod schemas — inbound/outbound records, locations, stocktakes, traceability
+ *
+ * Validates API response shapes for inbound/outbound docs & items, location info,
+ * stocktake records, stock query results, pipe traceability data, etc.
+ */
 import { z } from 'zod';
 
 export const inboundRecordSchema = z.object({

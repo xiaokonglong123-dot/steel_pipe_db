@@ -1,3 +1,11 @@
+/**
+ * Axios instance — global HTTP client
+ *
+ * baseURL points to /api/v1 (Vite dev proxy forwards to backend :3000),
+ * 30s timeout, sends credentials automatically.
+ *
+ * Response interceptor: on 401, auto-cleans auth state and redirects to /login.
+ */
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 

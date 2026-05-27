@@ -1,3 +1,9 @@
+/**
+ * Reusable confirm dialog — wraps Ant Design's Modal.confirm
+ *
+ * Comes with confirm/cancel buttons and a danger mode (turns the button red).
+ * Great for stuff like deletes where you really want the user to double-check.
+ */
 import { Modal } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 

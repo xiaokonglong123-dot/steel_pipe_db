@@ -1,4 +1,9 @@
-// 标签打印模块 Zod Schema — 钢管标签与通用标签数据
+/**
+ * 标签打印模块 Zod Schema — 钢管标签与通用标签数据
+ *
+ * 校验钢管标签（含规格、炉号、证书号等）
+ * 和通用标签数据的 API 响应结构。
+ */
 import { z } from 'zod';
 
 export const pipeLabelSchema = z.object({

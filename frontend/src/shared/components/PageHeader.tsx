@@ -1,3 +1,9 @@
+/**
+ * 页面标题栏 — 标题 + 副标题 + 右侧操作区
+ *
+ * 用于业务页面顶部，左侧展示页面标题与副标题，
+ * 右侧通过 extra 插槽放置操作按钮（如"新建"）。
+ */
 import { Typography, Space } from 'antd';
 import type { ReactNode } from 'react';
 

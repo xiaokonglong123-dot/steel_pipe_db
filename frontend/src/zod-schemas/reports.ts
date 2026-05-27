@@ -1,4 +1,9 @@
-// 报表模块 Zod Schema — 库存汇总、订单报表、质量报表、仪表盘
+/**
+ * 报表模块 Zod Schema — 库存汇总、订单报表、质量报表、仪表盘
+ *
+ * 校验库存汇总、订单统计、质量分析报告、
+ * 仪表盘概览和首页统计数据等 API 响应。
+ */
 import { z } from 'zod';
 
 export const inventorySummarySchema = z.object({

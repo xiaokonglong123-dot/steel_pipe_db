@@ -1,4 +1,4 @@
-// 登录页 — 账号密码登录，成功后由 useLogin hook 处理 Token 存储和跳转
+// Login page — username/password auth, useLogin hook handles token storage + redirect on success
 import { useState } from 'react';
 import { Form, Input, Button, Card, Typography, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
@@ -12,7 +12,7 @@ export default function LoginPage() {
   const loginMutation = useLogin();
   const [loading, setLoading] = useState(false);
 
-  // 登录提交：由 TanStack Query mutation 接管，失败时只显示通用错误信息（不暴露原因）
+  // Login submit: handled by TanStack Query mutation, shows generic error on failure (no leaky details)
   const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);
     try {

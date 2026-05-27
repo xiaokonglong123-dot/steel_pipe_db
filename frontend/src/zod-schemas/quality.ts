@@ -1,4 +1,9 @@
-// 质检模块 Zod Schema — 质量证书、钢级参考标准、附件
+/**
+ * 质检模块 Zod Schema — 质量证书、钢级参考标准、附件
+ *
+ * 校验质量证书（含机械性能、NDT 数据）、
+ * 钢级参考标准和证书附件的 API 响应结构。
+ */
 import { z } from 'zod';
 
 export const qualityCertSchema = z.object({

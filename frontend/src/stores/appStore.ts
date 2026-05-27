@@ -1,4 +1,9 @@
-// 应用状态管理 — 侧边栏折叠、主题模式，与 localStorage 双向同步
+/**
+ * 应用全局状态管理 — 侧边栏折叠状态、主题模式（light/dark）
+ *
+ * 所有状态同时写入 localStorage，页面刷新后自动恢复。
+ * toggleSidebar 切换侧边栏折叠，setTheme 切换明暗主题。
+ */
 import { create } from 'zustand';
 
 type ThemeMode = 'light' | 'dark';

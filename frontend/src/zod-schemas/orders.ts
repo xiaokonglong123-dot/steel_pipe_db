@@ -1,4 +1,9 @@
-// 订单与合同模块 Zod Schema — 采购/销售订单行项、合同条款及付款
+/**
+ * Order & contract module Zod schemas — purchase/sales order line items, contract terms & payments
+ *
+ * Validates API response shapes for purchase orders (with line items),
+ * sales orders (with line items), and contracts (with terms & payment records).
+ */
 import { z } from 'zod';
 
 export const purchaseOrderItemSchema = z.object({

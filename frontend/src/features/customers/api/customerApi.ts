@@ -1,4 +1,4 @@
-// 客户管理 API — CRUD + 搜索 + 活跃客户列表
+// Customer API — CRUD + search + active customer list
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
 import type { Customer, CreateCustomerData, CustomerFilterParams } from '../types';

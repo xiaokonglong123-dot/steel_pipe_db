@@ -1,4 +1,4 @@
-// 合同新增/编辑表单页 — 合同条款 + 可动态增删的行项 + 付款里程碑
+// Contract create/edit form — contract fields + dynamic line items + payment milestones
 import { useEffect, useState } from 'react';
 import {
   Form,

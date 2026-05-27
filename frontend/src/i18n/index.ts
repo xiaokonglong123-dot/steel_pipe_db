@@ -1,6 +1,6 @@
-// i18n 初始化 — 动态加载功能模块翻译
-// 仅 common.json 静态导入（登录页 + 主布局必需）
-// 其他 20 个功能模块通过 import() 动态加载（Vite 自动拆分为独立 chunk）
+// i18n init — lazy-load feature translations
+// Only common.json is imported statically (needed for login page + main layout)
+// Other 20 feature modules loaded dynamically via import() (Vite auto-splits into separate chunks)
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
@@ -33,7 +33,7 @@ const FEATURE_FILES = [
 
 type FeatureKey = (typeof FEATURE_FILES)[number];
 
-// 异步加载某个语言的翻译 JSON
+// Async-load translation JSON for a given language
 async function importFeature(
   lang: 'zh' | 'en',
   name: string,
@@ -72,12 +72,12 @@ i18n
   });
 
 /**
- * 按需加载某个功能模块的翻译。
+ * Lazy-load translations for a specific feature module.
  *
- * 通过 addResourceBundle 将翻译键嵌套到 translation namespace 下，
- * 保持与之前静态导入相同的数据结构。
+ * Uses addResourceBundle to nest translation keys under the translation namespace,
+ * keeping the same data structure as the earlier static imports.
  *
- * 例如 loadFeatureTranslations('pipes') 后，组件中可使用 t('pipes.pipe_number')
+ * e.g. after loadFeatureTranslations('pipes'), components can use t('pipes.pipe_number')
  */
 export async function loadFeatureTranslations(
   key: FeatureKey | string,
@@ -90,7 +90,7 @@ export async function loadFeatureTranslations(
   try {
     const data = await loader();
     if (key === 'purchase') {
-      // purchase.json 同时注册到 'purchases' 和 'purchase' 两个 key 下
+      // purchase.json registers under both 'purchases' and 'purchase' keys
       i18n.addResourceBundle(lang, 'translation', { purchases: data, purchase: data }, true, true);
     } else {
       i18n.addResourceBundle(lang, 'translation', { [key]: data }, true, true);
@@ -100,7 +100,7 @@ export async function loadFeatureTranslations(
   }
 }
 
-// 启动后立即在后台加载所有功能模块翻译（不阻塞首屏渲染）
+// Kick off background loading of all feature translations right after init (doesn't block first paint)
 (async () => {
   const lang = i18n.language;
   const loaders = getLoaders(lang);
@@ -109,7 +109,7 @@ export async function loadFeatureTranslations(
   );
 })();
 
-// 语言切换时自动加载对应语言的翻译
+// Auto-load translations for the new language on switch
 i18n.on('languageChanged', (lng: string) => {
   const loaders = getLoaders(lng);
   Object.keys(loaders).forEach((key) => loadFeatureTranslations(key));

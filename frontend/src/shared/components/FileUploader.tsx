@@ -1,3 +1,9 @@
+/**
+ * File uploader — wraps Ant Design Upload with file type/size validation
+ *
+ * Accepts .pdf/.jpg/.png by default, single file up to 10MB.
+ * After upload completes, it sends back the file URL via the onSuccess callback.
+ */
 import { Upload, Button, message } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';

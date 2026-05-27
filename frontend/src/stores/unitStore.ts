@@ -1,4 +1,9 @@
-// 单位制偏好 — 公制 / 英制，与 localStorage 双向同步
+/**
+ * Unit system preference management — metric / imperial
+ *
+ * The user's unit system preference is persisted to localStorage,
+ * feature modules read it from useUnitStore for display conversion.
+ */
 import { create } from 'zustand';
 
 export type UnitSystem = 'metric' | 'imperial';
