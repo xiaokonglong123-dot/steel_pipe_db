@@ -1,4 +1,8 @@
 -- Users table for authentication and RBAC
+-- 001_create_users.sql
+-- System users table with 4 RBAC roles: admin, warehouse, qc, sales.
+-- Passwords are Argon2id-hashed (never stored in plain text).
+-- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,

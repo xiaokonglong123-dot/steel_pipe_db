@@ -1,4 +1,9 @@
--- Quality certificates
+-- 007_create_quality.sql
+-- Quality inspection tables: certificates, mechanical test results, NDT results.
+-- Certificates link to pipes and track inspection status (draft → issued → revoked).
+-- Mechanical tests: tensile, yield, elongation, impact, hardness.
+-- NDT types: UT (ultrasonic), MI (magnetic particle), MPI (magnetic particle inspection).
+-- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS quality_certs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cert_number TEXT NOT NULL UNIQUE,

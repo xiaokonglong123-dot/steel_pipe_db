@@ -100,12 +100,16 @@ src/
 │   ├── data_io_repo.rs
 │   ├── user_repo.rs
 │   └── operation_log_repo.rs
-├── services/            ← 12 files, business logic (unit structs, static methods)
+├── services/            ← 16 files, business logic (unit structs, static methods)
 │   ├── mod.rs
 │   ├── auth_service.rs
 │   ├── pipe_service.rs
-│   ├── inventory_service.rs
-│   ├── purchase_sales_service.rs
+│   ├── inbound_service.rs       ← Inbound (create/approve/execute/query)
+│   ├── outbound_service.rs      ← Outbound (create/approve/execute/query)
+│   ├── check_service.rs         ← Inventory checks (create/submit/complete)
+│   ├── inventory_query_service.rs ← Read-only inventory queries (list/stats)
+│   ├── location_service.rs      ← Warehouse locations (CRUD/assign/transfer)
+│   ├── purchase_sales_service.rs ← Purchase & sales orders (shared logic)
 │   ├── quality_service.rs
 │   ├── contract_service.rs
 │   ├── customer_service.rs
@@ -113,7 +117,7 @@ src/
 │   ├── label_service.rs
 │   ├── report_service.rs
 │   ├── data_io_service.rs
-│   └── trace_service.rs
+│   └── trace_service.rs         ← Full-lifecycle pipe tracing
 ├── handlers/            ← 13 files, thin handlers (extract → call service → respond)
 │   ├── mod.rs
 │   ├── auth_handler.rs
@@ -152,7 +156,13 @@ src/
 - Services are **unit structs with static methods** (no constructor DI): `PipeService::list(...)`
 - Services return `Result<T, AppError>`
   - Repositories accept `&SqlitePool` and return `Result<Vec<T>, sqlx::Error>`
-- `inventory_service.rs` is the beefy one — ATP calculation, rejection reason handling, and all the inventory management magic lives there.
+- `inventory_service.rs` has been split into focused modules:
+  - `inbound_service.rs` — inbound record creation, approval, batch execution
+  - `outbound_service.rs` — outbound record creation, approval, stock deduction
+  - `check_service.rs` — inventory check (盘点) creation, item submission, completion
+  - `inventory_query_service.rs` — read-only queries (list, statistics)
+  - `location_service.rs` — warehouse location CRUD, assign, transfer
+  - ATP calculation lives in `purchase_sales_service.rs` and `atp_handler.rs`
 
 ## DI Pattern: Extension layers, NOT State<Arc<AppState>>
 

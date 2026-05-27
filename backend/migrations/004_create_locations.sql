@@ -1,4 +1,7 @@
--- Storage locations (zone / shelf / level hierarchy)
+-- 004_create_locations.sql
+-- Warehouse storage locations organized in a zone → shelf → level hierarchy.
+-- Each location can hold pipes and tracks capacity usage.
+-- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS locations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     zone_code TEXT NOT NULL,

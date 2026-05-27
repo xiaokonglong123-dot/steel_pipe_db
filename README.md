@@ -204,10 +204,15 @@ steel_pipe_db/
 │   │   └── styles/            # Global styles
 │   ├── package.json
 │   └── vite.config.ts
-├── docs/                      # Design docs (in Chinese)
-│   ├── prd.md                 # PRD
-│   ├── architecture.md        # Architecture + DB + API design
-│   ├── frontend-design.md     # Frontend component tree & routing
+├── docs/                      # Design & operations docs
+│   ├── requirements.en.md     # PRD (English)
+│   ├── detailed-design.en.md  # Architecture + DB + API design (English)
+│   ├── frontend-design.en.md  # Frontend component tree & routing (English)
+│   ├── 需求文档.md             # PRD (中文)
+│   ├── 详细设计文档.md         # Architecture + DB + API design (中文)
+│   ├── 前端设计文档.md         # Frontend design (中文)
+│   ├── deployment.md          # Deployment guide (Nginx, Docker, backup)
+│   ├── troubleshooting.md     # Troubleshooting (DB locks, JWT, CORS)
 │   └── tasks/                 # Task breakdown (~320 items)
 └── .github/workflows/
     └── ci.yml                 # CI: cargo check + tsc + vite build
@@ -243,16 +248,41 @@ Paginated responses tack on `meta: { total, page, page_size, total_pages }`. Err
 
 ---
 
+## 🔑 RBAC Permission Matrix
+
+| API Group | admin | warehouse | qc | sales |
+|-----------|:-----:|:---------:|:---:|:-----:|
+| Users (write) | ✅ | ❌ | ❌ | ❌ |
+| Pipes (write) | ✅ | ✅ | ❌ | ❌ |
+| Inbound/Outbound (write) | ✅ | ✅ | ❌ | ❌ |
+| Quality (write) | ✅ | ❌ | ✅ | ❌ |
+| Sales Orders (write) | ✅ | ❌ | ❌ | ✅ |
+| Purchase Orders (write) | ✅ | ✅ | ❌ | ✅ |
+| Suppliers/Customers (write) | ✅ | ✅ | ❌ | ✅ |
+| Contracts (write) | ✅ | ✅ | ❌ | ✅ |
+| Data Import | ✅ | ❌ | ❌ | ❌ |
+| Labels (write) | ✅ | ✅ | ❌ | ❌ |
+| All read endpoints | ✅ | ✅ | ✅ | ✅ |
+
+---
+
 ## 🧭 Design Docs
 
 Design docs (in Chinese) live in [`docs/`](./docs/):
 
 | Document | Content |
 |----------|---------|
-| `prd.md` | Full PRD: features, API 5CT standards, roadmap |
-| `architecture.md` | Architecture, 19-table DB schema, REST API, security |
-| `frontend-design.md` | Component tree, routing, state, i18n, theme |
+| `requirements.en.md` | Full PRD: features, API 5CT standards, roadmap |
+| `detailed-design.en.md` | Architecture, 19-table DB schema, REST API, security |
+| `frontend-design.en.md` | Component tree, routing, state, i18n, theme |
+| `需求文档.md` | PRD 中文版 |
+| `详细设计文档.md` | 架构设计中文版 |
+| `前端设计文档.md` | 前端设计中文版 |
+| `deployment.md` | Deployment guide: production config, Nginx, Docker, backup |
+| `troubleshooting.md` | Troubleshooting: database locks, JWT, CORS, migrations |
 | `tasks/progress.md` | Master task tracking (~320 items across 3 phases) |
+
+Also see: [`CONTRIBUTING.md`](../CONTRIBUTING.md) · [`CHANGELOG.md`](../CHANGELOG.md)
 
 ---
 

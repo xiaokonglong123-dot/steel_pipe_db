@@ -1,4 +1,9 @@
--- Contracts
+-- 009_create_ref_data.sql
+-- Contracts and reference data tables.
+-- Contracts: sales/procurement contracts with payment milestones and status tracking.
+-- Contract items: line items linked to a contract.
+-- Contract payments: payment milestones with due dates and amounts.
+-- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS contracts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     contract_no TEXT NOT NULL UNIQUE,

@@ -1,4 +1,8 @@
--- Seamless pipes (casing / tubing)
+-- 002_create_seamless_pipes.sql
+-- Master data for API 5CT seamless pipes (casing & tubing).
+-- Tracks pipe specs, dimensions, steel grade, heat treatment, threading, and status lifecycle.
+-- No FK constraints — integrity enforced at application layer.
+-- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS seamless_pipes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pipe_number TEXT NOT NULL UNIQUE,

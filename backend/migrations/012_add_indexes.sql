@@ -1,6 +1,18 @@
--- Add performance indexes for frequently queried columns
--- Indexes on: pipe_number (unique lookups), status (list filtering), composite lookup keys
--- Indexes on: entity_type+entity_id+created_at (audit log filtering)
+-- 012_add_indexes.sql
+-- Performance indexes for frequently queried columns across all business tables.
+--
+-- Index strategy:
+--   - pipe_number: unique lookups (exact match by pipe identifier)
+--   - status: list filtering (most queries filter by status)
+--   - deleted_at: soft-delete exclusion (WHERE deleted_at IS NULL on every query)
+--   - created_at: date-range filtering and sorting
+--   - grade: pipe spec filtering (seamless pipes only)
+--   - full_code: location hierarchy lookups
+--   - entity_type/entity_id/user_id: audit log filtering (high-volume table)
+--
+-- All indexes use CREATE INDEX IF NOT EXISTS for idempotency.
+-- SQLite WAL mode + these indexes provide sufficient read performance for typical workloads.
+-- For very large datasets, consider adding composite indexes based on actual query patterns.
 
 -- Seamless pipes
 CREATE INDEX IF NOT EXISTS idx_seamless_pipes_pipe_number ON seamless_pipes(pipe_number);

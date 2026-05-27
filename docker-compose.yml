@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+    volumes:
+      - ./data:/app/data          # SQLite data persistence
+      - ./.env:/app/.env:ro       # Environment config (read-only)
+    environment:
+      - DATABASE_URL=sqlite://./data/steel_pipe.db?mode=rwc
+      - JWT_SECRET=${JWT_SECRET:-change-this-to-a-long-random-secret}
+      - JWT_EXPIRY_HOURS=${JWT_EXPIRY_HOURS:-24}
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=3000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/auth/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

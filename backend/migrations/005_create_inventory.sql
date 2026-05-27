@@ -1,4 +1,11 @@
--- Inbound records (header)
+-- 005_create_inventory.sql
+-- Core inventory tables: inbound/outbound records + items, inventory current state, movement logs.
+-- Inbound types: purchase, production, return, transfer.
+-- Outbound types: sales, scrapped, transfer.
+-- Approval workflow: pending → approved/rejected; auto_approved skips approval.
+-- Inventory logs provide per-pipe audit trail for traceability.
+-- No FK constraints — integrity enforced at application layer.
+-- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS inbound_records (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     inbound_no TEXT NOT NULL UNIQUE,

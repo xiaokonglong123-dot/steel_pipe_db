@@ -1,3 +1,43 @@
+//! Route definitions for the Steel Pipe DB API.
+//!
+//! # Organization Strategy
+//!
+//! Routes are grouped by authentication and authorization requirements:
+//! - **Public** — no auth required (login, refresh)
+//! - **Authenticated** — any logged-in user (logout, me, change-password)
+//! - **Role-protected write** — admin/warehouse/qc/sales per domain
+//! - **Authenticated read** — any logged-in user can read business data
+//!
+//! # Middleware Layering Order (innermost → outermost)
+//!
+//! ```text
+//! route_layer(auth_middleware)
+//!   → route_layer(rbac::require_role)
+//!     → layer(CORS)
+//!       → layer(Trace + RequestId)
+//!         → layer(Extension<SqlitePool>)
+//!           → layer(Extension<JwtSecret>)
+//!             → layer(Extension<RateLimiter>)
+//! ```
+//!
+//! # RBAC Quick Reference
+//!
+//! | Domain     | Read (any auth) | Write (roles)                    |
+//! |------------|:---------------:|----------------------------------|
+//! | Users      | admin           | admin                            |
+//! | Pipes      | ✅              | admin, warehouse                 |
+//! | Inbound    | ✅              | admin, warehouse                 |
+//! | Outbound   | ✅              | admin, warehouse                 |
+//! | Quality    | ✅              | admin, qc                        |
+//! | Sales      | ✅              | admin, sales                     |
+//! | Purchases  | ✅              | admin, warehouse, sales          |
+//! | Suppliers  | ✅              | admin, warehouse, sales          |
+//! | Customers  | ✅              | admin, warehouse, sales          |
+//! | Contracts  | ✅              | admin, warehouse, sales          |
+//! | Data IO    | ✅              | admin (import), any (export)     |
+//! | Labels     | ✅              | admin, warehouse (write)         |
+//! | Reports    | ✅              | — (read-only)                    |
+
 use std::time::Duration as StdDuration;
 
 use axum::{
