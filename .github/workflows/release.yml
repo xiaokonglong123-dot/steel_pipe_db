@@ -31,10 +31,20 @@ jobs:
       - run: npm ci
       - name: TypeScript type-check
         id: tsc_check
-        run: npx tsc -b
+        run: |
+          npx tsc --noEmit 2>&1 | tee /tmp/tsc-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
-      - name: Build frontend (vite)
-        run: npx vite build
+      - name: Show tsc output
+        if: always()
+        run: |
+          echo '### Frontend `tsc --noEmit` output' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/tsc-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Exit code: ${{ steps.tsc_check.outputs.exit_code }}" >> $GITHUB_STEP_SUMMARY
+      - name: Build frontend
+        run: npm run build
       - uses: actions/upload-artifact@v4
         with:
           name: frontend-dist

@@ -32,10 +32,12 @@ export default function StockSelector({ open, onCancel, onSelect }: StockSelecto
     q: stockSearch || undefined,
   });
 
+  type StockItem = Record<string, unknown> & { id: number; pipe_type: string; status: string };
+
   const inStockItems = useMemo(() => {
     if (!stockData?.items) return [];
     return stockData.items.filter(
-      (item) => item.status === 'in_stock',
+      (item: StockItem) => item.status === 'in_stock',
     );
   }, [stockData]);
 
@@ -98,8 +100,8 @@ export default function StockSelector({ open, onCancel, onSelect }: StockSelecto
 
   const handleSelect = () => {
     const selected = inStockItems
-      .filter((item) => selectedRowKeys.includes(item.id))
-      .map((item) => ({ pipe_type: item.pipe_type, pipe_id: item.id }));
+      .filter((item: StockItem) => selectedRowKeys.includes(item.id))
+      .map((item: StockItem) => ({ pipe_type: item.pipe_type, pipe_id: item.id }));
     onSelect(selected);
     setSelectedRowKeys([]);
   };

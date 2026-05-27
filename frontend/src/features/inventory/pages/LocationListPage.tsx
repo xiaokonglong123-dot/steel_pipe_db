@@ -88,7 +88,7 @@ export default function LocationListPage() {
     }
   };
 
-  const filteredData = data?.items?.filter((loc) =>
+  const filteredData = data?.items?.filter((loc: Location) =>
     searchText
       ? loc.full_code.toLowerCase().includes(searchText.toLowerCase())
       : true,

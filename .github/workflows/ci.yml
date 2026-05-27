@@ -29,7 +29,7 @@ jobs:
         id: cargo_check
         run: |
           cargo check --verbose 2>&1 | tee /tmp/cargo-output.txt
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         env:
           RUST_BACKTRACE: 1
         continue-on-error: true
@@ -64,7 +64,7 @@ jobs:
         id: tsc_check
         run: |
           npx tsc --noEmit 2>&1 | tee /tmp/tsc-output.txt
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
       - name: Show tsc output
         if: always()
@@ -81,7 +81,7 @@ jobs:
         id: vite_build
         run: |
           npm run build 2>&1 | tee /tmp/vite-build-output.txt
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
       - name: Show build output
         if: always()

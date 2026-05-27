@@ -262,7 +262,7 @@ export default function InventoryCheckListPage() {
           <Form.Item name="location_id" label={t('inventory_check.location')}>
             <Select
               allowClear
-              options={(locations?.items ?? []).map((loc) => ({
+              options={(locations?.items ?? []).map((loc: Location) => ({
                 label: loc.full_code,
                 value: loc.id,
               }))}
