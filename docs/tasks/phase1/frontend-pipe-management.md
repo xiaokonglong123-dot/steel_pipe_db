@@ -1,83 +1,83 @@
-# Phase 1 — 前端：管材管理模块 (P0 MVP)
+# Phase 1 — Frontend: Pipe Management Module (P0 MVP)
 
-> 基于：`docs/前端设计文档.md` §2, §3, §4.2, §6, §8
+> Based on: `docs/frontend-design.en.md` §2, §3, §4.2, §6, §8
 
-## 任务清单
+## Tasks
 
-### 1.1 项目初始化
-- [ ] 初始化 Vite + React 19 + TypeScript 项目 (`npm create vite`)
-- [ ] 安装核心依赖：antd 5, @ant-design/icons, react-router-dom 7, @tanstack/react-query 5, zustand 5, axios, react-i18next, i18next, dayjs, zod
-- [ ] 配置 `vite.config.ts`（API 代理到 `/api/v1`）
-- [ ] 配置 TypeScript 严格模式 + 路径别名 `@/`
-- [ ] 配置 ESLint + Prettier
+### 1.1 Project Setup
+- [ ] Init Vite + React 19 + TypeScript project (`npm create vite`)
+- [ ] Install core deps: antd 5, @ant-design/icons, react-router-dom 7, @tanstack/react-query 5, zustand 5, axios, react-i18next, i18next, dayjs, zod
+- [ ] Configure `vite.config.ts` (API proxy to `/api/v1`)
+- [ ] Configure TypeScript strict mode + path alias `@/`
+- [ ] Configure ESLint + Prettier
 
-### 1.2 基础设施
-- [ ] 创建 `src/api/client.ts`：Axios 实例 + 请求拦截器（注入 JWT）+ 响应拦截器（401 刷新 token）
-- [ ] 创建 `src/api/queryClient.ts`：TanStack Query Client 配置（staleTime: 2min, gcTime: 5min）
-- [ ] 创建 `src/i18n/index.ts`：i18next 初始化（中英文资源文件骨架）
-- [ ] 创建国际化资源文件：`zh/common.json`、`en/common.json`、`zh/pipes.json`、`en/pipes.json`
-- [ ] 创建 `src/styles/theme.ts`：Ant Design 5 工业蓝主题配置
-- [ ] 创建 `src/styles/global.less`：全局样式覆盖
+### 1.2 Infrastructure
+- [ ] Create `src/api/client.ts`: Axios instance + request interceptor (inject JWT) + response interceptor (401 refresh token)
+- [ ] Create `src/api/queryClient.ts`: TanStack Query Client config (staleTime: 2min, gcTime: 5min)
+- [ ] Create `src/i18n/index.ts`: i18next init (zh/en resource file skeleton)
+- [ ] Create i18n resource files: `zh/common.json`, `en/common.json`, `zh/pipes.json`, `en/pipes.json`
+- [ ] Create `src/styles/theme.ts`: Ant Design 5 industrial blue theme config
+- [ ] Create `src/styles/global.less`: global style overrides
 
-### 1.3 共享组件
-- [ ] 实现 `PageContainer`：白色卡片容器组件，统一内边距
-- [ ] 实现 `PageHeader`：页面标题 + 面包屑 + 右侧操作按钮
-- [ ] 实现 `ErrorBoundary`：React Error Boundary
-- [ ] 实现 `ConfirmModal`：二次确认弹窗（删除/取消操作）
-- [ ] 实现 `LoadingSpin`：全局/区域加载状态
-- [ ] 实现 `EmptyState`：空数据占位组件
+### 1.3 Shared Components
+- [ ] Implement `PageContainer`: white card container, unified padding
+- [ ] Implement `PageHeader`: page title + breadcrumb + right action buttons
+- [ ] Implement `ErrorBoundary`: React Error Boundary
+- [ ] Implement `ConfirmModal`: confirmation dialog (delete/cancel operations)
+- [ ] Implement `LoadingSpin`: global / area loading state
+- [ ] Implement `EmptyState`: empty data placeholder
 
-### 1.4 管材共享类型与 API
-- [ ] 定义 `features/pipes/types.ts`：SeamlessPipe, ScreenPipe, PipeFilter, PaginatedResponse 等类型
-- [ ] 定义 `features/pipes/api/pipeApi.ts`：
+### 1.4 Pipe Shared Types & API
+- [ ] Define `features/pipes/types.ts`: SeamlessPipe, ScreenPipe, PipeFilter, PaginatedResponse etc.
+- [ ] Define `features/pipes/api/pipeApi.ts`:
   - `getSeamlessPipes(filters, page, pageSize)`
   - `getSeamlessPipe(id)`
   - `createSeamlessPipe(data)`
   - `updateSeamlessPipe(id, data)`
   - `deleteSeamlessPipe(id)`
-  - `getScreenPipes(...)`、`getScreenPipe(...)`、`createScreenPipe(...)`、`updateScreenPipe(...)`、`deleteScreenPipe(...)`
+  - `getScreenPipes(...)`, `getScreenPipe(...)`, `createScreenPipe(...)`, `updateScreenPipe(...)`, `deleteScreenPipe(...)`
   - `searchPipes(query)`
-- [ ] 实现 `hooks/useSeamlessPipes.ts`（React Query hooks：useSeamlessPipes, useSeamlessPipe, useCreateSeamlessPipe, useUpdateSeamlessPipe, useDeleteSeamlessPipe）
-- [ ] 实现 `hooks/useScreenPipes.ts`（同上，针对筛管）
+- [ ] Implement `hooks/useSeamlessPipes.ts` (React Query hooks: useSeamlessPipes, useSeamlessPipe, useCreateSeamlessPipe, useUpdateSeamlessPipe, useDeleteSeamlessPipe)
+- [ ] Implement `hooks/useScreenPipes.ts` (same deal, for screen pipes)
 
-### 1.5 管材共享组件
-- [ ] 实现 `PipeFilterBar`：钢级下拉、外径/壁厚范围输入、状态下拉、库位下拉、搜索框、查询/重置按钮
-- [ ] 实现 `PipeTable`：Ant Design Table 封装（含分页、排序、操作列）
-- [ ] 实现 `GradeTag`：钢级标签组件（按钢级分组显示不同颜色）
-- [ ] 实现 `PipeStatusBadge`：库存状态徽标（在库🟢/已出🔵/报废🔴）
-- [ ] 实现 `PipeDetailCard`：管材详情信息卡片
+### 1.5 Pipe Shared Components
+- [ ] Implement `PipeFilterBar`: grade dropdown, OD/WT range inputs, status dropdown, location dropdown, search box, query/reset buttons
+- [ ] Implement `PipeTable`: Ant Design Table wrapper (with pagination, sorting, action column)
+- [ ] Implement `GradeTag`: grade label component (color-coded by grade group)
+- [ ] Implement `PipeStatusBadge`: stock status badge (In Stock 🟢 / Outbound 🔵 / Scrapped 🔴)
+- [ ] Implement `PipeDetailCard`: pipe detail info card
 
-### 1.6 无缝钢管页面
-- [ ] 实现 `SeamlessPipeListPage`：
-  - 顶部操作栏（+新增、导入、导出按钮）
-  - FilterBar + PipeTable 组合
-  - 行操作：查看详情、编辑、删除
-  - 批量选择 + 批量操作
-- [ ] 实现 `SeamlessPipeFormPage`：
-  - Ant Design Form，分区：基本信息、接箍信息、生产信息
-  - 字段联动选择（钢级级联、规格自动带出参考重量）
-  - Zod 表单校验
-  - 提交 + 取消按钮
-- [ ] 实现 `SeamlessPipeDetailPage`：
-  - PipeDetailCard 展示所有字段
-  - 关联出入库记录 Tab
-  - 操作日志 Tab
-  - 编辑/删除按钮
+### 1.6 Seamless Pipe Pages
+- [ ] Implement `SeamlessPipeListPage`:
+  - Top action bar (+New, Import, Export buttons)
+  - FilterBar + PipeTable combo
+  - Row actions: view detail, edit, delete
+  - Batch select + batch operations
+- [ ] Implement `SeamlessPipeFormPage`:
+  - Ant Design Form, sections: basic info, coupling info, production info
+  - Cascading field selects (grade cascade, spec auto-fills reference weight)
+  - Zod form validation
+  - Submit + cancel buttons
+- [ ] Implement `SeamlessPipeDetailPage`:
+  - PipeDetailCard showing all fields
+  - Linked inbound/outbound records Tab
+  - Operation log Tab
+  - Edit/delete buttons
 
-### 1.7 筛管页面
-- [ ] 实现 `ScreenPipeListPage`（同无缝钢管列表结构，增加筛管特有筛选条件）
-- [ ] 实现 `ScreenPipeFormPage`（含筛管特有字段：筛管类型、缝宽、过滤精度、基管参数）
-- [ ] 实现 `ScreenPipeDetailPage`（展示筛管所有字段 + 关联记录）
+### 1.7 Screen Pipe Pages
+- [ ] Implement `ScreenPipeListPage` (same structure as seamless list, add screen-specific filters)
+- [ ] Implement `ScreenPipeFormPage` (with screen-specific fields: screen type, slot width, filtration precision, base pipe params)
+- [ ] Implement `ScreenPipeDetailPage` (show all screen pipe fields + linked records)
 
-### 1.8 统一搜索页面
-- [ ] 实现 `UnifiedPipeSearchPage`：
-  - 全局搜索框（支持管材编号/钢级/炉批号模糊搜索）
-  - 搜索结果分 Tab 展示（无缝钢管 / 筛管）
-  - 点击结果跳转到对应详情页
+### 1.8 Unified Search Page
+- [ ] Implement `UnifiedPipeSearchPage`:
+  - Global search box (fuzzy search by pipe number / grade / heat number)
+  - Results split by Tab (Seamless Pipes / Screen Pipes)
+  - Click result to navigate to detail page
 
-### 1.9 常量与工具函数
-- [ ] 实现 `shared/utils/constants.ts`：钢级列表、端部类型列表、筛管类型列表
-- [ ] 实现 `shared/utils/format.ts`：日期格式化、数字格式化、枚举值映射
-- [ ] 实现 `shared/utils/pipe-number.ts`：管材编号生成/解析工具
+### 1.9 Constants & Utility Functions
+- [ ] Implement `shared/utils/constants.ts`: grade list, end type list, screen type list
+- [ ] Implement `shared/utils/format.ts`: date formatting, number formatting, enum value mapping
+- [ ] Implement `shared/utils/pipe-number.ts`: pipe number generation/parsing utilities
 
-> **依赖**: 基础设施（Axios, QueryClient, i18n, theme）
+> **Deps**: Infrastructure (Axios, QueryClient, i18n, theme)

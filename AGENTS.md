@@ -29,7 +29,7 @@ Backend runs on `http://localhost:3000`, frontend dev on `http://localhost:5173`
 | Frontend chunk analysis | `cd frontend && npx vite build --analyze` (manualChunks via vite.config.ts) | — |
 | Full CI pipeline | `cargo check` + `tsc --noEmit` + `npm run build` (parallel) | `.github/workflows/ci.yml` |
 
-**Important**: There is **no Makefile** despite README mentioning `make` commands. Use direct commands above.
+**Heads up**: There's **no Makefile** despite what the README says. Just use cargo/npm directly.
 
 ## Architecture
 
@@ -93,14 +93,14 @@ steel-pipe-db/
 - **zod** — schema validation
 - **zod runtime validation** — `src/lib/validateResponse.ts` wraps `zod.response()` for API response validation
 
-## Backend Patterns (actual code, not aspirational)
+## Backend Patterns (what actually runs, not what the docs pretend)
 
 ### DI Pattern: Extension layers, NOT State<Arc<AppState>>
 ```
 router.rs: .layer(Extension(pool)).layer(Extension(jwt_secret))
 Handler:   Extension(pool): Extension<SqlitePool>
 ```
-No `AppState` struct exists. Pool and JWT secret injected as raw types.
+No `AppState` struct exists. Pool and JWT secret get injected as raw types. Fight me.
 
 ### Response Shapes
 ```rust
@@ -108,7 +108,7 @@ No `AppState` struct exists. Pool and JWT secret injected as raw types.
 // Paginated:  { "success": true, "request_id": "req_...", "data": { "items": [], ... }, "meta": { "total": N, "page": P, "page_size": S, "total_pages": N } }
 // Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
-`request_id` is auto-generated via uuid v4. `Meta` struct with total/page/page_size/total_pages. `ApiErrorResponse` includes `success: bool` (always false) and `request_id` filled automatically by `AppError::into_response()`.
+`request_id` is a uuid v4. `Meta` struct has total/page/page_size/total_pages. `ApiErrorResponse` always includes `success: false` and `request_id` — filled automatically by `AppError::into_response()`.
 
 ### Handler Pattern
 ```rust
@@ -120,7 +120,7 @@ pub async fn list_seamless_pipes_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 ```
-Handlers return `Result<Json<...>, AppError>` (NOT `impl IntoResponse`). Error propagation via `?`.
+Handlers return `Result<Json<...>, AppError>` (NOT `impl IntoResponse`). Errors propagate via `?`.
 
 ### Service Pattern: Unit struct + static methods
 ```rust
@@ -132,13 +132,13 @@ impl PipeService {
     }
 }
 ```
-Services are **unit structs with static methods**, taking `pool: &SqlitePool` directly. NOT the constructor DI pattern described in subordinate AGENTS.md.
+Services are **unit structs with static methods**, taking `pool: &SqlitePool` directly. Forget the fancy constructor DI pattern you read about in some blog — this is what we actually do.
 
 ### Repository Pattern
 ```rust
 SeamlessPipeRepo::find_by_pipe_number(pool, pn).await
 ```
-Also static methods taking `pool: &SqlitePool`. Soft-delete: `WHERE deleted_at IS NULL`.
+Same deal — static methods, `pool: &SqlitePool`. Soft-delete: `WHERE deleted_at IS NULL`.
 
 ### Error Codes (numeric, domain-prefixed)
 | Range | Domain |
@@ -200,7 +200,7 @@ Also static methods taking `pool: &SqlitePool`. Soft-delete: `WHERE deleted_at I
 ### Feature Modules (11)
 `auth`, `pipes`, `inventory`, `suppliers`, `customers`, `purchases`, `sales`, `quality`, `contracts`, `reports`, `labels`
 
-Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, DetailPage), `types/` (TS interfaces). Some have `hooks/`, some have `store/` or `stores/`.
+Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, DetailPage), `types/` (TS interfaces). Some also have `hooks/` or `store/` or `stores/`.
 
 ### Auth Flow
 - `authStore` (Zustand, localStorage-backed): stores `auth_token` + `auth_user`
@@ -220,9 +220,9 @@ Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, D
 ## Conventions & Gotchas
 
 - **No `.opencode.json`** config found — default OpenCode behavior applies
-- **No Makefile** — don't try `make backend`, run cargo directly
+- **No Makefile** — don't try `make backend`, just `cargo run`
 - **License**: GPLv2 (was MIT, recently changed)
-- **i18n**: zh-CN primary. Namespace per feature. AGENTS_zh.md files exist for Chinese-language agent sessions
+- **i18n**: zh-CN primary. Namespace per feature. `AGENTS_zh.md` files exist for Chinese-language agent sessions
 - **`AGENTS_zh.md`** files exist alongside most `AGENTS.md` for Chinese-language development
 - **Type safety**: CI enforces `cargo check` (not build) + `tsc --noEmit`. No Rust tests run in CI
 - **Dead code cleanup**: 26 unused items removed from domain/dto/error/response/repo modules. `#![allow(dead_code)]` retained at crate root to suppress legitimate false positives.

@@ -1,24 +1,24 @@
-# Phase 1 — 前端：历史追溯模块 (P0 MVP)
+# Phase 1 — Frontend: Traceability Module (P0 MVP)
 
-> 基于：`docs/需求文档.md` §3.9；`docs/前端设计文档.md` §4.1
+> Based on: `docs/requirements.en.md` §3.9; `docs/frontend-design.en.md` §4.1
 
-## 任务清单
+## Tasks
 
-### 1.1 说明
-历史追溯为横切功能，前端表现为在管材详情页和库存流水页的追溯展示。
+### 1.1 What This Is
+Traceability is a cross-cutting concern. On the frontend, it shows up as timeline views in pipe detail pages and inventory log pages.
 
-### 1.2 管材详情页关联追溯
-- [ ] 在 `SeamlessPipeDetailPage` 和 `ScreenPipeDetailPage` 中添加 Tab：
-  - **出入库历史** Tab：展示该管材的 inventory_logs 时间线
-  - **操作日志** Tab：展示该管材相关的 operation_logs
-- [ ] 实现 `TraceTimeline` 组件（Ant Design Timeline）：
-  - 按时间顺序展示每一条库存变动
-  - 不同变动类型用不同图标/颜色（入库绿、出库蓝、调拨橙、盘点紫）
-  - 每项显示：时间、变动类型、关联单据编号、操作人
-  - 点击关联单据编号跳转到对应入库/出库详情页
+### 1.2 Traceability in Pipe Detail Pages
+- [ ] Add tabs to `SeamlessPipeDetailPage` and `ScreenPipeDetailPage`:
+  - **Inbound/Outbound History** Tab: show that pipe's inventory_logs as a timeline
+  - **Operation Logs** Tab: show operation_logs related to that pipe
+- [ ] Implement `TraceTimeline` component (Ant Design Timeline):
+  - Display each stock change chronologically
+  - Different change types get different icons/colors (inbound green, outbound blue, transfer orange, check purple)
+  - Each entry shows: time, change type, linked document number, operator
+  - Click linked document number to navigate to the corresponding inbound/outbound detail page
 
-### 1.3 炉批号追溯
-- [ ] 在质量模块或管材搜索页面添加炉批号追溯入口
-- [ ] 输入炉批号 → 展示该炉批号下所有管材列表 + 每根当前状态
+### 1.3 Heat Number Traceability
+- [ ] Add heat number traceability entry point in quality module or pipe search page
+- [ ] Input heat number → show all pipes under that heat number + each pipe's current status
 
-> **依赖**: 管材管理前端模块、库存管理前端模块
+> **Deps**: Pipe management frontend module, inventory management frontend module

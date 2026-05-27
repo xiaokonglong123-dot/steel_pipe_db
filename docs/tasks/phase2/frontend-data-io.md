@@ -1,32 +1,32 @@
-# Phase 2 — 前端：数据导入导出模块 (P1)
+# Phase 2 — Frontend: Data Import/Export Module (P1)
 
-> 基于：`docs/前端设计文档.md` §4.1
+> Based on: `docs/frontend-design.en.md` §4.1
 
-## 任务清单
+## Tasks
 
-### 1.1 导入页面
-- [ ] 实现 `ImportPage`：
-  - Tab 切换：导入无缝钢管 / 导入筛管
-  - 下载导入模板按钮（.xlsx 模板，含表头说明 + 必填标记）
-  - 文件上传区（拖拽或点击上传，支持 .xlsx / .xls / .csv）
-  - 导入配置：重复编号处理策略（跳过/覆盖/自动编号）
-  - 上传后预览：表格展示解析出的前 N 行数据
-  - 确认导入按钮 → 调用后端 API
-- [ ] 实现导入结果展示：
-  - 成功后：成功行数 + 失败行数 + 每行失败原因表格
-  - 失败可下载错误报告
-  - 导入历史记录（最近导入记录列表）
+### 1.1 Import Page
+- [ ] Implement `ImportPage`:
+  - Tab switch: Import Seamless Pipes / Import Screen Pipes
+  - Download import template button (.xlsx template, with header descriptions + required field markers)
+  - File upload area (drag-and-drop or click to upload, supports .xlsx / .xls / .csv)
+  - Import config: duplicate number handling strategy (skip / overwrite / auto-number)
+  - Preview after upload: table showing first N rows of parsed data
+  - Confirm import button → calls backend API
+- [ ] Implement import results display:
+  - On success: success count + failure count + per-row failure reason table
+  - Failure report available for download
+  - Import history (recent import record list)
 
-### 1.2 导出页面
-- [ ] 实现 `ExportPage`：
-  - 选择导出类型：库存报表 / 入库明细 / 出库明细 / 管材列表
-  - 根据类型动态显示筛选条件（日期范围、管材类型、钢级等）
-  - 字段选择器：勾选要导出的字段
-  - 文件格式选择：Excel / CSV
-  - 导出按钮 → 触发下载
+### 1.2 Export Page
+- [ ] Implement `ExportPage`:
+  - Select export type: inventory report / inbound detail / outbound detail / pipe list
+  - Dynamic filter display based on type (date range, pipe type, grade etc.)
+  - Field selector: check which fields to export
+  - File format: Excel / CSV
+  - Export button → triggers download
 
-### 1.3 共享组件
-- [ ] 实现 `FileUploader`：支持拖拽 + 点击上传，文件类型/大小限制，进度条
-- [ ] 实现 `ImportResultTable`：导入错误结果表格（行号、原因、原始数据）
+### 1.3 Shared Components
+- [ ] Implement `FileUploader`: drag-and-drop + click upload, file type/size limits, progress bar
+- [ ] Implement `ImportResultTable`: import error result table (row number, reason, raw data)
 
-> **依赖**: 管材管理前端模块
+> **Deps**: Pipe management frontend module

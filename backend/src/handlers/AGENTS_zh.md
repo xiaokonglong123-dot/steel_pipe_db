@@ -1,7 +1,8 @@
-# `handlers/` — HTTP 层（13 个文件，约 55 个处理器）
+# `handlers/` — HTTP Layer (13 files, ~55 handlers)
 
-## 模式
-每个处理器遵循：**提取 → 调用服务 → 响应**
+## Pattern
+
+Every handler follows the same damn pattern: **extract → call service → respond**
 
 ```rust
 pub async fn list_seamless_pipes_handler(
@@ -13,53 +14,58 @@ pub async fn list_seamless_pipes_handler(
 }
 ```
 
-要点：
-- 返回类型：`Result<Json<...>, AppError>` — 而非 `impl IntoResponse`
-- 使用 `?` 运算符进行错误传播（AppError 通过 `IntoResponse` 自动转换）
-- 无需手动调用 `.into_response()`
-- 处理器使用 `ApiResponse::ok()` 或 `PaginatedResponse::ok()` 静态构造函数
+Key points:
 
-## 响应类型（来自 `crate::response`）
-- `ApiResponse<T>` — 标准成功响应：`{ "success": true, "request_id": "req_...", "data": T }`
-- `PaginatedResponse<T>` — 分页响应：`{ "success": true, "request_id": "req_...", "meta": { total, page, page_size, total_pages }, "data": { "items": [], ... } }`
-- `AppError` — 错误响应（通过 `IntoResponse`）：`{ "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }`
-- 处理器可使用 `ApiResponse::created(data)` 返回 201 Created 响应
-- 处理器可使用 `no_content()` 返回 204 No Content 响应（如删除操作）
+- Return type: `Result<Json<...>, AppError>` — NOT `impl IntoResponse`
+- Use `?` for error propagation (AppError converts itself via `IntoResponse`)
+- No manual `.into_response()` calls — keep it clean
+- Handlers use `ApiResponse::ok()` or `PaginatedResponse::ok()` static constructors
 
-## 处理器文件列表
+## Response Types (from `crate::response`)
 
-| 文件 | 实体 | 描述 |
-|------|------|------|
-| `auth_handler.rs` | 认证 | 登录、登出、刷新令牌、个人信息 |
-| `pipe_handler.rs` | 钢管 | 无缝管 + 筛管 CRUD、列表、筛选 |
-| `inventory_handler.rs` | 库存 | 入库、出库、库存查询、库位、盘点 |
-| `purchase_handler.rs` | 采购订单 | CRUD、状态转换、审批 |
-| `sales_handler.rs` | 销售订单 | CRUD、状态转换、ATP 检查 |
-| `quality_handler.rs` | 质量 | 质检证书 CRUD、力学检测、无损检测 |
-| `contract_handler.rs` | 合同 | CRUD、里程碑 |
-| `customer_handler.rs` | 客户 | CRUD、列表 |
-| `supplier_handler.rs` | 供应商 | CRUD、列表 |
-| `report_handler.rs` | 报表 | 仪表盘、日报/月报/统计报表 |
-| `label_handler.rs` | 标签 | 条码/规格标签生成 |
-| `atp_handler.rs` | 可用库存 | 销售订单审批前的 ATP 库存可用量检查 |
-| `data_io_handler.rs` | 数据导入导出 | Excel/CSV 导入和导出 |
+- `ApiResponse<T>` — Standard success: `{ "success": true, "request_id": "req_...", "data": T }`
+- `PaginatedResponse<T>` — Paginated: `{ "success": true, "request_id": "req_...", "meta": { total, page, page_size, total_pages }, "data": { "items": [], ... } }`
+- `AppError` — Error (via `IntoResponse`): `{ "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }`
+- Need a 201? `ApiResponse::created(data)` has you covered
+- Need a 204? `no_content()` — mostly used for deletions
 
-## 通用提取器模式
-- `Extension(pool): Extension<SqlitePool>` — 数据库池（每个处理器必需）
-- `Extension(jwt_secret): Extension<String>` — JWT 密钥（认证处理器）
-- `Query(params): Query<T>` — GET 查询参数（T: DeserializeOwned）
-- `Json(body): Json<T>` — POST/PUT 请求体（T: DeserializeOwned）
-- `Path(id): Path<i64>` — URL 路径参数
-- `AuthUser(user): AuthUser` — JWT 认证用户提取器
+## Handler File List
 
-校验通过 `validator::Validate::validate()` 内联完成：
+| File | Entity | Description |
+|------|--------|-------------|
+| `auth_handler.rs` | Auth | login, logout, refresh, profile |
+| `pipe_handler.rs` | Pipes | seamless + screen pipe CRUD, list, filter |
+| `inventory_handler.rs` | Inventory | inbound, outbound, stock query, locations, check |
+| `purchase_handler.rs` | Purchase Orders | CRUD, status transitions, approval |
+| `sales_handler.rs` | Sales Orders | CRUD, status transitions, ATP check |
+| `quality_handler.rs` | Quality | certs CRUD, mechanical tests, NDT |
+| `contract_handler.rs` | Contracts | CRUD, milestones |
+| `customer_handler.rs` | Customers | CRUD, list |
+| `supplier_handler.rs` | Suppliers | CRUD, list |
+| `report_handler.rs` | Reports | dashboard, daily/monthly/statistical reports |
+| `label_handler.rs` | Labels | barcode/spec label generation |
+| `atp_handler.rs` | ATP | ATP check (stock availability) before sales order approval |
+| `data_io_handler.rs` | Data IO | Excel/CSV import and export |
+
+## Common Extractor Patterns
+
+- `Extension(pool): Extension<SqlitePool>` — DB pool (every handler needs this)
+- `Extension(jwt_secret): Extension<String>` — JWT secret (auth handlers only)
+- `Query(params): Query<T>` — GET query params (T needs DeserializeOwned)
+- `Json(body): Json<T>` — POST/PUT body (T needs DeserializeOwned)
+- `Path(id): Path<i64>` — URL path parameter
+- `AuthUser(user): AuthUser` — JWT-authenticated user extractor
+
+Validation's done inline via `validator::Validate::validate()`:
+
 ```rust
 req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
 ```
 
-## 约定
-- 每个实体一个处理器文件
-- 处理函数为 `pub async fn` 返回 `Result<Json<...>, AppError>`
-- 始终使用 `ApiResponse::ok()` / `PaginatedResponse::ok()` 静态构造函数
-- 通过 `?` 运算符和 AppError 自动转换进行错误传播
-- 大多数处理器较薄（5-15 行）—— 业务逻辑在服务层
+## Conventions
+
+- One handler file per entity — keeps things organized
+- Handler functions are `pub async fn` returning `Result<Json<...>, AppError>`
+- Always reach for `ApiResponse::ok()` / `PaginatedResponse::ok()` — don't construct responses manually
+- Error propagation via `?` with AppError auto-conversion
+- Most handlers are thin (5-15 lines) — business logic lives in services, keep it there

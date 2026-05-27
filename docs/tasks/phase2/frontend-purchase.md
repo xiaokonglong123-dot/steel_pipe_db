@@ -1,45 +1,45 @@
-# Phase 2 — 前端：采购管理模块 (P1)
+# Phase 2 — Frontend: Purchase Management Module (P1)
 
-> 基于：`docs/前端设计文档.md` §4.1, §6；`docs/详细设计文档.md` §6.5
+> Based on: `docs/frontend-design.en.md` §4.1, §6; `docs/detailed-design.en.md` §6.5
 
-## 任务清单
+## Tasks
 
-### 1.1 共享类型与 API
-- [ ] 定义 `features/purchases/types.ts`：Supplier, PurchaseOrder, OrderItem 等类型
-- [ ] 定义 `features/purchases/api/supplierApi.ts`：供应商 CRUD API
-- [ ] 定义 `features/purchases/api/purchaseApi.ts`：
-  - 采购订单 CRUD
-  - 审核 / 驳回
-  - 关联入库单
-- [ ] 实现 React Query hooks 封装
+### 1.1 Shared Types & API
+- [ ] Define `features/purchases/types.ts`: Supplier, PurchaseOrder, OrderItem etc.
+- [ ] Define `features/purchases/api/supplierApi.ts`: supplier CRUD API
+- [ ] Define `features/purchases/api/purchaseApi.ts`:
+  - Purchase order CRUD
+  - Approve / reject
+  - Link inbound order
+- [ ] Implement React Query hooks wrapper
 
-### 1.2 供应商管理页面
-- [ ] 实现 `SupplierListPage`：供应商表格 + 新增/编辑/删除
-- [ ] 实现 `SupplierFormPage`：供应商表单（名称、联系人、电话、邮箱、地址、资质证书）
+### 1.2 Supplier Management Pages
+- [ ] Implement `SupplierListPage`: supplier table + add/edit/delete
+- [ ] Implement `SupplierFormPage`: supplier form (name, contact, phone, email, address, certs)
 
-### 1.3 采购订单页面
-- [ ] 实现 `PurchaseOrderListPage`：
-  - 筛选：订单号、供应商、状态、日期范围
-  - 订单表格（订单号、供应商、日期、状态、总金额、操作）
-  - 操作：查看详情、审核、删除
-  - +新增采购订单按钮
-- [ ] 实现 `PurchaseOrderFormPage`：
-  - 选择供应商（SupplierSelect 组件）
-  - 添加订单明细（选择管材规格：钢级 + 外径 + 壁厚 + 数量 + 单价）
-  - 自动计算总金额
-  - 备注
-- [ ] 实现 `PurchaseOrderDetailPage`：
-  - 订单基本信息展示
-  - 明细表格（钢级、规格、数量、已入库数量、单价、小计）
-  - 关联入库记录列表（点击跳转入库详情）
-  - 审核/取消操作按钮
+### 1.3 Purchase Order Pages
+- [ ] Implement `PurchaseOrderListPage`:
+  - Filters: order number, supplier, status, date range
+  - Order table (order number, supplier, date, status, total amount, actions)
+  - Actions: view detail, approve, delete
+  - +New purchase order button
+- [ ] Implement `PurchaseOrderFormPage`:
+  - Select supplier (SupplierSelect component)
+  - Add order items (select pipe spec: grade + OD + WT + qty + unit price)
+  - Auto-calculate total amount
+  - Notes field
+- [ ] Implement `PurchaseOrderDetailPage`:
+  - Order basic info display
+  - Items table (grade, spec, qty, received qty, unit price, subtotal)
+  - Linked inbound record list (click to navigate to inbound detail)
+  - Approve / cancel action buttons
 
-### 1.4 共享组件
-- [ ] 实现 `OrderStatusTag`：订单状态标签（draft🟡 / pending🔵 / approved🟢 / completed⚪ / cancelled🔴）
-- [ ] 实现 `SupplierSelect`：供应商选择器（搜索+下拉）
+### 1.4 Shared Components
+- [ ] Implement `OrderStatusTag`: order status badge (draft 🟡 / pending 🔵 / approved 🟢 / completed ⚪ / cancelled 🔴)
+- [ ] Implement `SupplierSelect`: supplier selector (search + dropdown)
 
-### 1.5 国际化
-- [ ] 创建 `src/i18n/resources/zh/purchase.json` 和 `en/purchase.json`
+### 1.5 i18n
+- [ ] Create `src/i18n/resources/zh/purchase.json` and `en/purchase.json`
 
-> **依赖**：管材管理前端模块（管材规格选择）
-> **独立模块**：与销售管理模块共享 `OrderStatusTag` 组件
+> **Deps**: Pipe management frontend module (pipe spec selection)
+> **Shared**: `OrderStatusTag` component shared with sales module

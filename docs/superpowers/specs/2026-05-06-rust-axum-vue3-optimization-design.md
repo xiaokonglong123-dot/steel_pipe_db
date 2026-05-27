@@ -1,81 +1,81 @@
-# 钢管原料进出入库管理系统 — 优化扩展设计
+# Steel Pipe Inventory Management System — Optimization & Extension Design
 
-## 概述
+## Overview
 
-对 `rust-axum-vue3` 子项目进行全面的优化扩展，涵盖架构重构、权限系统、前端技术栈升级、功能增强、UI/UX 提升及性能优化。
+A comprehensive optimization and extension plan for the `rust-axum-vue3` sub-project, covering architecture refactoring, permission system, frontend stack upgrade, feature enhancements, UI/UX improvements, and performance tuning.
 
-## 策略
+## Strategy
 
-采用**并行双轨制**：后端（Rust/Axum）与前端（Vue 3）同步开发，通过共享 API 契约保证兼容性。分三阶段迭代交付。
+**Parallel dual-track development**: Backend (Rust/Axum) and frontend (Vue 3) developed in sync, sharing an API contract for compatibility. Delivered in three iterative phases.
 
-## 后端设计
+## Backend Design
 
-### 模块拆分
+### Module Splitting
 
-将 `db.rs`（1079行）按业务领域拆分为独立模块：
+Split `db.rs` (1079 lines) into domain-specific modules:
 
 ```
 server/src/
-├── main.rs              # 路由定义 + 启动
+├── main.rs              # Route definitions + startup
 ├── db/
-│   ├── mod.rs           # 数据库初始化、连接管理、migration
-│   ├── pipes.rs         # 钢管 CRUD 查询
-│   ├── records.rs       # 出入库记录
-│   ├── productions.rs   # 生产投料
-│   ├── logs.rs          # 操作日志
-│   └── reports.rs       # 报表统计查询
+│   ├── mod.rs           # DB init, connection management, migrations
+│   ├── pipes.rs         # Pipe CRUD queries
+│   ├── records.rs       # Inbound/outbound records
+│   ├── productions.rs   # Production input
+│   ├── logs.rs          # Operation logs
+│   └── reports.rs       # Report/statistics queries
 ├── handlers/
-│   ├── mod.rs        # 路由->处理器映射（所有 handler 重导出）
-│   ├── pipes.rs      # 钢管 CRUD 处理器
-│   ├── records.rs    # 出入库记录处理器
-│   ├── productions.rs# 生产投料处理器
-│   ├── auth.rs       # 认证相关处理器
-│   ├── export.rs     # 导出处理器
-│   ├── import.rs     # 导入处理器
-│   └── system.rs     # 备份恢复 + 报表处理器
-├── models.rs            # 数据模型 + 校验
-├── auth.rs              # JWT 认证中间件 + 角色检查
-├── error.rs             # AppError 枚举 + IntoResponse
-└── types.rs             # 分页、排序等共享类型
+│   ├── mod.rs        # Route→handler mappings (re-exports all handlers)
+│   ├── pipes.rs      # Pipe CRUD handlers
+│   ├── records.rs    # Inbound/outbound record handlers
+│   ├── productions.rs# Production input handlers
+│   ├── auth.rs       # Auth handlers
+│   ├── export.rs     # Export handlers
+│   ├── import.rs     # Import handlers
+│   └── system.rs     # Backup/restore + report handlers
+├── models.rs            # Data models + validation
+├── auth.rs              # JWT auth middleware + role checks
+├── error.rs             # AppError enum + IntoResponse
+└── types.rs             # Shared types: pagination, sorting, etc.
 ```
 
-拆分原则：每个模块对外暴露函数签名为 `pub fn query_(…) -> Result<…>`，内部使用 `rusqlite::Connection`，由上层 `mod.rs` 管理事务。
+Splitting rule: each module exposes `pub fn query_(…) -> Result<…>`, uses `rusqlite::Connection` internally, with the parent `mod.rs` managing transactions.
 
-### 认证与授权
+### Auth & Authorization
 
-- **JWT**：使用 `jsonwebtoken` crate，HS256 签名，过期时间 24h
-- **密码**：使用 `bcrypt` crate 哈希存储
-- **三角色**：
-  | 角色 | 权限 |
-  |------|------|
-  | `admin` | 全部操作：CRUD、导入导出、备份恢复、用户管理 |
-  | `operator` | 日常操作：入库/出库/生产投料、查看数据 |
-  | `viewer` | 只读：查看仪表盘、库存、记录、报表 |
-- **Middleware**：Axum `FromRequestParts` 实现 `RequireAuth`，提取 token 验证并将用户信息注入请求扩展
-- **路由保护**：在 `main.rs` 路由层使用 `axum::middleware::from_fn` 或分层 `Router`
+- **JWT**: `jsonwebtoken` crate, HS256 signing, 24h expiry
+- **Passwords**: `bcrypt` crate for hashing
+- **Three roles**:
+  | Role | Permissions |
+  |------|-------------|
+  | `admin` | Everything: CRUD, import/export, backup/restore, user management |
+  | `operator` | Daily ops: inbound/outbound/production input, view data |
+  | `viewer` | Read-only: dashboard, inventory, records, reports |
+- **Middleware**: Axum `FromRequestParts` implementation for `RequireAuth`, extracts token and injects user info into request extensions
+- **Route protection**: `axum::middleware::from_fn` or layered `Router` in `main.rs`
 
-### 新增接口
+### New Endpoints
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/auth/login` | 登录，返回 JWT + 用户信息 |
-| POST | `/api/auth/register` | 注册（仅 admin） |
-| GET  | `/api/auth/me` | 获取当前用户信息 |
-| PUT  | `/api/auth/password` | 修改密码 |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/auth/login` | Login, returns JWT + user info |
+| POST | `/api/auth/register` | Register (admin only) |
+| GET  | `/api/auth/me` | Get current user info |
+| PUT  | `/api/auth/password` | Change password |
 
-### 性能优化
+### Performance Optimizations
 
-- **连接池**：`r2d2 + r2d2_sqlite`，池大小 4-8
-- **查询优化**：关键查询（仪表盘统计、库存列表、记录筛选）增加复合索引（`(status, material)`, `(material, entry_date)`, `(operation_type, operation_date)`），使用 `EXPLAIN QUERY PLAN` 验证索引命中
-- **字典缓存**：材质/位置等字典数据使用 `once_cell` 或 `dashmap` 做内存缓存，定时刷新
+- **Connection pool**: `r2d2 + r2d2_sqlite`, pool size 4-8
+- **Query optimization**: Add composite indexes on critical queries (dashboard stats, inventory lists, record filtering) — `(status, material)`, `(material, entry_date)`, `(operation_type, operation_date)`. Use `EXPLAIN QUERY PLAN` to verify index usage
+- **Dictionary caching**: Cache material/location lookups in memory with `once_cell` or `dashmap`, refresh periodically
 
-### 测试
+### Testing
 
-- 单元测试：`models.rs` 校验逻辑、`error.rs` 错误转换
-- 集成测试：`tests/` 目录下对每个 db 模块进行 SQLite 内存数据库测试
-- API 测试：使用 `axum::test` 进行路由级测试
+- Unit tests: `models.rs` validation logic, `error.rs` error conversion
+- Integration tests: `tests/` directory, SQLite in-memory DB for each module
+- API tests: Axum `test` utilities for route-level testing
 
-### 新增 Cargo 依赖
+### New Cargo Dependencies
 
 ```toml
 jsonwebtoken = "9"
@@ -85,22 +85,22 @@ r2d2_sqlite = "0.24"
 uuid = { version = "1", features = ["v4"] }
 ```
 
-## 前端设计
+## Frontend Design
 
-### TypeScript 迁移
+### TypeScript Migration
 
-全部 `.js` / `.vue` 文件迁移至 TypeScript：
-- 接口类型定义置于 `src/types/` 目录
-- `.vue` 文件使用 `<script setup lang="ts">`
-- `vite.config.ts` 启用 TypeScript 支持
+Migrate all `.js` / `.vue` files to TypeScript:
+- Interface type definitions in `src/types/`
+- `.vue` files use `<script setup lang="ts">`
+- `vite.config.ts` enables TypeScript support
 
-### TypeScript 配置
+### TypeScript Configuration
 
-- `tsconfig.json`：`strict: true`，`target: ES2022`，`module: ESNext`
-- `tsconfig.node.json`：Vite 配置文件的 TS 支持
-- `vue-tsc` 用于类型检查，集成到 `npm run typecheck` 脚本
+- `tsconfig.json`: `strict: true`, `target: ES2022`, `module: ESNext`
+- `tsconfig.node.json`: TS support for Vite config files
+- `vue-tsc` for type checking, wired into `npm run typecheck`
 
-### 类型定义
+### Type Definitions
 
 ```
 types/
@@ -112,11 +112,11 @@ types/
 └── common.ts     # PaginatedResponse, ApiError, DictData
 ```
 
-### Pinia 状态管理
+### Pinia State Management
 
 ```
 stores/
-├── index.ts       # 聚合导出
+├── index.ts       # Aggregated exports
 ├── auth.ts        # user, token, isAuthenticated, login(), logout(), checkAuth()
 ├── pipes.ts       # pipes[], query, pagination, fetchPipes(), createPipe(), …
 ├── records.ts     # records[], filters, fetchRecords()
@@ -124,21 +124,21 @@ stores/
 └── ui.ts          # theme, sidebarCollapsed, notifications
 ```
 
-`auth` store 关键行为：
-- 初始化时从 `localStorage` 读取 token
-- `login()` 调用 API → 存储 token + user → Axios 默认 header
-- `logout()` 清除所有状态 → router 跳转 `/login`
-- Axios 响应拦截器：401 → 自动 logout
+`auth` store key behaviors:
+- On init: read token from `localStorage`
+- `login()`: call API → store token + user → set Axios default header
+- `logout()`: clear all state → router redirect to `/login`
+- Axios response interceptor: 401 → auto logout
 
-### 路由与守卫
+### Routes & Guards
 
 ```
 router/
-├── index.ts       # 路由定义
-└── guard.ts       # beforeEach: 认证检查 + 角色检查
+├── index.ts       # Route definitions
+└── guard.ts       # beforeEach: auth check + role check
 ```
 
-路由元信息：
+Route meta:
 ```typescript
 meta: {
   requiresAuth: boolean
@@ -147,34 +147,34 @@ meta: {
 }
 ```
 
-### UI/UX 增强
+### UI/UX Enhancements
 
-**深色模式：**
-- CSS 变量定义明/暗两套色值
-- `useUIStore` 中 `theme: 'light' | 'dark'` 状态
-- 监听 `prefers-color-scheme` 媒体查询
-- 切换按钮在侧边栏底部
-- 持久化到 `localStorage`
+**Dark mode:**
+- CSS variables for light/dark color palettes
+- `useUIStore` state: `theme: 'light' | 'dark'`
+- Listen to `prefers-color-scheme` media query
+- Toggle button at sidebar bottom
+- Persist to `localStorage`
 
-**响应式布局：**
-- 断点：768px / 1024px / 1440px
-- 侧边栏：≥1024px 固定展开，<1024px 抽屉式
-- 表格：水平滚动 + 响应式列隐藏（xsmall 隐藏非关键列）
-- 表单：栅格布局，小屏单列
+**Responsive layout:**
+- Breakpoints: 768px / 1024px / 1440px
+- Sidebar: ≥1024px fixed open, <1024px drawer-style
+- Tables: horizontal scroll + responsive column hiding (xsmall hides non-critical columns)
+- Forms: grid layout, single column on small screens
 
-**交互优化：**
-- 表格行悬停高亮 + click 展开详情
-- 批量操作：勾选 → 悬浮操作栏
-- 删除确认：Modal 二次确认
-- 操作反馈：全局 Toast 通知
-- 加载状态：骨架屏（Skeleton）替代 spinner
-- 空状态：插画 + 引导文字
+**Interaction improvements:**
+- Table row hover highlight + click to expand details
+- Batch operations: checkbox selection → floating action bar
+- Delete confirmations: Modal with two-step confirmation
+- Action feedback: global toast notifications
+- Loading states: skeleton screens instead of spinners
+- Empty states: illustrations + guidance text
 
-**可视化（ECharts）：**
-- 仪表盘：库存概览环图、近 7 日趋势折线图、材质分布柱状图
-- 统计页：出入库对比柱状图、库存周转率
+**Visualization (ECharts):**
+- Dashboard: inventory overview donut chart, 7-day trend line chart, material distribution bar chart
+- Stats page: inbound/outbound comparison bar chart, inventory turnover rate
 
-### 新增前端依赖
+### New Frontend Dependencies
 
 ```json
 {
@@ -192,7 +192,7 @@ meta: {
 }
 ```
 
-### 组件目录重构
+### Component Directory Restructure
 
 ```
 components/
@@ -214,39 +214,39 @@ components/
     └── ProductionForm.vue
 ```
 
-## 执行计划
+## Execution Plan
 
-### 第1阶段：基础设施 + 核心新功能
+### Phase 1: Infrastructure + Core New Features
 
-| 后端 Track A | 前端 Track B |
+| Backend Track A | Frontend Track B |
 |---|---|
-| db.rs → db/mod.rs + pipes.rs + records.rs + productions.rs + logs.rs + reports.rs | TS 类型定义 + Pinia stores 搭建 |
-| auth.rs: JWT 签发/验证中间件 + 用户表 migration | 登录页面 + 路由守卫 + auth store |
-| handlers.rs 拆分 | API 层 ts 化 + Axios 拦截器 |
-| 主路由添加 auth 保护层 | 基础 UI 组件 (Button, Modal, Table) |
-| **交付：可登录系统，API 已模块化** | **交付：TS 化前端，路由受保护** |
+| db.rs → db/mod.rs + pipes.rs + records.rs + productions.rs + logs.rs + reports.rs | TS type definitions + Pinia stores setup |
+| auth.rs: JWT issue/verify middleware + users table migration | Login page + route guard + auth store |
+| handlers.rs splitting | API layer TS-ified + Axios interceptors |
+| Main router auth protection layer | Base UI components (Button, Modal, Table) |
+| **Deliverable: working login, modular API** | **Deliverable: TS ported frontend, routes protected** |
 
-### 第2阶段：功能叠加
+### Phase 2: Feature Stacking
 
-| 后端 Track A | 前端 Track B |
+| Backend Track A | Frontend Track B |
 |---|---|
-| Rust 测试覆盖 (unit + integration) | ECharts 可视化 (仪表盘 + 统计页) |
-| 查询优化 + 复合索引 | 深色模式 |
-| 连接池 (r2d2) | 响应式布局适配 |
-| 字典缓存 | 骨架屏 + 空状态 + Toast |
-| **交付：性能提升，功能完整** | **交付：现代化 UI** |
+| Rust test coverage (unit + integration) | ECharts visualization (dashboard + stats) |
+| Query optimization + composite indexes | Dark mode |
+| Connection pool (r2d2) | Responsive layout adaptation |
+| Dictionary caching | Skeleton screens + empty states + Toasts |
+| **Deliverable: performance bump, feature complete** | **Deliverable: modern UI** |
 
-### 第3阶段：打磨收尾
+### Phase 3: Polish & Ship
 
-| 后端 Track A | 前端 Track B |
+| Backend Track A | Frontend Track B |
 |---|---|
-| CI 流水线 (Rust check + test) | 交互细节打磨 |
-| 性能压力测试 | 集成联调 |
-| 最终 Bug 修复 | 最终测试 |
+| CI pipeline (Rust check + test) | Interaction polish |
+| Performance stress testing | Integration & end-to-end testing |
+| Final bug fixes | Final testing |
 
-## 不纳入范围
+## Out of Scope
 
-- WebSocket 实时推送（未来考虑）
-- 移动端原生应用（未来考虑）
-- 多语言国际化（当前仅有中文需求）
-- Docker 容器化部署（可后续添加）
+- WebSocket real-time push (future consideration)
+- Mobile native apps (future consideration)
+- Multi-language i18n (currently Chinese-only requirement)
+- Docker containerized deployment (can be added later)

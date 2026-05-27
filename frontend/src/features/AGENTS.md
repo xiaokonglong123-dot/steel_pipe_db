@@ -1,44 +1,45 @@
-# `features/` — Feature Module Pattern
+# `features/` — The Feature Module Pattern
 
-All 13 feature modules follow an identical pattern. This document serves as the template for understanding or adding any feature.
+All 13 feature modules follow the same layout. This doc is both a reference and a template for adding new ones.
 
 ## Feature Module Structure
 
 ```
 features/{feature}/
-├── api/           ← TanStack Query hooks (API layer)
-│   └── index.ts   ← useQuery, useMutation hooks
+├── api/           ← TanStack Query hooks
+│   └── index.ts   ← useQuery, useMutation
 ├── hooks/         ← Feature-specific React hooks (optional)
 │   └── index.ts
-├── pages/         ← Page components (1 file = 1 route)
+├── pages/         ← Page components (one file per route)
 │   ├── ListPage.tsx
-│   ├── FormPage.tsx       ← Create + Edit combined
+│   ├── FormPage.tsx       ← Create + Edit in one
 │   └── DetailPage.tsx
 ├── stores/        ← Zustand stores (optional, for complex features)
 │   └── index.ts
 └── types/         ← TypeScript interfaces
-    └── index.ts   ← Entity types, request/response types
+    └── index.ts   ← Entity types, request/response shapes
 ```
 
 ## Existing Features
 
-| Feature | Routes | Description |
+| Feature | Routes | What it does |
 |---------|--------|-------------|
-| `auth/` | (via ProtectedRoute) | Login page, auth state management (Zustand) |
+| `auth/` | (via ProtectedRoute) | Login, auth state via Zustand |
 | `pipes/` | `/pipes/seamless/*`, `/pipes/screen/*` | API 5CT pipe master data (seamless + screen) |
-| `inventory/` | `/inventory/inbound`, `/inventory/outbound`, `/inventory/stock`, `/inventory/locations`, `/inventory/check` | Stock tracking, inbound/outbound, location management, inventory checks |
+| `inventory/` | `/inventory/inbound`, `/inventory/outbound`, `/inventory/stock`, `/inventory/locations`, `/inventory/check` | Stock tracking, in/out, locations, checks |
 | `suppliers/` | `/suppliers/*` | Supplier management |
 | `customers/` | `/customers/*` | Customer management |
 | `purchases/` | `/purchases/*` | Purchase orders, approval workflow |
 | `sales/` | `/sales/*` | Sales orders, ATP check |
-| `quality/` | `/quality/certs/*` | Quality certificates, mechanical/NDT tests |
+| `quality/` | `/quality/certs/*` | Quality certs, mechanical/NDT tests |
 | `contracts/` | `/contracts/*` | Sales/procurement contracts, payment milestones |
 | `reports/` | `/reports`, `/reports/dashboard` | Dashboard, daily/monthly/statistical reports |
-| `labels/` | `/labels` | Barcode and specification label generation |
+| `labels/` | `/labels` | Barcode and spec label generation |
 | `search/` | `/search` | Global search across pipes, inventory, orders |
-| `profile/` | `/profile/settings` | User profile settings, password change |
+| `profile/` | `/profile/settings` | User settings, password change |
 
 ## Template: `api/index.ts` (TanStack Query Hooks)
+
 ```ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/api'
@@ -61,6 +62,7 @@ export function useCreateFeature() {
 ```
 
 ## Template: `types/index.ts`
+
 ```ts
 export interface FeatureType {
   id: number
@@ -76,6 +78,7 @@ export interface ListParams {
 ```
 
 ## Template: `pages/ListPage.tsx`
+
 ```tsx
 import { Table, Button } from 'antd'
 import { useListFeature } from '../api'
@@ -90,22 +93,25 @@ export default function ListPage() {
 ```
 
 ## API Connection
-- All API calls use the shared axios instance from `src/api/` (base URL: `/api/v1`)
-- Query keys follow convention: `['entity']` for list, `['entity', id]` for detail
-- Mutations invalidate the list query key on success
-- Some feature API modules integrate `lib/validateResponse.ts` for runtime response validation via Zod schemas in `zod-schemas/`
+
+- All API calls go through the shared axios instance at `src/api/` (base URL: `/api/v1`).
+- Query key convention: `['entity']` for list, `['entity', id]` for detail.
+- Mutations invalidate the list query on success so it refetches.
+- Some features use `lib/validateResponse.ts` with Zod schemas from `zod-schemas/` for runtime response validation.
 
 ## Adding a New Feature Module
-1. Create `features/{new_feature}/` with `api/`, `hooks/`, `pages/`, `stores/`, `types/` subdirs
-2. Add TanStack Query hooks in `api/index.ts`
-3. Add page components in `pages/`
-4. Add route in `src/routes/index.tsx`
-5. Add i18n keys in `src/i18n/zh/{new_feature}.json` and `src/i18n/en/{new_feature}.json`
-6. Add Zod response schema in `src/zod-schemas/` if API validation is needed
+
+1. Create `features/{new_feature}/` with subdirs: `api/`, `hooks/`, `pages/`, `stores/`, `types/`.
+2. Write TanStack Query hooks in `api/index.ts`.
+3. Build page components in `pages/`.
+4. Register the route in `src/routes/index.tsx`.
+5. Add i18n keys in both `src/i18n/zh/{new_feature}.json` and `src/i18n/en/{new_feature}.json`.
+6. Add a Zod response schema in `src/zod-schemas/` if you want runtime validation.
 
 ## Conventions
-- `useFeatureQuery()` for list, `useFeatureQuery(id)` for detail
-- `useCreateFeature()`, `useUpdateFeature()`, `useDeleteFeature()` for mutations
-- Invalid queries on mutation success (refetch list)
-- Ant Design Table + Form + Modal for CRUD UI
-- Pages access the API through `../api`, never directly importing from `@/api`
+
+- `useFeatureQuery()` for list queries, `useFeatureQuery(id)` for detail.
+- `useCreateFeature()`, `useUpdateFeature()`, `useDeleteFeature()` for mutations.
+- Always invalidate list queries after successful mutations.
+- CRUD UI uses Ant Design Table + Form + Modal.
+- Pages import API through `../api`, never directly from `@/api`.

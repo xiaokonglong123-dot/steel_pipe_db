@@ -1,74 +1,73 @@
-# Steel Pipe DB — 全栈审计报告
+# Steel Pipe DB — Full-Stack Audit Report
 
-> 审计范围：Rust Axum 后端 (79 .rs 文件) + React 19 前端 (13 个 feature 模块)
-> 对照文档：`docs/需求文档.md` + `docs/详细设计文档.md` + `docs/前端设计文档.md`
-> 扫描时间：2026-05-23 | 扫描 agent 数：4
-
----
-
-## 扫描结果概要
-
-| 维度 | 结果 |
-|------|------|
-| 后端总文件 | 79 个 .rs 文件，~9,500 行生产代码 |
-| 后端 todo!/unimplemented! | **零** — 全量实现，无占位符 |
-| 后端路由注册 | **126 个** route+method 组合，14 个实体组 |
-| 数据库表 | **18 张**（迁移 001~011） |
-| 前端路由 | **46 条**，全部指向真实页面 |
-| 前端 placeholder/TODO | **零** — 无占位符、无 Mock 数据 |
-| 严重问题 (Critical) | **1** |
-| 中等问题 (Medium) | **5** |
-| 低等问题 (Minor) | **7** |
-| 架构建议 | **5** 条 |
-| 设计文档断层 | **4** 处 |
+> Audit scope: Rust Axum backend (79 .rs files) + React 19 frontend (13 feature modules)
+> Reference docs: `docs/requirements.en.md` + `docs/detailed-design.en.md` + `docs/frontend-design.en.md`
+> Scan date: 2026-05-23 | Scanning agents: 4
 
 ---
 
-## 🧱 1. 功能断层与未实现补全
+## Scan Results Summary
 
-### 1.1 UserManagementPage 存在但无路由
+| Dimension | Result |
+|-----------|--------|
+| Backend total files | 79 .rs files, ~9,500 lines of production code |
+| Backend todo!/unimplemented! | **Zero** — fully implemented, no stubs |
+| Backend registered routes | **126** route+method combos, 14 entity groups |
+| Database tables | **18** (migrations 001–011) |
+| Frontend routes | **46**, all pointing to real pages |
+| Frontend placeholder/TODO | **Zero** — no stubs, no mock data |
+| Critical issues | **1** |
+| Medium issues | **5** |
+| Minor issues | **7** |
+| Architecture suggestions | **5** |
+| Design doc gaps | **4** |
 
-- **对比文档模块：** `docs/前端设计文档.md` — 用户管理章节
-- **残缺描述：**
-  - `frontend/src/features/auth/pages/UserManagementPage.tsx` 是一个 331 行的完整用户管理页面（含用户 CRUD、角色切换、密码重置弹窗、搜索过滤）
-  - **但在 `frontend/src/routes/index.tsx` 中没有注册任何路由**
-  - **侧边栏菜单未添加入口**
-  - **影响**：admin 用户无法通过 UI 管理其他用户
-- **【生产级补全代码】**：
+---
 
-**文件：`frontend/src/routes/index.tsx`** — 添加路由条目：
+## 🧱 1. Feature Gaps & Missing Implementations
+
+### 1.1 UserManagementPage Exists but Has No Route
+
+- **Reference doc module:** `docs/frontend-design.en.md` — User management section
+- **The problem:**
+  - `frontend/src/features/auth/pages/UserManagementPage.tsx` is a fully functional 331-line user management page (CRUD, role switching, password reset modal, search filters)
+  - **But it's not registered in `frontend/src/routes/index.tsx`**
+  - **No sidebar menu entry either**
+  - **Impact**: admin users can't manage other users through the UI
+- **[Production-ready fix]**:
+
+**File: `frontend/src/routes/index.tsx`** — Add the route:
 ```tsx
-// 在 import 区添加
+// In the import section
 import UserManagementPage from '@/features/auth/pages/UserManagementPage';
-// 中文设计文档中建议使用 lazy loading，但当前页面模式是直接 import
 
-// 在 protected routes 数组末尾（或其他合适位置）添加：
+// At the end of protected routes (or wherever fits):
 {
   path: '/users',
   element: <UserManagementPage />,
 }
 ```
 
-**文件：`frontend/src/layouts/MainLayout.tsx`** — 添加侧边栏菜单项：
+**File: `frontend/src/layouts/MainLayout.tsx`** — Add sidebar menu item:
 ```tsx
-// 在 `<Menu>` 的 items 数组中，建议放在最顶部或"系统设置"区域：
+// In the `<Menu>` items array, top or under "System Settings":
 {
   key: '/users',
   icon: <TeamOutlined />,
-  label: <NavLink to="/users">用户管理</NavLink>,
+  label: <NavLink to="/users">User Management</NavLink>,
 }
 ```
 
-### 1.2 报表子页面缺失（3 个路由不存在）
+### 1.2 Report Sub-Pages Missing (3 Routes Don't Exist)
 
-- **对比文档模块：** `docs/前端设计文档.md` — 报表模块路由
-- **残缺描述：**
-  - `ReportListPage.tsx` 中有卡片链接跳转到 `/reports/inventory`、`/reports/orders`、`/reports/quality`
-  - **但这三个路由在 `routes/index.tsx` 中未注册**
-  - 点击后路由命中空白页（react-router 默认渲染 fallback）
-- **【生产级补全代码】**：
+- **Reference doc module:** `docs/frontend-design.en.md` — Reports module routing
+- **The problem:**
+  - `ReportListPage.tsx` has card links pointing to `/reports/inventory`, `/reports/orders`, `/reports/quality`
+  - **These three routes aren't registered in `routes/index.tsx`**
+  - Clicking them hits a blank page (react-router default fallback)
+- **[Production-ready fix]**:
 
-**文件：`frontend/src/routes/index.tsx`** — 将报表路由组改为：
+**File: `frontend/src/routes/index.tsx`** — Replace the reports route group:
 ```tsx
 {
   path: '/reports',
@@ -76,25 +75,25 @@ import UserManagementPage from '@/features/auth/pages/UserManagementPage';
   children: [
     { index: true, element: <ReportListPage /> },
     { path: 'dashboard', element: <DashboardPage /> },
-    // 添加下面三个子路由（页面文件需创建或待开发）
-    { path: 'inventory', element: <ReportListPage /> },    // 待实现独立 InventoryReportPage
-    { path: 'orders', element: <ReportListPage /> },       // 待实现独立 OrderReportPage
-    { path: 'quality', element: <ReportListPage /> },      // 待实现独立 QualityReportPage
+    // Add these three sub-routes (pages need to be created or are pending)
+    { path: 'inventory', element: <ReportListPage /> },    // TODO: dedicated InventoryReportPage
+    { path: 'orders', element: <ReportListPage /> },       // TODO: dedicated OrderReportPage
+    { path: 'quality', element: <ReportListPage /> },      // TODO: dedicated QualityReportPage
   ],
 }
 ```
 
-### 1.3 Data IO 前端模块完全缺失
+### 1.3 Data IO Frontend Module Completely Missing
 
-- **对比文档模块：** `docs/详细设计文档.md` — 数据导入导出 API 定义
-- **残缺描述：**
-  - 后端已完整实现：`data_io_handler.rs`（150行）、`data_io_service.rs`（493行）、`data_io_repo.rs`（367行）
-  - 支持 Excel/CSV 导入导出、模板下载、操作日志查询
-  - **前端没有任何 Data IO 模块** — 无页面、无路由、无 API hooks、无侧边栏入口
-- **【生产级补全代码】**（创建新模块）：
+- **Reference doc module:** `docs/detailed-design.en.md` — Data import/export API definitions
+- **The problem:**
+  - Backend fully implemented: `data_io_handler.rs` (150 lines), `data_io_service.rs` (493 lines), `data_io_repo.rs` (367 lines)
+  - Supports Excel/CSV import/export, template download, operation log query
+  - **Frontend has zero Data IO module** — no pages, no routes, no API hooks, no sidebar entry
+- **[Production-ready code]** (new module):
 
 ```bash
-# 需要创建的文件结构：
+# Files to create:
 frontend/src/features/data-io/
 ├── api/
 │   └── dataIoApi.ts
@@ -107,7 +106,7 @@ frontend/src/features/data-io/
     └── index.ts
 ```
 
-**核心文件：`frontend/src/features/data-io/api/dataIoApi.ts`**
+**Core file: `frontend/src/features/data-io/api/dataIoApi.ts`**
 ```tsx
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
@@ -156,36 +155,36 @@ export const dataIoApi = {
 };
 ```
 
-### 1.4 设计文档 API 未暴露为端点
+### 1.4 Design-Doc APIs Not Exposed as Endpoints
 
-- **对比文档模块：** `docs/详细设计文档.md` — API 列表
-- **残缺描述：**
+- **Reference doc module:** `docs/detailed-design.en.md` — API list
+- **The problem:**
 
-| 文档中描述的 API | 实现状态 |
+| API described in the doc | Implementation status |
 |---|---|
-| `generate_pipe_number(pipe_type)` | 未暴露 — 仅在 `PipeService` 内部使用 |
-| `validate_pipe_number_unique(number)` | 未暴露 — 仅在 `PipeService` 内部使用 |
-| `get_stock_status(pipe_type, pipe_id)` | 未暴露 — 需通过 trace 或 inventory list 间接获取 |
-| `trace_by_pipe_number(pipe_no)` | 未实现 — 只实现了 `trace/pipe/{pipe_type}/{pipe_id}`（按内部 ID） |
+| `generate_pipe_number(pipe_type)` | Not exposed — only used internally in `PipeService` |
+| `validate_pipe_number_unique(number)` | Not exposed — only used internally in `PipeService` |
+| `get_stock_status(pipe_type, pipe_id)` | Not exposed — has to be accessed indirectly via trace or inventory list |
+| `trace_by_pipe_number(pipe_no)` | Not implemented — only `trace/pipe/{pipe_type}/{pipe_id}` (by internal ID) |
 
-**影响**：低（内部方法不需要 API 端点，`get_stock_status` 可通过现有 trace/inventory 端点实现）
+**Impact**: Low (internal methods don't need API endpoints; `get_stock_status` can be done via existing trace/inventory endpoints)
 
 ---
 
-## 🚨 2. 代码缺陷与安全漏洞
+## 🚨 2. Code Defects & Security Vulnerabilities
 
-### 🔴 2.1 [Critical] 质检附件查询参数前后端不匹配
+### 🔴 2.1 [Critical] Quality Attachment Query Params Mismatch Between Frontend & Backend
 
-- **所属端：** 跨端联调
-- **风险等级：** **高**
-- **场景重现：**
-  - 前端 `qualityApi.ts:53` 调用 `GET /quality/attachments?cert_id=X`
-  - 后端 `quality_handler.rs:126` 声明了 `AttachmentListQuery`，参数为 `pipe_type` + `pipe_id`
-  - 运行时前端发 `cert_id` 参数，后端收到的 `pipe_type`/`pipe_id` 均为 `None`，返回空列表
-  - **用户永远看不到任何附件**
-- **修复方案（推荐改后端，兼容前端）：**
+- **Side:** Cross-end integration
+- **Severity:** **High**
+- **Repro steps:**
+  - Frontend `qualityApi.ts:53` calls `GET /quality/attachments?cert_id=X`
+  - Backend `quality_handler.rs:126` declares `AttachmentListQuery` with `pipe_type` + `pipe_id` params
+  - At runtime, frontend sends `cert_id`, backend sees `pipe_type`/`pipe_id` as `None`, returns empty list
+  - **Users can never see any attachments**
+- **Fix (prefer touching backend, keep frontend as-is):**
 
-**文件：`backend/src/handlers/quality_handler.rs`** — 修改 `list_attachments_handler`：
+**File: `backend/src/handlers/quality_handler.rs`** — Modify `list_attachments_handler`:
 ```rust
 pub async fn list_attachments_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -202,20 +201,20 @@ pub async fn list_attachments_handler(
 }
 ```
 
-> 或者更干净的方式：在 `AttachmentListQuery` 中增加 `cert_id: Option<i64>`，在 handler 中先查 cert 拿到 `pipe_type`+`pipe_id` 再查 attachments。
+> Cleaner alternative: add `cert_id: Option<i64>` to `AttachmentListQuery`, then look up the cert to get `pipe_type`+`pipe_id` in the handler before querying attachments.
 
-### ⚠️ 2.2 [Medium] 采购/销售订单详情响应结构前后端不匹配
+### ⚠️ 2.2 [Medium] Purchase/Sales Order Detail Response Shape Mismatch
 
-- **所属端：** 跨端联调
-- **风险等级：** **中**
-- **场景重现：**
-  - 前端 `purchaseApi.ts:23` 期望 `ApiResponse<PurchaseOrder>`（扁平结构）
-  - 后端 `get_purchase_order_handler` 返回 `{ success: true, data: { order: {...}, items: [...] } }`（嵌套结构）
-  - Zod 运行时校验可能因字段不匹配而告警或静默丢弃数据
-  - **同样问题存在于销售订单和合同详情**
-- **修复方案：**
+- **Side:** Cross-end integration
+- **Severity:** **Medium**
+- **Repro steps:**
+  - Frontend `purchaseApi.ts:23` expects `ApiResponse<PurchaseOrder>` (flat structure)
+  - Backend `get_purchase_order_handler` returns `{ success: true, data: { order: {...}, items: [...] } }` (nested structure)
+  - Zod runtime validation might warn or silently drop data due to field mismatch
+  - **Same issue exists for sales orders and contract details**
+- **Fix:**
 
-**前端 — 更新类型定义（推荐方案，不改后端）：**
+**Frontend — Update type definitions (recommended, no backend changes):**
 ```tsx
 // frontend/src/features/purchases/types/index.ts
 export interface PurchaseOrderDetail {
@@ -228,38 +227,37 @@ get: async (id: number) =>
   apiClient.get<ApiResponse<PurchaseOrderDetail>>(`/purchase-orders/${id}`),
 ```
 
-### ⚠️ 2.3 [Medium] `ApproveRequest.reason` 未使用（死代码）
+### ⚠️ 2.3 [Medium] `ApproveRequest.reason` Is Dead Code
 
-- **所属端：** Rust 后端
-- **风险等级：** **中**
-- **场景重现：**
-  - `dto/inventory.rs` 中 `ApproveRequest` 定义有 `reason: Option<String>` 字段
-  - `inventory_handler.rs` 中 `approve_inbound_handler`/`approve_outbound_handler` **仅解构 `Json(req)` 但不使用 `req.reason`**
-  - 调用 `InventoryService::approve_inbound(&pool, id)` — 签名无 reason 参数
-  - **前端传了审批意见但后端完全忽略**
-- **修复方案：**
+- **Side:** Rust backend
+- **Severity:** **Medium**
+- **Repro steps:**
+  - `dto/inventory.rs` defines `ApproveRequest` with `reason: Option<String>` field
+  - `inventory_handler.rs` — `approve_inbound_handler`/`approve_outbound_handler` **only destructures `Json(req)` but never uses `req.reason`**
+  - Calls `InventoryService::approve_inbound(&pool, id)` — signature has no reason parameter
+  - **Frontend sends approval comments, backend completely ignores them**
+- **Fix:**
 
-**文件：`backend/src/services/inventory_service.rs`** — 为 approve 方法增加 reason 参数并记录到 operation_logs：
+**File: `backend/src/services/inventory_service.rs`** — Add reason param to approve methods and log to operation_logs:
 ```rust
 pub async fn approve_inbound(pool: &SqlitePool, id: i64, reason: Option<&str>, user_id: i64) -> Result<InboundRecord, AppError> {
     let record = InboundRecordRepo::find_by_id(pool, id).await?
-        .ok_or(AppError::NotFound("入库记录".to_string()))?;
+        .ok_or(AppError::NotFound("Inbound record".to_string()))?;
 
     if record.approval_status != "pending" {
-        return Err(AppError::StatusConflict("只有待审批状态的入库记录可以审批".to_string()));
+        return Err(AppError::StatusConflict("Only pending records can be approved".to_string()));
     }
 
-    // 更新状态 + 记录审批意见（如果需要可以新建 approval_notes 字段或记录到 operation_logs）
     let updated = InboundRecordRepo::approve(pool, id).await?;
 
-    // 记录操作日志
+    // Log the operation
     OperationLogRepo::create(pool, &CreateOperationLog {
         user_id: Some(user_id),
         username: None,
         action: "approve_inbound".to_string(),
         entity_type: "inbound".to_string(),
         entity_id: Some(id),
-        details: reason.map(|r| format!("审批意见: {}", r)),
+        details: reason.map(|r| format!("Approval comment: {}", r)),
         ip_address: None,
     }).await?;
 
@@ -267,7 +265,7 @@ pub async fn approve_inbound(pool: &SqlitePool, id: i64, reason: Option<&str>, u
 }
 ```
 
-**文件：`backend/src/handlers/inventory_handler.rs`** — 传递 reason：
+**File: `backend/src/handlers/inventory_handler.rs`** — Pass reason through:
 ```rust
 pub async fn approve_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -280,19 +278,19 @@ pub async fn approve_inbound_handler(
 }
 ```
 
-### ⚠️ 2.4 [Medium] 采购/销售订单项 `total_price` 客户端可覆写
+### ⚠️ 2.4 [Medium] Purchase/Sales Order Item `total_price` Is Client-Writable
 
-- **所属端：** Rust 后端
-- **风险等级：** **中**
-- **场景重现：**
-  - `CreatePurchaseItemRequest` 中没有 `total_price`，创建时服务端按 `quantity * unit_price` 计算
-  - `UpdatePurchaseItemRequest` 中有 `total_price: Option<f64>`，update 时仓库使用 `set_field_opt!` 直接设置客户端传入的值
-  - **恶意客户端可以传入任意 total_price 值，绕过服务端计算逻辑**
-  - 同样问题存在于销售订单项更新
-  - 但 `UpdateContractItemRequest` 中没有 `total_price`，合同项更新由服务端计算 — **行为不一致**
-- **修复方案：**
+- **Side:** Rust backend
+- **Severity:** **Medium**
+- **Repro steps:**
+  - `CreatePurchaseItemRequest` has no `total_price` — server computes it as `quantity * unit_price`
+  - `UpdatePurchaseItemRequest` has `total_price: Option<f64>` — update directly uses the client-supplied value via `set_field_opt!`
+  - **Malicious client can set any `total_price`, bypassing server-side computation**
+  - Same issue exists for sales order item updates
+  - But `UpdateContractItemRequest` doesn't have `total_price` — contract items are server-computed. **Inconsistent behavior.**
+- **Fix:**
 
-**文件：`backend/src/dto/purchase_order.rs`** — 移除 `total_price` 字段或标记为已弃用：
+**File: `backend/src/dto/purchase_order.rs`** — Remove or deprecate `total_price`:
 ```rust
 pub struct UpdatePurchaseItemRequest {
     pub pipe_type: Option<String>,
@@ -306,18 +304,17 @@ pub struct UpdatePurchaseItemRequest {
 }
 ```
 
-**文件：`backend/src/repositories/purchase_order_repo.rs`** — 在 update 方法中重新计算 total_price：
+**File: `backend/src/repositories/purchase_order_repo.rs`** — Recalculate total_price in update method:
 ```rust
-// 第 317 行附近：如果 quantity 或 unit_price 有更新，重新计算 total_price
+// Around line 317: if quantity or unit_price changed, recalculate total_price
 if dto.quantity.is_some() || dto.unit_price.is_some() {
-    // 需要先查询当前值
     let item = sqlx::query_as::<_, PurchaseOrderItem>(
         "SELECT quantity, unit_price, ... FROM purchase_order_items WHERE id = ? AND deleted_at IS NULL"
     )
     .bind(item_id)
     .fetch_optional(pool)
     .await?
-    .ok_or(AppError::NotFound("采购订单项".to_string()))?;
+    .ok_or(AppError::NotFound("Purchase order item".to_string()))?;
 
     let quantity = dto.quantity.unwrap_or(item.quantity);
     let unit_price = dto.unit_price.unwrap_or(item.unit_price.unwrap_or(0.0));
@@ -333,129 +330,129 @@ if dto.quantity.is_some() || dto.unit_price.is_some() {
 }
 ```
 
-### ⚠️ 2.5 [Medium] Domain 枚举未在模型中使用
+### ⚠️ 2.5 [Medium] Domain Enums Not Used in Models
 
-- **所属端：** Rust 后端
-- **风险等级：** **中**
-- **场景重现：**
-  - `domain/order.rs` 定义了 `OrderStatus` 枚举（Draft, Pending, Approved, Rejected, Completed, Cancelled），但模型 `PurchaseOrder.status` / `SalesOrder.status` 使用 `String`
-  - `domain/pipe.rs` 和 `domain/inventory.rs` 已被清空（注释："enums removed to eliminate dead code"）
-  - SQL CHECK 约束在 Rust 侧没有对应校验，非法字符串可能绕过前端验证到达数据库
-- **修复方案：**
+- **Side:** Rust backend
+- **Severity:** **Medium**
+- **Repro steps:**
+  - `domain/order.rs` defines `OrderStatus` enum (Draft, Pending, Approved, Rejected, Completed, Cancelled), but model `PurchaseOrder.status` / `SalesOrder.status` uses `String`
+  - `domain/pipe.rs` and `domain/inventory.rs` have been emptied (comment: "enums removed to eliminate dead code")
+  - No corresponding Rust-side validation for SQL CHECK constraints — invalid strings could slip past frontend validation straight to the DB
+- **Fix:**
 
-**渐进式修复：逐步将 models 中的 String 替换为 domain enum，通过 sqlx 的 `TryFrom<&str>` 或自定义序列化实现**
+**Incremental fix**: gradually replace `String` in models with domain enums, using sqlx's `TryFrom<&str>` or custom serialization
 
-### 🟡 2.6 [Low] `is_active` 字段 INTEGER↔bool 映射不一致
+### 🟡 2.6 [Low] `is_active` Field INTEGER↔bool Mapping Inconsistency
 
-- **所属端：** Rust 后端
-- **风险等级：** **低**
-- **场景重现：**
-  - SQLite 中 `is_active INTEGER NOT NULL DEFAULT 1`
-  - Rust 模型中使用 `bool`（SQLx 自动映射：0→false, 非0→true）
-  - 如果代码意外写入 2 或 -1，Rust 读出来是 `true`，但数据库层面失去了语义一致性
-  - 同时 `ContractPayment.is_paid` 使用 `i64`（而非 `bool`）— 同一模式两种处理方式
-- **建议**：统一使用 `bool`（功能无影响，仅设计一致性）
+- **Side:** Rust backend
+- **Severity:** **Low**
+- **Repro steps:**
+  - SQLite: `is_active INTEGER NOT NULL DEFAULT 1`
+  - Rust model uses `bool` (SQLx auto-mapping: 0→false, non-zero→true)
+  - If code accidentally writes 2 or -1, Rust reads it as `true`, but the DB has lost semantic consistency
+  - Meanwhile `ContractPayment.is_paid` uses `i64` (not `bool`) — same pattern, two different approaches
+- **Suggestion**: Standardize on `bool` everywhere (no functional impact, just consistency)
 
 ---
 
-## 🚀 3. 功能扩展与架构演进
+## 🚀 3. Feature Extensions & Architecture Evolution
 
-### 3.1 后端响应体增加 `approval_reason` 列
+### 3.1 Add `approval_reason` Column to Backend Response
 
-- **优化点：** 当前 InboundRecord/OutboundRecord 表中只有 `rejection_reason`，但没有 `approval_reason`/`approval_notes`
-- **建议：** 新增迁移 `012_add_approval_reason.sql`：
+- **Pain point:** Current InboundRecord/OutboundRecord tables have `rejection_reason` but no `approval_reason` / `approval_notes`
+- **Suggestion:** New migration `012_add_approval_reason.sql`:
 ```sql
 ALTER TABLE inbound_records ADD COLUMN approval_reason TEXT;
 ALTER TABLE outbound_records ADD COLUMN approval_reason TEXT;
 ```
-- 同时将 `ApproveRequest.reason` 写入此列，补全审计追踪
+- Also write `ApproveRequest.reason` into this column for full audit trail
 
-### 3.2 操作日志模型迁移到 `models/`
+### 3.2 Move OperationLog Model to `models/`
 
-- **问题：** `OperationLog` 结构体定义在 `repositories/operation_log_repo.rs` 中而非 `models/operation_log.rs`
-- **建议：**
-  - 创建 `models/operation_log.rs`
-  - 在 `models/mod.rs` 中导出
-  - 仓库改为 import 自 `models`
-  - 这样前端的数据导入导出模块可以直接复用
+- **Problem:** `OperationLog` struct lives in `repositories/operation_log_repo.rs` instead of `models/operation_log.rs`
+- **Suggestion:**
+  - Create `models/operation_log.rs`
+  - Export from `models/mod.rs`
+  - Have the repo import from `models`
+  - This lets the frontend data-io module reuse it cleanly
 
-### 3.3 引入 `rust_decimal` 替代 `f64` 处理金额
+### 3.3 Switch from `f64` to `rust_decimal` for Money
 
-- **当前：** `total_amount: Option<f64>`、`unit_price: Option<f64>`、`total_price: Option<f64>`
-- **风险：** `f64` 是浮点数，金额计算（尤其是累加和分账）可能产生精度误差
-- **建议当业务量扩大后：** 使用 `rust_decimal` crate，在金额相关 DTO/model 中用 `Decimal` 替代 `f64`：
+- **Current:** `total_amount: Option<f64>`, `unit_price: Option<f64>`, `total_price: Option<f64>`
+- **Risk:** `f64` is a float — money calculations (especially cumulative sums and splits) can drift
+- **Suggestion for when volume grows:** Use `rust_decimal` crate, replace `f64` with `Decimal` in money-related DTOs/models:
 ```rust
 // Cargo.toml
 rust_decimal = { version = "1.36", features = ["serde"] }
-rust_decimal_sqlite = "0.1"  // SQLite 用 TEXT 存储 Decimal
+rust_decimal_sqlite = "0.1"  // Store as TEXT in SQLite
 
-// 使用模式
+// Usage
 pub struct PurchaseOrder {
-    pub total_amount: Option<Decimal>,  // 而非 Option<f64>
+    pub total_amount: Option<Decimal>,  // instead of Option<f64>
 }
 ```
 
-### 3.4 前端添加 Data IO 菜单项和路由入口
+### 3.4 Add Data IO Frontend Menu Items & Routes
 
-- **在当前审计基础上最推荐的下一步工作：**
-  - 创建 `features/data-io/pages/DataImportPage.tsx`（文件上传 + 导入结果展示）
-  - 创建 `features/data-io/pages/DataExportPage.tsx`（选择实体类型 + 下载）
-  - 创建 `features/data-io/pages/OperationLogPage.tsx`（操作日志列表）
-  - 在路由中添加 `/data-io/import`、`/data-io/export`、`/data-io/logs`
-  - 在侧边栏添加"数据导入导出"菜单组
+- **Most recommended next step from this audit:**
+  - Create `features/data-io/pages/DataImportPage.tsx` (file upload + result display)
+  - Create `features/data-io/pages/DataExportPage.tsx` (pick entity type + download)
+  - Create `features/data-io/pages/OperationLogPage.tsx` (operation log list)
+  - Add routes `/data-io/import`, `/data-io/export`, `/data-io/logs`
+  - Add "Data Import/Export" sidebar menu group
 
-### 3.5 追踪端点增加 pipe_number 查找
+### 3.5 Add `pipe_number` Lookup to Trace Endpoint
 
-- **现状：** `/api/v1/trace/pipe/{pipe_type}/{pipe_id}` 需要内部 DB ID
-- **建议增加：** `/api/v1/trace/pipe-number/{pipe_number}` — 通过 pipe_number（用户可见标识符）查找
-- 后端的 `trace_service.rs` 已经实现了按 pipe_number 的逻辑，只需要新增路由和 handler 即可
-
----
-
-## 4. 后端全路由清单（126 条，按模块）
-
-详见 Agent #2（`bg_90ad4eac`）的完整输出。核心结论：
-- ✅ 126 个 handler 函数引用与定义完全匹配
-- ✅ 所有模块声明正确
-- ✅ 无路由冲突
-- ⚠️ 路由前缀不一致：`/api/v1/trace/...` 和 `/api/v1/atp` 放在 inventory 路由组下但前缀没有 `/inventory`
+- **Current state:** `/api/v1/trace/pipe/{pipe_type}/{pipe_id}` requires internal DB ID
+- **Suggestion:** Add `/api/v1/trace/pipe-number/{pipe_number}` — lookup by user-visible pipe number
+- Backend `trace_service.rs` already has the pipe_number lookup logic — just needs a route and handler
 
 ---
 
-## 5. 数据库模型对齐小结（18 表）
+## 4. Full Backend Route Inventory (126 Routes, by Module)
 
-详见 Agent #3（`bg_167403c8`）的完整输出。核心结论：
-- ✅ 18 张表与 19 个 model struct（含 9 个内联 struct）基本对齐
-- ⚠️ `operation_logs` 表无独立模型文件（模型定义在 repo 中）
-- ⚠️ `ApproveRequest.reason` 死代码未持久化
-- ⚠️ Domain 枚举（OrderStatus 等）未在模型中启用
-- ⚠️ UpdatePurchaseItemRequest/UpdateSalesItemRequest 允许客户端覆写 total_price
-
----
-
-## 6. 前端页面路由对齐小结
-
-详见 Agent #4（`bg_6009f7a3`）的完整输出。核心结论：
-- ✅ 46 条路由全部关联到真实页面文件
-- ✅ 所有页面有真实实现（Ant Design 组件 + TanStack Query hooks）
-- ❌ UserManagementPage（331行完整实现）无路由
-- ❌ 报表子页面（3 个）路由未注册
-- ❌ Data IO 前端模块完全缺失
-- ❌ 无入库/出库详情路由、无供应商/客户详情路由
+See Agent #2 (`bg_90ad4eac`) for the full output. Bottom line:
+- ✅ All 126 handler function references match their definitions
+- ✅ All module declarations are correct
+- ✅ No route conflicts
+- ⚠️ Route prefix inconsistency: `/api/v1/trace/...` and `/api/v1/atp` are under the inventory route group but don't have `/inventory` in the prefix
 
 ---
 
-## 紧急程度排序
+## 5. Database Model Alignment Summary (18 Tables)
 
-| 优先级 | 问题 | 修复难度 |
-|--------|------|----------|
-| **P0** | 质检附件查询参数不匹配（功能不可用） | 1 天 |
-| **P0** | UserManagementPage 无路由（安全风险 — admin 无法管理用户） | 0.5 天 |
-| **P1** | 审批意见（ApproveRequest.reason）死代码未存储 | 0.5 天 |
-| **P1** | 报表子页面路由缺失（导航到空白页） | 0.5 天 |
-| **P1** | Data IO 前端模块缺失（后端已实现） | 2 天 |
-| **P2** | total_price 客户端可覆写 | 1 天 |
-| **P2** | Domain 枚举未在模型中使用 | 3 天（渐进式） |
-| **P3** | 入库/出库/供应商/客户详情页路由缺失 | 1 天 |
-| **P3** | INTEGER↔bool 风格不一致 | 0.5 天 |
-| **P3** | trace/pipe-number 端点缺失 | 0.5 天 |
+See Agent #3 (`bg_167403c8`) for the full output. Bottom line:
+- ✅ 18 tables align with 19 model structs (including 9 inline structs)
+- ⚠️ `operation_logs` table has no dedicated model file (model defined in the repo)
+- ⚠️ `ApproveRequest.reason` is dead code, never persisted
+- ⚠️ Domain enums (OrderStatus, etc.) aren't wired into models
+- ⚠️ `UpdatePurchaseItemRequest` / `UpdateSalesItemRequest` allow client-overridable `total_price`
+
+---
+
+## 6. Frontend Page/Route Alignment Summary
+
+See Agent #4 (`bg_6009f7a3`) for the full output. Bottom line:
+- ✅ All 46 routes point to real page files
+- ✅ All pages have real implementations (Ant Design components + TanStack Query hooks)
+- ❌ `UserManagementPage` (331-line full implementation) has no route
+- ❌ Report sub-pages (3 of them) have no registered routes
+- ❌ Data IO frontend module is completely missing
+- ❌ No inbound/outbound detail routes, no supplier/customer detail routes
+
+---
+
+## Priority Ranking
+
+| Priority | Issue | Fix Difficulty |
+|----------|-------|----------------|
+| **P0** | Quality attachment query param mismatch (feature is broken) | 1 day |
+| **P0** | UserManagementPage has no route (security risk — admin can't manage users) | 0.5 day |
+| **P1** | Approval comments (ApproveRequest.reason) are dead code, never stored | 0.5 day |
+| **P1** | Report sub-page routes missing (navigation leads to blank page) | 0.5 day |
+| **P1** | Data IO frontend module missing (backend already done) | 2 days |
+| **P2** | total_price is client-overridable | 1 day |
+| **P2** | Domain enums not used in models | 3 days (incremental) |
+| **P3** | Inbound/outbound/supplier/customer detail page routes missing | 1 day |
+| **P3** | INTEGER↔bool style inconsistency | 0.5 day |
+| **P3** | trace/pipe-number endpoint missing | 0.5 day |

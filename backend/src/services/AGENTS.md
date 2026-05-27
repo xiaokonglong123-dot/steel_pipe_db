@@ -1,8 +1,9 @@
 # `services/` — Business Logic Layer (12 files)
 
-This is where business rules, cross-entity orchestration, and transaction management live. Services are called by handlers and call repositories.
+This is where the real work happens — business rules, cross-entity orchestration, transaction management. Services get called by handlers and in turn call repositories.
 
 ## Pattern
+
 ```rust
 pub struct PipeService;  // No fields, no constructor, no DI
 
@@ -21,6 +22,7 @@ impl PipeService {
 ```
 
 ## Service File List
+
 | File | Entity | Description |
 |------|--------|-------------|
 | `auth_service.rs` | Auth | login, token refresh, password verify |
@@ -37,25 +39,30 @@ impl PipeService {
 | `trace_service.rs` | Trace | inventory movement audit trail |
 
 ## Service Conventions
+
 1. **Pattern**: Unit struct with static methods — `pub struct XxxService;` then `impl XxxService { pub async fn ... }`
 2. **First parameter**: Always `pool: &SqlitePool`
 3. **Return type**: Always `Result<T, AppError>`
 4. **Naming**: `list_*`, `get_*`, `create_*`, `update_*`, `delete_*`
-5. **Transactions**: Use `sqlx::Transaction::begin(&pool).await`, pass `&mut *tx` to repos
-6. **Cross-entity ops**: Call multiple repositories directly (pool shared via parameter)
-7. **No HTTP logic**: Services never know about StatusCodes, response formatting, or headers
+5. **Transactions**: Use `sqlx::Transaction::begin(&pool).await`, then pass `&mut *tx` to repos
+6. **Cross-entity ops**: Call multiple repositories directly — the pool gets passed around as a parameter
+7. **No HTTP logic**: Services don't know about StatusCodes, response formatting, or headers. That's the handler's job.
 
-## Key patterns in `inventory_service.rs` (largest, most complex)
+## `inventory_service.rs` — the big one
+
+This is the largest and most complex service. Here's what it handles:
+
 - Stock-in / stock-out with quantity validation
 - Inventory movement tracking
 - ATP (Available-to-Promise) calculations
-- Query building with dynamic filters
+- Dynamic query building with filters
 - Batch operations
 - Report calculations
-- Inventory checks for sales order fulfillment
+- Sales order fulfillment checks
 
 ## Adding a New Service
+
 1. Create `new_service.rs`
 2. Add `pub mod new_service;` to `mod.rs`
 3. Define `pub struct NewService;` with static methods taking `pool: &SqlitePool`
-4. Route registration in `router.rs`
+4. Register routes in `router.rs`

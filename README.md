@@ -11,7 +11,7 @@
 
 # Steel Pipe DB — API 5CT Seamless Steel Pipe & Screen Pipe Inventory Management System
 
-> Oil & gas industry inventory management system for API 5CT seamless steel pipe and screen pipe. Built with Rust + React.
+> Oil & gas inventory management for API 5CT seamless steel pipe and screen pipe. Rust backend, React frontend. Does what it says on the tin.
 
 ![Rust](https://img.shields.io/badge/Rust-Axum-000000?style=flat-square&logo=rust&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white)
@@ -35,8 +35,8 @@
 
 ```bash
 cd backend
-cp .env.example .env    # or create with: DATABASE_URL=sqlite://./data/steel_pipe.db?mode=rwc
-cargo run               # starts on http://localhost:3000
+cp .env.example .env    # or roll your own: DATABASE_URL=sqlite://./data/steel_pipe.db?mode=rwc
+cargo run               # fires up on http://localhost:3000
 ```
 
 ### Frontend
@@ -44,7 +44,7 @@ cargo run               # starts on http://localhost:3000
 ```bash
 cd frontend
 npm install
-npm run dev             # starts on http://localhost:5173
+npm run dev             # fires up on http://localhost:5173
 ```
 
 Open `http://localhost:5173` and log in with:
@@ -69,7 +69,7 @@ Open `http://localhost:5173` and log in with:
 | Excel/CSV   | calamine (import), rust_xlsxwriter (export), csv      |
 | Middleware  | tower-http (CORS, trace, request-id)                 |
 
-**Architecture Pattern:** Handler → Service → Repository → Domain
+**Architecture:** Handler → Service → Repository → Domain. No AppState — we inject raw types via `Extension<>` like barbarians.
 
 ### Frontend — React 19
 
@@ -116,7 +116,7 @@ Open `http://localhost:5173` and log in with:
 
 ## 🗄 Data Model
 
-19 tables in SQLite (WAL mode, no FK constraints — integrity enforced at application layer):
+19 tables in SQLite (WAL mode, no FK constraints — integrity enforced at the app layer because SQLite FK support is meh):
 
 ```
 pipes                → Master pipe data (API 5CT specs)
@@ -137,10 +137,10 @@ quality_mechanical   → Mechanical test results
 quality_ndt          → NDT (UT/MI/MPI) results
 contracts            → Contract header
 contract_milestones  → Payment/delivery milestones
-users               → System users (4 roles)
+users                → System users (4 roles)
 ```
 
-All timestamps are ISO 8601 text; soft deletes via `deleted_at`.
+All timestamps are ISO 8601 strings. Soft deletes via `deleted_at` — nothing ever truly dies.
 
 ---
 
@@ -148,10 +148,10 @@ All timestamps are ISO 8601 text; soft deletes via `deleted_at`.
 
 ```bash
 # Backend
-cd backend && cargo check           # Type-check only (faster than build)
+cd backend && cargo check           # Type-check only (way faster than a full build)
 cargo test                           # Run tests
 cargo build                          # Debug build
-cargo build --release                # Release build
+cargo build --release                # Ship it
 
 # Frontend
 cd frontend && npx tsc --noEmit     # TypeScript type check
@@ -177,7 +177,7 @@ steel_pipe_db/
 ├── backend/
 │   ├── src/
 │   │   ├── main.rs           # Entry point, server startup
-│   │   ├── lib.rs             # App state, shared types
+│   │   ├── lib.rs             # Module declarations
 │   │   ├── router.rs          # Route definitions (~70 endpoints)
 │   │   ├── config.rs          # Environment config
 │   │   ├── error.rs           # AppError with ApiResponse mapping; ApiErrorResponse includes success + request_id
@@ -205,9 +205,9 @@ steel_pipe_db/
 │   ├── package.json
 │   └── vite.config.ts
 ├── docs/                      # Design docs (in Chinese)
-│   ├── 需求文档.md            # PRD
-│   ├── 详细设计文档.md         # Architecture + DB + API design
-│   ├── 前端设计文档.md          # Frontend component tree & routing
+│   ├── prd.md                 # PRD
+│   ├── architecture.md        # Architecture + DB + API design
+│   ├── frontend-design.md     # Frontend component tree & routing
 │   └── tasks/                 # Task breakdown (~320 items)
 └── .github/workflows/
     └── ci.yml                 # CI: cargo check + tsc + vite build
@@ -217,7 +217,7 @@ steel_pipe_db/
 
 ## 🌐 API Overview
 
-All endpoints under `/api/v1/`:
+All endpoints live under `/api/v1/`:
 
 | Group       | Prefix              | Auth Required |
 |-------------|---------------------|:---:|
@@ -235,23 +235,23 @@ All endpoints under `/api/v1/`:
 | Labels      | `/labels/*`         | Yes |
 | Data IO     | `/data/*`           | Yes |
 
-All responses wrapped in:
+Every response follows the same shape:
 ```json
 { "success": true, "request_id": "req_...", "data": { ... } }
 ```
-Paginated responses include `meta: { total, page, page_size, total_pages }`. Error responses include `success: false` and `request_id`.
+Paginated responses tack on `meta: { total, page, page_size, total_pages }`. Error responses flip `success: false` and still include `request_id`.
 
 ---
 
 ## 🧭 Design Docs
 
-Design documents (in Chinese) are in [`docs/`](./docs/):
+Design docs (in Chinese) live in [`docs/`](./docs/):
 
 | Document | Content |
 |----------|---------|
-| `需求文档.md` | Full PRD: features, API 5CT standards, roadmap |
-| `详细设计文档.md` | Architecture, 19-table DB schema, REST API, security |
-| `前端设计文档.md` | Component tree, routing, state, i18n, theme |
+| `prd.md` | Full PRD: features, API 5CT standards, roadmap |
+| `architecture.md` | Architecture, 19-table DB schema, REST API, security |
+| `frontend-design.md` | Component tree, routing, state, i18n, theme |
 | `tasks/progress.md` | Master task tracking (~320 items across 3 phases) |
 
 ---

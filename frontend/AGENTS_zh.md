@@ -1,47 +1,51 @@
-# 前端 — React 19 包
+# frontend — React 19
 
-## 技术栈
-- **React 19** — UI 库
-- **Vite** — 构建工具（vanilla-ts 模板）
-- **TypeScript** — 严格模式
-- **Ant Design 5** — UI 组件
-- **TanStack Query (React Query 5)** — 服务端状态
-- **react-router-dom v7** — 路由
-- **axios** — HTTP 客户端
-- **i18next / react-i18next** — 国际化（主要 zh-CN，后备 en-US）
-- **dayjs** — 日期处理
-- **zod** — 模式验证
+Quick orientation: React 19 + Vite + Ant Design 5 + TanStack Query 5. Strict TypeScript, no shortcuts.
 
-## 构建与开发
+## Tech Stack
+
+- **React 19** — UI
+- **Vite** — Build tool (vanilla-ts template)
+- **TypeScript** — Strict mode. No `as any`, no `@ts-ignore`, no `@ts-expect-error`.
+- **Ant Design 5** — UI components
+- **TanStack Query 5** — Server state (staleTime: 2min, gcTime: 5min)
+- **react-router-dom v7** — Routing (createBrowserRouter)
+- **axios** — HTTP client
+- **i18next / react-i18next** — i18n (zh-CN primary, en-US fallback)
+- **dayjs** — Date handling
+- **zod** — Validation + runtime response checking
+
+## Build & Dev
+
 ```bash
 cd frontend
-npm install        # 安装依赖（包括 vite、antd 等）
-npm run dev        # 开发服务器，位于 http://localhost:5173
-npm run build      # 生产构建到 dist/
-npm run lint       # ESLint
-npm run preview    # 预览生产构建
+npm install          # Install deps
+npm run dev          # Dev server → http://localhost:5173
+npm run build        # Production → dist/
+npm run lint         # ESLint
+npm run preview      # Preview build
 ```
 
-## 包架构
+## Project Layout
 
 ```
 frontend/
-├── public/              ← 静态资源
+├── public/
 ├── src/
-│   ├── main.tsx         ← React 入口、i18n 初始化、QueryClient 设置
-│   ├── App.tsx          ← RouterProvider 设置、ConfigProvider + QueryClient
-│   ├── api/             ← 共享：axios 实例、拦截器
-│   ├── lib/             ← validateResponse.ts，运行时 zod 响应验证
-│   ├── stores/          ← Zustand 状态管理 (authStore, appStore, unitStore)
-│   ├── i18n/            ← 翻译资源 (zh, en) — 15 个命名空间
-│   ├── routes/          ← 路由定义 (react-router)
-│   ├── shared/          ← 共享：组件、hooks
+│   ├── main.tsx         ← Entry: i18n init, QueryClient, render
+│   ├── App.tsx          ← ConfigProvider + QueryClientProvider + RouterProvider
+│   ├── api/             ← Shared axios instance + interceptors
+│   ├── lib/             ← validateResponse.ts, runtime Zod validation
+│   ├── stores/          ← Zustand (authStore, appStore, unitStore)
+│   ├── i18n/            ← Translations (zh, en) — 15 namespaces
+│   ├── routes/          ← Route definitions
+│   ├── shared/          ← Shared components & hooks
 │   │   ├── components/  ← ConfirmModal, EmptyState, ErrorBoundary, FileUploader, LoadingSpin, PageContainer, PageHeader, SearchBar, StatusTag
 │   │   └── hooks/       ← useDebounce
-│   ├── theme/           ← Ant Design 主题配置
-│   ├── zod-schemas/     ← 7 个 Zod 模式文件，用于 API 响应验证
-│   ├── utils/           ← 工具函数
-│   └── features/        ← 特性模块（详见 features/AGENTS_zh.md）
+│   ├── theme/           ← Ant Design theme config
+│   ├── zod-schemas/     ← 7 Zod schemas for API response validation
+│   ├── utils/           ← Utilities
+│   └── features/        ← Feature modules
 │       ├── auth/
 │       ├── pipes/
 │       ├── inventory/
@@ -56,35 +60,37 @@ frontend/
 │       ├── search/
 │       └── profile/
 ├── index.html
-├── vite.config.ts       ← React 插件、代理、manualChunks 供应商分包
-├── tsconfig.json        ← 严格 TypeScript 配置
-├── .eslintrc.cjs        ← ESLint 配置
-├── .prettierrc          ← Prettier 配置 (singleQuote, 2 space, noBracketSpacing)
+├── vite.config.ts       ← React plugin, proxy, manualChunks splitting
+├── tsconfig.json
+├── .eslintrc.cjs
+├── .prettierrc
 └── package.json
 ```
 
-## 关键依赖（来自 package.json）
-- `react`、`react-dom` (^19)
-- `antd` (^5) — UI 库
-- `@tanstack/react-query` (^5) — 服务端状态
-- `react-router-dom` (^7) — 客户端路由
-- `axios` (^1) — HTTP 客户端
-- `i18next`、`react-i18next` — 国际化
-- `dayjs` — 日期工具
-- `zod` — 模式验证
+## Key Dependencies
 
-## 约定
-- 基于特性组织的目录结构，位于 `src/features/`
-- 所有 API 调用通过 `@tanstack/react-query` hooks（组件中不直接 fetch）
-- i18n 命名空间按特性划分（zh/ 和 en/ 共 15 个命名空间）：common、pipes、inventory、purchase、sales、quality、contracts、suppliers、customers、reports、labels、profile、search、system、validation
-- Ant Design 组件 + 主题配置位于 `src/theme/`
-- Vite 开发代理：`/api/*` → `http://localhost:3000`
-- TypeScript 严格模式已启用
-- 禁止使用 `as any`、`@ts-ignore`、`@ts-expect-error`
-- vite.config.ts 中的供应商分包策略：antd→vendor-antd、react 生态→vendor-react、工具库→vendor-utils、应用代码→index（约 162 kB gzip）
+- `react`, `react-dom` (^19)
+- `antd` (^5)
+- `@tanstack/react-query` (^5)
+- `react-router-dom` (^7)
+- `axios` (^1)
+- `i18next`, `react-i18next`
+- `dayjs`
+- `zod`
 
-## 关键文件
-- `vite.config.ts` — Vite 配置（React 插件、代理、manualChunks 供应商分包）
-- `tsconfig.json` — TypeScript 配置（严格、JSX react-jsx）
-- `.eslintrc.cjs` — ESLint 规则
+## Conventions
+
+- Feature-based structure under `src/features/`. Each feature owns its own API hooks, pages, types.
+- Every API call goes through TanStack Query hooks — no raw `fetch` in components.
+- i18n namespace per feature (15 total): common, pipes, inventory, purchase, sales, quality, contracts, suppliers, customers, reports, labels, profile, search, system, validation.
+- Ant Design theme config in `src/theme/`.
+- Vite dev proxy: `/api/*` → `http://localhost:3000`.
+- TypeScript strict mode. `as any` and suppression comments are banned.
+- Vendor chunk splitting: antd → vendor-antd, React ecosystem → vendor-react, utils → vendor-utils, app code → index (~162 kB gzip).
+
+## Key Files
+
+- `vite.config.ts` — React plugin, proxy, manualChunks
+- `tsconfig.json` — Strict, JSX react-jsx
+- `.eslintrc.cjs` — Lint rules
 - `.prettierrc` — `singleQuote: true, tabWidth: 2, bracketSpacing: false`

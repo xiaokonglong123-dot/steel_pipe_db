@@ -1,36 +1,36 @@
-# Phase 3 — 前端：合同管理模块 (P2)
+# Phase 3 — Frontend: Contracts Module (P2)
 
-> 基于：`docs/前端设计文档.md` §4.1
+> Based on: `docs/frontend-design.en.md` §4.1
 
-## 任务清单
+## Task List
 
-### 1.1 共享类型与 API
-- [ ] 定义 `features/contracts/types.ts`：Contract, ContractItem, ContractPayment 等类型
-- [ ] 定义 `features/contracts/api/contractApi.ts`：
-  - 合同 CRUD + 状态变更
-  - 付款计划 CRUD
+### 1.1 Shared Types & API
+- [ ] Define `features/contracts/types.ts`: Contract, ContractItem, ContractPayment, etc.
+- [ ] Define `features/contracts/api/contractApi.ts`:
+  - Contract CRUD + status changes
+  - Payment schedule CRUD
 
-### 1.2 合同列表页面
-- [ ] 实现 `ContractListPage`：
-  - 筛选条件：合同编号、类型（销售/采购）、状态、日期范围、关联客户/供应商
-  - 合同表格（编号、类型、客户/供应商、总金额、状态、签订日期、到期日期、操作）
-  - 行操作：查看详情、编辑、删除、变更状态
+### 1.2 Contract List Page
+- [ ] Implement `ContractListPage`:
+  - Filters: contract number, type (sales/purchase), status, date range, linked customer/supplier
+  - Table columns: number, type, customer/supplier, total amount, status, signing date, expiry date, actions
+  - Row actions: view detail, edit, delete, change status
 
-### 1.3 合同表单页面
-- [ ] 实现 `ContractFormPage`：
-  - 基础信息：合同编号（自动生成/手动输入）、类型选择、选择关联客户/供应商
-  - 合同明细：动态添加行（商品名称、规格、数量、单价、金额、交期）
-  - 自动计算合同总金额
-  - 付款计划：动态添加行（阶段、金额、到期日、备注）
-  - 附件上传
-  - 日期选择：签订日期、生效日期、到期日期
+### 1.3 Contract Form Page
+- [ ] Implement `ContractFormPage`:
+  - Basic info: contract number (auto / manual), type selector, customer/supplier selector
+  - Line items: dynamic rows (product name, spec, qty, unit price, amount, delivery date)
+  - Auto-calculate total amount
+  - Payment schedule: dynamic rows (milestone, amount, due date, notes)
+  - File attachment upload
+  - Date pickers: signing date, effective date, expiry date
 
-### 1.4 合同详情页面
-- [ ] 实现 `ContractDetailPage`：
-  - 卡片式展示合同基本信息
-  - 明细表格
-  - 付款计划表格（含已付/未付状态）
-  - 变更状态下拉操作
-  - 关联订单列表（采购/销售单联动）
+### 1.4 Contract Detail Page
+- [ ] Implement `ContractDetailPage`:
+  - Card-based layout showing basic info
+  - Line items table
+  - Payment schedule table (with paid/unpaid status)
+  - Status change dropdown
+  - Linked orders list (purchase/sales order cross-reference)
 
-> **依赖**: 采购/销售模块（供应商/客户选择器）
+> **Dependencies**: Purchase / Sales modules (supplier & customer pickers)

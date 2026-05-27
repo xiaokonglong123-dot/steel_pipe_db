@@ -1,60 +1,64 @@
-# 后端 — Rust 包 (steel-pipe-db)
+# Backend — Rust Package (steel-pipe-db)
 
-## 技术栈
-- **Rust** nightly-2024-02-08，版次 2021
-- **单 crate** `steel-pipe-db`（无工作区）
-- **SQLx** 0.8 使用 SQLite（runtime-tokio-rustls），启动时自动迁移
+## Tech
 
-## 关键依赖（来自 Cargo.toml）
-- `axum` 0.8 — HTTP 路由（macros、multipart 特性）
-- `sqlx` 0.8 — SQL（sqlite、runtime-tokio-rustls、chrono 特性）
+- **Rust** nightly-2024-02-08, edition 2021
+- **Single crate** `steel-pipe-db` (no workspace, no monorepo nonsense)
+- **SQLx** 0.8 with SQLite (runtime-tokio-rustls), migrations auto-run on startup
+
+## Key Dependencies (from Cargo.toml)
+
+- `axum` 0.8 — HTTP routing (macros + multipart features)
+- `sqlx` 0.8 — SQL (sqlite, runtime-tokio-rustls, chrono features)
 - `serde` / `serde_json` — JSON
-- `jsonwebtoken` 9 — JWT 认证
-- `argon2` 0.5 — 密码哈希（不是 bcrypt）
-- `validator` 0.19 — 请求校验（derive 特性）
-- `chrono` 0.4 — 日期/时间（serde 特性）
-- `tokio` 1 — 异步运行时（full 特性）
-- `tower-http` 0.6 — CORS、TraceLayer、request-id
-- `tower` 0.5 — 工具函数
-- `uuid` 1 — UUID 生成（v4 特性）
-- `dotenvy` 0.15 — .env 加载
-- `thiserror` 2 — 错误 derive 宏
-- `calamine` 0.26 — Excel 导入
-- `rust_xlsxwriter` 0.80 — Excel 导出
-- `csv` 1.3 — CSV 导入/导出
-- `tracing` / `tracing-subscriber` — 结构化日志（env-filter、json）
+- `jsonwebtoken` 9 — JWT auth
+- `argon2` 0.5 — Password hashing (NOT bcrypt)
+- `validator` 0.19 — Request validation (derive feature)
+- `chrono` 0.4 — Date/time (serde feature)
+- `tokio` 1 — Async runtime (full features)
+- `tower-http` 0.6 — CORS, TraceLayer, request-id
+- `tower` 0.5 — Utilities
+- `uuid` 1 — UUID generation (v4 feature)
+- `dotenvy` 0.15 — .env loading
+- `thiserror` 2 — Error derive macro
+- `calamine` 0.26 — Excel import
+- `rust_xlsxwriter` 0.80 — Excel export
+- `csv` 1.3 — CSV import/export
+- `tracing` / `tracing-subscriber` — Structured logging (env-filter, json)
 
-**重要：** 不包含 `rust_decimal`、`bigdecimal`、`backpack` 或 `bcrypt`。
+**Heads up:** No `rust_decimal`, `bigdecimal`, `backpack`, or `bcrypt` here. Don't go looking for them.
 
-## 构建与测试
+## Build & Test
+
 ```bash
 cd backend
-cargo check          # 仅类型检查（比构建快，CI 使用）
-cargo build          # 调试构建
-cargo build --release # 发布构建
-cargo test           # 运行所有测试
+cargo check          # Type-check only (faster than build, CI uses this)
+cargo build          # Debug build
+cargo build --release # Release build
+cargo test           # Run all tests
 ```
 
-## 数据库
-- **SQLite** 文件路径来自 `DATABASE_URL` 环境变量（默认：`./data/steel_pipe.db`）
-- **迁移文件**：`backend/migrations/` — SQLx 时间戳前缀文件
-- 启动时自动运行迁移（`sqlx::migrate!("./migrations")`）
-- 无需外部数据库服务器
-- WAL 模式，通过 `deleted_at` 列实现软删除
+## Database
 
-## 模块结构
+- **SQLite** file at path from `DATABASE_URL` env var (defaults to `./data/steel_pipe.db`)
+- **Migrations**: `backend/migrations/` — SQLx timestamp-prefixed files
+- Auto-migrate on startup via `sqlx::migrate!("./migrations")`
+- No external DB server needed — it's just a file
+- WAL mode enabled, soft deletes via `deleted_at` column
+
+## Module Structure
 
 ```
 src/
-├── main.rs              ← 入口点：tracing、DB 池、迁移、启动服务器
-├── lib.rs               ← 模块声明、#![allow(dead_code)]
-├── config.rs            ← 基于环境变量的配置（DATABASE_URL、JWT_SECRET 等）
-├── error.rs             ← AppError 枚举，含数字错误码（10001-50001）
-├── response.rs          ← ApiResponse<T>、PaginatedResponse<T>
-├── router.rs            ← ~70 个端点，通过 .merge() 组合
-├── domain/              ← 3 个文件（pipe.rs、inventory.rs、order.rs）— 枚举/领域类型
+├── main.rs              ← Entry point: tracing, DB pool, migrate, start server
+├── lib.rs               ← Module declarations, #![allow(dead_code)]
+├── config.rs            ← Env-based Config (DATABASE_URL, JWT_SECRET, etc.)
+├── error.rs             ← AppError enum with numeric error codes (10001-50001)
+├── response.rs          ← ApiResponse<T>, PaginatedResponse<T>
+├── router.rs            ← ~70 endpoints assembled via .merge()
+├── domain/              ← 3 files (pipe.rs, inventory.rs, order.rs) — enums/domain types
 │   └── mod.rs
-├── dto/                 ← 14 个文件，请求/响应结构体
+├── dto/                 ← 14 files, request/response structs
 │   ├── mod.rs
 │   ├── auth_dto.rs
 │   ├── pipe_dto.rs
@@ -69,7 +73,7 @@ src/
 │   ├── report_dto.rs
 │   ├── data_io_dto.rs
 │   └── common.rs
-├── models/              ← 11 个文件，DB 行结构体（sqlx::FromRow）
+├── models/              ← 11 files, DB row structs (sqlx::FromRow)
 │   ├── mod.rs
 │   ├── user.rs
 │   ├── seamless_pipe.rs
@@ -81,7 +85,7 @@ src/
 │   ├── contract.rs
 │   ├── customer.rs
 │   └── supplier.rs
-├── repositories/        ← 13 个文件，纯 SQL，软删除感知
+├── repositories/        ← 13 files, pure SQL, soft-delete aware
 │   ├── mod.rs
 │   ├── pipe_repo.rs
 │   ├── inventory_repo.rs
@@ -96,7 +100,7 @@ src/
 │   ├── data_io_repo.rs
 │   ├── user_repo.rs
 │   └── operation_log_repo.rs
-├── services/            ← 12 个文件，业务逻辑（单元结构体 + 静态方法）
+├── services/            ← 12 files, business logic (unit structs, static methods)
 │   ├── mod.rs
 │   ├── auth_service.rs
 │   ├── pipe_service.rs
@@ -110,7 +114,7 @@ src/
 │   ├── report_service.rs
 │   ├── data_io_service.rs
 │   └── trace_service.rs
-├── handlers/            ← 13 个文件，薄处理器（提取参数 → 调用服务 → 响应）
+├── handlers/            ← 13 files, thin handlers (extract → call service → respond)
 │   ├── mod.rs
 │   ├── auth_handler.rs
 │   ├── pipe_handler.rs
@@ -125,62 +129,68 @@ src/
 │   ├── label_handler.rs
 │   ├── data_io_handler.rs
 │   └── atp_handler.rs
-└── middleware/          ← 2 个文件，认证 + RBAC
+└── middleware/          ← 2 files, auth + RBAC
     ├── mod.rs
-    ├── auth.rs          ← JWT 验证、Claims、AuthContext、auth_middleware
-    └── rbac.rs          ← 基于角色的访问控制辅助函数
+    ├── auth.rs          ← JWT verification, Claims, AuthContext, auth_middleware
+    └── rbac.rs          ← Role-based access control helpers
 ```
 
-## 关键文件
-- `Cargo.toml` — 包清单
-- `.env.example` — 环境变量模板（DATABASE_URL、JWT_SECRET 等）
-- `migrations/` — SQLx 时间戳前缀迁移文件（11 个文件，含 `011_add_rejection_reason.sql`）
+## Key Files
 
-## Rust 约定
-- 函数/变量使用 `snake_case`，类型使用 `PascalCase`
-- `use` 语句：`use crate::{handlers, models, ...}` 模式
-- `mod.rs` 文件重新导出公开项：`pub use pipe_handler::*;`
-- 公开 API 函数为 `pub async fn` 并带有显式返回类型
-- 内部辅助函数为 `pub(crate) fn` 或 `async fn`
-- **所有处理器返回 `Result<Json<...>, AppError>`**（不是 `impl IntoResponse`）
-- 服务是**带静态方法的单元结构体**（无构造函数 DI）：`PipeService::list(...)`
-- 服务返回 `Result<T, AppError>`
-  - 仓库接受 `&SqlitePool` 并返回 `Result<Vec<T>, sqlx::Error>`
-- `inventory_service.rs` 已大幅扩展，新增了 ATP 计算、拒收原因处理及其他库存管理逻辑。
+- `Cargo.toml` — Package manifest
+- `.env.example` — Environment template (DATABASE_URL, JWT_SECRET, etc.)
+- `migrations/` — SQLx timestamp-prefixed migration files (11 files, including `011_add_rejection_reason.sql`)
 
-## DI 模式：Extension 层，而非 State<Arc<AppState>>
+## Rust Conventions
+
+- `snake_case` for functions/variables, `PascalCase` for types
+- `use` statements follow `use crate::{handlers, models, ...}` pattern
+- `mod.rs` files re-export public items: `pub use pipe_handler::*;`
+- Public API functions are `pub async fn` with explicit return types
+- Internal helpers are `pub(crate) fn` or `async fn`
+- **All handlers return `Result<Json<...>, AppError>`** (NOT `impl IntoResponse`)
+- Services are **unit structs with static methods** (no constructor DI): `PipeService::list(...)`
+- Services return `Result<T, AppError>`
+  - Repositories accept `&SqlitePool` and return `Result<Vec<T>, sqlx::Error>`
+- `inventory_service.rs` is the beefy one — ATP calculation, rejection reason handling, and all the inventory management magic lives there.
+
+## DI Pattern: Extension layers, NOT State<Arc<AppState>>
+
 ```rust
-// router.rs 中的层：
+// router.rs layers:
 .layer(CorsLayer::permissive())
 .layer(TraceLayer::new_for_http())
 .layer(Extension(pool))       // Extension<SqlitePool>
 .layer(Extension(jwt_secret)) // Extension<String>
 
-// 处理器提取：
+// Handler extracts:
 pub async fn list_pipes(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<PipeFilterParams>,
 ) -> Result<Json<PaginatedResponse<Pipe>>, AppError> {
 ```
-不存在 `AppState` 结构体。连接池和 JWT 密钥作为原始类型注入。
 
-## 响应格式
+No `AppState` struct. Pool and JWT secret get injected as raw types. Simple.
+
+## Response Shapes
+
 ```json
-// 成功：    { "success": true, "request_id": "req_...", "data": T }
-// 分页：    { "success": true, "request_id": "req_...", "meta": { "total": N, "page": P, "page_size": S, "total_pages": N }, "data": { "items": [], ... } }
-// 错误：    { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
+// Success:    { "success": true, "request_id": "req_...", "data": T }
+// Paginated:  { "success": true, "request_id": "req_...", "meta": { "total": N, "page": P, "page_size": S, "total_pages": N }, "data": { "items": [], ... } }
+// Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
 
-## 错误码（数字，按领域前缀）
-| 范围 | 领域 |
+## Error Codes (numeric, domain-prefixed)
+
+| Range | Domain |
 |-------|--------|
-| 100xx | 通用（内部错误、校验、未找到） |
-| 110xx | 认证（未授权、令牌过期、禁止） |
-| 120xx | 钢管（未找到、重复、状态冲突） |
-| 130xx | 库存（库存不足、位置已满） |
-| 140xx | 订单（无法修改、未找到） |
-| 150xx | 质量（证书未找到、附件未找到） |
-| 160xx | 供应商（未找到、编码重复） |
-| 170xx | 客户（未找到、编码重复） |
-| 180xx | 数据 IO（导入错误、导出错误） |
-| 50001 | 数据库 |
+| 100xx | General (Internal, Validation, NotFound) |
+| 110xx | Auth (Unauthorized, TokenExpired, Forbidden) |
+| 120xx | Pipe (NotFound, Duplicate, StatusConflict) |
+| 130xx | Inventory (InsufficientStock, LocationFull) |
+| 140xx | Orders (CannotModify, NotFound) |
+| 150xx | Quality (CertNotFound, AttachmentNotFound) |
+| 160xx | Supplier (NotFound, CodeDuplicate) |
+| 170xx | Customer (NotFound, CodeDuplicate) |
+| 180xx | Data IO (ImportError, ExportError) |
+| 50001 | Database |

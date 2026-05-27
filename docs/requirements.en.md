@@ -1,17 +1,17 @@
 # Seamless Steel Pipe & Screen Pipe Management System — PRD
 
-> **Document Version**: v1.0
+> **Version**: v1.0
 > **Date**: 2026-05-19
-> **Applicable Standard**: API 5CT (10th Edition / ISO 11960)
-> **Development Language**: Rust
-> **System Type**: Web Application (Frontend/Backend Separation)
+> **Standard**: API 5CT (10th Edition / ISO 11960)
+> **Stack**: Rust + React
+> **Type**: Web App (Frontend/Backend split)
 
 ---
 
 ## Revision History
 
-| Version | Date | Revisions | Author |
-|---------|------|-----------|--------|
+| Version | Date | Changes | Author |
+|---------|------|---------|--------|
 | v1.0 | 2026-05-19 | Initial version | - |
 
 ---
@@ -20,24 +20,24 @@
 
 ### 1.1 Background
 
-Seamless steel pipes (Casing / Tubing) and screen pipes are critical tubular goods in oil and gas well construction, both conforming to the **API 5CT** standard. Currently, there is no integrated information management system to handle the full lifecycle of these two types of pipe — from procurement, inbound, and inventory management to sales outbound and quality traceability.
+Seamless steel pipes (Casing / Tubing) and screen pipes are the backbone of oil & gas well construction — both governed by the **API 5CT** standard. Right now there's no integrated system that tracks the full lifecycle of these pipes: procurement, inbound, warehouse storage, sales outbound, and quality traceability. Everything's scattered across spreadsheets and paper forms.
 
 ### 1.2 Objective
 
-Build a Rust-based web management system for integrated **procurement + sales + inventory + quality** management of seamless steel pipes and screen pipes, covering full-process data traceability from pipe arrival to shipment.
+Build a Rust-based web system that handles **procurement + sales + inventory + quality** for seamless steel pipes and screen pipes in one place. Full traceability from the moment a pipe arrives until it ships out.
 
 ---
 
 ## 2. Target Users & Roles
 
-| Role | Responsibilities | Key Focus |
-|------|-----------------|-----------|
-| **Warehouse Operator** | Pipe inbound, outbound, transfer, inventory count, label printing | Stock quantity, location info, operation efficiency |
-| **Quality Inspector** | Quality data entry, QC report management, certificate association | Grade/spec consistency, heat/lot traceability, QC certificates |
-| **Sales/Procurement Staff** | Purchase order management, sales order management, customer/supplier management | Available-to-promise stock, order progress, contract info |
-| **Management** | Data overview, report viewing, decision analysis | Inventory turnover, inventory value, business statistics |
+| Role | What They Do | Key Concerns |
+|------|-------------|--------------|
+| **Warehouse Operator** | Inbound, outbound, transfer, stock count, label printing | Stock levels, bin locations, speed |
+| **Quality Inspector** | QC data entry, cert management, cert-to-pipe linking | Grade/spec consistency, heat/lot traceability, cert docs |
+| **Sales/Procurement Staff** | PO/SO management, supplier/customer management | ATP stock, order status, contract info |
+| **Management** | Dashboards, reports, decisions | Inventory turns, stock value, biz metrics |
 
-The system is **multi-user** with role-based access control (RBAC).
+System is **multi-user**, role-based access (RBAC).
 
 ---
 
@@ -46,133 +46,132 @@ The system is **multi-user** with role-based access control (RBAC).
 ### 3.1 Pipe Information Management (P0 — Must Have)
 
 **FR-PIPE-001: Pipe Master Data Management**
-- **Description**: CRUD operations for both seamless steel pipe and screen pipe types
-- **Seamless Pipe Attributes**:
-  - Pipe number (unique identifier)
+- **Description**: CRUD for both seamless steel pipe and screen pipe types
+- **Seamless Pipe Fields**:
+  - Pipe number (unique across the system)
   - Product type: Casing / Tubing
   - Grade: H40, J55, K55, N80, L80, C90, T95, P110, Q125, etc.
-  - Dimensions: Outer Diameter (OD), Wall Thickness (WT), Length, Unit Weight
-  - End type: Short Round Thread (SC), Long Round Thread (LC), Buttress Thread (BC), Extreme Line, etc.
-  - Coupling parameters: coupling type, coupling OD, coupling length
+  - Dimensions: OD, WT, Length, Unit Weight
+  - End type: SC, LC, BC, Extreme Line, etc.
+  - Coupling: type, OD, length
   - Heat number / Lot number
   - Pipe body serial number
-- **Screen Pipe Specific Attributes**:
+- **Screen Pipe Specific Fields**:
   - Screen type: Wire-wrapped, Slotted, Punched, Metal mesh, etc.
-  - Base pipe parameters: OD, WT, grade (the base pipe itself is a seamless steel pipe)
-  - Slot width / aperture specifications
-  - Filtration rating (e.g., 150μm, 250μm, etc.)
+  - Base pipe params: OD, WT, grade (the base pipe is itself a seamless pipe)
+  - Slot width / aperture
+  - Filtration rating (e.g., 150μm, 250μm)
   - Screen pipe length and connection type
-- **Common Attributes**: Manufacturer, production date, QC certificate number, attachments (certificate scans, etc.)
+- **Common Fields**: Manufacturer, prod date, QC cert number, attachments (PDF scans, etc.)
 - **Acceptance Criteria**:
-  - Support add/edit/delete pipe entries
-  - Pipe number must be globally unique
-  - Support search by any combination of attributes
-  - Screen pipes and seamless pipes managed by type but queryable in a unified list
+  - Full CRUD
+  - Pipe number globally unique
+  - Search by any combination of fields
+  - Screen and seamless managed separately but searchable from one place
 
 ### 3.2 Inventory Management (P0 — Must Have)
 
 **FR-INV-001: Inbound Management**
-- Support multiple inbound types: purchase inbound, production inbound, return inbound, etc.
-- Record on inbound: inbound order number, date, pipe details (number/quantity/batch), supplier/source, operator
-- Auto-update inventory quantity
+- Multiple inbound types: purchase, production return, customer return, etc.
+- Each record: inbound order number, date, pipe details (number/qty/batch), supplier/source, operator
+- Auto-update stock on inbound
 
 **FR-INV-002: Outbound Management**
-- Support sales outbound, requisition outbound, transfer outbound, etc.
-- Record on outbound: outbound order number, date, customer/destination, pipe details, operator
-- Support batch/single-piece outbound (precise outbound by pipe number)
+- Sales outbound, internal requisition, transfer outbound, etc.
+- Each record: outbound order number, date, customer/destination, pipe details, operator
+- Batch or single-piece outbound (precise by pipe number)
 
-**FR-INV-003: Inventory Query & Count**
-- Real-time inventory query: by pipe type, grade, specification, location, etc.
-- Inventory movement details (ledger): inbound/outbound history for each pipe
-- Inventory count: generate count list, enter count data, generate discrepancy report
+**FR-INV-003: Stock Query & Count**
+- Real-time stock by pipe type, grade, spec, location, etc.
+- Movement ledger — full inbound/outbound history per pipe
+- Stock count: generate count sheets, enter counts, produce variance reports
 
 **FR-INV-004: Location Management**
-- Multi-level location management: zone/rack/shelf
-- Bind pipes to locations, support location transfers
+- Multi-level locations: zone / rack / shelf
+- Bind pipes to locations, support moves
 
 ### 3.3 Quality Management (P1 — Should Have)
 
-**FR-QA-001: QC Information Management**
-- Associate QC reports/certificates with pipes
-- Record: test items, test results, test date, test agency, inspector
-- Support uploading test files (PDF/images)
+**FR-QA-001: QC Info Management**
+- Link QC reports/certs to individual pipes
+- Fields: test items, results, date, agency, inspector
+- File uploads (PDF/images)
 
 **FR-QA-002: Quality Traceability**
-- Trace to production batch via heat number
-- Trace to individual pipe's full quality history via pipe number
-- Reference API 5CT standard grade mechanical properties and chemical composition data for comparison
+- Trace by heat number → production batch
+- Trace by pipe number → full quality history
+- Reference API 5CT grade mechanical properties and chemical composition for comparison
 
 ### 3.4 Procurement Management (P1 — Should Have)
 
 **FR-PUR-001: Procurement Management**
-- Purchase order creation, approval, tracking
-- Supplier information management (name, contact, qualifications, etc.)
-- Purchase arrival linked with inbound
+- PO creation, approval flow, tracking
+- Supplier info management (name, contact, qualifications, etc.)
+- Purchase arrival links to inbound
 
 **FR-SALE-001: Sales Management**
-- Sales order creation, approval, tracking
-- Customer information management
-- Sales outbound linked with inventory deduction
-- View available-to-promise (ATP) stock
+- SO creation, approval flow, tracking
+- Customer info management
+- Sales outbound deducts inventory
+- Available-to-promise (ATP) stock visibility
 
 **FR-CONTRACT-001: Contract Management**
-- Basic information management for procurement and sales contracts
-- Contract-to-order association
+- Basic contract info for procurement and sales
+- Link contracts to orders
 
 ### 3.5 Data Import/Export (P1 — Should Have)
 
 **FR-IO-001: Data Import**
-- Support Excel/CSV batch import of pipe information
-- Validate data format and required fields during import
-- Provide import result report (success/failure row counts and reasons)
+- Excel/CSV batch import for pipe data
+- Validate format and required fields during import
+- Import result report (success/fail counts + reasons)
 
 **FR-IO-002: Data Export**
 - Export query results to Excel/CSV
-- Support exporting standard reports: inventory reports, inbound/outbound details, quality reports, etc.
+- Standard reports: inventory, inbound/outbound details, quality reports, etc.
 
 ### 3.6 Search & Filter (P0 — Must Have)
 
 **FR-SEARCH-001: Multi-dimensional Search**
-- Combined queries by pipe number, pipe type, grade, specification (OD/WT), status, location, etc.
-- Support fuzzy search (partial pipe number, grade name, etc.)
-- Paginated search results
+- Combined queries: pipe number, type, grade, spec (OD/WT), status, location, etc.
+- Fuzzy search (partial pipe number, grade name, etc.)
+- Paginated results
 
 ### 3.7 Reports & Statistics (P2 — Could Have)
 
 **FR-RPT-001: Inventory Reports**
-- Current inventory summary (grouped by type/grade/spec)
-- Monthly/quarterly inventory movement reports
+- Current stock summary (grouped by type/grade/spec)
+- Monthly/quarterly movement reports
 
 **FR-RPT-002: Business Reports**
-- Inbound/outbound statistics charts
+- Inbound/outbound charts
 - Inventory turnover analysis
 - Procurement/sales trend analysis
 
 ### 3.8 Label Printing (P2 — Could Have)
 
-**FR-LABEL-001: Barcode/QR Code Label Printing**
-- Generate barcode or QR code labels from pipe information
-- Support batch printing
-- Configurable label templates (display fields, layout)
+**FR-LABEL-001: Barcode/QR Code Labels**
+- Generate barcode or QR code labels from pipe data
+- Batch printing
+- Configurable templates (fields, layout)
 
 ### 3.9 History Traceability (P0 — Must Have)
 
 **FR-TRACE-001: Full Lifecycle Traceability**
-- Record all operational logs for each pipe from inbound to outbound
-- Record all change logs (who, when, which fields changed)
-- Support viewing complete lifecycle by pipe number
+- Every operation on every pipe logged — from inbound to outbound
+- Every change tracked: who, when, what fields
+- View full lifecycle by pipe number
 
 ### 3.10 System Management (P1 — Should Have)
 
 **FR-SYS-001: User & Permission Management**
-- User registration/management
-- Role-Based Access Control (RBAC)
-  - Warehouse Operator, Quality Inspector, Sales/Procurement Staff, Administrator
-- Different roles see different menus and action buttons
+- User management
+- RBAC with 4 roles: Warehouse, QC, Sales/Procurement, Admin
+- Menus and buttons adapt to role
 
 **FR-SYS-002: Operation Logs**
-- Record key user operations: login, data modifications, etc.
-- Logs queryable and exportable
+- Log key user actions: login, data changes, etc.
+- Queryable and exportable
 
 ---
 
@@ -182,82 +181,82 @@ The system is **multi-user** with role-based access control (RBAC).
 
 | Metric | Target |
 |--------|--------|
-| Single page query response time | ≤ 2 seconds (within 100K records) |
-| Data import performance | ≤ 60 seconds for 100K records |
-| Concurrent users | Support ≥ 20 simultaneous users |
-| System availability | 99.5% (downtime ≤ 44 hours/year) |
+| Single page query response | ≤ 2s (within 100K records) |
+| Data import | ≤ 60s for 100K records |
+| Concurrent users | ≥ 20 simultaneous |
+| Availability | 99.5% (≤ 44 hrs/year downtime) |
 
 ### 4.2 Data Scale
 
-- Pipe master data: Hundreds of thousands (≥ 100K records)
-- Inventory movement logs: Millions of records
-- Storage solution: SQLite (requires well-designed indexes for large-scale data)
+- Pipe master data: 100K+ records
+- Inventory movement logs: millions of records
+- Storage: SQLite (WAL mode, well-indexed)
 
-> **Note**: SQLite is suitable for single-machine/small-scale concurrent scenarios. For multi-user web application write concurrency, WAL mode configuration and connection pool management are important. If future concurrency needs grow, migration to PostgreSQL is possible.
+> **Note**: SQLite handles single-machine / small-scale concurrency fine. WAL mode + connection pool are key for a web app. If concurrency grows beyond that, PostgreSQL is an easy migration path.
 
 ### 4.3 Internationalization & Units
 
-- **UI Language**: Support Chinese and English switching
-- **Unit System**: Support metric (mm, kg/m, m) and imperial (in, lb/ft, ft) switching
-- Input can switch unit systems; internal storage unified to metric or with unit markers
+- **UI Language**: Chinese + English, switchable at runtime
+- **Unit System**: Metric (mm, kg/m, m) and Imperial (in, lb/ft, ft) — toggle on the fly
+- Internal storage unified (metric) with unit metadata
 
 ### 4.4 Security
 
-- User passwords encrypted with bcrypt / argon2
+- Passwords hashed with **Argon2id** (not bcrypt — we use the `argon2` crate with OWASP-recommended params: m=19456, t=2, p=1)
 - Sensitive operations (delete/modify critical data) require confirmation
-- API request authentication (JWT / Session)
-- HTTPS (production environment)
+- API auth via **JWT** (jsonwebtoken crate, configurable expiry, refresh token rotation)
+- HTTPS in production (obviously)
 
 ### 4.5 Maintainability
 
-- Rust type-safe system reduces runtime errors
-- Modular architecture with clear package structure
-- Backend provides RESTful API, frontend communicates via HTTP
-- API documentation (OpenAPI / Swagger)
+- Rust's type system catches a whole class of bugs at compile time
+- Modular architecture — handler → service → repository, clear layer boundaries
+- Backend REST API, frontend just calls HTTP
+- API docs via OpenAPI (utoipa)
 
 ### 4.6 System Architecture & Technology Stack
 
-| Layer | Recommended Technology | Description |
-|-------|----------------------|-------------|
-| **Backend** | Rust + Axum + SQLx | Axum is the most mainstream async web framework in the Rust ecosystem; SQLx provides compile-time SQL checking |
-| **Database** | SQLite (WAL mode) | Zero-configuration, file-level database suitable for small-to-medium scale applications |
-| **Frontend** | React / Vue / Leptos | Frontend-backend separation. Leptos for full Rust stack, otherwise React/Vue is more mature |
-| **API** | JSON REST API | Standard RESTful interface for easy third-party integration |
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| **Backend** | Rust + Axum 0.8 + SQLx 0.8 | Axum is the most ergonomic async web framework in Rust right now. SQLx gives us compile-time checked SQL. No ORM overhead. |
+| **Database** | SQLite (WAL mode) | Zero config, file-level, perfect for this scale. WAL handles concurrent reads fine. |
+| **Frontend** | React 19 + TypeScript (strict) + Vite | React 19 is the latest stable. Vite is insanely fast for dev. TypeScript strict catches nulls and bad types. |
+| **API** | JSON REST | Standard RESTful — easy to integrate, debug with curl, works with any frontend. |
 
 ---
 
 ## 5. API 5CT Standard Reference
 
-> API 5CT (Specification for Casing and Tubing) is one of the most important pipe standards in the oil and gas industry. The following is key reference information to guide system field design.
+> API 5CT (Specification for Casing and Tubing) is *the* standard for oilfield pipe. Here's the reference data that drives the system's field design.
 
-### 5.1 Common Grade Classification
+### 5.1 Grade Classification
 
-| Grade Group | Grade | Type | Key Characteristics |
-|-------------|-------|------|---------------------|
-| **Group H** | H40 | Casing/Tubing | Lowest strength, non-critical wells |
-| **Group J/K** | J55, K55 | Casing/Tubing | Medium strength, medium-depth wells |
-| **Group N** | N80 | Casing/Tubing | Higher strength, N80-1 and N80-Q two heat treatment states |
-| **Group L** | L80 | Casing/Tubing | Corrosion resistant, contains Cr, for H₂S environments |
-| **Group C** | C90, C95 | Casing/Tubing | Corrosion resistant, for sour environments |
-| **Group T** | T95 | Casing | High collapse resistance, suitable for sour environments |
-| **Group P** | P110 | Casing/Tubing | High strength, deep wells |
-| **Group Q** | Q125 | Casing | Ultra-high strength, ultra-deep wells |
+| Group | Grade | Type | Key Characteristics |
+|-------|-------|------|---------------------|
+| **H** | H40 | Casing/Tubing | Lowest strength, non-critical wells |
+| **J/K** | J55, K55 | Casing/Tubing | Medium strength, medium-depth wells |
+| **N** | N80 | Casing/Tubing | Higher strength, two heat treatments (N80-1 normalized, N80-Q quenched+tempered) |
+| **L** | L80 | Casing/Tubing | Corrosion resistant, Cr content, for H₂S environments |
+| **C** | C90, C95 | Casing/Tubing | Corrosion resistant, sour service |
+| **T** | T95 | Casing | High collapse resistance, sour service |
+| **P** | P110 | Casing/Tubing | High strength, deep wells |
+| **Q** | Q125 | Casing | Ultra-high strength, ultra-deep wells |
 
 ### 5.2 End Types
 
-- **SC** (Short Round Thread) — For shallower wells
+- **SC** (Short Round Thread) — Shallower wells
 - **LC** (Long Round Thread) — Higher connection strength than SC
 - **BC** (Buttress Thread) — High connection strength
-- **X** (Extreme Line) — For special operating conditions
+- **X** (Extreme Line) — Special operating conditions
 
-### 5.3 Units of Measurement
+### 5.3 Units
 
-API 5CT standard uses imperial units:
+API 5CT is imperial by default:
 
-| Parameter | Imperial Unit | Metric Unit |
-|-----------|---------------|-------------|
-| Outer Diameter (OD) | inch (in) | millimeter (mm) |
-| Wall Thickness (WT) | inch (in) | millimeter (mm) |
+| Parameter | Imperial | Metric |
+|-----------|----------|--------|
+| OD | inch (in) | millimeter (mm) |
+| WT | inch (in) | millimeter (mm) |
 | Length | foot (ft) | meter (m) |
 | Unit Weight | lb/ft | kg/m |
 | Yield Strength | psi | MPa |
@@ -272,7 +271,7 @@ API 5CT standard uses imperial units:
 | 9⅝ | 0.395 ~ 0.595 | 40.00 ~ 59.20 | J55, N80, L80, P110 |
 | 13⅜ | 0.514 ~ 0.672 | 72.00 ~ 92.50 | H40, J55, K55 |
 
-*(Above are partial common size examples; complete reference table should be included in system reference data)*
+*(Partial — full reference table is seeded in the DB via migration 010)*
 
 ---
 
@@ -282,8 +281,8 @@ API 5CT standard uses imperial units:
 
 ```
                       ┌──────────────────────┐
-                      │   SeamlessPipe        │  ← Seamless pipe (independent table)
-                      │   (无缝钢管)           │
+                      │   SeamlessPipe        │  ← Seamless pipe (own table)
+                       │   (Seamless Pipe)       │
                       └────────┬─────────────┘
                                │
 Supplier ──→ PurchaseOrder ──→ InboundRecord ──→ SeamlessPipe/ScreenPipe ──→ OutboundRecord ──→ Customer
@@ -293,40 +292,40 @@ Supplier ──→ PurchaseOrder ──→ InboundRecord ──→ SeamlessPipe/
                      └──────────────────────────────────────────────────────────┘
 
                       ┌──────────────────────┐
-                      │   ScreenPipe           │  ← Screen pipe (independent table)
-                      │   (筛管)               │
+                      │   ScreenPipe           │  ← Screen pipe (own table)
+                       │   (Screen Pipe)         │
                       └──────────────────────┘
 ```
 
-> SeamlessPipe and ScreenPipe are **two independent data tables**, each with its own complete field system; they do not share table structure.
+> SeamlessPipe and ScreenPipe are **two independent tables** — their field sets are different enough that sharing a table would be more trouble than it's worth.
 
 ### 6.2 Main Data Entities
 
 | Entity | Description | Core Fields |
 |--------|-------------|-------------|
-| **SeamlessPipe** | Seamless steel pipe | id, pipe_number, pipe_type(casing/tubing), grade, od, wt, length, weight, end_type, coupling_type, coupling_od, coupling_length, heat_number, serial_number, manufacturer, production_date, cert_number, location_id, status, created_at, updated_at |
-| **ScreenPipe** | Screen pipe | id, pipe_number, screen_type(wire-wrapped/slotted/punched), slot_size, filtration_grade, base_od, base_wt, base_grade, base_end_type, length, weight, heat_number, serial_number, manufacturer, production_date, cert_number, location_id, status, created_at, updated_at |
-| **Location** | Storage location | id, zone_code, shelf_code, level_code, description |
+| **SeamlessPipe** | Seamless steel pipe | id, pipe_number, pipe_type(casing/tubing), grade, od, wt, length, weight, end_type, coupling_type, coupling_od, coupling_length, heat_number, serial_number, manufacturer, prod_date, cert_number, location_id, status, created_at, updated_at |
+| **ScreenPipe** | Screen pipe | id, pipe_number, screen_type(wire-wrapped/slotted/punched), slot_size, filtration_grade, base_od, base_wt, base_grade, base_end_type, length, weight, heat_number, serial_number, manufacturer, prod_date, cert_number, location_id, status, created_at, updated_at |
+| **Location** | Storage spot | id, zone_code, shelf_code, level_code, description |
 | **Supplier** | Supplier | id, name, contact, phone, address, qual_cert |
 | **Customer** | Customer | id, name, contact, phone, address |
 | **PurchaseOrder** | Purchase order | id, order_no, supplier_id, order_date, status, total_amount |
 | **SalesOrder** | Sales order | id, order_no, customer_id, order_date, status, total_amount |
-| **InboundRecord** | Inbound record | id, record_no, type, pipe_type(seamless/screen), pipe_id, quantity, date, order_id, operator, remark |
-| **OutboundRecord** | Outbound record | id, record_no, type, pipe_type(seamless/screen), pipe_id, quantity, date, order_id, operator, remark |
-| **InventoryLog** | Inventory movement log | id, pipe_type(seamless/screen), pipe_id, change_type, quantity_before, quantity_after, operation, operator, timestamp |
-| **QualityCert** | Quality certificate | id, pipe_type(seamless/screen), pipe_id, cert_no, inspect_date, inspector, agency, file_url, result, remark |
-| **User** | User | id, username, password_hash, role, name, email, language_pref, unit_system |
-| **OperationLog** | Operation log | id, user_id, action, target_type, target_id, detail, ip_address, timestamp |
+| **InboundRecord** | Inbound record | id, record_no, type, pipe_type(seamless/screen), pipe_id, qty, date, order_id, operator, remark |
+| **OutboundRecord** | Outbound record | id, record_no, type, pipe_type(seamless/screen), pipe_id, qty, date, order_id, operator, remark |
+| **InventoryLog** | Movement log | id, pipe_type, pipe_id, change_type, qty_before, qty_after, operation, operator, timestamp |
+| **QualityCert** | QC certificate | id, pipe_type, pipe_id, cert_no, inspect_date, inspector, agency, file_url, result, remark |
+| **User** | System user | id, username, password_hash, role, name, email, language_pref, unit_system |
+| **OperationLog** | Audit log | id, user_id, action, target_type, target_id, detail, ip_address, timestamp |
 
 ---
 
 ## 7. Priority Roadmap
 
-| Phase | Feature Scope | Priority |
-|-------|--------------|----------|
-| **Phase 1 (MVP)** | Pipe information management (CRUD), Inventory management (inbound/outbound/query), Multi-dimensional search, Basic user permissions, History traceability | P0 |
-| **Phase 2** | Quality management (QC info & traceability), Procurement/Sales management, Data import/export (Excel/CSV) | P1 |
-| **Phase 3** | Reports & statistics, Label printing, Contract management, Internationalization (zh/en + unit switching) | P2 |
+| Phase | Scope | Priority |
+|-------|-------|----------|
+| **Phase 1 (MVP)** | Pipe CRUD, Inventory (inbound/outbound/query), Multi-dimensional search, User permissions, History traceability | P0 |
+| **Phase 2** | Quality management, Procurement/Sales management, Data import/export (Excel/CSV) | P1 |
+| **Phase 3** | Reports & dashboards, Label printing, Contract management, i18n (zh/en + unit switch) | P2 |
 
 ---
 
@@ -334,18 +333,19 @@ Supplier ──→ PurchaseOrder ──→ InboundRecord ──→ SeamlessPipe/
 
 ### 8.1 Glossary
 
-| Term | English | Description |
-|------|---------|-------------|
-| 无缝钢管 | Seamless Pipe | Seamless steel pipe made by piercing process, used as casing or tubing |
-| 筛管 | Screen Pipe | Filter pipe with slots or wire-wrapped screen on base pipe |
-| 套管 | Casing | Steel pipe string run into the well to support the wellbore |
-| 油管 | Tubing | Steel pipe run inside casing for oil/gas conveyance |
-| API 5CT | API Specification 5CT | American Petroleum Institute specification for casing and tubing |
-| 钢级 | Grade | Strength grade designation for pipe |
-| 炉批号 | Heat Number | Steel furnace heat number, used for quality traceability |
-| 接箍 | Coupling | Connector for joining two pipes |
+| Term | English | What It Is |
+|------|---------|------------|
+| 无缝钢管 | Seamless Pipe | Steel pipe made by piercing — used as casing or tubing |
+| 筛管 | Screen Pipe | Filter pipe with slots or wire wrap over a base pipe |
+| 套管 | Casing | Pipe string that supports the wellbore |
+| 油管 | Tubing | Pipe inside casing that carries oil/gas up |
+| API 5CT | API Specification 5CT | The governing spec for casing and tubing |
+| 钢级 | Grade | Strength rating of the pipe |
+| 炉批号 | Heat Number | Steel furnace batch ID — key for traceability |
+| 接箍 | Coupling | Connector that joins two pipe joints together |
 
 ### 8.2 Related Documents
 
-- API 5CT Standard: Specification for Casing and Tubing (ISO 11960)
-- Subsequent documents: Database design document, API interface document, User manual
+- API 5CT: Specification for Casing and Tubing (ISO 11960)
+- Detailed design: DB schema, API endpoints, architecture
+- Frontend design: Component tree, routing, state management

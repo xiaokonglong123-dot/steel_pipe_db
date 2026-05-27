@@ -1,44 +1,45 @@
-# `features/` — 特性模块模式
+# `features/` — The Feature Module Pattern
 
-所有 13 个特性模块遵循相同的模式。本文档作为理解或添加任何特性的模板。
+Every feature module follows the same layout. Use this as a reference or template when adding a new one.
 
-## 特性模块结构
+## Feature Module Structure
 
 ```
-features/{特性}/
-├── api/           ← TanStack Query hooks（API 层）
-│   └── index.ts   ← useQuery、useMutation hooks
-├── hooks/         ← 特性专属 React hooks（可选）
+features/{feature}/
+├── api/           ← TanStack Query hooks
+│   └── index.ts   ← useQuery, useMutation
+├── hooks/         ← Feature-specific React hooks (optional)
 │   └── index.ts
-├── pages/         ← 页面组件（1 个文件 = 1 条路由）
+├── pages/         ← Page components (one per route)
 │   ├── ListPage.tsx
-│   ├── FormPage.tsx       ← 创建 + 编辑合并
+│   ├── FormPage.tsx       ← Create + Edit combined
 │   └── DetailPage.tsx
-├── stores/        ← Zustand 状态管理（可选，用于复杂特性）
+├── stores/        ← Zustand stores (optional)
 │   └── index.ts
-└── types/         ← TypeScript 接口
-    └── index.ts   ← 实体类型、请求/响应类型
+└── types/         ← TypeScript interfaces
+    └── index.ts   ← Entity types, request/response types
 ```
 
-## 现有特性
+## Existing Features
 
-| 特性 | 路由 | 描述 |
+| Feature | Routes | What it does |
 |---------|--------|-------------|
-| `auth/` | (通过 ProtectedRoute) | 登录页面，认证状态管理（Zustand）|
-| `pipes/` | `/pipes/seamless/*`, `/pipes/screen/*` | API 5CT 钢管主数据（无缝管 + 筛管）|
-| `inventory/` | `/inventory/inbound`, `/inventory/outbound`, `/inventory/stock`, `/inventory/locations`, `/inventory/check` | 库存追踪、入库/出库、库位管理、盘点 |
-| `suppliers/` | `/suppliers/*` | 供应商管理 |
-| `customers/` | `/customers/*` | 客户管理 |
-| `purchases/` | `/purchases/*` | 采购订单、审批流程 |
-| `sales/` | `/sales/*` | 销售订单、ATP 检查 |
-| `quality/` | `/quality/certs/*` | 质量证书、力学/NDT 检测 |
-| `contracts/` | `/contracts/*` | 销售/采购合同、付款里程碑 |
-| `reports/` | `/reports`, `/reports/dashboard` | 仪表板、日报/月报/统计报表 |
-| `labels/` | `/labels` | 条码和规格标签生成 |
-| `search/` | `/search` | 钢管、库存、订单全局搜索 |
-| `profile/` | `/profile/settings` | 用户个人资料设置、修改密码 |
+| `auth/` | (via ProtectedRoute) | Login, auth state via Zustand |
+| `pipes/` | `/pipes/seamless/*`, `/pipes/screen/*` | API 5CT pipe master data (seamless + screen) |
+| `inventory/` | `/inventory/inbound`, `/inventory/outbound`, `/inventory/stock`, `/inventory/locations`, `/inventory/check` | Stock tracking, in/out, locations, checks |
+| `suppliers/` | `/suppliers/*` | Supplier management |
+| `customers/` | `/customers/*` | Customer management |
+| `purchases/` | `/purchases/*` | Purchase orders, approval workflow |
+| `sales/` | `/sales/*` | Sales orders, ATP check |
+| `quality/` | `/quality/certs/*` | Quality certs, mechanical/NDT tests |
+| `contracts/` | `/contracts/*` | Sales/procurement contracts, payment milestones |
+| `reports/` | `/reports`, `/reports/dashboard` | Dashboard, daily/monthly/statistical reports |
+| `labels/` | `/labels` | Barcode and spec label generation |
+| `search/` | `/search` | Global search across pipes, inventory, orders |
+| `profile/` | `/profile/settings` | User settings, password change |
 
-## 模板：`api/index.ts`（TanStack Query Hooks）
+## Template: `api/index.ts` (TanStack Query Hooks)
+
 ```ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/api'
@@ -60,7 +61,8 @@ export function useCreateFeature() {
 }
 ```
 
-## 模板：`types/index.ts`
+## Template: `types/index.ts`
+
 ```ts
 export interface FeatureType {
   id: number
@@ -71,11 +73,12 @@ export interface FeatureType {
 export interface ListParams {
   page?: number
   page_size?: number
-  // 过滤字段
+  // filter fields
 }
 ```
 
-## 模板：`pages/ListPage.tsx`
+## Template: `pages/ListPage.tsx`
+
 ```tsx
 import { Table, Button } from 'antd'
 import { useListFeature } from '../api'
@@ -84,28 +87,31 @@ import { useTranslation } from 'react-i18next'
 export default function ListPage() {
   const { t } = useTranslation('feature_name')
   const { data, isLoading } = useListFeature({ page: 1 })
-  // Ant Design Table 配合列定义
-  // 操作：创建、编辑、删除按钮
+  // Ant Design Table with columns
+  // Actions: Create, Edit, Delete buttons
 }
 ```
 
-## API 连接
-- 所有 API 调用使用 `src/api/` 中的共享 axios 实例（基础 URL：`/api/v1`）
-- 查询键遵循约定：列表使用 `['entity']`，详情使用 `['entity', id]`
-- 变更操作成功后会失效列表查询键
-- 部分特性 API 模块集成 `lib/validateResponse.ts`，通过 `zod-schemas/` 中的 Zod 模式进行运行时响应验证
+## API Connection
 
-## 添加新特性模块
-1. 创建 `features/{new_feature}/`，包含 `api/`、`hooks/`、`pages/`、`stores/`、`types/` 子目录
-2. 在 `api/index.ts` 中添加 TanStack Query hooks
-3. 在 `pages/` 中添加页面组件
-4. 在 `src/routes/index.tsx` 中添加路由
-5. 在 `src/i18n/zh/{new_feature}.json` 和 `src/i18n/en/{new_feature}.json` 中添加 i18n 键
-6. 如需 API 验证，在 `src/zod-schemas/` 中添加 Zod 响应模式
+- All API calls use the shared axios instance from `src/api/` (base URL: `/api/v1`).
+- Query keys: `['entity']` for lists, `['entity', id]` for detail.
+- Mutations invalidate the list query on success to trigger refetch.
+- Some features integrate `lib/validateResponse.ts` with Zod schemas from `zod-schemas/` for runtime response validation.
 
-## 约定
-- `useFeatureQuery()` 用于列表，`useFeatureQuery(id)` 用于详情
-- `useCreateFeature()`、`useUpdateFeature()`、`useDeleteFeature()` 用于变更操作
-- 变更成功后失效查询（重新获取列表）
-- CRUD UI 使用 Ant Design Table + Form + Modal
-- 页面通过 `../api` 访问 API，从不直接 `import from '@/api'`
+## Adding a New Feature Module
+
+1. Create `features/{new_feature}/` with subdirs: `api/`, `hooks/`, `pages/`, `stores/`, `types/`.
+2. Write TanStack Query hooks in `api/index.ts`.
+3. Build page components in `pages/`.
+4. Add the route in `src/routes/index.tsx`.
+5. Add i18n keys in `src/i18n/zh/{new_feature}.json` and `src/i18n/en/{new_feature}.json`.
+6. If you need runtime API validation, add a Zod schema in `src/zod-schemas/`.
+
+## Conventions
+
+- `useFeatureQuery()` for lists, `useFeatureQuery(id)` for detail.
+- `useCreateFeature()`, `useUpdateFeature()`, `useDeleteFeature()` for mutations.
+- Always invalidate list queries after successful mutations.
+- CRUD UI uses Ant Design Table + Form + Modal.
+- Pages import API through `../api`, never directly from `@/api`.

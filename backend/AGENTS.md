@@ -1,12 +1,14 @@
 # Backend — Rust Package (steel-pipe-db)
 
 ## Tech
+
 - **Rust** nightly-2024-02-08, edition 2021
-- **Single crate** `steel-pipe-db` (no workspace)
-- **SQLx** 0.8 with SQLite (runtime-tokio-rustls), migrations on startup
+- **Single crate** `steel-pipe-db` (no workspace, no monorepo nonsense)
+- **SQLx** 0.8 with SQLite (runtime-tokio-rustls), migrations auto-run on startup
 
 ## Key Dependencies (from Cargo.toml)
-- `axum` 0.8 — HTTP routing (macros, multipart features)
+
+- `axum` 0.8 — HTTP routing (macros + multipart features)
 - `sqlx` 0.8 — SQL (sqlite, runtime-tokio-rustls, chrono features)
 - `serde` / `serde_json` — JSON
 - `jsonwebtoken` 9 — JWT auth
@@ -24,23 +26,25 @@
 - `csv` 1.3 — CSV import/export
 - `tracing` / `tracing-subscriber` — Structured logging (env-filter, json)
 
-**Important:** No `rust_decimal`, `bigdecimal`, `backpack`, or `bcrypt`.
+**Heads up:** No `rust_decimal`, `bigdecimal`, `backpack`, or `bcrypt` here. Don't go looking for them.
 
 ## Build & Test
+
 ```bash
 cd backend
-cargo check          # Type-check only (faster than build, used in CI)
+cargo check          # Type-check only (faster than build, CI uses this)
 cargo build          # Debug build
 cargo build --release # Release build
 cargo test           # Run all tests
 ```
 
 ## Database
-- **SQLite** file at path from `DATABASE_URL` env var (default: `./data/steel_pipe.db`)
+
+- **SQLite** file at path from `DATABASE_URL` env var (defaults to `./data/steel_pipe.db`)
 - **Migrations**: `backend/migrations/` — SQLx timestamp-prefixed files
-- Run migrations automatically on startup (`sqlx::migrate!("./migrations")`)
-- No external DB server needed
-- WAL mode, soft deletes via `deleted_at` column
+- Auto-migrate on startup via `sqlx::migrate!("./migrations")`
+- No external DB server needed — it's just a file
+- WAL mode enabled, soft deletes via `deleted_at` column
 
 ## Module Structure
 
@@ -132,23 +136,26 @@ src/
 ```
 
 ## Key Files
+
 - `Cargo.toml` — Package manifest
 - `.env.example` — Environment template (DATABASE_URL, JWT_SECRET, etc.)
 - `migrations/` — SQLx timestamp-prefixed migration files (11 files, including `011_add_rejection_reason.sql`)
 
 ## Rust Conventions
+
 - `snake_case` for functions/variables, `PascalCase` for types
-- `use` statements: `use crate::{handlers, models, ...}` pattern
+- `use` statements follow `use crate::{handlers, models, ...}` pattern
 - `mod.rs` files re-export public items: `pub use pipe_handler::*;`
 - Public API functions are `pub async fn` with explicit return types
 - Internal helpers are `pub(crate) fn` or `async fn`
-- All handlers return `Result<Json<...>, AppError>` (NOT `impl IntoResponse`)
+- **All handlers return `Result<Json<...>, AppError>`** (NOT `impl IntoResponse`)
 - Services are **unit structs with static methods** (no constructor DI): `PipeService::list(...)`
 - Services return `Result<T, AppError>`
   - Repositories accept `&SqlitePool` and return `Result<Vec<T>, sqlx::Error>`
-- `inventory_service.rs` has been significantly expanded with ATP calculation, rejection reason handling, and other inventory management logic.
+- `inventory_service.rs` is the beefy one — ATP calculation, rejection reason handling, and all the inventory management magic lives there.
 
 ## DI Pattern: Extension layers, NOT State<Arc<AppState>>
+
 ```rust
 // router.rs layers:
 .layer(CorsLayer::permissive())
@@ -162,9 +169,11 @@ pub async fn list_pipes(
     Query(filter): Query<PipeFilterParams>,
 ) -> Result<Json<PaginatedResponse<Pipe>>, AppError> {
 ```
-No `AppState` struct exists. Pool and JWT secret injected as raw types.
+
+No `AppState` struct. Pool and JWT secret get injected as raw types. Simple.
 
 ## Response Shapes
+
 ```json
 // Success:    { "success": true, "request_id": "req_...", "data": T }
 // Paginated:  { "success": true, "request_id": "req_...", "meta": { "total": N, "page": P, "page_size": S, "total_pages": N }, "data": { "items": [], ... } }
@@ -172,6 +181,7 @@ No `AppState` struct exists. Pool and JWT secret injected as raw types.
 ```
 
 ## Error Codes (numeric, domain-prefixed)
+
 | Range | Domain |
 |-------|--------|
 | 100xx | General (Internal, Validation, NotFound) |

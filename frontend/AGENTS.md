@@ -1,45 +1,49 @@
-# Frontend — React 19 Package
+# frontend — React 19
+
+What you need to know: this is a React 19 + Vite + Ant Design 5 project. TypeScript strict mode, no exceptions.
 
 ## Tech Stack
-- **React 19** — UI library
+
+- **React 19** — UI layer
 - **Vite** — Build tool (vanilla-ts template)
-- **TypeScript** — Strict mode
+- **TypeScript** — Strict. No `as any`, no `@ts-ignore`, no `@ts-expect-error`.
 - **Ant Design 5** — UI components
-- **TanStack Query (React Query 5)** — Server state
-- **react-router-dom v7** — Routing
+- **TanStack Query 5** — Server state (2min staleTime, 5min gcTime)
+- **react-router-dom v7** — Routing (createBrowserRouter)
 - **axios** — HTTP client
 - **i18next / react-i18next** — i18n (zh-CN primary, en-US fallback)
-- **dayjs** — Date handling
-- **zod** — Schema validation
+- **dayjs** — Dates
+- **zod** — Schema validation + runtime response checking
 
 ## Build & Dev
+
 ```bash
 cd frontend
-npm install        # Install dependencies (including vite, antd, etc.)
-npm run dev        # Dev server on http://localhost:5173
-npm run build      # Production build to dist/
-npm run lint       # ESLint
-npm run preview    # Preview production build
+npm install          # Install everything
+npm run dev          # Dev server → http://localhost:5173
+npm run build        # Production build → dist/
+npm run lint         # ESLint
+npm run preview      # Preview the production build
 ```
 
-## Package Architecture
+## Project Layout
 
 ```
 frontend/
-├── public/              ← Static assets
+├── public/
 ├── src/
-│   ├── main.tsx         ← React entry, i18n init, QueryClient setup
-│   ├── App.tsx          ← RouterProvider setup, ConfigProvider + QueryClient
-│   ├── api/             ← Shared: axios instance, interceptors
-│   ├── lib/             ← validateResponse.ts, runtime zod response validation
+│   ├── main.tsx         ← Boot: i18n init, QueryClient, render
+│   ├── App.tsx          ← ConfigProvider + QueryClientProvider + RouterProvider
+│   ├── api/             ← Shared axios instance + interceptors
+│   ├── lib/             ← validateResponse.ts, runtime Zod validation
 │   ├── stores/          ← Zustand stores (authStore, appStore, unitStore)
-│   ├── i18n/            ← Translation resources (zh, en) — 15 namespaces
-│   ├── routes/          ← Route definitions (react-router)
-│   ├── shared/          ← Shared: components, hooks
+│   ├── i18n/            ← Translation files (zh, en) — 15 namespaces
+│   ├── routes/          ← Route definitions
+│   ├── shared/          ← Shared components & hooks
 │   │   ├── components/  ← ConfirmModal, EmptyState, ErrorBoundary, FileUploader, LoadingSpin, PageContainer, PageHeader, SearchBar, StatusTag
 │   │   └── hooks/       ← useDebounce
 │   ├── theme/           ← Ant Design theme config
-│   ├── zod-schemas/     ← 7 Zod schema files for API response validation
+│   ├── zod-schemas/     ← 7 Zod schemas for API response validation
 │   ├── utils/           ← Utility functions
 │   └── features/        ← Feature modules (see features/AGENTS.md)
 │       ├── auth/
@@ -57,34 +61,36 @@ frontend/
 │       └── profile/
 ├── index.html
 ├── vite.config.ts       ← React plugin, proxy, manualChunks vendor splitting
-├── tsconfig.json        ← Strict TypeScript config
-├── .eslintrc.cjs        ← ESLint config
-├── .prettierrc          ← Prettier config (singleQuote, 2 space, noBracketSpacing)
+├── tsconfig.json
+├── .eslintrc.cjs
+├── .prettierrc
 └── package.json
 ```
 
-## Key Dependencies (from package.json)
+## Key Dependencies
+
 - `react`, `react-dom` (^19)
-- `antd` (^5) — UI library
-- `@tanstack/react-query` (^5) — Server state
-- `react-router-dom` (^7) — Client routing
-- `axios` (^1) — HTTP client
-- `i18next`, `react-i18next` — i18n
-- `dayjs` — Date utilities
-- `zod` — Schema validation
+- `antd` (^5)
+- `@tanstack/react-query` (^5)
+- `react-router-dom` (^7)
+- `axios` (^1)
+- `i18next`, `react-i18next`
+- `dayjs`
+- `zod`
 
 ## Conventions
-- Feature-based organization under `src/features/`
-- All API calls go through `@tanstack/react-query` hooks (no direct fetch in components)
-- i18n namespace per feature (15 total across zh/ and en/): common, pipes, inventory, purchase, sales, quality, contracts, suppliers, customers, reports, labels, profile, search, system, validation
-- Ant Design components + theme config in `src/theme/`
-- Vite dev proxy: `/api/*` → `http://localhost:3000`
-- TypeScript strict mode enabled
-- No `as any`, `@ts-ignore`, or `@ts-expect-error` allowed
-- Vendor chunk splitting in vite.config.ts: antd→vendor-antd, react ecosystem→vendor-react, utils→vendor-utils, app→index (~162 kB gzip)
+
+- Feature-based structure under `src/features/`. Each feature owns its API hooks, pages, types, etc.
+- All API calls go through TanStack Query hooks — no raw `fetch` in components.
+- i18n namespace per feature (15 total: common, pipes, inventory, purchase, sales, quality, contracts, suppliers, customers, reports, labels, profile, search, system, validation).
+- Ant Design theme lives in `src/theme/`.
+- Vite dev proxy: `/api/*` → `http://localhost:3000`.
+- TypeScript strict. `as any` and suppression comments are banned.
+- Vendor chunk splitting in `vite.config.ts`: antd → vendor-antd, React ecosystem → vendor-react, utils → vendor-utils, app code → index (~162 kB gzip).
 
 ## Key Files
-- `vite.config.ts` — Vite config (React plugin, proxy, manualChunks vendor splitting)
-- `tsconfig.json` — TypeScript config (strict, JSX react-jsx)
-- `.eslintrc.cjs` — ESLint rules
+
+- `vite.config.ts` — React plugin, proxy config, manualChunks splitting
+- `tsconfig.json` — Strict mode, JSX react-jsx
+- `.eslintrc.cjs` — Lint rules
 - `.prettierrc` — `singleQuote: true, tabWidth: 2, bracketSpacing: false`

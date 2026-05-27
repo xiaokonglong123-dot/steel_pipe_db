@@ -1,10 +1,11 @@
-# `services/` — 业务逻辑层（12 个文件）
+# `services/` — Business Logic Layer (12 files)
 
-此处是业务规则、跨实体编排和事务管理的所在地。服务由处理器调用，并调用仓库。
+This is where the real work happens — business rules, cross-entity orchestration, transaction management. Services get called by handlers and in turn call repositories.
 
-## 模式
+## Pattern
+
 ```rust
-pub struct PipeService;  // 无字段、无构造函数、无依赖注入
+pub struct PipeService;  // No fields, no constructor, no DI
 
 impl PipeService {
     pub async fn list_seamless_pipes(
@@ -12,50 +13,56 @@ impl PipeService {
         params: &PipeFilterParams,
         pagination: &PaginationParams,
     ) -> Result<(Vec<SeamlessPipe>, i64), AppError> {
-        // 1. 校验业务规则
-        // 2. 调用仓库
-        // 3. 转换/聚合结果
-        // 4. 返回
+        // 1. Validate business rules
+        // 2. Call repository
+        // 3. Transform/aggregate results
+        // 4. Return
     }
 }
 ```
 
-## 服务文件列表
-| 文件 | 实体 | 描述 |
-|------|------|-------------|
-| `auth_service.rs` | 认证 | 登录、令牌刷新、密码验证 |
-| `pipe_service.rs` | 钢管 | 钢管 CRUD、钢级/热处理校验 |
-| `inventory_service.rs` | 库存 | 入库、出库、ATP 计算、库位管理、库存校验 |
-| `purchase_sales_service.rs` | 采购 + 销售 | 采购单/销售单生命周期、审批流程、驳回原因、ATP 校验 |
-| `quality_service.rs` | 质量 | 质检证书创建、力学/无损检测录入 |
-| `contract_service.rs` | 合同 | 合同 CRUD、里程碑跟踪 |
-| `customer_service.rs` | 客户 | 客户 CRUD、编码唯一性 |
-| `supplier_service.rs` | 供应商 | 供应商 CRUD、资质管理 |
-| `label_service.rs` | 标签 | 标签内容生成 |
-| `report_service.rs` | 报表 | 仪表盘聚合、统计报表 |
-| `data_io_service.rs` | 数据 IO | Excel/CSV 导入解析、导出格式化 |
-| `trace_service.rs` | 追溯 | 库存变动审计追溯 |
+## Service File List
 
-## 服务约定
-1. **模式**：单元结构体 + 静态方法 —— `pub struct XxxService;` 然后 `impl XxxService { pub async fn ... }`
-2. **首个参数**：始终为 `pool: &SqlitePool`
-3. **返回类型**：始终为 `Result<T, AppError>`
-4. **命名**：`list_*`、`get_*`、`create_*`、`update_*`、`delete_*`
-5. **事务**：使用 `sqlx::Transaction::begin(&pool).await`，将 `&mut *tx` 传递给仓库
-6. **跨实体操作**：直接调用多个仓库（通过参数共享 pool）
-7. **无 HTTP 逻辑**：服务层从不涉及 HTTP StatusCode、响应格式化或头部
+| File | Entity | Description |
+|------|--------|-------------|
+| `auth_service.rs` | Auth | login, token refresh, password verify |
+| `pipe_service.rs` | Pipes | pipe CRUD, steel grade/heat treatment validation |
+| `inventory_service.rs` | Inventory | inbound, outbound, ATP calculations, location management, inventory checks |
+| `purchase_sales_service.rs` | Purchase + Sales | PO/SO lifecycle, approval workflow, rejection reason, ATP validation |
+| `quality_service.rs` | Quality | cert creation, mechanical/NDT test entry |
+| `contract_service.rs` | Contracts | contract CRUD, milestone tracking |
+| `customer_service.rs` | Customers | customer CRUD, code uniqueness |
+| `supplier_service.rs` | Suppliers | supplier CRUD, qualification |
+| `label_service.rs` | Labels | label content generation |
+| `report_service.rs` | Reports | dashboard aggregation, statistical reports |
+| `data_io_service.rs` | Data IO | Excel/CSV import parsing, export formatting |
+| `trace_service.rs` | Trace | inventory movement audit trail |
 
-## `inventory_service.rs` 中的关键模式（最大、最复杂）
-- 入库/出库及数量校验
-- 库存移动追踪
-- ATP（可承诺量）计算
-- 带动态过滤器的查询构建
-- 批量操作
-- 报表计算
-- 销售订单履约库存校验
+## Service Conventions
 
-## 添加新服务
-1. 创建 `new_service.rs`
-2. 在 `mod.rs` 中添加 `pub mod new_service;`
-3. 定义 `pub struct NewService;` 并编写以 `pool: &SqlitePool` 为参数的静态方法
-4. 在 `router.rs` 中注册路由
+1. **Pattern**: Unit struct with static methods — `pub struct XxxService;` then `impl XxxService { pub async fn ... }`
+2. **First parameter**: Always `pool: &SqlitePool`
+3. **Return type**: Always `Result<T, AppError>`
+4. **Naming**: `list_*`, `get_*`, `create_*`, `update_*`, `delete_*`
+5. **Transactions**: Use `sqlx::Transaction::begin(&pool).await`, then pass `&mut *tx` to repos
+6. **Cross-entity ops**: Call multiple repositories directly — the pool gets passed around as a parameter
+7. **No HTTP logic**: Services don't know about StatusCodes, response formatting, or headers. That's the handler's job.
+
+## `inventory_service.rs` — the big one
+
+This is the largest and most complex service. Here's what it handles:
+
+- Stock-in / stock-out with quantity validation
+- Inventory movement tracking
+- ATP (Available-to-Promise) calculations
+- Dynamic query building with filters
+- Batch operations
+- Report calculations
+- Sales order fulfillment checks
+
+## Adding a New Service
+
+1. Create `new_service.rs`
+2. Add `pub mod new_service;` to `mod.rs`
+3. Define `pub struct NewService;` with static methods taking `pool: &SqlitePool`
+4. Register routes in `router.rs`
