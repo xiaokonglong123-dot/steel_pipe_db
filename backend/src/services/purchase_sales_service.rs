@@ -1,5 +1,6 @@
 use chrono::Utc;
 use sqlx::SqlitePool;
+use std::str::FromStr;
 
 use crate::domain::order::OrderStatus;
 use crate::dto::common::PaginationParams;
@@ -43,10 +44,10 @@ impl PurchaseSalesService {
         current: &str,
         target: &str,
     ) -> Result<(), AppError> {
-        let current_status = OrderStatus::from_str(current).ok_or_else(|| {
+        let current_status = OrderStatus::from_str(current).map_err(|_| {
             AppError::Validation(format!("Invalid current status: {}", current))
         })?;
-        let target_status = OrderStatus::from_str(target).ok_or_else(|| {
+        let target_status = OrderStatus::from_str(target).map_err(|_| {
             AppError::Validation(format!("Invalid target status: {}", target))
         })?;
 

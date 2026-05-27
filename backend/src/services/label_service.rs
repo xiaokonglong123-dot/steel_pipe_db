@@ -161,7 +161,7 @@ impl LabelService {
                     pipe.length,
                     pipe.heat_number.as_deref(),
                     pipe.serial_number.as_deref(),
-                    &req,
+                    req,
                 ))
             }
             "screen" => {
@@ -179,7 +179,7 @@ impl LabelService {
                     pipe.length,
                     pipe.heat_number.as_deref(),
                     pipe.serial_number.as_deref(),
-                    &req,
+                    req,
                 ))
             }
             _ => Err(AppError::Validation(format!(
@@ -297,6 +297,7 @@ impl LabelService {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn shipping_html(
         pipe_number: &str,
         grade: &str,

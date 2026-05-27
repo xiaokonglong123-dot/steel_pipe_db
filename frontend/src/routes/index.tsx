@@ -5,46 +5,52 @@
  * - Public routes: /login (no auth needed)
  * - Protected routes: all biz pages under ProtectedRoute + MainLayout, auto sidebar + header
  *   Default home redirects to /pipes/seamless
+ *
+ * All page components are lazy-loaded (React.lazy) so Vite code-splits them into
+ * separate chunks — roughly one chunk per page. This keeps the initial vendor-antd
+ * bundle from containing every antd component in the app.
  */
+import { lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import MainLayout from '@/layouts/MainLayout';
 import ProtectedRoute from './ProtectedRoute';
-import LoginPage from '@/features/auth/pages/LoginPage';
-import SeamlessPipeListPage from '@/features/pipes/pages/SeamlessPipeListPage';
-import SeamlessPipeFormPage from '@/features/pipes/pages/SeamlessPipeFormPage';
-import SeamlessPipeDetailPage from '@/features/pipes/pages/SeamlessPipeDetailPage';
-import ScreenPipeListPage from '@/features/pipes/pages/ScreenPipeListPage';
-import ScreenPipeFormPage from '@/features/pipes/pages/ScreenPipeFormPage';
-import ScreenPipeDetailPage from '@/features/pipes/pages/ScreenPipeDetailPage';
-import InboundListPage from '@/features/inventory/pages/InboundListPage';
-import InboundFormPage from '@/features/inventory/pages/InboundFormPage';
-import OutboundListPage from '@/features/inventory/pages/OutboundListPage';
-import OutboundFormPage from '@/features/inventory/pages/OutboundFormPage';
-import StockQueryPage from '@/features/inventory/pages/StockQueryPage';
-import LocationListPage from '@/features/inventory/pages/LocationListPage';
-import InventoryCheckListPage from '@/features/inventory/pages/InventoryCheckListPage';
-import SupplierListPage from '@/features/suppliers/pages/SupplierListPage';
-import SupplierFormPage from '@/features/suppliers/pages/SupplierFormPage';
-import CustomerListPage from '@/features/customers/pages/CustomerListPage';
-import CustomerFormPage from '@/features/customers/pages/CustomerFormPage';
-import PurchaseOrderListPage from '@/features/purchases/pages/PurchaseOrderListPage';
-import PurchaseOrderFormPage from '@/features/purchases/pages/PurchaseOrderFormPage';
-import PurchaseOrderDetailPage from '@/features/purchases/pages/PurchaseOrderDetailPage';
-import SalesOrderListPage from '@/features/sales/pages/SalesOrderListPage';
-import SalesOrderFormPage from '@/features/sales/pages/SalesOrderFormPage';
-import SalesOrderDetailPage from '@/features/sales/pages/SalesOrderDetailPage';
-import CertListPage from '@/features/quality/pages/CertListPage';
-import CertFormPage from '@/features/quality/pages/CertFormPage';
-import CertDetailPage from '@/features/quality/pages/CertDetailPage';
-import ContractListPage from '@/features/contracts/pages/ContractListPage';
-import ContractFormPage from '@/features/contracts/pages/ContractFormPage';
-import ContractDetailPage from '@/features/contracts/pages/ContractDetailPage';
-import ReportListPage from '@/features/reports/pages/ReportListPage';
-import DashboardPage from '@/features/reports/pages/DashboardPage';
-import LabelPrintPage from '@/features/labels/pages/LabelPrintPage';
-import ProfileSettingsPage from '@/features/profile/pages/ProfileSettingsPage';
-import SearchPage from '@/features/search/pages/SearchPage';
-import UserManagementPage from '@/features/auth/pages/UserManagementPage';
+
+const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
+const SeamlessPipeListPage = lazy(() => import('@/features/pipes/pages/SeamlessPipeListPage'));
+const SeamlessPipeFormPage = lazy(() => import('@/features/pipes/pages/SeamlessPipeFormPage'));
+const SeamlessPipeDetailPage = lazy(() => import('@/features/pipes/pages/SeamlessPipeDetailPage'));
+const ScreenPipeListPage = lazy(() => import('@/features/pipes/pages/ScreenPipeListPage'));
+const ScreenPipeFormPage = lazy(() => import('@/features/pipes/pages/ScreenPipeFormPage'));
+const ScreenPipeDetailPage = lazy(() => import('@/features/pipes/pages/ScreenPipeDetailPage'));
+const InboundListPage = lazy(() => import('@/features/inventory/pages/InboundListPage'));
+const InboundFormPage = lazy(() => import('@/features/inventory/pages/InboundFormPage'));
+const OutboundListPage = lazy(() => import('@/features/inventory/pages/OutboundListPage'));
+const OutboundFormPage = lazy(() => import('@/features/inventory/pages/OutboundFormPage'));
+const StockQueryPage = lazy(() => import('@/features/inventory/pages/StockQueryPage'));
+const LocationListPage = lazy(() => import('@/features/inventory/pages/LocationListPage'));
+const InventoryCheckListPage = lazy(() => import('@/features/inventory/pages/InventoryCheckListPage'));
+const SupplierListPage = lazy(() => import('@/features/suppliers/pages/SupplierListPage'));
+const SupplierFormPage = lazy(() => import('@/features/suppliers/pages/SupplierFormPage'));
+const CustomerListPage = lazy(() => import('@/features/customers/pages/CustomerListPage'));
+const CustomerFormPage = lazy(() => import('@/features/customers/pages/CustomerFormPage'));
+const PurchaseOrderListPage = lazy(() => import('@/features/purchases/pages/PurchaseOrderListPage'));
+const PurchaseOrderFormPage = lazy(() => import('@/features/purchases/pages/PurchaseOrderFormPage'));
+const PurchaseOrderDetailPage = lazy(() => import('@/features/purchases/pages/PurchaseOrderDetailPage'));
+const SalesOrderListPage = lazy(() => import('@/features/sales/pages/SalesOrderListPage'));
+const SalesOrderFormPage = lazy(() => import('@/features/sales/pages/SalesOrderFormPage'));
+const SalesOrderDetailPage = lazy(() => import('@/features/sales/pages/SalesOrderDetailPage'));
+const CertListPage = lazy(() => import('@/features/quality/pages/CertListPage'));
+const CertFormPage = lazy(() => import('@/features/quality/pages/CertFormPage'));
+const CertDetailPage = lazy(() => import('@/features/quality/pages/CertDetailPage'));
+const ContractListPage = lazy(() => import('@/features/contracts/pages/ContractListPage'));
+const ContractFormPage = lazy(() => import('@/features/contracts/pages/ContractFormPage'));
+const ContractDetailPage = lazy(() => import('@/features/contracts/pages/ContractDetailPage'));
+const ReportListPage = lazy(() => import('@/features/reports/pages/ReportListPage'));
+const DashboardPage = lazy(() => import('@/features/reports/pages/DashboardPage'));
+const LabelPrintPage = lazy(() => import('@/features/labels/pages/LabelPrintPage'));
+const ProfileSettingsPage = lazy(() => import('@/features/profile/pages/ProfileSettingsPage'));
+const SearchPage = lazy(() => import('@/features/search/pages/SearchPage'));
+const UserManagementPage = lazy(() => import('@/features/auth/pages/UserManagementPage'));
 
 export const router = createBrowserRouter([
   {

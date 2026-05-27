@@ -138,8 +138,8 @@ impl UserRepo {
                  ORDER BY created_at DESC LIMIT ?2 OFFSET ?3",
             )
             .bind(&like)
-            .bind(page_size as i64)
-            .bind(offset as i64)
+            .bind(page_size)
+            .bind(offset)
             .fetch_all(pool)
             .await?;
 
@@ -157,8 +157,8 @@ impl UserRepo {
                  FROM users WHERE deleted_at IS NULL
                  ORDER BY created_at DESC LIMIT ?1 OFFSET ?2",
             )
-            .bind(page_size as i64)
-            .bind(offset as i64)
+            .bind(page_size)
+            .bind(offset)
             .fetch_all(pool)
             .await?;
 

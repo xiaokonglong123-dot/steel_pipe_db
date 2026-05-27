@@ -135,7 +135,7 @@ pub async fn list_users_handler(
             "total": total,
             "page": page,
             "page_size": page_size,
-            "total_pages": if total == 0 { 0 } else { (total + page_size - 1) / page_size }
+            "total_pages": if total == 0 { 0 } else { total.div_ceil(page_size) }
         }
     })))
 }
