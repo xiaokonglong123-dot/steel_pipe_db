@@ -54,12 +54,12 @@ fn admin_write_routes() -> Router {
             "/api/v1/users/{id}/role",
             axum::routing::put(auth_handler::change_role_handler),
         )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ))
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin"])
         }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ))
 }
 
 fn warehouse_write_routes() -> Router {
@@ -144,12 +144,12 @@ fn warehouse_write_routes() -> Router {
             "/api/v1/labels/shipping",
             axum::routing::post(label_handler::create_shipping_label_handler),
         )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ))
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse"])
         }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ))
 }
 
 fn qc_write_routes() -> Router {
@@ -171,12 +171,12 @@ fn qc_write_routes() -> Router {
             "/api/v1/quality/attachments/{id}",
             axum::routing::delete(quality_handler::delete_attachment_handler),
         )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ))
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "qc"])
         }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ))
 }
 
 fn sales_write_routes() -> Router {
@@ -211,12 +211,12 @@ fn sales_write_routes() -> Router {
             "/api/v1/sales-orders/{id}/link-outbound",
             axum::routing::post(sales_handler::link_outbound_to_order_handler),
         )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ))
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "sales"])
         }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ))
 }
 
 fn purchases_write_routes() -> Router {
@@ -251,12 +251,12 @@ fn purchases_write_routes() -> Router {
             "/api/v1/purchase-orders/{id}/link-inbound",
             axum::routing::post(purchase_handler::link_inbound_to_order_handler),
         )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ))
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse", "sales"])
         }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ))
 }
 
 fn supplier_customer_write_routes() -> Router {
@@ -279,12 +279,12 @@ fn supplier_customer_write_routes() -> Router {
             axum::routing::put(customer_handler::update_customer_handler)
                 .delete(customer_handler::delete_customer_handler),
         )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ))
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse", "sales"])
         }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ))
 }
 
 fn contract_write_routes() -> Router {
@@ -418,12 +418,12 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
             axum::routing::put(pipe_handler::update_screen_pipe_handler)
                 .delete(pipe_handler::delete_screen_pipe_handler),
         )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ))
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse"])
-        }));
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
 
     // Inventory read (GET)
     let inventory_read = Router::new()

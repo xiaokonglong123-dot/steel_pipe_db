@@ -13,11 +13,9 @@ CREATE INDEX IF NOT EXISTS idx_screen_pipes_pipe_number ON screen_pipes(pipe_num
 CREATE INDEX IF NOT EXISTS idx_screen_pipes_status ON screen_pipes(status);
 CREATE INDEX IF NOT EXISTS idx_screen_pipes_deleted_at ON screen_pipes(deleted_at);
 
--- Inventory
-CREATE INDEX IF NOT EXISTS idx_inventory_location_id ON inventory(location_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_pipe_type ON inventory(pipe_type);
-CREATE INDEX IF NOT EXISTS idx_inventory_pipe_id ON inventory(pipe_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_deleted_at ON inventory(deleted_at);
+-- Location (inventory locations)
+CREATE INDEX IF NOT EXISTS idx_locations_full_code ON locations(full_code);
+CREATE INDEX IF NOT EXISTS idx_locations_deleted_at ON locations(deleted_at);
 
 -- Purchase orders
 CREATE INDEX IF NOT EXISTS idx_purchase_orders_status ON purchase_orders(status);
@@ -30,9 +28,9 @@ CREATE INDEX IF NOT EXISTS idx_sales_orders_created_at ON sales_orders(created_a
 CREATE INDEX IF NOT EXISTS idx_sales_orders_deleted_at ON sales_orders(deleted_at);
 
 -- Quality certificates
-CREATE INDEX IF NOT EXISTS idx_quality_certs_grade ON quality_certificates(grade);
-CREATE INDEX IF NOT EXISTS idx_quality_certs_created_at ON quality_certificates(created_at);
-CREATE INDEX IF NOT EXISTS idx_quality_certs_deleted_at ON quality_certificates(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_quality_certs_result ON quality_certs(result);
+CREATE INDEX IF NOT EXISTS idx_quality_certs_created_at ON quality_certs(created_at);
+CREATE INDEX IF NOT EXISTS idx_quality_certs_deleted_at ON quality_certs(deleted_at);
 
 -- Operation logs (high-volume audit table — most critical)
 CREATE INDEX IF NOT EXISTS idx_operation_logs_entity_type ON operation_logs(entity_type);
