@@ -22,15 +22,28 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-          # Clear any stale cache from prior Rust versions
           cache-on-failure: true
       - name: Toolchain info
         run: rustc --version && cargo --version
       - name: cargo check
-        run: cargo check --verbose 2>&1
-        continue-on-error: false
+        id: cargo_check
+        run: |
+          cargo check --verbose 2>&1 | tee /tmp/cargo-output.txt
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
         env:
           RUST_BACKTRACE: 1
+        continue-on-error: true
+      - name: Show cargo check output
+        if: always()
+        run: |
+          echo '### Backend `cargo check` output' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/cargo-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Exit code: ${{ steps.cargo_check.outputs.exit_code }}" >> $GITHUB_STEP_SUMMARY
+      - name: Fail if cargo check failed
+        if: steps.cargo_check.outputs.exit_code != '0'
+        run: exit 1
 
   frontend:
     name: Frontend (type-check + build)
@@ -48,6 +61,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: TypeScript type-check
-        run: npx tsc --noEmit 2>&1
+        id: tsc_check
+        run: |
+          npx tsc --noEmit 2>&1 | tee /tmp/tsc-output.txt
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+      - name: Show tsc output
+        if: always()
+        run: |
+          echo '### Frontend `tsc --noEmit` output' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/tsc-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Exit code: ${{ steps.tsc_check.outputs.exit_code }}" >> $GITHUB_STEP_SUMMARY
+      - name: Fail if tsc failed
+        if: steps.tsc_check.outputs.exit_code != '0'
+        run: exit 1
       - name: Vite build
         run: npm run build
