@@ -60,7 +60,8 @@ export default function InboundFormPage() {
     try {
       const results = await pipeSearchApi.search({ q: searchText || undefined, limit: 50 });
       setSearchResults(results);
-    } catch {
+    } catch (err) {
+      console.error('pipe search failed', err);
       message.error(t('common.operate_failed'));
     } finally {
       setSearchLoading(false);
@@ -95,7 +96,8 @@ export default function InboundFormPage() {
       await createMutation.mutateAsync(cleanValues);
       message.success(t('common.operate_success'));
       navigate('/inventory/inbound');
-    } catch {
+    } catch (err) {
+      console.error('submit inbound failed', err);
       message.error(t('common.operate_failed'));
     }
   };

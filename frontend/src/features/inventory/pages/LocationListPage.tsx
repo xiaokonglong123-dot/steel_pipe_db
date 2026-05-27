@@ -71,8 +71,8 @@ export default function LocationListPage() {
       await createMutation.mutateAsync(values);
       message.success(t('common.operate_success'));
       closeModal();
-    } catch {
-      // form validation or API error
+    } catch (err) {
+      console.error('create location failed', err);
     }
   };
 
@@ -83,8 +83,8 @@ export default function LocationListPage() {
       await updateMutation.mutateAsync({ id: selectedLoc.id, data: values });
       message.success(t('common.operate_success'));
       closeModal();
-    } catch {
-      // form validation or API error
+    } catch (err) {
+      console.error('create location failed', err);
     }
   };
 

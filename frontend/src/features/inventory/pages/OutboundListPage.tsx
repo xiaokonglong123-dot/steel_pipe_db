@@ -93,8 +93,8 @@ export default function OutboundListPage() {
       await createMutation.mutateAsync(values);
       message.success(t('common.operate_success'));
       setModalOpen(false);
-    } catch {
-      // validation failed or API error
+    } catch (err) {
+      console.error('create outbound failed', err);
     }
   };
 
@@ -122,8 +122,8 @@ export default function OutboundListPage() {
       message.success(t('common.operate_success'));
       setRejectModalOpen(false);
       setRejectTargetId(null);
-    } catch {
-      // validation failed or API error
+    } catch (err) {
+      console.error('create outbound failed', err);
     }
   };
 

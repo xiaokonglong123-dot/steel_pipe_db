@@ -69,8 +69,8 @@ export default function InventoryCheckListPage() {
       await createMutation.mutateAsync(values);
       message.success(t('common.operate_success'));
       setCreateOpen(false);
-    } catch {
-      // form validation or API error
+    } catch (err) {
+      console.error('create check failed', err);
     }
   };
 
@@ -90,8 +90,8 @@ export default function InventoryCheckListPage() {
       });
       message.success(t('common.operate_success'));
       submitForm.resetFields();
-    } catch {
-      // form validation or API error
+    } catch (err) {
+      console.error('create check failed', err);
     } finally {
       setSubmittingItemId(null);
     }

@@ -101,8 +101,8 @@ export default function InboundListPage() {
       await createMutation.mutateAsync(values);
       message.success(t('common.operate_success'));
       setModalOpen(false);
-    } catch {
-      // validation failed or API error
+    } catch (err) {
+      console.error('create inbound failed', err);
     }
   };
 
@@ -130,8 +130,8 @@ export default function InboundListPage() {
       message.success(t('common.operate_success'));
       setRejectModalOpen(false);
       setRejectTargetId(null);
-    } catch {
-      // validation failed or API error
+    } catch (err) {
+      console.error('create inbound failed', err);
     }
   };
 
