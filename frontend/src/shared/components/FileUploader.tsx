@@ -7,6 +7,7 @@
 import { Upload, Button, message } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
+import apiClient from '@/api/client';
 
 interface FileUploaderProps {
   accept?: string;
@@ -20,7 +21,6 @@ export default function FileUploader({ accept = '.pdf,.jpg,.png', maxCount = 1, 
   const props: UploadProps = {
     accept,
     maxCount,
-    action,
     beforeUpload: (file) => {
       const isLt = file.size / 1024 / 1024 < maxSizeMB;
       if (!isLt) {
@@ -28,6 +28,21 @@ export default function FileUploader({ accept = '.pdf,.jpg,.png', maxCount = 1, 
         return Upload.LIST_IGNORE;
       }
       return true;
+    },
+    customRequest: (options) => {
+      const { file, onSuccess: onOk, onError, filename } = options;
+      const formData = new FormData();
+      formData.append(filename || 'file', file as File);
+      apiClient
+        .post(action || '/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        .then((res) => {
+          onOk?.(res.data);
+        })
+        .catch((err) => {
+          onError?.(err);
+        });
     },
     onChange: (info) => {
       if (info.file.status === 'done') {

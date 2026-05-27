@@ -175,7 +175,7 @@ export default function SeamlessPipeFormPage() {
           <Input />
         </Form.Item>
 
-        <Form.Item label={t('pipes.production_date')} name="production_date">
+        <Form.Item label={t('pipes.production_date')} name="production_date" normalize={(val) => val?.format('YYYY-MM-DD')}>
           <DatePicker style={{ width: '100%' }} />
         </Form.Item>
 

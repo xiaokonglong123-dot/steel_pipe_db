@@ -8,10 +8,10 @@ use crate::dto::purchase_dto::{
     UpdatePurchaseItemRequest, UpdatePurchaseOrderRequest,
 };
 use crate::dto::purchase_dto::{
-    ApproveOrderRequest as PurchaseApproveReq, LinkInboundRequest, RejectOrderRequest as PurchaseRejectReq,
+    ApproveOrderRequest as PurchaseApproveReq, RejectOrderRequest as PurchaseRejectReq,
 };
 use crate::dto::sales_dto::{
-    ApproveOrderRequest as SalesApproveReq, CreateSalesOrderRequest, LinkOutboundRequest,
+    ApproveOrderRequest as SalesApproveReq, CreateSalesOrderRequest,
     RejectOrderRequest as SalesRejectReq, SalesOrderFilterParams, SalesOrderStatusTransitionRequest,
     UpdateSalesItemRequest, UpdateSalesOrderRequest,
 };
@@ -544,7 +544,7 @@ impl PurchaseSalesService {
     pub async fn approve_purchase_order(
         pool: &SqlitePool,
         id: i64,
-        dto: &PurchaseApproveReq,
+        _dto: &PurchaseApproveReq,
     ) -> Result<(), AppError> {
         let existing = PurchaseOrderRepo::find_by_id(pool, id)
             .await
@@ -646,7 +646,7 @@ impl PurchaseSalesService {
     pub async fn approve_sales_order(
         pool: &SqlitePool,
         id: i64,
-        dto: &SalesApproveReq,
+        _dto: &SalesApproveReq,
     ) -> Result<(), AppError> {
         let existing = SalesOrderRepo::find_by_id(pool, id)
             .await
@@ -689,10 +689,6 @@ impl PurchaseSalesService {
         }
 
         let mut tx = pool.begin().await.map_err(AppError::from)?;
-        sqlx::query("BEGIN IMMEDIATE")
-            .execute(&mut *tx)
-            .await
-            .map_err(AppError::from)?;
 
         let rows_affected = sqlx::query(
             "UPDATE sales_orders SET status = 'approved', updated_at = datetime('now') \
@@ -705,10 +701,7 @@ impl PurchaseSalesService {
         .rows_affected();
 
         if rows_affected == 0 {
-            sqlx::query("ROLLBACK")
-                .execute(&mut *tx)
-                .await
-                .map_err(AppError::from)?;
+            tx.rollback().await.map_err(AppError::from)?;
             return Err(AppError::OrderCannotModify(
                 "Order status changed or already processed".into(),
             ));

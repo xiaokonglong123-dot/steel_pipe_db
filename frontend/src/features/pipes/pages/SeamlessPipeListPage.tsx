@@ -1,5 +1,5 @@
 // 无缝钢管列表页 — 分页查询、搜索、状态标签、新建/编辑/删除操作
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, Input, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +19,10 @@ export default function SeamlessPipeListPage() {
     page_size: pageSize,
     q: searchText || undefined,
   });
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchText]);
 
   const deleteMutation = useDeleteSeamlessPipe();
 

@@ -42,7 +42,14 @@ impl RateLimiter {
     ///
     /// Returns `true` if the request is within limits, `false` if rate-limited.
     pub fn check(&self, key: &str, max_requests: u64, window_secs: u64) -> bool {
-        let mut state = self.inner.lock().unwrap();
+        // Handle poisoned mutex gracefully — don't crash the server
+        let mut state = match self.inner.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                tracing::error!("Rate limiter mutex poisoned, resetting");
+                poisoned.into_inner()
+            }
+        };
         let now = Instant::now();
         let window = Duration::from_secs(window_secs);
 
