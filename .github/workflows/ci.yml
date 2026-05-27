@@ -22,7 +22,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-      - run: cargo check
+      - name: Toolchain info
+        run: rustc --version && cargo --version
+      - run: cargo check 2>&1
         env:
           RUST_BACKTRACE: 1
 
@@ -44,7 +46,7 @@ jobs:
         run: |
           node --version
           npx tsc --version
-          npm ls zod typescript 2>&1
+          npm ls zod typescript 2>&1 || true
           ls node_modules/zod/index.ts 2>/dev/null && echo "zod ESM entry exists"
       - run: npx tsc --noEmit 2>&1
       - run: npm run build
