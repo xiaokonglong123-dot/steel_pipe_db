@@ -1,6 +1,6 @@
 [package]
 name = "steel-pipe-db"
-version = "0.1.0"
+version = "0.0.1-alpha"
 edition = "2021"
 description = "API 5CT Seamless Steel Pipe & Screen Pipe Inventory Management System"
 
