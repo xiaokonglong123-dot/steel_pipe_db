@@ -25,7 +25,7 @@ steel-pipe-db/
 │   └── src/
 │       ├── main.tsx       ← React DOM entry (imports './i18n' for i18n init)
 │       ├── App.tsx        ← ConfigProvider + QueryClientProvider + RouterProvider
-│       ├── features/      ← 11 feature modules (auth, pipes, inventory, suppliers, customers, ...)
+│       ├── features/      ← 13 feature modules (auth, pipes, inventory, suppliers, customers, search, profile, ...)
 │       │                   ├── api/       ← TanStack Query hooks (useQuery, useMutation)
 │       │                   ├── hooks/     ← feature-specific React hooks
 │       │                   ├── pages/     ← route-level page components
@@ -112,6 +112,9 @@ features/{feature}/
 ```
 
 - **Dead code cleanup**: 26 unused items removed from domain/dto/error/response/repo modules. `#![allow(dead_code)]` stays at the crate root to suppress legit false positives.
+- **Backend DI**: DB pool is injected as `Extension<SqlitePool>`; auth uses `Extension<JwtSecret>` newtype, not bare `Extension<String>`.
+- **Request IDs**: response bodies include `request_id`; the backend also emits/exposes `x-request-id` headers via `tower-http`.
+- **Frontend query keys**: feature API hooks use per-feature `queryKeys.ts` factories instead of inline query-key array literals.
 
 ## Security Rules
 - All mutation endpoints require JWT auth (enforced by middleware, don't skip it)

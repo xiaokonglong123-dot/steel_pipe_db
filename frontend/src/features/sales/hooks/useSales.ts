@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesApi } from '../api/salesApi';
+import { salesQueryKeys } from '../queryKeys';
 import type {
   CreateSalesOrderData,
   SalesOrderFilterParams,
@@ -9,14 +10,14 @@ import type {
 
 export function useSalesOrders(params?: SalesOrderFilterParams) {
   return useQuery({
-    queryKey: ['sales-orders', params],
+    queryKey: salesQueryKeys.list(params),
     queryFn: () => salesApi.list(params),
   });
 }
 
 export function useSalesOrder(id: number) {
   return useQuery({
-    queryKey: ['sales-order', id],
+    queryKey: salesQueryKeys.detail(id),
     queryFn: () => salesApi.get(id),
     enabled: !!id,
   });
@@ -27,7 +28,7 @@ export function useCreateSalesOrder() {
   return useMutation({
     mutationFn: (data: CreateSalesOrderData) => salesApi.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.all });
     },
   });
 }
@@ -37,8 +38,8 @@ export function useUpdateSalesOrder(id: number) {
   return useMutation({
     mutationFn: (data: Partial<CreateSalesOrderData>) => salesApi.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sales-orders'] });
-      qc.invalidateQueries({ queryKey: ['sales-order', id] });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.all });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.detail(id) });
     },
   });
 }
@@ -48,7 +49,7 @@ export function useDeleteSalesOrder() {
   return useMutation({
     mutationFn: (id: number) => salesApi.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.all });
     },
   });
 }
@@ -58,8 +59,8 @@ export function useTransitionSalesOrder(id: number) {
   return useMutation({
     mutationFn: (data: SalesOrderStatusTransitionRequest) => salesApi.transition(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sales-orders'] });
-      qc.invalidateQueries({ queryKey: ['sales-order', id] });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.all });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.detail(id) });
     },
   });
 }
@@ -70,7 +71,7 @@ export function useUpdateSalesOrderItem(orderId: number) {
     mutationFn: ({ itemId, data }: { itemId: number; data: UpdateSalesOrderItemData }) =>
       salesApi.updateItem(orderId, itemId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sales-order', orderId] });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.detail(orderId) });
     },
   });
 }
@@ -80,7 +81,7 @@ export function useDeleteSalesOrderItem(orderId: number) {
   return useMutation({
     mutationFn: (itemId: number) => salesApi.deleteItem(orderId, itemId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sales-order', orderId] });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.detail(orderId) });
     },
   });
 }

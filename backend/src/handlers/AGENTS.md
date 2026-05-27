@@ -50,7 +50,7 @@ Key points:
 ## Common Extractor Patterns
 
 - `Extension(pool): Extension<SqlitePool>` — DB pool (every handler needs this)
-- `Extension(jwt_secret): Extension<String>` — JWT secret (auth handlers only)
+- `Extension(jwt_secret): Extension<JwtSecret>` — JWT secret newtype (auth handlers only)
 - `Query(params): Query<T>` — GET query params (T needs DeserializeOwned)
 - `Json(body): Json<T>` — POST/PUT body (T needs DeserializeOwned)
 - `Path(id): Path<i64>` — URL path parameter

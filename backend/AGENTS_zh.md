@@ -161,7 +161,7 @@ src/
 .layer(CorsLayer::permissive())
 .layer(TraceLayer::new_for_http())
 .layer(Extension(pool))       // Extension<SqlitePool>
-.layer(Extension(jwt_secret)) // Extension<String>
+.layer(Extension(JwtSecret(jwt_secret))) // Extension<JwtSecret>
 
 // Handler extracts:
 pub async fn list_pipes(
@@ -170,7 +170,7 @@ pub async fn list_pipes(
 ) -> Result<Json<PaginatedResponse<Pipe>>, AppError> {
 ```
 
-No `AppState` struct. Pool and JWT secret get injected as raw types. Simple.
+No `AppState` struct. The DB pool is injected directly; the JWT secret is wrapped in `JwtSecret` so it is type-safe, has redacted `Debug`, and cannot be confused with arbitrary string extensions.
 
 ## Response Shapes
 
@@ -179,6 +179,8 @@ No `AppState` struct. Pool and JWT secret get injected as raw types. Simple.
 // Paginated:  { "success": true, "request_id": "req_...", "meta": { "total": N, "page": P, "page_size": S, "total_pages": N }, "data": { "items": [], ... } }
 // Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
+
+`tower-http` also sets/propagates an `x-request-id` header, and CORS exposes it to the frontend.
 
 ## Error Codes (numeric, domain-prefixed)
 

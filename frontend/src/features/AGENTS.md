@@ -10,6 +10,7 @@ features/{feature}/
 │   └── index.ts   ← useQuery, useMutation
 ├── hooks/         ← Feature-specific React hooks (optional)
 │   └── index.ts
+├── queryKeys.ts   ← TanStack Query key factory for this feature
 ├── pages/         ← Page components (one file per route)
 │   ├── ListPage.tsx
 │   ├── FormPage.tsx       ← Create + Edit in one
@@ -44,10 +45,11 @@ features/{feature}/
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/api'
 import type { FeatureType, ListParams } from './types'
+import { featureQueryKeys } from '../queryKeys'
 
 export function useListFeature(params: ListParams) {
   return useQuery({
-    queryKey: ['feature', params],
+    queryKey: featureQueryKeys.list(params),
     queryFn: () => api.get('/feature', { params }).then(r => r.data),
   })
 }
@@ -56,7 +58,7 @@ export function useCreateFeature() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: FeatureType) => api.post('/feature', data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['feature'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: featureQueryKeys.all }),
   })
 }
 ```
@@ -95,14 +97,14 @@ export default function ListPage() {
 ## API Connection
 
 - All API calls go through the shared axios instance at `src/api/` (base URL: `/api/v1`).
-- Query key convention: `['entity']` for list, `['entity', id]` for detail.
-- Mutations invalidate the list query on success so it refetches.
+- Query key convention: define a feature-local `queryKeys.ts` factory (for example `featureQueryKeys.all`, `.list(params)`, `.detail(id)`) and use it from hooks.
+- Mutations invalidate the appropriate factory key on success so affected lists/details refetch.
 - Some features use `lib/validateResponse.ts` with Zod schemas from `zod-schemas/` for runtime response validation.
 
 ## Adding a New Feature Module
 
 1. Create `features/{new_feature}/` with subdirs: `api/`, `hooks/`, `pages/`, `stores/`, `types/`.
-2. Write TanStack Query hooks in `api/index.ts`.
+2. Add `queryKeys.ts`, then write TanStack Query hooks in `api/index.ts` using that factory.
 3. Build page components in `pages/`.
 4. Register the route in `src/routes/index.tsx`.
 5. Add i18n keys in both `src/i18n/zh/{new_feature}.json` and `src/i18n/en/{new_feature}.json`.
@@ -113,5 +115,6 @@ export default function ListPage() {
 - `useFeatureQuery()` for list queries, `useFeatureQuery(id)` for detail.
 - `useCreateFeature()`, `useUpdateFeature()`, `useDeleteFeature()` for mutations.
 - Always invalidate list queries after successful mutations.
+- Do not add inline `queryKey: [...]` literals in feature API modules; centralize them in `queryKeys.ts`.
 - CRUD UI uses Ant Design Table + Form + Modal.
 - Pages import API through `../api`, never directly from `@/api`.

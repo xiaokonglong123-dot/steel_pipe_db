@@ -19,12 +19,10 @@ use crate::services::data_io_service::DataIOService;
 /// Logs the import operation. Returns import stats (imported/failed counts).
 pub async fn import_handler(
     Extension(pool): Extension<SqlitePool>,
-    Extension(jwt_secret): Extension<String>,
     Path(entity_type): Path<String>,
     mut multipart: Multipart,
 ) -> Result<Json<ApiResponse<ImportResult>>, AppError> {
     let entity_type = entity_type.to_lowercase();
-    let _ = jwt_secret;
 
     let mut file_data: Option<Vec<u8>> = None;
     let mut file_name: Option<String> = None;

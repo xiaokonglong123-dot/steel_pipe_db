@@ -3,15 +3,18 @@ use std::time::Duration as StdDuration;
 use axum::{
     http::{
         header::{AUTHORIZATION, CONTENT_TYPE},
-        HeaderValue, Method,
+        HeaderName, HeaderValue, Method,
     },
     middleware, Router,
 };
 use sqlx::SqlitePool;
+use tower::ServiceBuilder;
+use tower_http::{request_id::MakeRequestUuid, ServiceBuilderExt};
 
 use crate::middleware::rate_limit::{
     rate_limit_import, rate_limit_login, rate_limit_password_change, RateLimiter,
 };
+use crate::middleware::auth::JwtSecret;
 
 use crate::handlers::atp_handler;
 use crate::handlers::auth_handler;
@@ -709,12 +712,25 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
                     Method::DELETE,
                     Method::OPTIONS,
                 ])
-                .allow_headers([AUTHORIZATION, CONTENT_TYPE])
-                .expose_headers([AUTHORIZATION, CONTENT_TYPE])
+                .allow_headers([
+                    AUTHORIZATION,
+                    CONTENT_TYPE,
+                    HeaderName::from_static("x-request-id"),
+                ])
+                .expose_headers([
+                    AUTHORIZATION,
+                    CONTENT_TYPE,
+                    HeaderName::from_static("x-request-id"),
+                ])
                 .max_age(StdDuration::from_secs(86400)),
         )
-        .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(
+            ServiceBuilder::new()
+                .set_x_request_id(MakeRequestUuid::default())
+                .layer(tower_http::trace::TraceLayer::new_for_http())
+                .propagate_x_request_id(),
+        )
         .layer(axum::Extension(pool))
-        .layer(axum::Extension(jwt_secret))
+        .layer(axum::Extension(JwtSecret(jwt_secret)))
         .layer(axum::Extension(RateLimiter::new()))
 }

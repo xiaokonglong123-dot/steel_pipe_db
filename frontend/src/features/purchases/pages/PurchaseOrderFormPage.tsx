@@ -261,7 +261,7 @@ export default function PurchaseOrderFormPage() {
         <h3 style={{ marginBottom: 16 }}>{t('purchases.items')}</h3>
 
         <Form.List name="items" initialValue={[]}>
-          {(fields, { add, remove: _remove }) => (
+          {(fields, { add }) => (
             <>
               <Table
                 columns={itemColumns}

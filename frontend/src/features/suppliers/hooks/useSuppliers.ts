@@ -1,18 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supplierApi } from '../api/supplierApi';
+import { supplierQueryKeys } from '../queryKeys';
 import type { Supplier, CreateSupplierData, SupplierFilterParams } from '../types';
 import type { PaginatedData } from '@/types';
 
 export function useSuppliers(params?: SupplierFilterParams) {
   return useQuery<PaginatedData<Supplier>>({
-    queryKey: ['suppliers', params],
+    queryKey: supplierQueryKeys.list(params),
     queryFn: () => supplierApi.list(params),
   });
 }
 
 export function useSupplier(id: number) {
   return useQuery<Supplier>({
-    queryKey: ['supplier', id],
+    queryKey: supplierQueryKeys.detail(id),
     queryFn: () => supplierApi.getById(id),
     enabled: !!id,
   });
@@ -23,7 +24,7 @@ export function useCreateSupplier() {
   return useMutation({
     mutationFn: (data: CreateSupplierData) => supplierApi.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      qc.invalidateQueries({ queryKey: supplierQueryKeys.all });
     },
   });
 }
@@ -33,8 +34,8 @@ export function useUpdateSupplier(id: number) {
   return useMutation({
     mutationFn: (data: Partial<CreateSupplierData>) => supplierApi.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['suppliers'] });
-      qc.invalidateQueries({ queryKey: ['supplier', id] });
+      qc.invalidateQueries({ queryKey: supplierQueryKeys.all });
+      qc.invalidateQueries({ queryKey: supplierQueryKeys.detail(id) });
     },
   });
 }
@@ -44,14 +45,14 @@ export function useDeleteSupplier() {
   return useMutation({
     mutationFn: (id: number) => supplierApi.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      qc.invalidateQueries({ queryKey: supplierQueryKeys.all });
     },
   });
 }
 
 export function useSupplierSearch(q: string) {
   return useQuery({
-    queryKey: ['suppliers', 'search', q],
+    queryKey: supplierQueryKeys.search(q),
     queryFn: () => supplierApi.search(q),
     enabled: q.length > 0,
   });
@@ -59,7 +60,7 @@ export function useSupplierSearch(q: string) {
 
 export function useActiveSuppliers() {
   return useQuery({
-    queryKey: ['suppliers', 'active'],
+    queryKey: supplierQueryKeys.active(),
     queryFn: () => supplierApi.listActive(),
   });
 }

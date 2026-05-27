@@ -1,5 +1,9 @@
 [http]
-cainfo = "/tmp/ca-bundle.crt"
+# cainfo originally pointed to a temporary CA bundle that may not exist in the
+# container/host. Prefer a system CA bundle path which exists on most Linux
+# distributions. If you need to override in CI/local, set SSL_CERT_FILE env var
+# or update this path accordingly.
+cainfo = "/etc/ssl/certs/ca-certificates.crt"
 check-revoke = false
 timeout = 120
 

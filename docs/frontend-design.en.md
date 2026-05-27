@@ -98,9 +98,9 @@ React 19 + Ant Design 5 + TanStack Query + Zustand. Feature-based layout. 13 fea
 ```
 frontend/
 ├── index.html
-├── vite.config.ts              # React plugin, proxy to :3000, manualChunks for vendor splitting
+├── vite.config.ts              # React plugin, proxy to :3000, vendor-ui manual chunk
 ├── tsconfig.json               # Strict mode, path alias @/
-├── .eslintrc.cjs
+├── eslint.config.js            # ESLint 9 flat config
 ├── .prettierrc
 ├── src/
 │   ├── main.tsx                # Entry: i18n side-effect import, StrictMode, render App
@@ -165,6 +165,7 @@ frontend/
 features/{module}/
 ├── pages/         # Page components (list, detail, form)
 ├── api/           # TanStack Query hooks (useXxxList, useXxxMutation, etc.)
+├── queryKeys.ts   # Feature-local TanStack Query key factory
 └── types/         # Module-specific TS types
 ```
 
@@ -412,21 +413,23 @@ const queryClient = new QueryClient({
 });
 ```
 
-Cache invalidation pattern: after a mutation (create/update/delete), invalidate the related query key:
+Cache invalidation pattern: after a mutation (create/update/delete), invalidate the related feature key factory:
 
 ```
-Create pipe → invalidateQueries(['seamless_pipes'])
-Create inbound → invalidateQueries(['inbound'], ['inventory'])
-Create outbound → invalidateQueries(['outbound'], ['inventory'])
+Create pipe → invalidateQueries({ queryKey: pipeQueryKeys.seamlessLists() })
+Create inbound → invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all }) + stock keys
+Create outbound → invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all }) + stock keys
 ```
 
 ### 6.4 Typical Hook
 
 ```ts
 // features/pipes/api/useSeamlessPipes.ts
+import { seamlessPipeQueryKeys } from '../queryKeys';
+
 export function useSeamlessPipes(filters: PipeFilter, page: number, pageSize: number) {
   return useQuery({
-    queryKey: ['seamless_pipes', filters, page, pageSize],
+    queryKey: seamlessPipeQueryKeys.list({ ...filters, page, page_size: pageSize }),
     queryFn: () => pipeApi.getSeamlessPipes(filters, page, pageSize),
     placeholderData: keepPreviousData,  // Keep showing old data while next page loads
   });
@@ -437,7 +440,7 @@ export function useCreateSeamlessPipe() {
   return useMutation({
     mutationFn: (data: CreateSeamlessPipeDto) => pipeApi.createSeamlessPipe(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['seamless_pipes'] });
+      queryClient.invalidateQueries({ queryKey: seamlessPipeQueryKeys.all });
     },
   });
 }
@@ -818,7 +821,7 @@ Mutations (create/update/delete):
 
 2. **Zustand stays pure.** Don't call APIs in stores. API calls go in hooks, results go into stores via setters. Keeps the store testable and the data flow predictable.
 
-3. **chunkSizeWarningLimit = 600.** Vite's default 500 kB warning fires constantly with Ant Design. Bump it. The actual gzip size is what matters.
+3. **Manual chunks need dependency-aware grouping.** Ant Design, React, TanStack Query, Zustand, i18next, and dayjs are grouped into `vendor-ui` so Rollup does not emit circular chunk warnings. Watch gzip size, not just raw bundle size.
 
 4. **Ant Design 5 is CSS-in-JS.** No need for Less/SASS imports for component customization. Use `ConfigProvider` tokens. Only reach for less overrides when token customization doesn't cut it.
 

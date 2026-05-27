@@ -56,7 +56,7 @@ steel-pipe-db/
 │       ├── App.tsx         ← ConfigProvider + QueryClientProvider + RouterProvider
 │       ├── api/            ← Axios instance + QueryClient config
 │       ├── routes/         ← createBrowserRouter + ProtectedRoute
-│       ├── features/       ← 11 feature modules (auth, contracts, customers, ...)
+│       ├── features/       ← 13 feature modules (auth, contracts, customers, search, profile, ...)
 │       ├── layouts/        ← MainLayout (sidebar + header + Outlet)
 │       ├── stores/         ← Zustand authStore, appStore (global state), unitStore (unit conversion)
 │       ├── lib/            ← validateResponse.ts, runtime zod response validation
@@ -97,10 +97,11 @@ steel-pipe-db/
 
 ### DI Pattern: Extension layers, NOT State<Arc<AppState>>
 ```
-router.rs: .layer(Extension(pool)).layer(Extension(jwt_secret))
+router.rs: .layer(Extension(pool)).layer(Extension(JwtSecret(jwt_secret)))
 Handler:   Extension(pool): Extension<SqlitePool>
+Auth:      Extension(jwt_secret): Extension<JwtSecret>
 ```
-No `AppState` struct exists. Pool and JWT secret get injected as raw types. Fight me.
+No `AppState` struct exists. The pool is injected directly, while the JWT secret uses the `JwtSecret` newtype so it cannot collide with other `String` extensions and redacts itself in debug output.
 
 ### Response Shapes
 ```rust
@@ -109,6 +110,7 @@ No `AppState` struct exists. Pool and JWT secret get injected as raw types. Figh
 // Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
 `request_id` is a uuid v4. `Meta` struct has total/page/page_size/total_pages. `ApiErrorResponse` always includes `success: false` and `request_id` — filled automatically by `AppError::into_response()`.
+The backend also propagates an `x-request-id` response header via `tower-http`; CORS exposes that header for browser debugging.
 
 ### Handler Pattern
 ```rust
@@ -197,10 +199,10 @@ Same deal — static methods, `pool: &SqlitePool`. Soft-delete: `WHERE deleted_a
   /search                  ← SearchPage
 ```
 
-### Feature Modules (11)
-`auth`, `pipes`, `inventory`, `suppliers`, `customers`, `purchases`, `sales`, `quality`, `contracts`, `reports`, `labels`
+### Feature Modules (13)
+`auth`, `pipes`, `inventory`, `suppliers`, `customers`, `purchases`, `sales`, `quality`, `contracts`, `reports`, `labels`, `search`, `profile`
 
-Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, DetailPage), `types/` (TS interfaces). Some also have `hooks/` or `store/` or `stores/`.
+Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, DetailPage), `types/` (TS interfaces), and usually `queryKeys.ts` for TanStack Query key factories. Some also have `hooks/` or `store/` or `stores/`.
 
 ### Auth Flow
 - `authStore` (Zustand, localStorage-backed): stores `auth_token` + `auth_user`
@@ -227,8 +229,9 @@ Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, D
 - **Type safety**: CI enforces `cargo check` (not build) + `tsc --noEmit`. No Rust tests run in CI
 - **Dead code cleanup**: 26 unused items removed from domain/dto/error/response/repo modules. `#![allow(dead_code)]` retained at crate root to suppress legitimate false positives.
 - **Path params**: Axum 0.8 uses `{id}` syntax (not `:id` as in Axum 0.7)
-- **Bare `Extension<String>`** for JWT secret — no newtype wrapper
+- **JWT secret uses `JwtSecret` newtype** — no bare `Extension<String>` for auth secrets; missing secret extension fails closed with 500
 - **No State extractor** anywhere — all DI via Extension
+- **Frontend query keys**: feature hooks use per-module `queryKeys.ts` factories; avoid inline `queryKey: [...]` literals in feature API code
 - **`shared/components/` is populated** — 9 shared components: ConfirmModal, EmptyState, ErrorBoundary, FileUploader, LoadingSpin, PageContainer, PageHeader, SearchBar, StatusTag
 - **`docs/AGENTS.md`** exists as index for design docs in Chinese
 - **Seed data**: `backend/seed_data.py` and `backend/seed_data_enhanced.py` available

@@ -6,7 +6,6 @@
 //! - Seed data helpers for common test fixtures
 
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
-use std::path::Path;
 
 /// Create a test database pool using an in-memory SQLite database.
 /// Runs all migrations from `./migrations` and returns the pool.
@@ -18,7 +17,7 @@ pub async fn test_pool() -> SqlitePool {
 }
 
 /// Like `test_pool()` but accepts a custom migrations path.
-pub async fn test_pool_with_migrations(migrations_path: &str) -> SqlitePool {
+pub async fn test_pool_with_migrations(_migrations_path: &str) -> SqlitePool {
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
         .min_connections(1)
@@ -27,7 +26,7 @@ pub async fn test_pool_with_migrations(migrations_path: &str) -> SqlitePool {
         .expect("failed to create in-memory SQLite pool");
 
     // Run migrations
-    let migrator = sqlx::migrate!(migrations_path);
+    let migrator = sqlx::migrate!("./migrations");
     migrator
         .run(&pool)
         .await
@@ -85,11 +84,13 @@ pub async fn seed_seamless_pipe(
     let result = sqlx::query(
         r#"
         INSERT INTO seamless_pipes
-          (pipe_number, grade, status, od, wt, length, material, standard, heat_number, batch_number,
-           threading, bevel, coupling, surface_condition, storage_location, notes, created_at, updated_at)
+          (pipe_number, batch_number, pipe_type, grade, od, wt, length, weight_per_unit,
+           end_type, coupling_type, heat_number, manufacturer, location_id, status, notes,
+           created_at, updated_at)
         VALUES
-          ($1, $2, $3, 177.8, 9.19, 9.5, 'J55', 'API 5CT', 'HN-001', 'BN-001',
-           'BTC', '30°', 'N80Q', 'good', 'A-01-01', 'test pipe', datetime('now'), datetime('now'))
+          ($1, 'BN-001', 'casing', $2, 177.8, 9.19, 9.5, 40.0,
+           'BTC', 'N80Q', 'HN-001', 'test manufacturer', NULL, $3, 'test pipe',
+           datetime('now'), datetime('now'))
         "#,
     )
     .bind(pipe_number)
@@ -111,12 +112,13 @@ pub async fn seed_screen_pipe(
     let result = sqlx::query(
         r#"
         INSERT INTO screen_pipes
-          (pipe_number, grade, status, od, wt, length, material, standard, heat_number, batch_number,
-           slot_size, slot_type, screen_pattern, open_area_percent, storage_location, notes,
-           created_at, updated_at)
+          (pipe_number, batch_number, screen_type, slot_size, filtration_grade,
+           base_od, base_wt, base_grade, base_end_type, length, weight_per_unit,
+           heat_number, manufacturer, location_id, status, notes, created_at, updated_at)
         VALUES
-          ($1, $2, $3, 177.8, 9.19, 9.5, 'J55', 'API 5CT', 'HN-001', 'BN-001',
-           0.02, 'sucker_rod', 'perforated', 15.0, 'A-01-01', 'test screen pipe',
+          ($1, 'BN-001', 'slotted', 0.02, 'standard',
+           177.8, 9.19, $2, 'BTC', 9.5, 40.0,
+           'HN-001', 'test manufacturer', NULL, $3, 'test screen pipe',
            datetime('now'), datetime('now'))
         "#,
     )
@@ -140,16 +142,16 @@ pub async fn seed_location(
     let result = sqlx::query(
         r#"
         INSERT INTO locations
-          (code, zone, shelf, level, location_type, max_capacity, current_quantity,
+          (zone_code, shelf_code, level_code, full_code, used_count, is_active,
            created_at, updated_at)
         VALUES
-          ($1, $2, $3, $4, 'storage', 100, 0, datetime('now'), datetime('now'))
+          ($1, $2, $3, $4, 0, 1, datetime('now'), datetime('now'))
         "#,
     )
-    .bind(&full_code)
     .bind(zone)
     .bind(shelf)
     .bind(level)
+    .bind(&full_code)
     .execute(pool)
     .await?;
 
@@ -159,8 +161,9 @@ pub async fn seed_location(
 /// Create a user for testing (returns user_id).
 pub async fn seed_user(pool: &SqlitePool, username: &str, role: &str) -> sqlx::Result<i64> {
     use argon2::{
-        password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+        password_hash::{rand_core::OsRng, SaltString},
         Argon2,
+        PasswordHasher,
     };
 
     let salt = SaltString::generate(&mut OsRng);

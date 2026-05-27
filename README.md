@@ -69,7 +69,7 @@ Open `http://localhost:5173` and log in with:
 | Excel/CSV   | calamine (import), rust_xlsxwriter (export), csv      |
 | Middleware  | tower-http (CORS, trace, request-id)                 |
 
-**Architecture:** Handler → Service → Repository → Domain. No AppState — we inject raw types via `Extension<>` like barbarians.
+**Architecture:** Handler → Service → Repository → Domain. No AppState — the DB pool is injected via `Extension<SqlitePool>`, while auth secrets use a redacted `JwtSecret` extension.
 
 ### Frontend — React 19
 

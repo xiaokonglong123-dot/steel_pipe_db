@@ -299,7 +299,7 @@ export default function InboundFormPage() {
         </h3>
 
         <Form.List name="pipes" initialValue={[]}>
-          {(fields, { add, remove: _remove }) => (
+          {(fields, { add }) => (
             <>
               <Table
                 columns={itemColumns}

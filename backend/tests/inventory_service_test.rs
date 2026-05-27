@@ -1,22 +1,27 @@
-//! Integration tests for `InventoryService`.
+//! Integration tests for inventory services (inbound, outbound, location, check, ATP).
 //!
 //! Tests the core inventory workflows:
 //! - Inbound record creation (auto_approved vs pending)
 //! - Inbound approval/rejection
 //! - Outbound creation with stock validation
-//! - Location assignment
+//! - Location CRUD
 //! - ATP query
+//! - Full inbound → outbound pipe lifecycle
 //!
 //! All tests use an in-memory SQLite database with fresh migrations.
 
 mod common;
 
+use steel_pipe_db::dto::common::PaginationParams;
 use steel_pipe_db::dto::inventory_dto::{
     AtpQuery, CreateCheckRequest, CreateInboundRecordRequest, CreateLocationRequest,
-    CreateOutboundRecordRequest, InboundFilter, InboundPipeItem, SubmitCheckItemRequest,
+    CreateOutboundRecordRequest, InboundPipeItem, OutboundPipeItem, SubmitCheckItemRequest,
 };
-use steel_pipe_db::repositories::inventory_repo::{CheckInitItem, LocationRepo};
-use steel_pipe_db::services::InventoryService;
+use steel_pipe_db::services::check_service::CheckService;
+use steel_pipe_db::services::inbound_service::InboundService;
+use steel_pipe_db::services::inventory_query_service::InventoryQueryService;
+use steel_pipe_db::services::location_service::LocationService;
+use steel_pipe_db::services::outbound_service::OutboundService;
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 /// Inbound — auto_approved
@@ -26,37 +31,30 @@ use steel_pipe_db::services::InventoryService;
 async fn create_inbound_auto_approved_sets_pipes_to_in_stock() {
     let pool = common::test_pool().await;
 
-    // Seed a pipe in "available" status
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-001", "available", "J55")
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-001", "scrapped", "J55")
         .await
         .unwrap();
 
-    // Create auto_approved inbound
+    // Create a "purchase" inbound — auto_approved by default
     let dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "auto_approved".into(),
-        reference_no: Some("PO-001".into()),
+        inbound_type: "purchase".into(),
+        order_id: None,
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: Some("test inbound".into()),
         pipes: vec![InboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: Some(500.0),
-            length: Some(9.5),
         }],
     };
 
-    let record = InventoryService::create_inbound(&pool, &dto)
+    let record = InboundService::create_inbound(&pool, &dto)
         .await
         .expect("create_inbound must succeed");
 
     assert_eq!(record.approval_status, "auto_approved");
 
     // Verify pipe status was updated to "in_stock"
-    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
+    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await
@@ -68,39 +66,33 @@ async fn create_inbound_auto_approved_sets_pipes_to_in_stock() {
 async fn create_inbound_pending_does_not_update_pipe_status() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-002", "available", "J55")
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-002", "scrapped", "J55")
         .await
         .unwrap();
 
+    // "return" inbound — starts as pending (not auto_approved)
     let dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "pending".into(),
-        reference_no: Some("PO-002".into()),
+        inbound_type: "return".into(),
+        order_id: None,
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: None,
         pipes: vec![InboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
 
-    let record = InventoryService::create_inbound(&pool, &dto)
+    let record = InboundService::create_inbound(&pool, &dto)
         .await
         .expect("create_inbound must succeed");
     assert_eq!(record.approval_status, "pending");
 
-    // Pipe must still be "available" — not touched until approval
-    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
+    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await
         .expect("pipe must exist");
-    assert_eq!(pipe.0, "available");
+    assert_eq!(pipe.0, "scrapped");
 }
 
 #[tokio::test]
@@ -108,17 +100,14 @@ async fn create_inbound_requires_at_least_one_pipe() {
     let pool = common::test_pool().await;
 
     let dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "auto_approved".into(),
-        reference_no: None,
+        inbound_type: "purchase".into(),
+        order_id: None,
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: None,
         pipes: vec![],
     };
 
-    let err = InventoryService::create_inbound(&pool, &dto)
+    let err = InboundService::create_inbound(&pool, &dto)
         .await
         .expect_err("must fail with no pipes");
     assert!(err.to_string().contains("At least one pipe"));
@@ -132,39 +121,33 @@ async fn create_inbound_requires_at_least_one_pipe() {
 async fn approve_inbound_updates_pending_record_and_pipes() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-003", "available", "J55")
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-003", "scrapped", "J55")
         .await
         .unwrap();
 
-    // Create pending inbound (not auto_approved)
+    // "return" inbound starts as pending
     let dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "pending".into(),
-        reference_no: Some("PO-003".into()),
+        inbound_type: "return".into(),
+        order_id: None,
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: None,
         pipes: vec![InboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
 
-    let record = InventoryService::create_inbound(&pool, &dto).await.unwrap();
+    let record = InboundService::create_inbound(&pool, &dto).await.unwrap();
     assert_eq!(record.approval_status, "pending");
 
     // Approve
-    InventoryService::approve_inbound(&pool, record.id)
+    InboundService::approve_inbound(&pool, record.id)
         .await
         .expect("approve_inbound must succeed");
 
     // Verify record is now approved
     let updated: (String,) =
-        sqlx::query_as("SELECT approval_status FROM inbound_records WHERE id = $1")
+        sqlx::query_as("SELECT approval_status FROM inbound_records WHERE id = ?")
             .bind(record.id)
             .fetch_one(&pool)
             .await
@@ -172,7 +155,7 @@ async fn approve_inbound_updates_pending_record_and_pipes() {
     assert_eq!(updated.0, "approved");
 
     // Verify pipe is now in_stock
-    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
+    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await
@@ -181,7 +164,7 @@ async fn approve_inbound_updates_pending_record_and_pipes() {
 
     // Verify inventory log was created
     let log_count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM inventory_logs WHERE ref_id = $1 AND change_type = 'inbound'")
+        sqlx::query_as("SELECT COUNT(*) FROM inventory_logs WHERE ref_id = ? AND change_type = 'inbound'")
             .bind(record.id)
             .fetch_one(&pool)
             .await
@@ -193,37 +176,31 @@ async fn approve_inbound_updates_pending_record_and_pipes() {
 async fn approve_inbound_fails_for_already_approved() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-004", "available", "J55")
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-004", "scrapped", "J55")
         .await
         .unwrap();
 
-    // Auto-approved inbound — pipe already in_stock
+    // "purchase" inbound — auto_approved, pipe already in_stock
     let dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "auto_approved".into(),
-        reference_no: None,
+        inbound_type: "purchase".into(),
+        order_id: None,
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: None,
         pipes: vec![InboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
 
-    let record = InventoryService::create_inbound(&pool, &dto).await.unwrap();
+    let record = InboundService::create_inbound(&pool, &dto).await.unwrap();
 
     // Trying to approve it again must fail
-    let err = InventoryService::approve_inbound(&pool, record.id)
+    let err = InboundService::approve_inbound(&pool, record.id)
         .await
         .expect_err("approve must fail for already approved");
     assert!(
         err.to_string().contains("Cannot approve inbound with status")
-            || err.to_string().contains("'approved'")
+            || err.to_string().contains("auto_approved")
     );
 }
 
@@ -231,36 +208,30 @@ async fn approve_inbound_fails_for_already_approved() {
 async fn reject_inbound_only_updates_status() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-005", "available", "J55")
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-005", "scrapped", "J55")
         .await
         .unwrap();
 
     let dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "pending".into(),
-        reference_no: None,
+        inbound_type: "return".into(),
+        order_id: None,
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: None,
         pipes: vec![InboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
 
-    let record = InventoryService::create_inbound(&pool, &dto).await.unwrap();
+    let record = InboundService::create_inbound(&pool, &dto).await.unwrap();
 
-    InventoryService::reject_inbound(&pool, record.id, "material rejected")
+    InboundService::reject_inbound(&pool, record.id, "material rejected")
         .await
         .expect("reject_inbound must succeed");
 
     // Verify record is rejected
     let updated: (String, Option<String>) = sqlx::query_as(
-        "SELECT approval_status, rejection_reason FROM inbound_records WHERE id = $1",
+        "SELECT approval_status, rejection_reason FROM inbound_records WHERE id = ?",
     )
     .bind(record.id)
     .fetch_one(&pool)
@@ -269,13 +240,12 @@ async fn reject_inbound_only_updates_status() {
     assert_eq!(updated.0, "rejected");
     assert_eq!(updated.1.as_deref(), Some("material rejected"));
 
-    // Pipe must still be "available" — rejection does NOT touch it
-    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
+    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await
         .expect("pipe must exist");
-    assert_eq!(pipe.0, "available");
+    assert_eq!(pipe.0, "scrapped");
 }
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -286,36 +256,30 @@ async fn reject_inbound_only_updates_status() {
 async fn delete_inbound_deletes_auto_approved_record() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-006", "available", "J55")
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-006", "scrapped", "J55")
         .await
         .unwrap();
 
     let dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "auto_approved".into(),
-        reference_no: None,
+        inbound_type: "purchase".into(),
+        order_id: None,
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: None,
         pipes: vec![InboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
 
-    let record = InventoryService::create_inbound(&pool, &dto).await.unwrap();
+    let record = InboundService::create_inbound(&pool, &dto).await.unwrap();
 
-    InventoryService::delete_inbound(&pool, record.id)
+    InboundService::delete_inbound(&pool, record.id)
         .await
         .expect("delete_inbound must succeed for auto_approved");
 
     // Record must be soft-deleted
     let deleted: (Option<String>,) =
-        sqlx::query_as("SELECT deleted_at FROM inbound_records WHERE id = $1")
+        sqlx::query_as("SELECT deleted_at FROM inbound_records WHERE id = ?")
             .bind(record.id)
             .fetch_one(&pool)
             .await
@@ -327,35 +291,29 @@ async fn delete_inbound_deletes_auto_approved_record() {
 async fn delete_inbound_fails_for_pending_record() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-007", "available", "J55")
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-007", "scrapped", "J55")
         .await
         .unwrap();
 
     let dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "pending".into(),
-        reference_no: None,
+        inbound_type: "return".into(),
+        order_id: None,
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: None,
         pipes: vec![InboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
 
-    let record = InventoryService::create_inbound(&pool, &dto).await.unwrap();
+    let record = InboundService::create_inbound(&pool, &dto).await.unwrap();
 
-    let err = InventoryService::delete_inbound(&pool, record.id)
+    let err = InboundService::delete_inbound(&pool, record.id)
         .await
         .expect_err("delete must fail for pending");
     assert!(
         err.to_string().contains("Cannot delete inbound with status")
-            || err.to_string().contains("'pending'")
+            || err.to_string().contains("pending")
     );
 }
 
@@ -367,79 +325,63 @@ async fn delete_inbound_fails_for_pending_record() {
 async fn create_outbound_fails_when_pipe_not_in_stock() {
     let pool = common::test_pool().await;
 
-    // Pipe is "available" — not yet in stock
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-008", "available", "J55")
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-008", "scrapped", "J55")
         .await
         .unwrap();
 
     let dto = CreateOutboundRecordRequest {
         outbound_type: "sales".into(),
+        order_id: None,
         customer_id: None,
-        reference_no: Some("SO-001".into()),
         notes: None,
-        pipes: vec![InboundPipeItem {
+        pipes: vec![OutboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
 
-    let err = InventoryService::create_outbound(&pool, &dto)
+    let err = OutboundService::create_outbound(&pool, &dto)
         .await
         .expect_err("outbound must fail for non-in-stock pipe");
-    assert!(err.to_string().contains("not in stock"));
+    assert!(err.to_string().contains("Insufficient stock"));
 }
 
 #[tokio::test]
 async fn create_outbound_succeeds_for_in_stock_pipe() {
     let pool = common::test_pool().await;
 
-    // First: inbound + approve to put pipe in stock
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-009", "available", "J55")
+    // First: inbound to put pipe in stock (purchase = auto_approved)
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-009", "scrapped", "J55")
         .await
         .unwrap();
 
     let inbound_dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "pending".into(),
-        reference_no: Some("PO-009".into()),
+        inbound_type: "purchase".into(),
+        order_id: Some(9009),
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: None,
         pipes: vec![InboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
-    let inbound = InventoryService::create_inbound(&pool, &inbound_dto)
+    InboundService::create_inbound(&pool, &inbound_dto)
         .await
         .unwrap();
-    InventoryService::approve_inbound(&pool, inbound.id)
-        .await
-        .expect("approve must succeed");
 
-    // Now create outbound
+    // Now create outbound (sales = auto_approved, executes immediately)
     let outbound_dto = CreateOutboundRecordRequest {
         outbound_type: "sales".into(),
+        order_id: None,
         customer_id: None,
-        reference_no: Some("SO-009".into()),
         notes: None,
-        pipes: vec![InboundPipeItem {
+        pipes: vec![OutboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
 
-    let record = InventoryService::create_outbound(&pool, &outbound_dto)
+    let record = OutboundService::create_outbound(&pool, &outbound_dto)
         .await
         .expect("outbound must succeed for in_stock pipe");
     assert_eq!(record.outbound_type, "sales");
@@ -451,13 +393,13 @@ async fn create_outbound_requires_at_least_one_pipe() {
 
     let dto = CreateOutboundRecordRequest {
         outbound_type: "sales".into(),
+        order_id: None,
         customer_id: None,
-        reference_no: None,
         notes: None,
         pipes: vec![],
     };
 
-    let err = InventoryService::create_outbound(&pool, &dto)
+    let err = OutboundService::create_outbound(&pool, &dto)
         .await
         .expect_err("must fail with no pipes");
     assert!(err.to_string().contains("At least one pipe"));
@@ -472,30 +414,35 @@ async fn create_and_list_locations() {
     let pool = common::test_pool().await;
 
     let dto = CreateLocationRequest {
-        zone: "A".into(),
-        shelf: "01".into(),
-        level: "01".into(),
-        location_type: "storage".into(),
-        max_capacity: Some(50),
-        notes: None,
+        zone_code: "A".into(),
+        shelf_code: "01".into(),
+        level_code: "01".into(),
+        description: None,
+        capacity: Some(50),
     };
 
     let location =
-        InventoryService::create_location(&pool, &dto)
+        LocationService::create_location(&pool, &dto)
             .await
             .expect("create_location must succeed");
 
-    assert_eq!(location.code, "A-01-01");
-    assert_eq!(location.zone, "A");
-    assert_eq!(location.shelf, "01");
-    assert_eq!(location.level, "01");
+    assert_eq!(location.full_code, "A-01-01");
+    assert_eq!(location.zone_code, "A");
+    assert_eq!(location.shelf_code, "01");
+    assert_eq!(location.level_code, "01");
 
     // List all locations
-    let (locations, total) = InventoryService::list_locations(&pool, None)
+    let params = PaginationParams {
+        page: None,
+        page_size: None,
+        sort_by: None,
+        sort_order: None,
+    };
+    let (locations, total) = LocationService::list_locations(&pool, &params, false)
         .await
         .expect("list_locations must succeed");
     assert_eq!(total, 1);
-    assert_eq!(locations[0].code, "A-01-01");
+    assert_eq!(locations[0].full_code, "A-01-01");
 }
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -511,35 +458,61 @@ async fn create_and_submit_check_record() {
         .await
         .unwrap();
 
-    // Create check record
+    // We need at least one in_stock pipe for the check to create items
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-CHK-001", "scrapped", "J55")
+        .await
+        .unwrap();
+    let inbound_dto = CreateInboundRecordRequest {
+        inbound_type: "purchase".into(),
+        order_id: None,
+        supplier_id: None,
+        notes: None,
+        pipes: vec![InboundPipeItem {
+            pipe_id,
+            pipe_type: "seamless".into(),
+        }],
+    };
+    InboundService::create_inbound(&pool, &inbound_dto)
+        .await
+        .unwrap();
+
+    // Create a check record — auto-scans in_stock pipes
     let dto = CreateCheckRequest {
-        check_type: "annual".into(),
-        location_id,
-        scheduled_date: None,
+        location_id: Some(location_id),
         notes: None,
     };
 
-    let check = InventoryService::create_check_record(&pool, &dto, 1)
+    let check = CheckService::create_check(&pool, &dto)
         .await
-        .expect("create_check_record must succeed");
+        .expect("create_check must succeed");
 
-    assert_eq!(check.check_type, "annual");
+    assert_eq!(check.status, "in_progress");
 
-    // Submit check items
+    // Get the auto-generated check items to find an item_id
+    let (_record, items) = CheckService::get_check_detail(&pool, check.id)
+        .await
+        .expect("get_check_detail must succeed");
+    assert!(!items.is_empty(), "check should have at least one item");
+
+    let item_id = items[0].id;
+
+    // Submit the result for a single check item
     let submit = SubmitCheckItemRequest {
-        check_id: check.id,
-        items: vec![CheckInitItem {
-            pipe_id: 9999, // non-existent pipe for test
-            pipe_type: "seamless".into(),
-            expected_status: "in_stock".into(),
-            actual_status: Some("in_stock".into()),
-            notes: None,
-        }],
+        found_status: "in_stock".into(),
+        notes: None,
     };
 
-    InventoryService::submit_check(&pool, &submit, 1)
+    CheckService::submit_check_item(&pool, check.id, item_id, &submit)
         .await
-        .expect("submit_check must succeed");
+        .expect("submit_check_item must succeed");
+
+    // Verify the item was updated
+    let updated_items = CheckService::get_check_detail(&pool, check.id)
+        .await
+        .expect("get_check_detail must succeed")
+        .1;
+    let submitted = updated_items.iter().find(|i| i.id == item_id).unwrap();
+    assert_eq!(submitted.found_status.as_deref(), Some("in_stock"));
 }
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -550,48 +523,37 @@ async fn create_and_submit_check_record() {
 async fn atp_query_returns_availability() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-ATPC-001", "available", "J55")
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-ATPC-001", "scrapped", "J55")
         .await
         .unwrap();
 
+    // Purchase inbound = auto_approved → pipe becomes in_stock
     let dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "pending".into(),
-        reference_no: None,
+        inbound_type: "purchase".into(),
+        order_id: None,
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: None,
         pipes: vec![InboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
-    let inbound = InventoryService::create_inbound(&pool, &dto).await.unwrap();
-    InventoryService::approve_inbound(&pool, inbound.id)
-        .await
-        .expect("approve must succeed");
+    InboundService::create_inbound(&pool, &dto).await.unwrap();
 
     let atp_query = AtpQuery {
-        pipe_type: "seamless".into(),
+        pipe_type: Some("casing".into()),
         grade: Some("J55".into()),
-        od_min: Some(170.0),
-        od_max: Some(180.0),
-        wt_min: None,
-        wt_max: None,
-        length_min: None,
-        length_max: None,
         location_id: None,
     };
 
-    let result = InventoryService::atp_query(&pool, &atp_query, None)
+    let result = InventoryQueryService::check_atp(&pool, &atp_query)
         .await
-        .expect("atp_query must succeed");
+        .expect("check_atp must succeed");
 
-    assert!(result.total_quantity > 0, "should have at least 1 available");
+    assert!(!result.is_empty(), "should have at least 1 available item");
+    assert_eq!(result[0].pipe_type, "casing");
+    assert_eq!(result[0].grade, "J55");
+    assert!(result[0].quantity > 0, "quantity should be positive");
 }
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -602,76 +564,66 @@ async fn atp_query_returns_availability() {
 async fn pipe_status_transitions_correctly_through_inbound_outbound_cycle() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-STATE-001", "available", "J55")
+    let pipe_id = common::seed_seamless_pipe(&pool, "PN-STATE-001", "scrapped", "J55")
         .await
         .unwrap();
 
-    // 1. Initial state: available
     let status: (String,) =
-        sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
+        sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
             .bind(pipe_id)
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert_eq!(status.0, "available");
+    assert_eq!(status.0, "scrapped");
 
-    // 2. Create pending inbound (no state change yet)
+    // 2. Create a pending inbound (non-purchase, e.g. "return")
     let inbound_dto = CreateInboundRecordRequest {
-        source_type: "purchase".into(),
-        approval_status: "pending".into(),
-        reference_no: None,
+        inbound_type: "return".into(),
+        order_id: None,
         supplier_id: None,
-        customer_id: None,
-        expected_date: None,
         notes: None,
         pipes: vec![InboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
-    let inbound = InventoryService::create_inbound(&pool, &inbound_dto)
+    let inbound = InboundService::create_inbound(&pool, &inbound_dto)
         .await
         .unwrap();
 
     // 3. Approve → status becomes "in_stock"
-    InventoryService::approve_inbound(&pool, inbound.id)
+    InboundService::approve_inbound(&pool, inbound.id)
         .await
         .expect("approve must succeed");
 
     let status: (String,) =
-        sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
+        sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
             .bind(pipe_id)
             .fetch_one(&pool)
             .await
             .unwrap();
     assert_eq!(status.0, "in_stock");
 
-    // 4. Create outbound → status becomes "sold"
+    // 4. Create outbound (sales = auto_approved) → status becomes "outbound"
     let outbound_dto = CreateOutboundRecordRequest {
         outbound_type: "sales".into(),
+        order_id: None,
         customer_id: None,
-        reference_no: Some("SO-STATE-001".into()),
         notes: None,
-        pipes: vec![InboundPipeItem {
+        pipes: vec![OutboundPipeItem {
             pipe_id,
             pipe_type: "seamless".into(),
-            quantity: 1,
-            weight: None,
-            length: None,
         }],
     };
-    let outbound = InventoryService::create_outbound(&pool, &outbound_dto)
+    OutboundService::create_outbound(&pool, &outbound_dto)
         .await
         .unwrap();
 
     let status: (String,) =
-        sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
+        sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
             .bind(pipe_id)
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert_eq!(status.0, "sold");
+    assert_eq!(status.0, "outbound");
 }

@@ -8,52 +8,71 @@ import { initReactI18next } from 'react-i18next';
 import zhCommon from './locales/zh/common.json';
 import enCommon from './locales/en/common.json';
 
-const FEATURE_FILES = [
-  'pipes',
-  'screen_pipes',
-  'inventory',
-  'inbound',
-  'outbound',
-  'stock',
-  'location',
-  'inventory_check',
-  'purchase',
-  'sales',
-  'quality',
-  'contracts',
-  'suppliers',
-  'customers',
-  'reports',
-  'labels',
-  'profile',
-  'search',
-  'system',
-  'validation',
-] as const;
+type TranslationLoader = () => Promise<unknown>;
 
-type FeatureKey = (typeof FEATURE_FILES)[number];
-
-// Async-load translation JSON for a given language
-async function importFeature(
-  lang: 'zh' | 'en',
-  name: string,
-): Promise<Record<string, unknown>> {
-  const mod = await import(`./locales/${lang}/${name}.json`);
-  return (mod.default ?? mod) as Record<string, unknown>;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function buildLoaders(
-  lang: 'zh' | 'en',
-): Record<string, () => Promise<Record<string, unknown>>> {
-  return Object.fromEntries(
-    FEATURE_FILES.map((f) => [f, () => importFeature(lang, f)]),
-  );
+function normalizeModule(mod: unknown): Record<string, unknown> {
+  if (isRecord(mod) && isRecord(mod.default)) {
+    return mod.default;
+  }
+  if (isRecord(mod)) {
+    return mod;
+  }
+  return {};
 }
 
-const ZH_LOADERS = buildLoaders('zh');
-const EN_LOADERS = buildLoaders('en');
+const ZH_LOADERS = {
+  pipes: () => import('./locales/zh/pipes.json'),
+  screen_pipes: () => import('./locales/zh/screen_pipes.json'),
+  inventory: () => import('./locales/zh/inventory.json'),
+  inbound: () => import('./locales/zh/inbound.json'),
+  outbound: () => import('./locales/zh/outbound.json'),
+  stock: () => import('./locales/zh/stock.json'),
+  location: () => import('./locales/zh/location.json'),
+  inventory_check: () => import('./locales/zh/inventory_check.json'),
+  purchase: () => import('./locales/zh/purchase.json'),
+  sales: () => import('./locales/zh/sales.json'),
+  quality: () => import('./locales/zh/quality.json'),
+  contracts: () => import('./locales/zh/contracts.json'),
+  suppliers: () => import('./locales/zh/suppliers.json'),
+  customers: () => import('./locales/zh/customers.json'),
+  reports: () => import('./locales/zh/reports.json'),
+  labels: () => import('./locales/zh/labels.json'),
+  profile: () => import('./locales/zh/profile.json'),
+  search: () => import('./locales/zh/search.json'),
+  system: () => import('./locales/zh/system.json'),
+  validation: () => import('./locales/zh/validation.json'),
+} satisfies Record<string, TranslationLoader>;
 
-function getLoaders(lang: string) {
+const EN_LOADERS = {
+  pipes: () => import('./locales/en/pipes.json'),
+  screen_pipes: () => import('./locales/en/screen_pipes.json'),
+  inventory: () => import('./locales/en/inventory.json'),
+  inbound: () => import('./locales/en/inbound.json'),
+  outbound: () => import('./locales/en/outbound.json'),
+  stock: () => import('./locales/en/stock.json'),
+  location: () => import('./locales/en/location.json'),
+  inventory_check: () => import('./locales/en/inventory_check.json'),
+  purchase: () => import('./locales/en/purchase.json'),
+  sales: () => import('./locales/en/sales.json'),
+  quality: () => import('./locales/en/quality.json'),
+  contracts: () => import('./locales/en/contracts.json'),
+  suppliers: () => import('./locales/en/suppliers.json'),
+  customers: () => import('./locales/en/customers.json'),
+  reports: () => import('./locales/en/reports.json'),
+  labels: () => import('./locales/en/labels.json'),
+  profile: () => import('./locales/en/profile.json'),
+  search: () => import('./locales/en/search.json'),
+  system: () => import('./locales/en/system.json'),
+  validation: () => import('./locales/en/validation.json'),
+} satisfies Record<keyof typeof ZH_LOADERS, TranslationLoader>;
+
+type FeatureKey = keyof typeof ZH_LOADERS;
+
+function getLoaders(lang: string): Record<string, TranslationLoader> {
   return lang === 'en' ? EN_LOADERS : ZH_LOADERS;
 }
 
@@ -88,7 +107,7 @@ export async function loadFeatureTranslations(
   if (!loader) return;
 
   try {
-    const data = await loader();
+    const data = normalizeModule(await loader());
     if (key === 'purchase') {
       // purchase.json registers under both 'purchases' and 'purchase' keys
       i18n.addResourceBundle(lang, 'translation', { purchases: data, purchase: data }, true, true);

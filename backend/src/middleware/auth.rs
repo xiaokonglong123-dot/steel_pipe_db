@@ -1,3 +1,5 @@
+use std::fmt;
+
 use axum::{
     extract::Request,
     http::StatusCode,
@@ -10,6 +12,21 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::ApiErrorResponse;
+
+#[derive(Clone)]
+pub struct JwtSecret(pub String);
+
+impl JwtSecret {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for JwtSecret {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("JwtSecret").field(&"<redacted>").finish()
+    }
+}
 
 /// JWT payload claims extracted from the access token.
 ///
@@ -44,11 +61,16 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Response {
-    let jwt_secret = req
-        .extensions()
-        .get::<String>()
-        .cloned()
-        .unwrap_or_default();
+    let Some(jwt_secret) = req.extensions().get::<JwtSecret>() else {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiErrorResponse {
+            success: false,
+            code: 50001,
+            request_id: format!("req_{}", Uuid::new_v4()),
+            message: "Authentication is not configured".to_string(),
+            details: None,
+        }))
+            .into_response();
+    };
 
     let auth_header = req
         .headers()
@@ -71,7 +93,7 @@ pub async fn auth_middleware(
 
     match decode::<Claims>(
         token,
-        &DecodingKey::from_secret(jwt_secret.as_bytes()),
+        &DecodingKey::from_secret(jwt_secret.as_str().as_bytes()),
         &Validation::default(),
     ) {
         Ok(data) => {

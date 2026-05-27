@@ -8,11 +8,12 @@ import {
   searchPurchaseOrderResultSchema,
   searchSalesOrderResultSchema,
 } from '@/zod-schemas/search';
+import { searchQueryKeys } from '../queryKeys';
 import { z } from 'zod';
 
 export function useSearchPipes(query: string) {
   return useQuery({
-    queryKey: ['search', 'pipes', query],
+    queryKey: searchQueryKeys.pipes(query),
     queryFn: () =>
       apiClient
         .get('/pipes/search', { params: { q: query } })
@@ -23,7 +24,7 @@ export function useSearchPipes(query: string) {
 
 export function useSearchInbound(query: string) {
   return useQuery({
-    queryKey: ['search', 'inbound', query],
+    queryKey: searchQueryKeys.inbound(query),
     queryFn: () =>
       apiClient
         .get('/inventory/inbound/search', { params: { q: query } })
@@ -34,7 +35,7 @@ export function useSearchInbound(query: string) {
 
 export function useSearchOutbound(query: string) {
   return useQuery({
-    queryKey: ['search', 'outbound', query],
+    queryKey: searchQueryKeys.outbound(query),
     queryFn: () =>
       apiClient
         .get('/inventory/outbound/search', { params: { q: query } })
@@ -45,7 +46,7 @@ export function useSearchOutbound(query: string) {
 
 export function useSearchPurchaseOrders(query: string) {
   return useQuery({
-    queryKey: ['search', 'purchases', query],
+    queryKey: searchQueryKeys.purchases(query),
     queryFn: () =>
       apiClient
         .get('/purchase-orders/search', { params: { q: query } })
@@ -56,7 +57,7 @@ export function useSearchPurchaseOrders(query: string) {
 
 export function useSearchSalesOrders(query: string) {
   return useQuery({
-    queryKey: ['search', 'sales', query],
+    queryKey: searchQueryKeys.sales(query),
     queryFn: () =>
       apiClient
         .get('/sales-orders/search', { params: { q: query } })

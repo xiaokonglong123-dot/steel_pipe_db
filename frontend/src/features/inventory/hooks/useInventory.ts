@@ -7,6 +7,7 @@ import {
   checkApi,
   pipeSearchApi,
 } from '../api/inventoryApi';
+import { inventoryQueryKeys } from '../queryKeys';
 import type {
   InboundFilter,
   OutboundFilter,
@@ -26,14 +27,14 @@ import type {
 
 export function useInboundRecords(params?: InboundFilter) {
   return useQuery({
-    queryKey: ['inbound-records', params],
+    queryKey: inventoryQueryKeys.inbound.list(params),
     queryFn: () => inboundApi.list(params),
   });
 }
 
 export function useInboundRecord(id: number) {
   return useQuery({
-    queryKey: ['inbound-record', id],
+    queryKey: inventoryQueryKeys.inbound.detail(id),
     queryFn: () => inboundApi.get(id),
     enabled: !!id,
   });
@@ -44,7 +45,7 @@ export function useCreateInbound() {
   return useMutation({
     mutationFn: (data: CreateInboundData) => inboundApi.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['inbound-records'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all });
     },
   });
 }
@@ -55,8 +56,8 @@ export function useApproveInbound() {
     mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
       inboundApi.approve(id, reason),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['inbound-records'] });
-      qc.invalidateQueries({ queryKey: ['inbound-record'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.details });
     },
   });
 }
@@ -67,8 +68,8 @@ export function useRejectInbound() {
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       inboundApi.reject(id, reason),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['inbound-records'] });
-      qc.invalidateQueries({ queryKey: ['inbound-record'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.details });
     },
   });
 }
@@ -78,7 +79,7 @@ export function useDeleteInbound() {
   return useMutation({
     mutationFn: (id: number) => inboundApi.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['inbound-records'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all });
     },
   });
 }
@@ -87,14 +88,14 @@ export function useDeleteInbound() {
 
 export function useOutboundRecords(params?: OutboundFilter) {
   return useQuery({
-    queryKey: ['outbound-records', params],
+    queryKey: inventoryQueryKeys.outbound.list(params),
     queryFn: () => outboundApi.list(params),
   });
 }
 
 export function useOutboundRecord(id: number) {
   return useQuery({
-    queryKey: ['outbound-record', id],
+    queryKey: inventoryQueryKeys.outbound.detail(id),
     queryFn: () => outboundApi.get(id),
     enabled: !!id,
   });
@@ -105,7 +106,7 @@ export function useCreateOutbound() {
   return useMutation({
     mutationFn: (data: CreateOutboundData) => outboundApi.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['outbound-records'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
     },
   });
 }
@@ -116,8 +117,8 @@ export function useApproveOutbound() {
     mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
       outboundApi.approve(id, reason),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['outbound-records'] });
-      qc.invalidateQueries({ queryKey: ['outbound-record'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.details });
     },
   });
 }
@@ -128,8 +129,8 @@ export function useRejectOutbound() {
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       outboundApi.reject(id, reason),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['outbound-records'] });
-      qc.invalidateQueries({ queryKey: ['outbound-record'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.details });
     },
   });
 }
@@ -139,7 +140,7 @@ export function useDeleteOutbound() {
   return useMutation({
     mutationFn: (id: number) => outboundApi.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['outbound-records'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
     },
   });
 }
@@ -148,21 +149,21 @@ export function useDeleteOutbound() {
 
 export function useStockQuery(params?: StockFilter) {
   return useQuery({
-    queryKey: ['inventory-stock', params],
+    queryKey: inventoryQueryKeys.stock.list(params),
     queryFn: () => inventoryApi.queryStock(params),
   });
 }
 
 export function useInventoryLogs(params?: StockFilter) {
   return useQuery({
-    queryKey: ['inventory-logs', params],
+    queryKey: inventoryQueryKeys.stock.logs(params),
     queryFn: () => inventoryApi.queryLogs(params),
   });
 }
 
 export function useTracePipe(pipeType: string, pipeId: number) {
   return useQuery({
-    queryKey: ['trace-pipe', pipeType, pipeId],
+    queryKey: inventoryQueryKeys.trace.pipe(pipeType, pipeId),
     queryFn: () => inventoryApi.tracePipe(pipeType, pipeId),
     enabled: !!pipeType && !!pipeId,
   });
@@ -170,7 +171,7 @@ export function useTracePipe(pipeType: string, pipeId: number) {
 
 export function useTraceHeat(heatNumber: string) {
   return useQuery({
-    queryKey: ['trace-heat', heatNumber],
+    queryKey: inventoryQueryKeys.trace.heat(heatNumber),
     queryFn: () => inventoryApi.traceHeat(heatNumber),
     enabled: !!heatNumber,
   });
@@ -178,7 +179,7 @@ export function useTraceHeat(heatNumber: string) {
 
 export function useTraceOrder(orderType: string, orderId: number) {
   return useQuery({
-    queryKey: ['trace-order', orderType, orderId],
+    queryKey: inventoryQueryKeys.trace.order(orderType, orderId),
     queryFn: () => inventoryApi.traceOrder(orderType, orderId),
     enabled: !!orderType && !!orderId,
   });
@@ -188,14 +189,14 @@ export function useTraceOrder(orderType: string, orderId: number) {
 
 export function useLocations(params?: LocationFilter) {
   return useQuery({
-    queryKey: ['locations', params],
+    queryKey: inventoryQueryKeys.locations.list(params),
     queryFn: () => locationApi.list(params),
   });
 }
 
 export function useLocation(id: number) {
   return useQuery({
-    queryKey: ['location', id],
+    queryKey: inventoryQueryKeys.locations.detail(id),
     queryFn: () => locationApi.get(id),
     enabled: !!id,
   });
@@ -206,7 +207,7 @@ export function useCreateLocation() {
   return useMutation({
     mutationFn: (data: CreateLocationData) => locationApi.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['locations'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.locations.all });
     },
   });
 }
@@ -217,8 +218,8 @@ export function useUpdateLocation() {
     mutationFn: ({ id, data }: { id: number; data: UpdateLocationData }) =>
       locationApi.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['locations'] });
-      qc.invalidateQueries({ queryKey: ['location'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.locations.all });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.locations.details });
     },
   });
 }
@@ -228,7 +229,7 @@ export function useDeleteLocation() {
   return useMutation({
     mutationFn: (id: number) => locationApi.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['locations'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.locations.all });
     },
   });
 }
@@ -237,14 +238,14 @@ export function useDeleteLocation() {
 
 export function useInventoryChecks(params?: CheckFilter) {
   return useQuery({
-    queryKey: ['inventory-checks', params],
+    queryKey: inventoryQueryKeys.checks.list(params),
     queryFn: () => checkApi.list(params),
   });
 }
 
 export function useInventoryCheck(id: number) {
   return useQuery({
-    queryKey: ['inventory-check', id],
+    queryKey: inventoryQueryKeys.checks.detail(id),
     queryFn: () => checkApi.get(id),
     enabled: !!id,
   });
@@ -255,7 +256,7 @@ export function useCreateCheck() {
   return useMutation({
     mutationFn: (data: CreateCheckData) => checkApi.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['inventory-checks'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.checks.all });
     },
   });
 }
@@ -273,7 +274,7 @@ export function useSubmitCheckItem() {
       data: SubmitCheckItemData;
     }) => checkApi.submitItem(checkId, itemId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['inventory-check'] });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.checks.details });
     },
   });
 }
@@ -282,7 +283,7 @@ export function useSubmitCheckItem() {
 
 export function usePipeSearch(params?: { q?: string; pipe_type?: string; status?: string }) {
   return useQuery({
-    queryKey: ['pipe-search', params],
+    queryKey: inventoryQueryKeys.pipeSearch(params),
     queryFn: () => pipeSearchApi.search(params),
   });
 }

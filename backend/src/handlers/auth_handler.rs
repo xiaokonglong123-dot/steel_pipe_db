@@ -12,7 +12,7 @@ use crate::dto::auth_dto::{
 };
 use crate::dto::common::PaginationParams;
 use crate::error::AppError;
-use crate::middleware::auth::AuthContext;
+use crate::middleware::auth::{AuthContext, JwtSecret};
 use crate::models::user::UserInfo;
 use crate::repositories::operation_log_repo::{CreateOperationLog, OperationLogRepo};
 use crate::response::ApiResponse;
@@ -40,12 +40,12 @@ impl<S: Sync> FromRequestParts<S> for AuthenticatedUser {
 /// Returns 401 on invalid credentials, 429 on rate limit (rate_limit_login middleware).
 pub async fn login_handler(
     Extension(pool): Extension<SqlitePool>,
-    Extension(jwt_secret): Extension<String>,
+    Extension(jwt_secret): Extension<JwtSecret>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<ApiResponse<LoginResponse>>, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let cfg = crate::config::Config::from_env();
-    let response = AuthService::login(&pool, &jwt_secret, cfg.jwt_expiry_hours, &req).await?;
+    let response = AuthService::login(&pool, jwt_secret.as_str(), cfg.jwt_expiry_hours, &req).await?;
 
     let _ = OperationLogRepo::create(
         &pool,
@@ -70,12 +70,12 @@ pub async fn login_handler(
 /// Uses refresh token rotation for security.
 /// Returns 401 if the refresh token is invalid or expired.
 pub async fn refresh_handler(
-    Extension(jwt_secret): Extension<String>,
+    Extension(jwt_secret): Extension<JwtSecret>,
     Json(req): Json<RefreshTokenRequest>,
 ) -> Result<Json<ApiResponse<TokenResponse>>, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let cfg = crate::config::Config::from_env();
-    let response = AuthService::refresh_token(&jwt_secret, cfg.jwt_expiry_hours, &req).await?;
+    let response = AuthService::refresh_token(jwt_secret.as_str(), cfg.jwt_expiry_hours, &req).await?;
     Ok(ApiResponse::ok(response))
 }
 

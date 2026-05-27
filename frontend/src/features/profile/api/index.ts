@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
+import { userQueryKeys } from '@/features/auth/queryKeys';
 import type { ApiResponse } from '@/types';
 import type { UserInfo } from '@/types';
 
@@ -31,7 +32,7 @@ export function useUpdateProfile() {
       if (res.data.success && res.data.data) {
         setUser(res.data.data);
       }
-      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: userQueryKeys.all });
     },
   });
 }
