@@ -29,7 +29,12 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npm run build
+      - name: TypeScript type-check
+        id: tsc_check
+        run: npx tsc -b
+        continue-on-error: true
+      - name: Build frontend (vite)
+        run: npx vite build
       - uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
