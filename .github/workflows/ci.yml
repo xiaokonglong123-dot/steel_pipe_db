@@ -23,6 +23,8 @@ jobs:
         with:
           workspaces: backend
       - run: cargo check
+        env:
+          RUST_BACKTRACE: 1
 
   frontend:
     name: Frontend (type-check + build)
@@ -38,5 +40,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npx tsc --noEmit
+      - name: Check environment
+        run: |
+          node --version
+          npx tsc --version
+          npm ls zod typescript 2>&1
+          ls node_modules/zod/index.ts 2>/dev/null && echo "zod ESM entry exists"
+      - run: npx tsc --noEmit 2>&1
       - run: npm run build
