@@ -18,7 +18,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useCreateOutbound, useOutboundRecord } from '../hooks/useInventory';
 import { pipeSearchApi } from '../api/inventoryApi';
-import type { PipeSearchResult, CreateOutboundData } from '../api/inventoryApi';
+import type { PipeSearchResult, CreateOutboundData, OutboundItem } from '../api/inventoryApi';
 
 const OUTBOUND_TYPES = ['sales', 'production', 'return', 'transfer', 'scrapped'];
 const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
@@ -47,7 +47,7 @@ export default function OutboundFormPage() {
         order_id: outboundRecord.record.order_id,
         customer_id: outboundRecord.record.customer_id,
         notes: outboundRecord.record.notes,
-        pipes: outboundRecord.items.map((item) => ({
+        pipes: outboundRecord.items.map((item: OutboundItem) => ({
           pipe_type: item.pipe_type,
           pipe_id: item.pipe_id,
         })),

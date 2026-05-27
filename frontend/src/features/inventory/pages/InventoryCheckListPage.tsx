@@ -25,6 +25,7 @@ import type {
   InventoryCheckItem,
   CreateCheckData,
   SubmitCheckItemData,
+  Location,
 } from '../api/inventoryApi';
 
 const STATUS_COLOR_MAP: Record<string, string> = {
@@ -109,7 +110,7 @@ export default function InventoryCheckListPage() {
       key: 'location_id',
       render: (locId: number | undefined) => {
         if (!locId) return '-';
-        const loc = locations?.items?.find((l) => l.id === locId);
+        const loc = locations?.items?.find((l: Location) => l.id === locId);
         return loc?.full_code ?? `#${locId}`;
       },
     },

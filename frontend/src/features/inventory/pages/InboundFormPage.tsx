@@ -18,7 +18,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useCreateInbound, useInboundRecord } from '../hooks/useInventory';
 import { pipeSearchApi } from '../api/inventoryApi';
-import type { PipeSearchResult, CreateInboundData } from '../api/inventoryApi';
+import type { PipeSearchResult, CreateInboundData, InboundItem } from '../api/inventoryApi';
 
 const INBOUND_TYPES = ['purchase', 'production', 'return', 'transfer'];
 const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
@@ -47,7 +47,7 @@ export default function InboundFormPage() {
         order_id: inboundRecord.record.order_id,
         supplier_id: inboundRecord.record.supplier_id,
         notes: inboundRecord.record.notes,
-        pipes: inboundRecord.items.map((item) => ({
+        pipes: inboundRecord.items.map((item: InboundItem) => ({
           pipe_type: item.pipe_type,
           pipe_id: item.pipe_id,
         })),

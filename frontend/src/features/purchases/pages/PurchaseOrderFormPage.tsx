@@ -16,6 +16,7 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import type { PurchaseOrderItem } from '../types';
 import { usePurchase, useCreatePurchaseOrder, useUpdatePurchaseOrder } from '../hooks/usePurchases';
 
 const PIPE_TYPES = ['seamless', 'screen'];
@@ -41,7 +42,7 @@ export default function PurchaseOrderFormPage() {
         order_date: order.order_date ? dayjs(order.order_date) : undefined,
         expected_date: order.expected_date ? dayjs(order.expected_date) : undefined,
         notes: order.notes,
-        items: order.items.map((item) => ({
+        items: order.items.map((item: PurchaseOrderItem) => ({
           pipe_type: item.pipe_type,
           grade: item.grade,
           od: item.od,
