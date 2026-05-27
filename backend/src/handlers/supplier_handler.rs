@@ -21,6 +21,10 @@ pub struct SearchQuery {
     pub q: String,
 }
 
+/// GET `/api/v1/suppliers` — Paginated list of suppliers
+///
+/// Supports filtering by code, name, status, etc.
+/// Returns paginated supplier results.
 pub async fn list_suppliers_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<SupplierFilterParams>,
@@ -39,6 +43,10 @@ pub async fn list_suppliers_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// POST `/api/v1/suppliers` — Create a supplier
+///
+/// Creates a new supplier with contact and qualification info.
+/// Validates request body. Returns the created supplier.
 pub async fn create_supplier_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSupplierRequest>,
@@ -48,6 +56,9 @@ pub async fn create_supplier_handler(
     Ok(ApiResponse::ok(supplier))
 }
 
+/// GET `/api/v1/suppliers/{id}` — Get supplier details
+///
+/// Returns a single supplier by ID. Returns 404 if not found.
 pub async fn get_supplier_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -56,6 +67,10 @@ pub async fn get_supplier_handler(
     Ok(ApiResponse::ok(supplier))
 }
 
+/// PUT `/api/v1/suppliers/{id}` — Update supplier info
+///
+/// Updates an existing supplier. Validates request body.
+/// Returns 404 if not found.
 pub async fn update_supplier_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -66,6 +81,9 @@ pub async fn update_supplier_handler(
     Ok(ApiResponse::ok(supplier))
 }
 
+/// DELETE `/api/v1/suppliers/{id}` — Soft-delete a supplier
+///
+/// Soft-deletes a supplier. Returns 404 if not found.
 pub async fn delete_supplier_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -74,6 +92,9 @@ pub async fn delete_supplier_handler(
     Ok(ApiResponse::ok("Supplier deleted successfully".into()))
 }
 
+/// GET `/api/v1/suppliers/search?q={keyword}` — Search suppliers by keyword
+///
+/// Searches suppliers by keyword (code, name, contact).
 pub async fn search_suppliers_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<SearchQuery>,
@@ -82,6 +103,9 @@ pub async fn search_suppliers_handler(
     Ok(ApiResponse::ok(results))
 }
 
+/// GET `/api/v1/suppliers/active` — List active suppliers for dropdown
+///
+/// Returns all active suppliers (for dropdown selection forms).
 pub async fn list_active_suppliers_handler(
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Json<ApiResponse<Vec<Supplier>>>, AppError> {

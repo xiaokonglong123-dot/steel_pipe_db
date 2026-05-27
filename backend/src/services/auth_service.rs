@@ -12,9 +12,20 @@ use crate::middleware::auth::Claims;
 use crate::models::user::{User, UserInfo};
 use crate::repositories::user_repo::UserRepo;
 
+/// Auth service — handles login, token refresh, password bullshit, and user CRUD.
+/// Under the hood it kicks password verification to Argon2 and JWT generation to jsonwebtoken.
 pub struct AuthService;
 
 impl AuthService {
+    /// Authenticate a user by username and password.
+    ///
+    /// Verifies credentials via Argon2, generates a JWT access token,
+    /// updates the `last_login` timestamp, and returns the token + user profile.
+    ///
+    /// # Errors
+    /// - `AppError::Unauthorized` — invalid username or password
+    /// - `AppError::Forbidden` — account is disabled
+    /// - `AppError::Internal` — password hash corrupted or token generation failed
     pub async fn login(
         pool: &SqlitePool,
         jwt_secret: &str,
@@ -56,6 +67,15 @@ impl AuthService {
         })
     }
 
+    /// Issue a new JWT by decoding and re-encoding the existing (possibly expired) token.
+    ///
+    /// Reads the original claims, discards the old expiry, and assigns a fresh `exp` + `iat`.
+    /// This is NOT a full refresh-token rotation — the old token remains valid until its original expiry.
+    ///
+    /// # Errors
+    /// - `AppError::TokenExpired` — the provided token has an expired signature
+    /// - `AppError::Unauthorized` — the token is structurally invalid
+    /// - `AppError::Internal` — system time is misconfigured or signing failed
     pub async fn refresh_token(
         jwt_secret: &str,
         jwt_expiry_hours: i64,
@@ -96,6 +116,12 @@ impl AuthService {
         Ok(crate::dto::auth_dto::TokenResponse { token })
     }
 
+    /// Creates a damn new user and gives you back the basic profile.
+    /// Hashes the password with Argon2 before shoving it into the DB.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — username already exists
+    /// - `AppError::Internal` — password hashing failure
     pub async fn create_user(
         pool: &SqlitePool,
         dto: &CreateUserRequest,
@@ -124,6 +150,11 @@ impl AuthService {
         })
     }
 
+    /// Updates the user's profile — display name, email, phone, that kinda shit.
+    /// Returns the updated `UserInfo`.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — user ID does not exist
     pub async fn update_user(
         pool: &SqlitePool,
         id: i64,
@@ -148,6 +179,13 @@ impl AuthService {
         })
     }
 
+    /// Changes the user's password.
+    /// Admins get a free pass on the old-password check; everyone else has to know their current shit.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — user ID does not exist
+    /// - `AppError::Unauthorized` — old password does not match (non-admin)
+    /// - `AppError::Internal` — password hashing failure
     pub async fn change_password(
         pool: &SqlitePool,
         user_id: i64,
@@ -177,6 +215,10 @@ impl AuthService {
         Ok(())
     }
 
+    /// Fetches the currently logged-in user's own profile.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — user ID does not exist
     pub async fn get_me(
         pool: &SqlitePool,
         user_id: i64,
@@ -196,6 +238,8 @@ impl AuthService {
         })
     }
 
+    /// Paginated user list with fuzzy username search.
+    /// Returns a tuple of `(user_infos, total_count)`.
     pub async fn list_users(
         pool: &SqlitePool,
         params: &crate::dto::common::PaginationParams,
@@ -257,6 +301,11 @@ impl AuthService {
         .map_err(|_| AppError::Internal("Failed to generate token".into()))
     }
 
+    /// Swaps a user's role — only accepts admin/warehouse/qc/sales, no-BS.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — user ID does not exist
+    /// - `AppError::Validation` — role value is not in the allowed set
     pub async fn change_role(
         pool: &SqlitePool,
         user_id: i64,
@@ -290,6 +339,10 @@ impl AuthService {
         })
     }
 
+    /// Soft-deletes a user by flipping on the `deleted_at` flag.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — user ID does not exist
     pub async fn delete_user(
         pool: &SqlitePool,
         user_id: i64,

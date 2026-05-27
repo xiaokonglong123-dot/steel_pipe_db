@@ -4,9 +4,11 @@ use crate::models::quality::QualityCert;
 use crate::models::screen_pipe::ScreenPipe;
 use crate::models::seamless_pipe::SeamlessPipe;
 
+/// Label data queries: reads pipe details and quality certs for label generation.
 pub struct LabelRepo;
 
 impl LabelRepo {
+    /// SELECT a seamless pipe by id (used for label data). Returns `None` if soft-deleted.
     pub async fn find_seamless_pipe(
         pool: &SqlitePool,
         id: i64,
@@ -23,6 +25,7 @@ impl LabelRepo {
         .await
     }
 
+    /// SELECT a screen pipe by id (used for label data). Returns `None` if soft-deleted.
     pub async fn find_screen_pipe(
         pool: &SqlitePool,
         id: i64,
@@ -39,6 +42,7 @@ impl LabelRepo {
         .await
     }
 
+    /// SELECT a quality cert by id (used for label data). Returns `None` if soft-deleted.
     pub async fn find_quality_cert(
         pool: &SqlitePool,
         id: i64,

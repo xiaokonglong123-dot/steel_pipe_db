@@ -11,6 +11,8 @@ use crate::models::screen_pipe::ScreenPipe;
 use crate::models::seamless_pipe::SeamlessPipe;
 use crate::repositories::pipe_repo::{ScreenPipeRepo, SeamlessPipeRepo};
 
+/// Pipe master-data service — CRUD and search for seamless and screen pipes.
+/// Kicks off with pipe-number uniqueness checks and enforces soft-delete / status gates on mutations.
 pub struct PipeService;
 
 impl PipeService {
@@ -22,6 +24,11 @@ impl PipeService {
 
     // ━━━ Seamless Pipe ━━━
 
+    /// Creates a seamless pipe record.
+    /// Auto-generates a pipe number if none is given; tells you to fuck off if the number's taken.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNumberDuplicate` — the submitted pipe number already exists
     pub async fn create_seamless_pipe(
         pool: &SqlitePool,
         dto: &CreateSeamlessPipeRequest,
@@ -69,6 +76,11 @@ impl PipeService {
             .map_err(AppError::from)
     }
 
+    /// Updates seamless pipe fields.
+    /// Nopes out on soft-deleted records.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNotFound` — pipe ID not found or has been soft-deleted
     pub async fn update_seamless_pipe(
         pool: &SqlitePool,
         id: i64,
@@ -91,6 +103,11 @@ impl PipeService {
             .map_err(AppError::from)
     }
 
+    /// Soft-deletes a seamless pipe. Only pipes with `in_stock` status get the axe.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNotFound` — ID doesn't exist
+    /// - `AppError::PipeStatusConflict` — current status says nope
     pub async fn delete_seamless_pipe(
         pool: &SqlitePool,
         id: i64,
@@ -112,6 +129,10 @@ impl PipeService {
             .map_err(AppError::from)
     }
 
+    /// Grabs a single seamless pipe by ID.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNotFound` — can't find that damn ID
     pub async fn get_seamless_pipe(
         pool: &SqlitePool,
         id: i64,
@@ -122,6 +143,8 @@ impl PipeService {
             .ok_or_else(|| AppError::PipeNotFound(format!("Seamless pipe id={} not found", id)))
     }
 
+    /// Paginated list of seamless pipes — filter by spec, grade, heat number, etc.
+    /// Returns `(items, total_count)`.
     pub async fn list_seamless_pipes(
         pool: &SqlitePool,
         filter: &PipeFilterParams,
@@ -134,6 +157,10 @@ impl PipeService {
 
     // ━━━ Screen Pipe ━━━
 
+    /// Creates a screen pipe. Auto-generates the pipe number or checks the submitted one is unique.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNumberDuplicate` — pipe number's already taken
     pub async fn create_screen_pipe(
         pool: &SqlitePool,
         dto: &CreateScreenPipeRequest,
@@ -180,6 +207,10 @@ impl PipeService {
             .map_err(AppError::from)
     }
 
+    /// Updates screen pipe fields. Won't touch soft-deleted records.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNotFound` — ID not found or already deleted
     pub async fn update_screen_pipe(
         pool: &SqlitePool,
         id: i64,
@@ -202,6 +233,11 @@ impl PipeService {
             .map_err(AppError::from)
     }
 
+    /// Soft-deletes a screen pipe. Only `in_stock` pipes are fair game.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNotFound` — ID doesn't exist
+    /// - `AppError::PipeStatusConflict` — status won't allow it
     pub async fn delete_screen_pipe(
         pool: &SqlitePool,
         id: i64,
@@ -223,6 +259,10 @@ impl PipeService {
             .map_err(AppError::from)
     }
 
+    /// Gets a single screen pipe by ID.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNotFound` — ID doesn't exist
     pub async fn get_screen_pipe(
         pool: &SqlitePool,
         id: i64,
@@ -233,6 +273,8 @@ impl PipeService {
             .ok_or_else(|| AppError::PipeNotFound(format!("Screen pipe id={} not found", id)))
     }
 
+    /// Paginated list of screen pipes — filter by spec, grade, whatever.
+    /// Returns `(items, total_count)`.
     pub async fn list_screen_pipes(
         pool: &SqlitePool,
         filter: &PipeFilterParams,
@@ -245,6 +287,11 @@ impl PipeService {
 
     // ━━━ Search ━━━
 
+    /// Searches across both pipe types and smashes the results together.
+    /// Each hit is tagged `pipe_type: "seamless"` or `"screen"`.
+    ///
+    /// # Errors
+    /// - `AppError::Internal` — JSON serialization failure for a matched pipe
     pub async fn search_pipes(
         pool: &SqlitePool,
         query: &str,

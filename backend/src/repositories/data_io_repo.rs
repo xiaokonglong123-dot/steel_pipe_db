@@ -2,9 +2,11 @@ use sqlx::{Row, SqlitePool};
 
 use crate::error::AppError;
 
+/// Bulk data export/import for Excel/CSV operations.
 pub struct DataIORepo;
 
 impl DataIORepo {
+    /// Export all non-deleted seamless pipes as JSON rows.
     pub async fn export_seamless_pipes(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -43,6 +45,7 @@ impl DataIORepo {
         })).collect())
     }
 
+    /// Export all non-deleted screen pipes as JSON rows.
     pub async fn export_screen_pipes(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -80,6 +83,7 @@ impl DataIORepo {
         })).collect())
     }
 
+    /// Export in-stock inventory (seamless + screen) as JSON rows.
     pub async fn export_inventory(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -129,6 +133,7 @@ impl DataIORepo {
         Ok(result)
     }
 
+    /// Export all purchase orders (with item count) as JSON rows.
     pub async fn export_purchase_orders(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -165,6 +170,7 @@ impl DataIORepo {
         Ok(result)
     }
 
+    /// Export all sales orders (with item count) as JSON rows.
     pub async fn export_sales_orders(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -201,6 +207,7 @@ impl DataIORepo {
         Ok(result)
     }
 
+    /// Export all quality certs as JSON rows.
     pub async fn export_quality_certs(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -225,6 +232,7 @@ impl DataIORepo {
         })).collect())
     }
 
+    /// Batch insert seamless pipes from import rows. Skips duplicates by `pipe_number`. Returns (imported_count, errors).
     pub async fn import_seamless_pipes(
         pool: &SqlitePool,
         rows: &[serde_json::Value],
@@ -295,6 +303,7 @@ impl DataIORepo {
         Ok((imported, errors))
     }
 
+    /// Batch insert screen pipes from import rows. Skips duplicates by `pipe_number`. Returns (imported_count, errors).
     pub async fn import_screen_pipes(
         pool: &SqlitePool,
         rows: &[serde_json::Value],

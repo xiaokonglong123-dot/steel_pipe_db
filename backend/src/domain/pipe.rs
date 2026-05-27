@@ -1,3 +1,4 @@
-// All domain types in this module were intended as type-safe replacements
-// for string-based representations but are not used in the actual codebase.
-// Keeping the module minimal - enums removed to eliminate dead code.
+// Domain types for pipe specifications.
+//
+// Reserved for type-safe enums (steel grade, heat treatment, thread type) that
+// can replace raw string fields across handlers, services, and DTOs.

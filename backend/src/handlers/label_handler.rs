@@ -18,6 +18,9 @@ pub struct PipeLabelPath {
     pub pipe_id: i64,
 }
 
+/// GET `/api/v1/labels/pipe/{pipe_type}/{pipe_id}` — Generate pipe label
+///
+/// Generates an HTML label for a specific pipe by type and ID.
 pub async fn get_pipe_label_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(path): Path<PipeLabelPath>,
@@ -26,6 +29,10 @@ pub async fn get_pipe_label_handler(
     Ok(ApiResponse::ok(html))
 }
 
+/// POST `/api/v1/labels/batch` — Batch generate labels
+///
+/// Generates HTML labels for multiple pipes in batch.
+/// Validates request body.
 pub async fn create_batch_labels_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<BatchLabelRequest>,
@@ -35,6 +42,9 @@ pub async fn create_batch_labels_handler(
     Ok(ApiResponse::ok(html))
 }
 
+/// GET `/api/v1/labels/quality/{cert_id}` — Generate QC inspection tag
+///
+/// Generates an HTML quality inspection tag for a certificate.
 pub async fn get_quality_label_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(cert_id): Path<i64>,
@@ -43,6 +53,10 @@ pub async fn get_quality_label_handler(
     Ok(ApiResponse::ok(html))
 }
 
+/// POST `/api/v1/labels/shipping` — Generate shipping label
+///
+/// Generates an HTML shipping label with customer and order info.
+/// Validates request body.
 pub async fn create_shipping_label_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<ShippingLabelRequest>,

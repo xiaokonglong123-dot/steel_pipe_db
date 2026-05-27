@@ -3,9 +3,17 @@ use sqlx::SqlitePool;
 use crate::error::AppError;
 use crate::models::inventory::InventoryLog;
 
+/// Trace service — full lifecycle tracking for pipes: inbound/outbound events by pipe ID,
+/// pipe distribution by heat number, and related inventory records by order number.
 pub struct TraceService;
 
 impl TraceService {
+    /// Trace a single pipe's full lifecycle — returns current pipe info and
+    /// all inventory change logs (inbound/outbound/transfer) sorted by time ascending.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — pipe ID does not exist or was deleted
+    /// - `AppError::Validation` — invalid pipe_type
     pub async fn trace_pipe_lifecycle(
         pool: &SqlitePool,
         pipe_type: &str,
@@ -109,6 +117,8 @@ impl TraceService {
         }))
     }
 
+    /// Query pipes by heat number — searches both seamless and screen pipes,
+    /// returning type, ID, number, grade, status, and location.
     pub async fn trace_by_heat_number(
         pool: &SqlitePool,
         heat_number: &str,
@@ -158,6 +168,11 @@ impl TraceService {
         Ok(results)
     }
 
+    /// Trace by order — queries inbound/outbound records for a purchase/sales order,
+    /// along with the list of pipes in each record and their current status.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — order_type is not `inbound` or `outbound`
     pub async fn trace_by_order(
         pool: &SqlitePool,
         order_type: &str,

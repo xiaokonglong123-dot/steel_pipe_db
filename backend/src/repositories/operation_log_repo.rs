@@ -3,6 +3,7 @@ use sqlx::{FromRow, SqlitePool};
 
 use crate::dto::common::PaginationParams;
 
+/// Audit log row from `operation_logs` table.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct OperationLog {
     pub id: i64,
@@ -16,6 +17,7 @@ pub struct OperationLog {
     pub created_at: String,
 }
 
+/// Input struct for inserting a new operation log entry.
 #[derive(Debug, Clone)]
 pub struct CreateOperationLog {
     pub user_id: Option<i64>,
@@ -27,6 +29,7 @@ pub struct CreateOperationLog {
     pub ip_address: Option<String>,
 }
 
+/// Filter parameters for querying operation logs (all optional).
 #[derive(Debug, Clone, Default)]
 pub struct OperationLogFilter {
     pub user_id: Option<i64>,
@@ -36,9 +39,11 @@ pub struct OperationLogFilter {
     pub entity_id: Option<i64>,
 }
 
+/// Audit log queries (no soft-delete — logs are never deleted).
 pub struct OperationLogRepo;
 
 impl OperationLogRepo {
+    /// INSERT a log entry and return the created `OperationLog`.
     pub async fn create(
         pool: &SqlitePool,
         log: &CreateOperationLog,
@@ -59,6 +64,8 @@ impl OperationLogRepo {
         .await
     }
 
+    /// Paginated log list with dynamic filters (user_id, username, action, entity_type, entity_id).
+    /// Ordered by `created_at DESC`. Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         params: &PaginationParams,

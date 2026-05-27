@@ -9,6 +9,9 @@ use crate::error::AppError;
 use crate::models::customer::Customer;
 use crate::repositories::customer_repo::CustomerRepo;
 
+/// Customer management service — handles CRUD, search, and query ops for customers.
+/// Auto-generates customer codes (`CUS-` prefix + UUID short code) or validates
+/// custom codes for uniqueness on creation.
 pub struct CustomerService;
 
 impl CustomerService {
@@ -17,6 +20,11 @@ impl CustomerService {
         format!("CUS-{}", &serial[..8])
     }
 
+    /// Creates a customer. If `customer_code` is provided, validates uniqueness;
+    /// otherwise auto-generates one.
+    ///
+    /// # Errors
+    /// - `AppError::CustomerCodeDuplicate` — customer code already exists
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateCustomerRequest,
@@ -43,6 +51,10 @@ impl CustomerService {
             .map_err(AppError::from)
     }
 
+    /// Updates customer info. Won't touch soft-deleted customers.
+    ///
+    /// # Errors
+    /// - `AppError::CustomerNotFound` — ID doesn't exist or was deleted
     pub async fn update(
         pool: &SqlitePool,
         id: i64,
@@ -65,6 +77,10 @@ impl CustomerService {
             .map_err(AppError::from)
     }
 
+    /// Soft-deletes a customer. Can't double-delete.
+    ///
+    /// # Errors
+    /// - `AppError::CustomerNotFound` — ID doesn't exist or was already deleted
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let existing = CustomerRepo::find_by_id(pool, id)
             .await
@@ -83,6 +99,10 @@ impl CustomerService {
             .map_err(AppError::from)
     }
 
+    /// Fetches a customer by ID.
+    ///
+    /// # Errors
+    /// - `AppError::CustomerNotFound` — ID doesn't exist or was deleted
     pub async fn get(pool: &SqlitePool, id: i64) -> Result<Customer, AppError> {
         CustomerRepo::find_by_id(pool, id)
             .await
@@ -90,6 +110,7 @@ impl CustomerService {
             .ok_or_else(|| AppError::CustomerNotFound(format!("Customer id={} not found", id)))
     }
 
+    /// Paginates customers with filters for code, name, contact, etc.
     pub async fn list(
         pool: &SqlitePool,
         filter: &CustomerFilterParams,
@@ -100,6 +121,10 @@ impl CustomerService {
             .map_err(AppError::from)
     }
 
+    /// Searches customers by keyword — name, code, contact, etc. — fuzzy match.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — search query is empty
     pub async fn search(
         pool: &SqlitePool,
         query: &str,
@@ -112,6 +137,7 @@ impl CustomerService {
             .map_err(AppError::from)
     }
 
+    /// Lists all active (non-deleted) customers with basic info for dropdown selects.
     pub async fn list_active(pool: &SqlitePool) -> Result<Vec<Customer>, AppError> {
         CustomerRepo::find_all_active(pool)
             .await

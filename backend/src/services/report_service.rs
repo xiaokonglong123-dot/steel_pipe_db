@@ -3,9 +3,13 @@ use sqlx::SqlitePool;
 use crate::error::AppError;
 use crate::repositories::report_repo::ReportRepo;
 
+/// Report service — provides inventory overview, order reports, QC reports, and
+/// dashboard data aggregation. All methods return `serde_json::Value` for the
+/// frontend to consume directly.
 pub struct ReportService;
 
 impl ReportService {
+    /// Inventory overview report — counts by status, grade, pipe type, plus location occupancy.
     pub async fn inventory_summary(pool: &SqlitePool) -> Result<serde_json::Value, AppError> {
         let by_status = ReportRepo::inventory_by_status(pool).await?;
         let by_grade = ReportRepo::inventory_by_grade(pool).await?;
@@ -20,6 +24,8 @@ impl ReportService {
         }))
     }
 
+    /// Order report — aggregates by type (`sales`/`purchase`) and time period,
+    /// includes order lists, status distribution, and top 10 customers/suppliers.
     pub async fn order_report(
         pool: &SqlitePool,
         order_type: &str,
@@ -51,6 +57,7 @@ impl ReportService {
         }))
     }
 
+    /// QC report — pass/fail distribution by grade and cert count per month.
     pub async fn quality_report(pool: &SqlitePool) -> Result<serde_json::Value, AppError> {
         let by_grade = ReportRepo::quality_pass_fail_by_grade(pool).await?;
         let by_month = ReportRepo::quality_certs_by_month(pool).await?;
@@ -61,6 +68,8 @@ impl ReportService {
         }))
     }
 
+    /// Dashboard data — total stock, 30-day in/out counts, recent movements,
+    /// pending approvals count and list, and recent QC failures.
     pub async fn dashboard(pool: &SqlitePool) -> Result<serde_json::Value, AppError> {
         let stock = ReportRepo::total_stock(pool).await?;
         let inbound_count = ReportRepo::inbound_count_30d(pool).await?;

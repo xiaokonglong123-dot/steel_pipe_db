@@ -8,9 +8,12 @@ use crate::dto::contract_dto::{
 };
 use crate::models::contract::{Contract, ContractItem, ContractPayment};
 
+/// CRUD for `contracts`, `contract_items`, and `contract_payments`.
+/// All contract queries filter `deleted_at IS NULL`.
 pub struct ContractRepo;
 
 impl ContractRepo {
+    /// Generated the next sequential contract number (`CT-SAL-000001` / `CT-PUR-000001`).
     async fn next_contract_no(pool: &SqlitePool, contract_type: &str) -> Result<String, sqlx::Error> {
         let prefix = match contract_type {
             "sales" => "CT-SAL",
@@ -39,6 +42,8 @@ impl ContractRepo {
         Ok(format!("{}-{:06}", prefix, next_seq))
     }
 
+    /// INSERT a new contract with auto-generated `contract_no`. Status starts as `draft`.
+    /// Returns the created `Contract`.
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateContractRequest,
@@ -66,6 +71,8 @@ impl ContractRepo {
         .await
     }
 
+    /// Dynamic UPDATE of contract fields (title, party_a, party_b, dates, notes).
+    /// Only supplied fields change. Returns the updated `Contract`.
     pub async fn update(
         pool: &SqlitePool,
         id: i64,
@@ -113,6 +120,7 @@ impl ContractRepo {
         builder.build_query_as::<Contract>().fetch_one(pool).await
     }
 
+    /// SELECT by primary key. Returns `None` if soft-deleted or missing.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -128,6 +136,7 @@ impl ContractRepo {
         .await
     }
 
+    /// Soft-delete: sets `deleted_at` and `updated_at`.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE contracts SET deleted_at = datetime('now'), \
@@ -139,6 +148,7 @@ impl ContractRepo {
         Ok(())
     }
 
+    /// UPDATE `status`. Returns the updated `Contract`.
     pub async fn update_status(
         pool: &SqlitePool,
         id: i64,
@@ -157,6 +167,7 @@ impl ContractRepo {
         .await
     }
 
+    /// Recalculate `total_amount` from contract_items SUM. Called after item changes.
     pub async fn update_total_amount(
         pool: &SqlitePool,
         id: i64,
@@ -173,6 +184,9 @@ impl ContractRepo {
         Ok(())
     }
 
+    /// Paginated SELECT with dynamic filters (q, contract_type, status, sign_date range).
+    /// Supports sorting by contract_no, contract_type, title, status, sign_date, total_amount.
+    /// Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         filter: &ContractFilterParams,
@@ -256,8 +270,8 @@ impl ContractRepo {
         Ok((items, total.0 as u64))
     }
 
-    // ━━━ Items ━━━
-
+    /// INSERT multiple items for a contract. Computes `total_price = quantity * unit_price`.
+    /// Returns all created `ContractItem` rows.
     pub async fn create_items(
         pool: &SqlitePool,
         contract_id: i64,
@@ -292,6 +306,7 @@ impl ContractRepo {
         Ok(results)
     }
 
+    /// SELECT items for a contract, ordered by `id`.
     pub async fn find_items_by_contract(
         pool: &SqlitePool,
         contract_id: i64,
@@ -306,6 +321,7 @@ impl ContractRepo {
         .await
     }
 
+    /// SELECT a single item by primary key. Returns `None` if not found.
     pub async fn find_item_by_id(
         pool: &SqlitePool,
         item_id: i64,
@@ -320,6 +336,8 @@ impl ContractRepo {
         .await
     }
 
+    /// Dynamic UPDATE of item fields. Recomputes `total_price` when `unit_price` or `quantity`
+    /// changes. Returns the updated `ContractItem`.
     pub async fn update_item(
         pool: &SqlitePool,
         item_id: i64,
@@ -412,6 +430,7 @@ impl ContractRepo {
         Ok(item)
     }
 
+    /// Hard DELETE from `contract_items`.
     pub async fn delete_item(pool: &SqlitePool, item_id: i64) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM contract_items WHERE id = ?")
             .bind(item_id)
@@ -420,8 +439,7 @@ impl ContractRepo {
         Ok(())
     }
 
-    // ━━━ Payments ━━━
-
+    /// INSERT a payment milestone.
     pub async fn create_payment(
         pool: &SqlitePool,
         contract_id: i64,
@@ -442,6 +460,8 @@ impl ContractRepo {
         .await
     }
 
+    /// Dynamic UPDATE of payment fields (due_date, amount, is_paid, etc.).
+    /// Only supplied fields change. Returns the updated `ContractPayment`.
     pub async fn update_payment(
         pool: &SqlitePool,
         payment_id: i64,
@@ -507,6 +527,7 @@ impl ContractRepo {
         builder.build_query_as::<ContractPayment>().fetch_one(pool).await
     }
 
+    /// SELECT payments by contract, ordered by `due_date`.
     pub async fn find_payments_by_contract(
         pool: &SqlitePool,
         contract_id: i64,
@@ -521,6 +542,7 @@ impl ContractRepo {
         .await
     }
 
+    /// SELECT a payment by primary key. Returns `None` if not found.
     pub async fn find_payment_by_id(
         pool: &SqlitePool,
         payment_id: i64,
@@ -535,6 +557,7 @@ impl ContractRepo {
         .await
     }
 
+    /// Hard DELETE from `contract_payments`.
     pub async fn delete_payment(pool: &SqlitePool, payment_id: i64) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM contract_payments WHERE id = ?")
             .bind(payment_id)

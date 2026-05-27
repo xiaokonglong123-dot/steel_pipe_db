@@ -7,9 +7,11 @@ use crate::dto::quality_dto::{
 };
 use crate::models::quality::{Api5ctGradeRef, PipeAttachment, QualityCert};
 
+/// CRUD for `quality_certs`. All queries filter `deleted_at IS NULL`.
 pub struct QualityCertRepo;
 
 impl QualityCertRepo {
+    /// INSERT a new quality certificate. Returns the created `QualityCert`.
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateQualityCertRequest,
@@ -33,6 +35,8 @@ impl QualityCertRepo {
         .await
     }
 
+    /// Dynamic UPDATE of cert fields (cert_date, result, inspector, etc.). Only supplied fields change.
+    /// Returns the updated `QualityCert`.
     pub async fn update(
         pool: &SqlitePool,
         id: i64,
@@ -72,6 +76,7 @@ impl QualityCertRepo {
         builder.build_query_as::<QualityCert>().fetch_one(pool).await
     }
 
+    /// SELECT by primary key. Returns `None` if soft-deleted or missing.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -86,6 +91,7 @@ impl QualityCertRepo {
         .await
     }
 
+    /// Soft-delete: sets `deleted_at` and `updated_at`.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE quality_certs SET deleted_at = datetime('now'), \
@@ -97,6 +103,8 @@ impl QualityCertRepo {
         Ok(())
     }
 
+    /// Paginated SELECT with dynamic filters (pipe_type, pipe_id, result).
+    /// Supports sorting by cert_number, pipe_type, result, cert_date, inspector. Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         filter: &QualityCertFilterParams,
@@ -164,9 +172,11 @@ impl QualityCertRepo {
     }
 }
 
+/// Reference data: API 5CT grade mechanical properties (read-only).
 pub struct Api5ctGradeRefRepo;
 
 impl Api5ctGradeRefRepo {
+    /// SELECT a grade by its name. Returns `None` if not found.
     pub async fn find_by_grade(
         pool: &SqlitePool,
         grade: &str,
@@ -182,6 +192,7 @@ impl Api5ctGradeRefRepo {
         .await
     }
 
+    /// SELECT all grades ordered by `grade` name.
     pub async fn list_all(
         pool: &SqlitePool,
     ) -> Result<Vec<Api5ctGradeRef>, sqlx::Error> {
@@ -196,9 +207,11 @@ impl Api5ctGradeRefRepo {
     }
 }
 
+/// CRUD for `pipe_attachments` (file metadata).
 pub struct PipeAttachmentRepo;
 
 impl PipeAttachmentRepo {
+    /// INSERT a new attachment record. Returns the created `PipeAttachment`.
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateAttachmentRequest,
@@ -221,6 +234,7 @@ impl PipeAttachmentRepo {
         .await
     }
 
+    /// SELECT by primary key. Returns `None` if not found.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -235,6 +249,7 @@ impl PipeAttachmentRepo {
         .await
     }
 
+    /// Hard DELETE from `pipe_attachments`.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM pipe_attachments WHERE id = ?")
             .bind(id)
@@ -243,6 +258,7 @@ impl PipeAttachmentRepo {
         Ok(())
     }
 
+    /// SELECT attachments for a pipe (by `pipe_type` + `pipe_id`), newest first.
     pub async fn list_by_pipe(
         pool: &SqlitePool,
         pipe_type: &str,

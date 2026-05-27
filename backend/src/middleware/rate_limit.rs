@@ -66,8 +66,6 @@ impl Default for RateLimiter {
     }
 }
 
-// ━━ Helpers ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 /// Extract client IP from the request, checking common proxy headers first.
 fn client_ip(request: &Request) -> String {
     request
@@ -89,8 +87,6 @@ fn client_ip(request: &Request) -> String {
 fn too_many_requests() -> Response {
     (StatusCode::TOO_MANY_REQUESTS, "429 Too Many Requests").into_response()
 }
-
-// ━━ Per-endpoint middleware functions ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Rate limit for login/refresh endpoints — 5 requests per minute per IP.
 pub async fn rate_limit_login(

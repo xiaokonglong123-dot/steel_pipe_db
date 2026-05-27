@@ -27,7 +27,7 @@ use crate::handlers::report_handler;
 use crate::handlers::sales_handler;
 use crate::handlers::supplier_handler;
 
-// ━━ Helper functions for route groups with role-protected write operations ━━
+// Helper functions for route groups with role-protected write operations
 // Each returns a Router with auth_middleware + require_role on all endpoints.
 
 fn admin_write_routes() -> Router {
@@ -328,7 +328,7 @@ fn contract_write_routes() -> Router {
         }))
 }
 
-// ━━ Main app builder ━━
+// Main app builder — assembles all route groups, middleware, and shared layers
 
 pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
     // Public: no auth required

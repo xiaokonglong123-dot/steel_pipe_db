@@ -21,6 +21,10 @@ pub struct SearchQuery {
     pub q: String,
 }
 
+/// GET `/api/v1/customers` — Paginated list of customers
+///
+/// Supports filtering by code, name, status, etc.
+/// Returns paginated customer results.
 pub async fn list_customers_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<CustomerFilterParams>,
@@ -39,6 +43,10 @@ pub async fn list_customers_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// POST `/api/v1/customers` — Create a customer
+///
+/// Creates a new customer with contact info.
+/// Validates request body. Returns the created customer.
 pub async fn create_customer_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateCustomerRequest>,
@@ -48,6 +56,9 @@ pub async fn create_customer_handler(
     Ok(ApiResponse::ok(customer))
 }
 
+/// GET `/api/v1/customers/{id}` — Get customer details
+///
+/// Returns a single customer by ID. Returns 404 if not found.
 pub async fn get_customer_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -56,6 +67,10 @@ pub async fn get_customer_handler(
     Ok(ApiResponse::ok(customer))
 }
 
+/// PUT `/api/v1/customers/{id}` — Update customer info
+///
+/// Updates an existing customer's details. Validates request body.
+/// Returns 404 if not found.
 pub async fn update_customer_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -66,6 +81,9 @@ pub async fn update_customer_handler(
     Ok(ApiResponse::ok(customer))
 }
 
+/// DELETE `/api/v1/customers/{id}` — Soft-delete a customer
+///
+/// Soft-deletes a customer. Returns 404 if not found.
 pub async fn delete_customer_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -74,6 +92,9 @@ pub async fn delete_customer_handler(
     Ok(ApiResponse::ok("Customer deleted successfully".into()))
 }
 
+/// GET `/api/v1/customers/search?q={keyword}` — Search customers by keyword
+///
+/// Searches customers by keyword (code, name, contact).
 pub async fn search_customers_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<SearchQuery>,
@@ -82,6 +103,9 @@ pub async fn search_customers_handler(
     Ok(ApiResponse::ok(results))
 }
 
+/// GET `/api/v1/customers/active` — List active customers for dropdown
+///
+/// Returns all active customers (for dropdown selection forms).
 pub async fn list_active_customers_handler(
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Json<ApiResponse<Vec<Customer>>>, AppError> {

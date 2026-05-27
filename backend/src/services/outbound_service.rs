@@ -7,6 +7,8 @@ use crate::models::inventory::{OutboundItem, OutboundRecord};
 use crate::repositories::inventory_repo::OutboundRepo;
 use crate::repositories::pipe_repo::{SeamlessPipeRepo, ScreenPipeRepo};
 
+/// Outbound service — handles sales, scrapped, and transfer stock-out with create/approve/execute/query.
+/// Mirror of inbound: `auto_approved` executes immediately, `pending` needs approval later.
 pub struct OutboundService;
 
 impl OutboundService {
@@ -18,6 +20,13 @@ impl OutboundService {
         format!("{}-{}-{}", prefix, date_str, short_serial)
     }
 
+    /// Creates an outbound record. Needs at least one pipe; auto-checks every pipe is `in_stock`.
+    /// If `auto_approved`, it immediately applies the stock changes.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — pipe items list is empty
+    /// - `AppError::NotFound` — pipe ID doesn't exist
+    /// - `AppError::InsufficientStock` — pipe ain't `in_stock`
     pub async fn create_outbound(
         pool: &SqlitePool,
         dto: &CreateOutboundRecordRequest,
@@ -146,6 +155,12 @@ impl OutboundService {
         Ok(())
     }
 
+    /// Approves a pending outbound and deducts stock (pipe status → `outbound` + inventory log).
+    /// Outbound must be in `pending` state.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record doesn't exist or was deleted
+    /// - `AppError::Validation` — current state won't allow approval
     pub async fn approve_outbound(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
@@ -236,6 +251,11 @@ impl OutboundService {
         Ok(())
     }
 
+    /// Rejects a pending outbound — sets `rejected` and stores the reason. No stock changes.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record not found
+    /// - `AppError::Validation` — can't reject in this state
     pub async fn reject_outbound(
         pool: &SqlitePool,
         id: i64,
@@ -260,6 +280,10 @@ impl OutboundService {
         Ok(())
     }
 
+    /// Fetches an outbound record with all line items. Returns `(record, items)` tuple.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record not found
     pub async fn get_outbound_record(
         pool: &SqlitePool,
         id: i64,
@@ -276,6 +300,8 @@ impl OutboundService {
         Ok((record, items))
     }
 
+    /// Paginated outbound records — filter by date, status, type, etc.
+    /// Returns `(records, total_count)`.
     pub async fn list_outbound_records(
         pool: &SqlitePool,
         filter: &OutboundFilter,
@@ -285,6 +311,11 @@ impl OutboundService {
             .map_err(AppError::from)
     }
 
+    /// Soft-deletes an outbound record. Only `auto_approved` or `rejected` ones can be deleted.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record not found
+    /// - `AppError::Validation` — current state doesn't allow deletion
     pub async fn delete_outbound(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
@@ -303,6 +334,7 @@ impl OutboundService {
             .map_err(AppError::from)
     }
 
+    /// Gets all line items for a given outbound record.
     pub async fn list_outbound_items(
         pool: &SqlitePool,
         outbound_id: i64,

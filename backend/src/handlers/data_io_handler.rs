@@ -13,6 +13,10 @@ use crate::repositories::operation_log_repo::OperationLog;
 use crate::response::{ApiResponse, PaginatedResponse};
 use crate::services::data_io_service::DataIOService;
 
+/// POST `/api/v1/data/{entity_type}/import` — Import data (Excel/CSV)
+///
+/// Accepts a multipart file upload for a given entity type.
+/// Logs the import operation. Returns import stats (imported/failed counts).
 pub async fn import_handler(
     Extension(pool): Extension<SqlitePool>,
     Extension(jwt_secret): Extension<String>,
@@ -67,6 +71,10 @@ pub async fn import_handler(
     Ok(ApiResponse::ok(result))
 }
 
+/// GET `/api/v1/data/{entity_type}/export` — Export data (Excel/CSV)
+///
+/// Exports all records for a given entity type in the requested format.
+/// Logs the export operation. Returns the file as a download.
 pub async fn export_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(entity_type): Path<String>,
@@ -102,6 +110,10 @@ pub async fn export_handler(
     Ok((headers, data).into_response())
 }
 
+/// GET `/api/v1/data/{entity_type}/template` — Download import template
+///
+/// Downloads a blank import template for a given entity type.
+/// Logs the download operation.
 pub async fn template_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(entity_type): Path<String>,
@@ -137,6 +149,9 @@ pub async fn template_handler(
     Ok((headers, data).into_response())
 }
 
+/// GET `/api/v1/data/logs` — Paginated operation logs
+///
+/// Returns paginated import/export operation logs for auditing.
 pub async fn list_operation_logs_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<OperationLogQuery>,

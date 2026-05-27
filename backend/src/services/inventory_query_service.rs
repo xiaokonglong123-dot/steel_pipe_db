@@ -6,9 +6,14 @@ use crate::error::AppError;
 use crate::models::inventory::InventoryLog;
 use crate::repositories::inventory_repo::{InventoryLogRepo, InventoryRepo};
 
+/// Inventory query service — stock listing, logs, stats dashboard, and ATP calculations.
+/// Joins across seamless and screen pipe tables for unified queries and aggregation.
 pub struct InventoryQueryService;
 
 impl InventoryQueryService {
+    /// Paginated stock listing across both `seamless_pipes` and `screen_pipes`.
+    /// Filter by grade, location, fuzzy pipe-number, and pipe type. Results are tagged with pipe type.
+    /// Returns `(items, total_count)`.
     pub async fn list_inventory(
         pool: &SqlitePool,
         filter: &InventoryFilter,
@@ -154,6 +159,7 @@ impl InventoryQueryService {
         Ok((items, total.0 as u64))
     }
 
+    /// Paginated inventory operation logs (inbound, outbound, checks, etc.) — filter by pipe and time range.
     pub async fn list_inventory_logs(
         pool: &SqlitePool,
         filter: &InventoryFilter,
@@ -163,6 +169,7 @@ impl InventoryQueryService {
             .map_err(AppError::from)
     }
 
+    /// Gets inventory overview stats: total stock, breakdown by grade, breakdown by location.
     pub async fn inventory_statistics(
         pool: &SqlitePool,
     ) -> Result<serde_json::Value, AppError> {
@@ -185,6 +192,8 @@ impl InventoryQueryService {
         }))
     }
 
+    /// ATP (Available-to-Promise) query.
+    /// Aggregates available stock by pipe type, grade, and location.
     pub async fn check_atp(
         pool: &SqlitePool,
         query: &AtpQuery,

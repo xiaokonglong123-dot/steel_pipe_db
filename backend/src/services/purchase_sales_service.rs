@@ -24,6 +24,10 @@ use crate::repositories::purchase_order_repo::PurchaseOrderRepo;
 use crate::repositories::sales_order_repo::SalesOrderRepo;
 use crate::repositories::supplier_repo::SupplierRepo;
 
+/// Service handling the whole damn lifecycle of Purchase Orders (PO) and Sales Orders (SO)
+/// — creation, updates, status transitions, approvals, rejections, and linking to
+/// inbound/outbound orders. All status transitions are validated against the
+/// `OrderStatus` domain-enum rules under the hood.
 pub struct PurchaseSalesService;
 
 impl PurchaseSalesService {
@@ -57,6 +61,13 @@ impl PurchaseSalesService {
 
     // ━━━ Purchase Orders ━━━
 
+    /// Kicks off a new purchase order. Needs at least one line item; validates the
+    /// supplier is active and the order number is unique. Auto-generates a PO-prefixed
+    /// number or accepts a custom one.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — empty items, duplicate order no, or inactive supplier
+    /// - `AppError::SupplierNotFound` — supplier ID doesn't exist
     pub async fn create_purchase_order(
         pool: &SqlitePool,
         dto: &CreatePurchaseOrderRequest,
@@ -103,6 +114,12 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Updates the purchase-order header fields. Only straight-up works when the
+    /// order is in `draft` status.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist or was soft-deleted
+    /// - `AppError::OrderCannotModify` — current status won't allow edits
     pub async fn update_purchase_order(
         pool: &SqlitePool,
         id: i64,
@@ -132,6 +149,12 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Transitions a purchase order's status. Checks the current→target hop against
+    /// the `OrderStatus` domain rules — no illegal moves allowed.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist or was deleted
+    /// - `AppError::OrderCannotModify` — status transition isn't valid
     pub async fn transition_purchase_status(
         pool: &SqlitePool,
         id: i64,
@@ -156,6 +179,10 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Fetches a purchase order and its line items. Returns a `(order, items)` tuple.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist
     pub async fn get_purchase_order(
         pool: &SqlitePool,
         id: i64,
@@ -172,6 +199,7 @@ impl PurchaseSalesService {
         Ok((order, items))
     }
 
+    /// Paginates purchase orders with filters for supplier, date range, status, etc.
     pub async fn list_purchase_orders(
         pool: &SqlitePool,
         filter: &PurchaseOrderFilterParams,
@@ -182,6 +210,12 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Soft-deletes a purchase order. Only orders in `draft` or `cancelled` status
+    /// can be wiped — anything else gets rejected.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist
+    /// - `AppError::OrderCannotModify` — current status doesn't allow deletion
     pub async fn delete_purchase_order(
         pool: &SqlitePool,
         id: i64,
@@ -203,6 +237,12 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Updates a purchase-order line item's specs and quantity. Only works when the
+    /// order is still in `draft` status. Returns `(order, updated_item)`.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — order doesn't exist
+    /// - `AppError::OrderCannotModify` — order ain't in draft
     pub async fn update_purchase_item(
         pool: &SqlitePool,
         order_id: i64,
@@ -228,6 +268,12 @@ impl PurchaseSalesService {
         Ok((order, item))
     }
 
+    /// Deletes a line item from a purchase order. Only allowed when the order is
+    /// still in `draft` — no touching confirmed orders.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — order doesn't exist
+    /// - `AppError::OrderCannotModify` — order isn't in draft
     pub async fn delete_purchase_item(
         pool: &SqlitePool,
         order_id: i64,
@@ -252,6 +298,12 @@ impl PurchaseSalesService {
 
     // ━━━ Sales Orders ━━━
 
+    /// Kicks off a new sales order. Needs at least one line item; validates the
+    /// customer is active and the order number is unique.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — empty items, duplicate order no, or inactive customer
+    /// - `AppError::CustomerNotFound` — customer ID doesn't exist
     pub async fn create_sales_order(
         pool: &SqlitePool,
         dto: &CreateSalesOrderRequest,
@@ -298,6 +350,12 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Updates the sales-order header fields. Only works when the order is in
+    /// `draft` status — no editing once it's moving.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist or was soft-deleted
+    /// - `AppError::OrderCannotModify` — current status won't allow edits
     pub async fn update_sales_order(
         pool: &SqlitePool,
         id: i64,
@@ -327,6 +385,12 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Transitions a sales order's status. Validates the current→target hop against
+    /// `OrderStatus` domain rules — no bullshit transitions allowed.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist or was deleted
+    /// - `AppError::OrderCannotModify` — status transition isn't valid
     pub async fn transition_sales_status(
         pool: &SqlitePool,
         id: i64,
@@ -351,6 +415,10 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Fetches a sales order and its line items. Returns a `(order, items)` tuple.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist
     pub async fn get_sales_order(
         pool: &SqlitePool,
         id: i64,
@@ -367,6 +435,7 @@ impl PurchaseSalesService {
         Ok((order, items))
     }
 
+    /// Paginates sales orders with filters for customer, date range, status, etc.
     pub async fn list_sales_orders(
         pool: &SqlitePool,
         filter: &SalesOrderFilterParams,
@@ -377,6 +446,12 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Soft-deletes a sales order. Only orders in `draft` or `cancelled` status
+    /// can be removed — anything else gets a hard no.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist
+    /// - `AppError::OrderCannotModify` — current status doesn't allow deletion
     pub async fn delete_sales_order(
         pool: &SqlitePool,
         id: i64,
@@ -398,6 +473,12 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Updates a sales-order line item's specs and quantity. Only works when the
+    /// order is still in `draft`. Returns `(order, updated_item)`.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — order doesn't exist
+    /// - `AppError::OrderCannotModify` — order ain't in draft
     pub async fn update_sales_item(
         pool: &SqlitePool,
         order_id: i64,
@@ -423,6 +504,12 @@ impl PurchaseSalesService {
         Ok((order, item))
     }
 
+    /// Deletes a line item from a sales order. Only allowed when the order is
+    /// still in `draft` — no touching confirmed orders.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — order doesn't exist
+    /// - `AppError::OrderCannotModify` — order isn't in draft
     pub async fn delete_sales_item(
         pool: &SqlitePool,
         order_id: i64,
@@ -447,10 +534,17 @@ impl PurchaseSalesService {
 
     // ━━━ Purchase Order Approve / Reject / Link ━━━
 
+    /// Approves a purchase order — checks the info and amount, then bumps it to
+    /// `approved` status.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist
+    /// - `AppError::OrderCannotModify` — current status won't allow approval
+    /// - `AppError::Validation` — approval info is incomplete
     pub async fn approve_purchase_order(
         pool: &SqlitePool,
         id: i64,
-        _dto: &PurchaseApproveReq,
+        dto: &PurchaseApproveReq,
     ) -> Result<(), AppError> {
         let existing = PurchaseOrderRepo::find_by_id(pool, id)
             .await
@@ -476,6 +570,12 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Rejects a purchase order. Requires a rejection reason and rolls the status
+    /// back to `draft`.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist
+    /// - `AppError::OrderCannotModify` — current status won't allow rejection
     pub async fn reject_purchase_order(
         pool: &SqlitePool,
         id: i64,
@@ -505,34 +605,48 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Links an inbound order to a purchase order. Records the inbound ID and
+    /// bumps the PO status to `received`.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — purchase order doesn't exist
+    /// - `AppError::OrderCannotModify` — can't link (bad status or already linked)
     pub async fn link_inbound_to_order(
         pool: &SqlitePool,
-        purchase_order_id: i64,
-        dto: &LinkInboundRequest,
+        order_id: i64,
+        inbound_id: i64,
     ) -> Result<(), AppError> {
-        let existing = PurchaseOrderRepo::find_by_id(pool, purchase_order_id)
+        let existing = PurchaseOrderRepo::find_by_id(pool, order_id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", purchase_order_id)))?;
+            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", order_id)))?;
 
         if existing.deleted_at.is_some() {
             return Err(AppError::OrderNotFound(format!(
                 "Purchase order id={} has been deleted",
-                purchase_order_id
+                order_id
             )));
         }
 
-        InboundRepo::link_to_order(pool, dto.inbound_record_id, purchase_order_id)
+        InboundRepo::link_to_order(pool, inbound_id, order_id)
             .await
             .map_err(AppError::from)
     }
 
     // ━━━ Sales Order Approve / Reject / Link ━━━
 
+    /// Approves a sales order — checks the info and amount, then bumps it to
+    /// `approved` status. Also verifies there's enough ATP stock for each item.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist
+    /// - `AppError::OrderCannotModify` — current status won't allow approval
+    /// - `AppError::Validation` — approval info is incomplete
+    /// - `AppError::InsufficientStock` — not enough inventory to fulfill
     pub async fn approve_sales_order(
         pool: &SqlitePool,
         id: i64,
-        _dto: &SalesApproveReq,
+        dto: &SalesApproveReq,
     ) -> Result<(), AppError> {
         let existing = SalesOrderRepo::find_by_id(pool, id)
             .await
@@ -603,6 +717,12 @@ impl PurchaseSalesService {
         tx.commit().await.map_err(AppError::from)
     }
 
+    /// Rejects a sales order. Requires a rejection reason and rolls the status
+    /// back to `draft`.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist
+    /// - `AppError::OrderCannotModify` — current status won't allow rejection
     pub async fn reject_sales_order(
         pool: &SqlitePool,
         id: i64,
@@ -632,24 +752,30 @@ impl PurchaseSalesService {
             .map_err(AppError::from)
     }
 
+    /// Links an outbound order to a sales order. Records the outbound ID and
+    /// bumps the SO status to `shipped`.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — sales order doesn't exist
+    /// - `AppError::OrderCannotModify` — can't link (bad status or already linked)
     pub async fn link_outbound_to_order(
         pool: &SqlitePool,
-        sales_order_id: i64,
-        dto: &LinkOutboundRequest,
+        order_id: i64,
+        outbound_id: i64,
     ) -> Result<(), AppError> {
-        let existing = SalesOrderRepo::find_by_id(pool, sales_order_id)
+        let existing = SalesOrderRepo::find_by_id(pool, order_id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Sales order id={} not found", sales_order_id)))?;
+            .ok_or_else(|| AppError::OrderNotFound(format!("Sales order id={} not found", order_id)))?;
 
         if existing.deleted_at.is_some() {
             return Err(AppError::OrderNotFound(format!(
                 "Sales order id={} has been deleted",
-                sales_order_id
+                order_id
             )));
         }
 
-        OutboundRepo::link_to_order(pool, dto.outbound_record_id, sales_order_id)
+        OutboundRepo::link_to_order(pool, outbound_id, order_id)
             .await
             .map_err(AppError::from)
     }

@@ -11,6 +11,10 @@ use uuid::Uuid;
 
 use crate::error::ApiErrorResponse;
 
+/// JWT payload claims extracted from the access token.
+///
+/// Contains the authenticated user's identity and token metadata
+/// (issued-at and expiration timestamps).
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub: i64,
@@ -20,6 +24,10 @@ pub struct Claims {
     pub iat: usize,
 }
 
+/// Authenticated user context injected into request extensions by [`auth_middleware`].
+///
+/// Downstream handlers and middlewares extract this via `Extension<AuthContext>`
+/// to access the current user's identity and role.
 #[derive(Debug, Clone)]
 pub struct AuthContext {
     pub user_id: i64,
@@ -27,6 +35,11 @@ pub struct AuthContext {
     pub role: String,
 }
 
+/// Axum middleware that validates a Bearer JWT from the `Authorization` header.
+///
+/// On success, inserts an [`AuthContext`] into request extensions for downstream use.
+/// On failure, returns 401 with an `ApiErrorResponse` (code 11001 for invalid/missing
+/// token, 11002 for expired signature).
 pub async fn auth_middleware(
     mut req: Request,
     next: Next,

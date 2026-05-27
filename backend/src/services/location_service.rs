@@ -10,6 +10,8 @@ use crate::repositories::inventory_repo::{
     CreateInventoryLog, InventoryLogRepo, InventoryRepo, LocationRepo,
 };
 
+/// Location service — CRUD for warehouse locations, pipe assignment, and cross-location transfers.
+/// Location codes follow the `zone-shelf-level` format and are globally unique.
 pub struct LocationService;
 
 impl LocationService {
@@ -17,6 +19,10 @@ impl LocationService {
         format!("{}-{}-{}", zone, shelf, level)
     }
 
+    /// Creates a location. Auto-concatenates `zone-shelf-level` as the full code; rejects duplicates.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — full code already exists, dipshit
     pub async fn create_location(
         pool: &SqlitePool,
         dto: &CreateLocationRequest,
@@ -39,6 +45,10 @@ impl LocationService {
             .map_err(AppError::from)
     }
 
+    /// Updates location info. Won't touch soft-deleted locations.
+    ///
+    /// # Errors
+    /// - `AppError::LocationNotFound` — ID doesn't exist or was deleted
     pub async fn update_location(
         pool: &SqlitePool,
         id: i64,
@@ -61,6 +71,7 @@ impl LocationService {
             .map_err(AppError::from)
     }
 
+    /// Paginated location list. Pass `active_only=true` to get only active locations.
     pub async fn list_locations(
         pool: &SqlitePool,
         params: &PaginationParams,
@@ -71,6 +82,10 @@ impl LocationService {
             .map_err(AppError::from)
     }
 
+    /// Gets a single location by ID.
+    ///
+    /// # Errors
+    /// - `AppError::LocationNotFound` — ID doesn't exist
     pub async fn get_location(pool: &SqlitePool, id: i64) -> Result<Location, AppError> {
         LocationRepo::find_by_id(pool, id)
             .await
@@ -78,6 +93,11 @@ impl LocationService {
             .ok_or_else(|| AppError::LocationNotFound(format!("Location id={} not found", id)))
     }
 
+    /// Soft-deletes a location. Only allowed when no pipes are stored there (`used_count == 0`).
+    ///
+    /// # Errors
+    /// - `AppError::LocationNotFound` — ID doesn't exist
+    /// - `AppError::Validation` — location still has pipes in it
     pub async fn delete_location(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let existing = LocationRepo::find_by_id(pool, id)
             .await
@@ -96,6 +116,12 @@ impl LocationService {
             .map_err(AppError::from)
     }
 
+    /// Assigns a pipe to a target location. Updates the pipe's location and logs it.
+    /// Only active locations are valid targets.
+    ///
+    /// # Errors
+    /// - `AppError::LocationNotFound` — location ID doesn't exist
+    /// - `AppError::Validation` — target location ain't active
     pub async fn assign_location(
         pool: &SqlitePool,
         location_id: i64,
@@ -144,6 +170,11 @@ impl LocationService {
         }))
     }
 
+    /// Transfers a pipe from its current location to a target one. Checks source, validates target, then moves and logs.
+    ///
+    /// # Errors
+    /// - `AppError::LocationNotFound` — target location doesn't exist
+    /// - `AppError::Validation` — target location isn't active
     pub async fn transfer_location(
         pool: &SqlitePool,
         pipe_type: &str,

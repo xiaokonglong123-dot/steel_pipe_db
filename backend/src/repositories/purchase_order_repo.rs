@@ -7,9 +7,13 @@ use crate::dto::purchase_dto::{
 };
 use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderItem};
 
+/// CRUD for `purchase_orders` and `purchase_order_items`. All queries filter `deleted_at IS NULL`.
 pub struct PurchaseOrderRepo;
 
 impl PurchaseOrderRepo {
+    /// INSERT into `purchase_orders` + line items in a single transaction flow.
+    /// Status starts as `draft`. Automatically computes `total_amount` from item prices.
+    /// Returns the created `PurchaseOrder`.
     pub async fn create_with_items(
         pool: &SqlitePool,
         dto: &CreatePurchaseOrderRequest,
@@ -83,6 +87,8 @@ impl PurchaseOrderRepo {
         Ok(row.0.unwrap_or(0.0))
     }
 
+    /// Dynamic UPDATE of order-level fields (`order_date`, `notes`). Only supplied fields change.
+    /// Returns the updated `PurchaseOrder`.
     pub async fn update_order(
         pool: &SqlitePool,
         id: i64,
@@ -110,6 +116,7 @@ impl PurchaseOrderRepo {
         builder.build_query_as::<PurchaseOrder>().fetch_one(pool).await
     }
 
+    /// SELECT by primary key. Returns `None` if soft-deleted or missing.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -124,6 +131,7 @@ impl PurchaseOrderRepo {
         .await
     }
 
+    /// SELECT by unique `order_no`. Returns `None` if soft-deleted or missing.
     pub async fn find_by_order_no(
         pool: &SqlitePool,
         order_no: &str,
@@ -138,6 +146,7 @@ impl PurchaseOrderRepo {
         .await
     }
 
+    /// SELECT all line items for a purchase order, ordered by `id ASC`.
     pub async fn find_items(
         pool: &SqlitePool,
         order_id: i64,
@@ -152,6 +161,7 @@ impl PurchaseOrderRepo {
         .await
     }
 
+    /// UPDATE `status` (e.g. `draft` → `submitted`). Sets `updated_at` timestamp.
     pub async fn update_status(
         pool: &SqlitePool,
         id: i64,
@@ -168,6 +178,7 @@ impl PurchaseOrderRepo {
         Ok(())
     }
 
+    /// Soft-delete: sets `deleted_at`. Sets status to `rejected` and stores reason in `notes`.
     pub async fn reject(pool: &SqlitePool, id: i64, reason: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE purchase_orders SET status = 'rejected', notes = ?, updated_at = datetime('now') \
@@ -180,6 +191,7 @@ impl PurchaseOrderRepo {
         Ok(())
     }
 
+    /// Soft-delete: sets `deleted_at` and `updated_at`.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE purchase_orders SET deleted_at = datetime('now'), \
@@ -191,6 +203,9 @@ impl PurchaseOrderRepo {
         Ok(())
     }
 
+    /// Paginated SELECT with dynamic filters (q, status, supplier_id, order_date range).
+    /// Supports sorting by order_no, order_date, status, total_amount. JOINs suppliers for search.
+    /// Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         filter: &PurchaseOrderFilterParams,
@@ -270,6 +285,8 @@ impl PurchaseOrderRepo {
         Ok((items, total.0 as u64))
     }
 
+    /// Dynamic UPDATE of item fields (pipe_type, grade, od, wt, quantity, unit_price, etc.).
+    /// Only supplied fields are modified. Returns the updated `PurchaseOrderItem`.
     pub async fn update_item(
         pool: &SqlitePool,
         item_id: i64,
@@ -327,6 +344,7 @@ impl PurchaseOrderRepo {
         builder.build_query_as::<PurchaseOrderItem>().fetch_one(pool).await
     }
 
+    /// Hard DELETE from `purchase_order_items` (no soft-delete for items).
     pub async fn delete_item(pool: &SqlitePool, item_id: i64) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM purchase_order_items WHERE id = ?")
             .bind(item_id)

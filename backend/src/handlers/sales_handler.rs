@@ -18,6 +18,10 @@ use crate::models::sales_order::SalesOrder;
 use crate::response::{ApiResponse, PaginatedResponse};
 use crate::services::purchase_sales_service::PurchaseSalesService;
 
+/// GET `/api/v1/sales-orders` — Paginated list of sales orders
+///
+/// Supports filtering by status, customer, date range, etc.
+/// Returns paginated sales order results.
 pub async fn list_sales_orders_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<SalesOrderFilterParams>,
@@ -37,6 +41,10 @@ pub async fn list_sales_orders_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// POST `/api/v1/sales-orders` — Create a sales order
+///
+/// Creates a new sales order with line items.
+/// Validates request body. Returns the created order.
 pub async fn create_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSalesOrderRequest>,
@@ -46,6 +54,9 @@ pub async fn create_sales_order_handler(
     Ok(ApiResponse::ok(order))
 }
 
+/// GET `/api/v1/sales-orders/{id}` — Get sales order details
+///
+/// Returns the sales order header plus its line items. Returns 404 if not found.
 pub async fn get_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -60,6 +71,10 @@ pub async fn get_sales_order_handler(
     })))
 }
 
+/// PUT `/api/v1/sales-orders/{id}` — Update a sales order
+///
+/// Updates an existing sales order (items, dates, terms, etc.).
+/// Validates the request body. Returns 404 if not found.
 pub async fn update_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -70,6 +85,9 @@ pub async fn update_sales_order_handler(
     Ok(ApiResponse::ok(order))
 }
 
+/// DELETE `/api/v1/sales-orders/{id}` — Delete a sales order
+///
+/// Soft-deletes a sales order. Returns 404 if not found.
 pub async fn delete_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -78,6 +96,10 @@ pub async fn delete_sales_order_handler(
     Ok(ApiResponse::ok("Sales order deleted successfully".into()))
 }
 
+/// PUT `/api/v1/sales-orders/{id}/status` — Transition sales order status
+///
+/// Transitions the sales order status (e.g., confirmed, shipped, completed).
+/// Validates the status transition. Returns 400 on invalid transition.
 pub async fn transition_sales_order_status_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -91,6 +113,10 @@ pub async fn transition_sales_order_status_handler(
     )))
 }
 
+/// PUT `/api/v1/sales-orders/{order_id}/items/{item_id}` — Update a SO line item
+///
+/// Updates a specific line item within a sales order (quantity, price, spec, etc.).
+/// Validates request body. Returns 404 if order or item not found.
 pub async fn update_sales_item_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((order_id, item_id)): Path<(i64, i64)>,
@@ -102,6 +128,9 @@ pub async fn update_sales_item_handler(
     Ok(ApiResponse::ok(order))
 }
 
+/// DELETE `/api/v1/sales-orders/{order_id}/items/{item_id}` — Delete a SO line item
+///
+/// Removes a line item from a sales order. Returns 404 if order or item not found.
 pub async fn delete_sales_item_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((order_id, item_id)): Path<(i64, i64)>,
@@ -110,6 +139,10 @@ pub async fn delete_sales_item_handler(
     Ok(ApiResponse::ok("Sales order item deleted".into()))
 }
 
+/// PUT `/api/v1/sales-orders/{id}/approve` — Approve a sales order
+///
+/// Approves a sales order, typically after ATP check passes.
+/// Admin/sales role required. Returns 404 if not found.
 pub async fn approve_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -119,6 +152,9 @@ pub async fn approve_sales_order_handler(
     Ok(ApiResponse::ok("Sales order approved".into()))
 }
 
+/// PUT `/api/v1/sales-orders/{id}/reject` — Reject a sales order
+///
+/// Rejects a sales order with a reason. Returns 404 if not found.
 pub async fn reject_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -128,11 +164,15 @@ pub async fn reject_sales_order_handler(
     Ok(ApiResponse::ok("Sales order rejected".into()))
 }
 
+/// POST `/api/v1/sales-orders/{order_id}/link-outbound` — Link outbound record to SO
+///
+/// Links an existing outbound record to a sales order for traceability.
+/// Returns 404 if order or outbound record not found.
 pub async fn link_outbound_to_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(order_id): Path<i64>,
     Json(dto): Json<LinkOutboundRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    PurchaseSalesService::link_outbound_to_order(&pool, order_id, &dto).await?;
+    PurchaseSalesService::link_outbound_to_order(&pool, order_id, dto.outbound_record_id).await?;
     Ok(ApiResponse::ok("Outbound record linked to sales order".into()))
 }

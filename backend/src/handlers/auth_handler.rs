@@ -33,6 +33,11 @@ impl<S: Sync> FromRequestParts<S> for AuthenticatedUser {
     }
 }
 
+/// POST `/api/v1/auth/login` — Straight-up user login, dead simple
+///
+/// Validates username/password credentials via AuthService, returns JWT access + refresh tokens on success.
+/// Logs the operation to the operation_log table.
+/// Returns 401 on invalid credentials, 429 on rate limit (rate_limit_login middleware).
 pub async fn login_handler(
     Extension(pool): Extension<SqlitePool>,
     Extension(jwt_secret): Extension<String>,
@@ -59,6 +64,11 @@ pub async fn login_handler(
     Ok(ApiResponse::ok(response))
 }
 
+/// POST `/api/v1/auth/refresh` — Refresh that expired-ass token
+///
+/// Accepts a refresh token, validates it, and returns a new JWT access token + new refresh token.
+/// Uses refresh token rotation for security.
+/// Returns 401 if the refresh token is invalid or expired.
 pub async fn refresh_handler(
     Extension(jwt_secret): Extension<String>,
     Json(req): Json<RefreshTokenRequest>,
@@ -69,6 +79,11 @@ pub async fn refresh_handler(
     Ok(ApiResponse::ok(response))
 }
 
+/// POST `/api/v1/auth/logout` — Log the user the hell out
+///
+/// Records a logout operation log entry for the authenticated user.
+/// Returns a success message; actual token invalidation is client-side.
+/// Requires valid JWT in Authorization header.
 pub async fn logout_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
@@ -90,6 +105,10 @@ pub async fn logout_handler(
     Ok(ApiResponse::ok("Logged out".into()))
 }
 
+/// GET `/api/v1/auth/me` — Grab the current user's deets
+///
+/// Returns the profile of the currently authenticated user, including id, username, role, etc.
+/// Requires valid JWT. Returns 401 if not authenticated.
 pub async fn me_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
@@ -98,6 +117,10 @@ pub async fn me_handler(
     Ok(ApiResponse::ok(user))
 }
 
+/// GET `/api/v1/users` — Paginated list of all users
+///
+/// Returns a paginated list of all system users, with optional search query `q`.
+/// Admin-only. Supports pagination via `page` and `page_size` query params.
 pub async fn list_users_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(params): Query<UserListQuery>,
@@ -124,6 +147,10 @@ pub struct UserListQuery {
     pub q: Option<String>,
 }
 
+/// POST `/api/v1/users` — Create a brand new user
+///
+/// Creates a new system user with the specified username, password, role, and display name.
+/// Admin-only. Logs the operation. Returns 400 on validation error, 409 on duplicate username.
 pub async fn create_user_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
@@ -149,6 +176,10 @@ pub async fn create_user_handler(
     Ok(ApiResponse::ok(user))
 }
 
+/// PUT `/api/v1/users/{id}` — Update user info like a boss
+///
+/// Updates user fields (username, display_name, active status) by user ID.
+/// Admin-only. Logs the operation. Returns 404 if user not found.
 pub async fn update_user_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
@@ -175,6 +206,11 @@ pub async fn update_user_handler(
     Ok(ApiResponse::ok(user))
 }
 
+/// POST `/api/v1/users/{id}/change-password` — Change that damn password
+///
+/// Changes password for the specified user. Non-admin users can only change their own password.
+/// Rate-limited (rate_limit_password_change middleware). Logs the operation.
+/// Returns 403 if non-admin tries to change another user's password.
 pub async fn change_password_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
@@ -209,6 +245,10 @@ pub async fn change_password_handler(
     Ok(ApiResponse::ok("Password changed".into()))
 }
 
+/// PUT `/api/v1/users/{id}/role` — Swap the user's role
+///
+/// Changes the role of a user (e.g., admin, warehouse, qc, sales).
+/// Admin-only. Logs the operation. Returns 404 if user not found.
 pub async fn change_role_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
@@ -235,6 +275,10 @@ pub async fn change_role_handler(
     Ok(ApiResponse::ok(user))
 }
 
+/// DELETE `/api/v1/users/{id}` — Soft-delete a user (gone but not gone)
+///
+/// Soft-deletes a user by setting `deleted_at`. Admin-only.
+/// Logs the operation. Returns 404 if user not found.
 pub async fn delete_user_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,

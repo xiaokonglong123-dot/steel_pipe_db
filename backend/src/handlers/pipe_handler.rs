@@ -25,6 +25,10 @@ pub struct SearchQuery {
 
 // ━━━ Seamless Pipe Handlers ━━━
 
+/// GET `/api/v1/seamless-pipes` — Paginated list of seamless pipes
+///
+/// Returns a paginated list of seamless pipes, filterable by spec, grade, heat number, etc.
+/// Supports sorting and pagination via query params.
 pub async fn list_seamless_pipes_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<PipeFilterParams>,
@@ -44,6 +48,11 @@ pub async fn list_seamless_pipes_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// POST `/api/v1/seamless-pipes` — Whip up a new seamless pipe
+///
+/// Creates a new seamless pipe record with API 5CT specs (grade, heat treatment, threading, etc.).
+/// Validates the request body. Warehouse/admin role required.
+/// Returns 400 on validation error.
 pub async fn create_seamless_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSeamlessPipeRequest>,
@@ -53,6 +62,10 @@ pub async fn create_seamless_pipe_handler(
     Ok(ApiResponse::ok(pipe))
 }
 
+/// GET `/api/v1/seamless-pipes/{id}` — Grab seamless pipe deets by ID
+///
+/// Returns a single seamless pipe record by its ID.
+/// Returns 404 if not found.
 pub async fn get_seamless_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -61,6 +74,10 @@ pub async fn get_seamless_pipe_handler(
     Ok(ApiResponse::ok(pipe))
 }
 
+/// PUT `/api/v1/seamless-pipes/{id}` — Update a seamless pipe
+///
+/// Updates an existing seamless pipe record with partial fields.
+/// Validates the request body. Returns 404 if not found.
 pub async fn update_seamless_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -71,6 +88,9 @@ pub async fn update_seamless_pipe_handler(
     Ok(ApiResponse::ok(pipe))
 }
 
+/// DELETE `/api/v1/seamless-pipes/{id}` — Soft-delete a seamless pipe
+///
+/// Soft-deletes a seamless pipe record. Returns 404 if not found.
 pub async fn delete_seamless_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -81,6 +101,10 @@ pub async fn delete_seamless_pipe_handler(
 
 // ━━━ Screen Pipe Handlers ━━━
 
+/// GET `/api/v1/screen-pipes` — Paginated list of screen pipes
+///
+/// Returns a paginated list of screen pipes, filterable by spec, grade, etc.
+/// Supports sorting and pagination via query params.
 pub async fn list_screen_pipes_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<PipeFilterParams>,
@@ -99,6 +123,10 @@ pub async fn list_screen_pipes_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// POST `/api/v1/screen-pipes` — Create a new screen pipe
+///
+/// Creates a new screen pipe record with specs (slot width, wire type, etc.).
+/// Validates the request body. Warehouse/admin role required.
 pub async fn create_screen_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateScreenPipeRequest>,
@@ -108,6 +136,9 @@ pub async fn create_screen_pipe_handler(
     Ok(ApiResponse::ok(pipe))
 }
 
+/// GET `/api/v1/screen-pipes/{id}` — Get screen pipe by ID
+///
+/// Returns a single screen pipe record by its ID. Returns 404 if not found.
 pub async fn get_screen_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -116,6 +147,9 @@ pub async fn get_screen_pipe_handler(
     Ok(ApiResponse::ok(pipe))
 }
 
+/// PUT `/api/v1/screen-pipes/{id}` — Update a screen pipe
+///
+/// Updates an existing screen pipe record. Validates request body. Returns 404 if not found.
 pub async fn update_screen_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -126,6 +160,9 @@ pub async fn update_screen_pipe_handler(
     Ok(ApiResponse::ok(pipe))
 }
 
+/// DELETE `/api/v1/screen-pipes/{id}` — Soft-delete a screen pipe
+///
+/// Soft-deletes a screen pipe record. Returns 404 if not found.
 pub async fn delete_screen_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -136,6 +173,11 @@ pub async fn delete_screen_pipe_handler(
 
 // ━━━ Search Handler ━━━
 
+/// GET `/api/v1/pipes/search` — Search all damn pipes (seamless + screen)
+///
+/// Searches both seamless and screen pipes by keyword query `q`.
+/// Searches across pipe number, heat number, grade, and other fields.
+/// Returns 400 if the search query is empty.
 pub async fn search_pipes_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<SearchQuery>,

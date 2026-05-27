@@ -4,9 +4,11 @@ use crate::dto::common::PaginationParams;
 use crate::dto::customer_dto::{CreateCustomerRequest, CustomerFilterParams, UpdateCustomerRequest};
 use crate::models::customer::Customer;
 
+/// CRUD for `customers`. All queries filter `deleted_at IS NULL`.
 pub struct CustomerRepo;
 
 impl CustomerRepo {
+    /// INSERT a new customer with the given `code`. `is_active` defaults to `1`. Returns the created `Customer`.
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateCustomerRequest,
@@ -30,6 +32,8 @@ impl CustomerRepo {
         .await
     }
 
+    /// Dynamic UPDATE of customer fields (name, contact_person, phone, email, is_active, etc.).
+    /// Only supplied fields change. Returns the updated `Customer`.
     pub async fn update(
         pool: &SqlitePool,
         id: i64,
@@ -77,6 +81,7 @@ impl CustomerRepo {
         builder.build_query_as::<Customer>().fetch_one(pool).await
     }
 
+    /// SELECT by primary key. Returns `None` if soft-deleted or missing.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -91,6 +96,7 @@ impl CustomerRepo {
         .await
     }
 
+    /// SELECT by unique `customer_code`. Returns `None` if soft-deleted or missing.
     pub async fn find_by_code(
         pool: &SqlitePool,
         code: &str,
@@ -105,6 +111,7 @@ impl CustomerRepo {
         .await
     }
 
+    /// Soft-delete: sets `deleted_at` and `updated_at`.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE customers SET deleted_at = datetime('now'), \
@@ -116,6 +123,8 @@ impl CustomerRepo {
         Ok(())
     }
 
+    /// Paginated SELECT with dynamic filters (q, is_active).
+    /// Supports sorting by customer_code, name, created_at. Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         filter: &CustomerFilterParams,
@@ -177,6 +186,7 @@ impl CustomerRepo {
         Ok((items, total.0 as u64))
     }
 
+    /// Quick name/code search (LIKE) with LIMIT 50 results.
     pub async fn search(
         pool: &SqlitePool,
         query: &str,
@@ -195,6 +205,7 @@ impl CustomerRepo {
         .await
     }
 
+    /// SELECT all active customers, ordered by `name ASC`. Used for dropdowns.
     pub async fn find_all_active(
         pool: &SqlitePool,
     ) -> Result<Vec<Customer>, sqlx::Error> {

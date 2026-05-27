@@ -12,6 +12,9 @@ use crate::error::AppError;
 use crate::repositories::data_io_repo::DataIORepo;
 use crate::repositories::operation_log_repo::{CreateOperationLog, OperationLog, OperationLogFilter, OperationLogRepo};
 
+/// Data import/export service — supports Excel/CSV export, template download, and
+/// batch import for seamless pipes, screen pipes, inventory, orders, and QC certs.
+/// Also handles operation-log recording and queries.
 pub struct DataIOService;
 
 impl DataIOService {
@@ -348,6 +351,11 @@ impl DataIOService {
         }
     }
 
+    /// Export entity data — queries data by `entity_type` and produces CSV or XLSX bytes.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — unknown entity type
+    /// - `AppError::ExportError` — file generation failed
     pub async fn export_entity(
         pool: &SqlitePool,
         entity_type: &str,
@@ -365,6 +373,10 @@ impl DataIOService {
         }
     }
 
+    /// Download import template (headers only, no data rows). Supports CSV and XLSX.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — unknown entity type
     pub async fn download_template(
         entity_type: &str,
         format: &str,
@@ -381,6 +393,13 @@ impl DataIOService {
         }
     }
 
+    /// Batch import data — auto-detects CSV/XLSX by file extension,
+    /// parses and inserts row by row. Returns import count and error list.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — unknown entity type
+    /// - `AppError::ImportError` — parse or import failure
+    /// - `AppError::ImportError` — empty data rows
     pub async fn import_entity(
         pool: &SqlitePool,
         entity_type: &str,
@@ -424,6 +443,7 @@ impl DataIOService {
         })
     }
 
+    /// Paginated operation-log query with optional user, action, and entity-type filters.
     pub async fn list_operation_logs(
         pool: &SqlitePool,
         query: &OperationLogQuery,
@@ -449,6 +469,7 @@ impl DataIOService {
         Ok((logs, total))
     }
 
+    /// Record an operation log entry — called by handlers after user actions.
     pub async fn log_operation(
         pool: &SqlitePool,
         user_id: Option<i64>,
@@ -474,6 +495,7 @@ impl DataIOService {
         Ok(())
     }
 
+    /// Return the HTTP Content-Type for the given export format.
     pub fn content_type(format: &str) -> &'static str {
         match format {
             "csv" => "text/csv; charset=utf-8",
@@ -481,6 +503,7 @@ impl DataIOService {
         }
     }
 
+    /// Return the file extension (without dot) for the given export format.
     pub fn file_extension(format: &str) -> &'static str {
         match format {
             "csv" => "csv",

@@ -8,11 +8,11 @@ use crate::dto::pipe_dto::{
 use crate::models::screen_pipe::ScreenPipe;
 use crate::models::seamless_pipe::SeamlessPipe;
 
-// ━━━ SeamlessPipeRepo ━━━
-
+/// CRUD for `seamless_pipes` table. All queries filter `deleted_at IS NULL`.
 pub struct SeamlessPipeRepo;
 
 impl SeamlessPipeRepo {
+    /// INSERT into `seamless_pipes`. Returns the newly created row with generated `id`.
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateSeamlessPipeRequest,
@@ -51,6 +51,8 @@ impl SeamlessPipeRepo {
         .await
     }
 
+    /// UPDATE `seamless_pipes` by id. All non-None fields in `UpdateSeamlessPipeRequest` are
+    /// conditionally set via `COALESCE`. Returns the updated row.
     pub async fn update(
         pool: &SqlitePool,
         id: i64,
@@ -140,6 +142,7 @@ impl SeamlessPipeRepo {
         builder.build_query_as::<SeamlessPipe>().fetch_one(pool).await
     }
 
+    /// SELECT by primary key from `seamless_pipes`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -156,6 +159,8 @@ impl SeamlessPipeRepo {
         .await
     }
 
+    /// SELECT multiple rows by a list of primary keys. Returns only non-deleted rows.
+    /// If `ids` is empty, returns an empty `Vec` without hitting the DB.
     pub async fn find_by_ids(
         pool: &SqlitePool,
         ids: &[i64],
@@ -179,6 +184,7 @@ impl SeamlessPipeRepo {
         q.fetch_all(pool).await
     }
 
+    /// SELECT by unique `pipe_number`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_pipe_number(
         pool: &SqlitePool,
         pipe_number: &str,
@@ -195,6 +201,7 @@ impl SeamlessPipeRepo {
         .await
     }
 
+    /// Soft-delete by setting `deleted_at` timestamp. No-op if already deleted.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE seamless_pipes SET deleted_at = datetime('now'), \
@@ -206,6 +213,8 @@ impl SeamlessPipeRepo {
         Ok(())
     }
 
+    /// Paginated SELECT with optional filters (`pipe_type`, `grade`, `status`, keyword search
+    /// across `pipe_number`/`batch_number`/`heat_number`/`serial_number`). Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         filter: &PipeFilterParams,
@@ -313,6 +322,7 @@ impl SeamlessPipeRepo {
         Ok((items, total.0 as u64))
     }
 
+    /// Full-text LIKE search across `pipe_number` and `batch_number`. Returns up to 50 results.
     pub async fn search(
         pool: &SqlitePool,
         query: &str,
@@ -334,11 +344,11 @@ impl SeamlessPipeRepo {
     }
 }
 
-// ━━━ ScreenPipeRepo ━━━
-
+/// CRUD for `screen_pipes` table. All queries filter `deleted_at IS NULL`.
 pub struct ScreenPipeRepo;
 
 impl ScreenPipeRepo {
+    /// INSERT into `screen_pipes`. Returns the newly created row with generated `id`.
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateScreenPipeRequest,
@@ -376,6 +386,8 @@ impl ScreenPipeRepo {
         .await
     }
 
+    /// UPDATE `screen_pipes` by id. All non-None fields in `UpdateScreenPipeRequest` are
+    /// conditionally set via `QueryBuilder`. Returns the updated row.
     pub async fn update(
         pool: &SqlitePool,
         id: i64,
@@ -461,6 +473,7 @@ impl ScreenPipeRepo {
         builder.build_query_as::<ScreenPipe>().fetch_one(pool).await
     }
 
+    /// SELECT by primary key from `screen_pipes`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -477,6 +490,8 @@ impl ScreenPipeRepo {
         .await
     }
 
+    /// SELECT multiple rows by a list of primary keys. Returns only non-deleted rows.
+    /// If `ids` is empty, returns an empty `Vec` without hitting the DB.
     pub async fn find_by_ids(
         pool: &SqlitePool,
         ids: &[i64],
@@ -500,6 +515,7 @@ impl ScreenPipeRepo {
         q.fetch_all(pool).await
     }
 
+    /// SELECT by unique `pipe_number`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_pipe_number(
         pool: &SqlitePool,
         pipe_number: &str,
@@ -516,6 +532,7 @@ impl ScreenPipeRepo {
         .await
     }
 
+    /// Soft-delete by setting `deleted_at` timestamp. No-op if already deleted.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE screen_pipes SET deleted_at = datetime('now'), \
@@ -527,6 +544,9 @@ impl ScreenPipeRepo {
         Ok(())
     }
 
+    /// Paginated SELECT with optional filters (`q`, `grade` → `base_grade`, `pipe_type` → `screen_type`,
+    /// `status`, `od_min`/`od_max` → `base_od`, `wt_min`/`wt_max` → `base_wt`, `location_id`, `manufacturer`).
+    /// Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         filter: &PipeFilterParams,
@@ -632,6 +652,7 @@ impl ScreenPipeRepo {
         Ok((items, total.0 as u64))
     }
 
+    /// Full-text LIKE search across `pipe_number` and `batch_number`. Returns up to 50 results.
     pub async fn search(
         pool: &SqlitePool,
         query: &str,

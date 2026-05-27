@@ -4,9 +4,11 @@ use crate::dto::auth_dto::{CreateUserRequest, UpdateUserRequest};
 use crate::dto::common::PaginationParams;
 use crate::models::user::User;
 
+/// CRUD for `users`. All queries filter `deleted_at IS NULL`.
 pub struct UserRepo;
 
 impl UserRepo {
+    /// SELECT user by username, including `password_hash` for auth verification.
     pub async fn find_by_username(
         pool: &SqlitePool,
         username: &str,
@@ -21,6 +23,7 @@ impl UserRepo {
         .await
     }
 
+    /// SELECT user by primary key. Returns `None` if soft-deleted or missing.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -35,6 +38,7 @@ impl UserRepo {
         .await
     }
 
+    /// INSERT a new user with hashed password. Returns the created `User`.
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateUserRequest,
@@ -56,6 +60,8 @@ impl UserRepo {
         .await
     }
 
+    /// Dynamic UPDATE of user fields (display_name, role, email, phone, is_active).
+    /// Uses positional parameter numbering. Returns the updated `User`.
     pub async fn update(
         pool: &SqlitePool,
         id: i64,
@@ -105,6 +111,7 @@ impl UserRepo {
         query.fetch_one(pool).await
     }
 
+    /// Paginated user list with optional search (username, display_name, email, phone). Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         params: &PaginationParams,
@@ -159,6 +166,7 @@ impl UserRepo {
         }
     }
 
+    /// UPDATE `password_hash` for a user.
     pub async fn update_password(
         pool: &SqlitePool,
         id: i64,
@@ -175,6 +183,7 @@ impl UserRepo {
         Ok(())
     }
 
+    /// Touch `updated_at` on login (tracks last login time).
     pub async fn update_last_login(
         pool: &SqlitePool,
         id: i64,
@@ -189,6 +198,7 @@ impl UserRepo {
         Ok(())
     }
 
+    /// UPDATE user role. Returns the updated `User`.
     pub async fn update_role(
         pool: &SqlitePool,
         user_id: i64,
@@ -206,6 +216,7 @@ impl UserRepo {
         .await
     }
 
+    /// Soft-delete a user: sets `deleted_at`. Returns the deleted `User` or `None` if already gone.
     pub async fn delete_soft(
         pool: &SqlitePool,
         user_id: i64,

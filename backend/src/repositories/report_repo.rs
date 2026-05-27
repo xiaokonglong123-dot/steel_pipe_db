@@ -2,9 +2,11 @@ use sqlx::SqlitePool;
 
 use crate::error::AppError;
 
+/// Aggregation queries for dashboard and reports. Returns `serde_json::Value`.
 pub struct ReportRepo;
 
 impl ReportRepo {
+    /// Count of pipes by `status`, split by seamless/screen. Includes total counts.
     pub async fn inventory_by_status(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -48,6 +50,7 @@ impl ReportRepo {
         Ok(result)
     }
 
+    /// Count of seamless/screen pipes grouped by grade.
     pub async fn inventory_by_grade(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -77,6 +80,7 @@ impl ReportRepo {
         Ok(result)
     }
 
+    /// Count of seamless pipes by `pipe_type`, plus total screen count.
     pub async fn inventory_by_type(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -105,6 +109,7 @@ impl ReportRepo {
         Ok(result)
     }
 
+    /// Location occupancy stats — full_code, max_capacity, current_usage, available, occupancy_pct.
     pub async fn location_occupancy(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, i64, i64, i64, String)> = sqlx::query_as(
             "SELECT l.full_code, l.max_capacity, l.current_usage, \
@@ -132,6 +137,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Aggregated purchase orders by period (monthly/quarterly/yearly). Returns order_count and total_amount.
     pub async fn purchase_order_report(
         pool: &SqlitePool,
         date_trunc: &str,
@@ -170,6 +176,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Aggregated sales orders by period (monthly/quarterly/yearly). Returns order_count and total_amount.
     pub async fn sales_order_report(
         pool: &SqlitePool,
         date_trunc: &str,
@@ -208,6 +215,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Count of purchase/sales orders grouped by status.
     pub async fn order_status_distribution(
         pool: &SqlitePool,
         table: &str,
@@ -234,6 +242,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Top N suppliers by total purchase amount.
     pub async fn top_suppliers(
         pool: &SqlitePool,
         limit: i64,
@@ -261,6 +270,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Top N customers by total sales amount.
     pub async fn top_customers(
         pool: &SqlitePool,
         limit: i64,
@@ -288,6 +298,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Pass/fail counts by pipe grade (seamless + screen UNION). Includes pass_rate percentage.
     pub async fn quality_pass_fail_by_grade(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -332,6 +343,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Quality certs grouped by month (last 12). Returns total, passed, failed, pass_rate.
     pub async fn quality_certs_by_month(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -366,6 +378,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Total in-stock count for seamless + screen pipes.
     pub async fn total_stock(pool: &SqlitePool) -> Result<serde_json::Value, AppError> {
         let seamless: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM seamless_pipes WHERE deleted_at IS NULL AND status = 'in_stock'",
@@ -388,6 +401,7 @@ impl ReportRepo {
         }))
     }
 
+    /// Recent inbound records within N days. Returns record_no, type, status, created_at.
     pub async fn recent_inbound(
         pool: &SqlitePool,
         days: i64,
@@ -418,6 +432,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Recent outbound records within N days. Returns record_no, type, status, created_at.
     pub async fn recent_outbound(
         pool: &SqlitePool,
         days: i64,
@@ -448,6 +463,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Count of inbound records in the last 30 days.
     pub async fn inbound_count_30d(pool: &SqlitePool) -> Result<i64, AppError> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM inbound_records \
@@ -459,6 +475,7 @@ impl ReportRepo {
         Ok(row.0)
     }
 
+    /// Count of outbound records in the last 30 days.
     pub async fn outbound_count_30d(pool: &SqlitePool) -> Result<i64, AppError> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM outbound_records \
@@ -470,6 +487,7 @@ impl ReportRepo {
         Ok(row.0)
     }
 
+    /// Pending inbound/outbound records and pending purchase/sales orders (up to 20 each).
     pub async fn pending_approvals(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
@@ -542,6 +560,7 @@ impl ReportRepo {
         Ok(result)
     }
 
+    /// Recent quality failures (result = 'fail'), up to `limit`.
     pub async fn recent_quality_failures(
         pool: &SqlitePool,
         limit: i64,
@@ -571,6 +590,7 @@ impl ReportRepo {
             .collect())
     }
 
+    /// Sum of pending inbound + pending outbound records.
     pub async fn pending_approval_count(pool: &SqlitePool) -> Result<i64, AppError> {
         let ib: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM inbound_records WHERE approval_status = 'pending'",

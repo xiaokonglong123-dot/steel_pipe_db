@@ -1,11 +1,23 @@
 use std::env;
 
+/// Application configuration sourced from environment variables at startup.
+/// All fields have sensible defaults for development — override via `.env` file.
 #[derive(Clone, Debug)]
 pub struct Config {
+    /// SQLite connection string (e.g., `sqlite://./data/steel_pipe.db?mode=rwc`).
+    /// Default: `sqlite://./data/steel_pipe.db?mode=rwc` (auto-creates DB file).
     pub database_url: String,
+    /// HMAC secret for signing and verifying JWT tokens.
+    /// Default is a placeholder — must be changed in production.
     pub jwt_secret: String,
+    /// Number of hours before issued JWT tokens expire.
+    /// Default: 24 (one day).
     pub jwt_expiry_hours: i64,
+    /// Network interface to bind the HTTP server to.
+    /// Default: `0.0.0.0` (all interfaces).
     pub server_host: String,
+    /// TCP port for the HTTP server.
+    /// Default: 3000.
     pub server_port: u16,
 }
 

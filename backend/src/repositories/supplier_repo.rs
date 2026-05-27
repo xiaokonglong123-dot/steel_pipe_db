@@ -4,9 +4,11 @@ use crate::dto::common::PaginationParams;
 use crate::dto::supplier_dto::{CreateSupplierRequest, SupplierFilterParams, UpdateSupplierRequest};
 use crate::models::supplier::Supplier;
 
+/// CRUD for `suppliers`. All queries filter `deleted_at IS NULL`.
 pub struct SupplierRepo;
 
 impl SupplierRepo {
+    /// INSERT a new supplier with the given `code`. `is_active` defaults to `1`. Returns the created `Supplier`.
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateSupplierRequest,
@@ -30,6 +32,8 @@ impl SupplierRepo {
         .await
     }
 
+    /// Dynamic UPDATE of supplier fields (name, contact_person, phone, email, is_active, etc.).
+    /// Only supplied fields change. Returns the updated `Supplier`.
     pub async fn update(
         pool: &SqlitePool,
         id: i64,
@@ -77,6 +81,7 @@ impl SupplierRepo {
         builder.build_query_as::<Supplier>().fetch_one(pool).await
     }
 
+    /// SELECT by primary key. Returns `None` if soft-deleted or missing.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -91,6 +96,7 @@ impl SupplierRepo {
         .await
     }
 
+    /// SELECT by unique `supplier_code`. Returns `None` if soft-deleted or missing.
     pub async fn find_by_code(
         pool: &SqlitePool,
         code: &str,
@@ -105,6 +111,7 @@ impl SupplierRepo {
         .await
     }
 
+    /// Soft-delete: sets `deleted_at` and `updated_at`.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE suppliers SET deleted_at = datetime('now'), \
@@ -116,6 +123,8 @@ impl SupplierRepo {
         Ok(())
     }
 
+    /// Paginated SELECT with dynamic filters (q, is_active).
+    /// Supports sorting by supplier_code, name, created_at. Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         filter: &SupplierFilterParams,
@@ -177,6 +186,7 @@ impl SupplierRepo {
         Ok((items, total.0 as u64))
     }
 
+    /// Quick name/code search (LIKE) with LIMIT 50 results.
     pub async fn search(
         pool: &SqlitePool,
         query: &str,
@@ -195,6 +205,7 @@ impl SupplierRepo {
         .await
     }
 
+    /// SELECT all active suppliers, ordered by `name ASC`. Used for dropdowns.
     pub async fn find_all_active(
         pool: &SqlitePool,
     ) -> Result<Vec<Supplier>, sqlx::Error> {

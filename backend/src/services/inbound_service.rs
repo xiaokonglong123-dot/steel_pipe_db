@@ -8,6 +8,8 @@ use crate::error::AppError;
 use crate::models::inventory::{InboundItem, InboundRecord};
 use crate::repositories::inventory_repo::InboundRepo;
 
+/// Inbound service — handles purchase, production, and return stock-in with create/approve/execute/query.
+/// Auto-approved inbound kicks off stock changes right away; pending ones need a separate `approve_inbound` call.
 pub struct InboundService;
 
 impl InboundService {
@@ -19,6 +21,11 @@ impl InboundService {
         format!("{}-{}-{}", prefix, date_str, short_serial)
     }
 
+    /// Creates an inbound record. Needs at least one pipe item.
+    /// If `auto_approved`, it straight-up applies stock changes (updates pipe status + writes logs).
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — pipe items list is empty
     pub async fn create_inbound(
         pool: &SqlitePool,
         dto: &CreateInboundRecordRequest,
@@ -101,6 +108,12 @@ impl InboundService {
         Ok(())
     }
 
+    /// Approves a pending inbound record and applies the stock changes (pipe status + log).
+    /// Inbound record must be in `pending` state.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record doesn't exist or was deleted
+    /// - `AppError::Validation` — current status says hell no
     pub async fn approve_inbound(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let record = InboundRepo::find_by_id(pool, id)
             .await
@@ -189,6 +202,11 @@ impl InboundService {
         Ok(())
     }
 
+    /// Rejects a pending inbound — sets status to `rejected` and saves the reason. No stock changes happen.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record not found
+    /// - `AppError::Validation` — can't reject in the current state
     pub async fn reject_inbound(
         pool: &SqlitePool,
         id: i64,
@@ -213,6 +231,10 @@ impl InboundService {
         Ok(())
     }
 
+    /// Fetches an inbound record with all its line items. Returns `(record, items)` tuple.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record not found
     pub async fn get_inbound_record(
         pool: &SqlitePool,
         id: i64,
@@ -229,6 +251,8 @@ impl InboundService {
         Ok((record, items))
     }
 
+    /// Paginated inbound records — filter by date, status, type, whatever.
+    /// Returns `(records, total_count)`.
     pub async fn list_inbound_records(
         pool: &SqlitePool,
         filter: &InboundFilter,
@@ -238,6 +262,11 @@ impl InboundService {
             .map_err(AppError::from)
     }
 
+    /// Soft-deletes an inbound record. Only `auto_approved` or `rejected` ones are fair game.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record not found
+    /// - `AppError::Validation` — current status won't let you delete
     pub async fn delete_inbound(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let record = InboundRepo::find_by_id(pool, id)
             .await
@@ -256,6 +285,7 @@ impl InboundService {
             .map_err(AppError::from)
     }
 
+    /// Gets all line items for a given inbound record.
     pub async fn list_inbound_items(
         pool: &SqlitePool,
         inbound_id: i64,
@@ -265,6 +295,10 @@ impl InboundService {
             .map_err(AppError::from)
     }
 
+    /// Batch-creates inbound records. Loops over each sub-record and calls `create_inbound`.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — record list is empty, dumbass
     pub async fn batch_create_inbound(
         pool: &SqlitePool,
         dto: &BatchCreateInboundRequest,

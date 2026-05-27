@@ -10,6 +10,9 @@ use crate::error::AppError;
 use crate::models::contract::{Contract, ContractItem, ContractPayment};
 use crate::repositories::contract_repo::ContractRepo;
 
+/// Contract service handling the full lifecycle of sales and purchase contracts,
+/// including CRUD, line-item management, payment schedules, and status transitions.
+/// Status flow: `draft` → `active` → `completed` | `terminated`.
 pub struct ContractService;
 
 impl ContractService {
@@ -35,6 +38,12 @@ impl ContractService {
         )
     }
 
+    /// Creates a contract (sales or purchase). Validates the contract type, checks
+    /// items aren't empty and quantities are positive. Returns the full contract
+    /// with items and payment schedule.
+    ///
+    /// # Errors
+    /// - `AppError::Validation` — bad type, empty items, or quantity ≤ 0
     pub async fn create_contract(
         pool: &SqlitePool,
         dto: &CreateContractRequest,
@@ -77,6 +86,12 @@ impl ContractService {
         })
     }
 
+    /// Updates contract header fields. Only works when the contract is in `draft`
+    /// status — no touching active or completed ones.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — ID doesn't exist or was deleted
+    /// - `AppError::Validation` — current status doesn't allow edits
     pub async fn update_contract(
         pool: &SqlitePool,
         id: i64,
@@ -98,6 +113,12 @@ impl ContractService {
             .map_err(AppError::from)
     }
 
+    /// Soft-deletes a contract. Only `draft` contracts can be removed — no wiping
+    /// active or completed ones.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — ID doesn't exist
+    /// - `AppError::Validation` — current status doesn't allow deletion
     pub async fn delete_contract(
         pool: &SqlitePool,
         id: i64,
@@ -117,6 +138,10 @@ impl ContractService {
         Ok(())
     }
 
+    /// Fetches the full contract detail including items and payment schedule.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — ID doesn't exist or was deleted
     pub async fn get_contract_detail(
         pool: &SqlitePool,
         id: i64,
@@ -135,6 +160,7 @@ impl ContractService {
         })
     }
 
+    /// Paginates contracts with filters for type, status, party, etc.
     pub async fn list_contracts(
         pool: &SqlitePool,
         filter: &ContractFilterParams,
@@ -145,6 +171,12 @@ impl ContractService {
             .map_err(AppError::from)
     }
 
+    /// Updates contract status. Only valid paths allowed: `draft` → `active` →
+    /// `completed` | `terminated`. Activating requires a sign date.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — ID doesn't exist
+    /// - `AppError::Validation` — invalid status, illegal transition, or missing sign date
     pub async fn update_status(
         pool: &SqlitePool,
         id: i64,
@@ -181,6 +213,11 @@ impl ContractService {
 
     // ━━━ Items ━━━
 
+    /// Adds a line item to a contract. Only works when the contract is in `draft`.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — contract doesn't exist
+    /// - `AppError::Validation` — quantity ≤ 0 or contract isn't in draft
     pub async fn add_item(
         pool: &SqlitePool,
         contract_id: i64,
@@ -207,6 +244,12 @@ impl ContractService {
         items.into_iter().next().ok_or_else(|| AppError::Internal("Failed to create item".into()))
     }
 
+    /// Updates a contract line item. Only works in `draft` status; validates the
+    /// item actually belongs to this contract.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — contract or item doesn't exist
+    /// - `AppError::Validation` — not in draft, item doesn't belong, or quantity ≤ 0
     pub async fn update_item(
         pool: &SqlitePool,
         contract_id: i64,
@@ -246,6 +289,11 @@ impl ContractService {
         Ok(result)
     }
 
+    /// Deletes a line item from a contract. Only allowed in `draft` status.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — contract or item doesn't exist
+    /// - `AppError::Validation` — not in draft or item doesn't belong to this contract
     pub async fn delete_item(
         pool: &SqlitePool,
         contract_id: i64,
@@ -280,6 +328,12 @@ impl ContractService {
 
     // ━━━ Payments ━━━
 
+    /// Adds a payment schedule to a contract. No-go on terminated contracts.
+    /// Validates payment type (`deposit` / `milestone` / `final`) and positive amount.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — contract doesn't exist
+    /// - `AppError::Validation` — amount ≤ 0, bad payment type, or contract is terminated
     pub async fn add_payment(
         pool: &SqlitePool,
         contract_id: i64,
@@ -311,6 +365,12 @@ impl ContractService {
             .map_err(AppError::from)
     }
 
+    /// Updates a payment schedule. Can't touch payments on terminated contracts.
+    /// Validates the amount is positive and the payment type is legit.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — contract or payment doesn't exist
+    /// - `AppError::Validation` — amount ≤ 0, bad type, wrong contract, or terminated
     pub async fn update_payment(
         pool: &SqlitePool,
         contract_id: i64,
@@ -357,6 +417,11 @@ impl ContractService {
             .map_err(AppError::from)
     }
 
+    /// Deletes a payment schedule. Can't remove payments from terminated contracts.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — contract or payment doesn't exist
+    /// - `AppError::Validation` — payment doesn't belong to this contract or terminated
     pub async fn delete_payment(
         pool: &SqlitePool,
         contract_id: i64,
@@ -386,6 +451,10 @@ impl ContractService {
         Ok(())
     }
 
+    /// Returns all payment schedules for a given contract.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — contract doesn't exist
     pub async fn get_payments(
         pool: &SqlitePool,
         contract_id: i64,

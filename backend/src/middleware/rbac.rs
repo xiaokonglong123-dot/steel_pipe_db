@@ -9,6 +9,13 @@ use uuid::Uuid;
 
 use crate::error::ApiErrorResponse;
 
+/// Axum middleware that checks whether the authenticated user's role is in
+/// `allowed_roles`.
+///
+/// Must be placed after [`auth_middleware`](super::auth::auth_middleware) so that
+/// an [`AuthContext`](super::auth::AuthContext) is available in request extensions.
+/// Returns **403 FORBIDDEN** if the user's role is not permitted, or **401
+/// UNAUTHORIZED** if no auth context exists.
 pub async fn require_role(
     req: Request,
     next: Next,

@@ -31,6 +31,9 @@ pub struct GradeQuery {
 
 // ━━━ Quality Cert Handlers ━━━
 
+/// GET `/api/v1/quality/certs` — Paginated list of quality certs
+///
+/// Supports filtering by pipe type, cert number, date range, etc.
 pub async fn list_certs_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<QualityCertFilterParams>,
@@ -49,6 +52,10 @@ pub async fn list_certs_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// POST `/api/v1/quality/certs` — Create a quality cert
+///
+/// Creates a new quality certificate with test results.
+/// Validates request body. Returns the created cert.
 pub async fn create_cert_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateQualityCertRequest>,
@@ -58,6 +65,9 @@ pub async fn create_cert_handler(
     Ok(ApiResponse::ok(cert))
 }
 
+/// GET `/api/v1/quality/certs/{id}` — Get a quality cert by ID
+///
+/// Returns a single quality certificate by ID. Returns 404 if not found.
 pub async fn get_cert_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -66,6 +76,10 @@ pub async fn get_cert_handler(
     Ok(ApiResponse::ok(cert))
 }
 
+/// PUT `/api/v1/quality/certs/{id}` — Update a quality cert
+///
+/// Updates an existing quality certificate. Validates request body.
+/// Returns 404 if not found.
 pub async fn update_cert_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -76,6 +90,9 @@ pub async fn update_cert_handler(
     Ok(ApiResponse::ok(cert))
 }
 
+/// DELETE `/api/v1/quality/certs/{id}` — Delete a quality cert
+///
+/// Soft-deletes a quality certificate. Returns 404 if not found.
 pub async fn delete_cert_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -86,6 +103,9 @@ pub async fn delete_cert_handler(
 
 // ━━━ API 5CT Grade Ref Handlers ━━━
 
+/// GET `/api/v1/quality/grades?grade={grade}` — Get API 5CT grade ref data
+///
+/// Returns the reference data for a specific API 5CT steel grade.
 pub async fn get_grade_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<GradeQuery>,
@@ -94,6 +114,9 @@ pub async fn get_grade_handler(
     Ok(ApiResponse::ok(grade))
 }
 
+/// GET `/api/v1/quality/grades` — List all API 5CT steel grades
+///
+/// Returns all available API 5CT steel grade reference data.
 pub async fn list_grades_handler(
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Json<ApiResponse<Vec<Api5ctGradeRef>>>, AppError> {
@@ -103,6 +126,10 @@ pub async fn list_grades_handler(
 
 // ━━━ Pipe Attachment Handlers ━━━
 
+/// POST `/api/v1/quality/attachments` — Create a pipe attachment/file
+///
+/// Attaches a file or document to a pipe or certificate.
+/// Validates request body. Returns the created attachment.
 pub async fn create_attachment_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateAttachmentRequest>,
@@ -112,6 +139,9 @@ pub async fn create_attachment_handler(
     Ok(ApiResponse::ok(attachment))
 }
 
+/// DELETE `/api/v1/quality/attachments/{id}` — Delete a pipe attachment
+///
+/// Removes an attachment by ID. Returns 404 if not found.
 pub async fn delete_attachment_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -120,6 +150,10 @@ pub async fn delete_attachment_handler(
     Ok(ApiResponse::ok("Attachment deleted successfully".into()))
 }
 
+/// GET `/api/v1/quality/attachments` — List pipe attachments
+///
+/// Lists all attachments for a given pipe or certificate. Requires either `cert_id` or both `pipe_type` + `pipe_id`.
+/// Returns 400 if neither identifier is provided.
 pub async fn list_attachments_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<AttachmentListQuery>,

@@ -47,6 +47,10 @@ pub struct CheckListQuery {
 
 // ━━━ Inbound Handlers ━━━
 
+/// POST `/api/v1/inbound-records` — Create an inbound record
+///
+/// Creates a new inbound record (purchase, production, return, or transfer).
+/// Validates the request body. Warehouse/admin role required.
 pub async fn create_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateInboundRecordRequest>,
@@ -56,6 +60,9 @@ pub async fn create_inbound_handler(
     Ok(ApiResponse::ok(record))
 }
 
+/// GET `/api/v1/inbound-records` — Paginated list of inbound records
+///
+/// Returns paginated inbound records, filterable by type, date range, status, etc.
 pub async fn list_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<InboundFilter>,
@@ -74,6 +81,9 @@ pub async fn list_inbound_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// GET `/api/v1/inbound-records/{id}` — Get inbound record details
+///
+/// Returns the inbound record header plus its line items. Returns 404 if not found.
 pub async fn get_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -88,6 +98,10 @@ pub async fn get_inbound_handler(
     })))
 }
 
+/// PUT `/api/v1/inbound-records/{id}/approve` — Approve that inbound shit
+///
+/// Approves an inbound record, updating stock quantities accordingly.
+/// Warehouse/admin role required. Returns 404 if record not found.
 pub async fn approve_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -98,6 +112,9 @@ pub async fn approve_inbound_handler(
     Ok(ApiResponse::ok("Inbound approved".into()))
 }
 
+/// PUT `/api/v1/inbound-records/{id}/reject` — Reject that inbound shit
+///
+/// Rejects an inbound record with a reason. Returns 404 if record not found.
 pub async fn reject_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -108,6 +125,9 @@ pub async fn reject_inbound_handler(
     Ok(ApiResponse::ok("Inbound rejected".into()))
 }
 
+/// DELETE `/api/v1/inbound-records/{id}` — Delete an inbound record
+///
+/// Soft-deletes an inbound record. Returns 404 if not found.
 pub async fn delete_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -118,6 +138,10 @@ pub async fn delete_inbound_handler(
 
 // ━━━ Outbound Handlers ━━━
 
+/// POST `/api/v1/outbound-records` — Create an outbound record
+///
+/// Creates a new outbound record (sales, scrapped, or transfer).
+/// Validates the request body. Warehouse/admin role required.
 pub async fn create_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateOutboundRecordRequest>,
@@ -127,6 +151,9 @@ pub async fn create_outbound_handler(
     Ok(ApiResponse::ok(record))
 }
 
+/// GET `/api/v1/outbound-records` — Paginated list of outbound records
+///
+/// Returns paginated outbound records, filterable by type, date range, status, etc.
 pub async fn list_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<OutboundFilter>,
@@ -145,6 +172,9 @@ pub async fn list_outbound_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// GET `/api/v1/outbound-records/{id}` — Get outbound record details
+///
+/// Returns the outbound record header plus its line items. Returns 404 if not found.
 pub async fn get_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -159,6 +189,10 @@ pub async fn get_outbound_handler(
     })))
 }
 
+/// PUT `/api/v1/outbound-records/{id}/approve` — Approve that outbound shit
+///
+/// Approves an outbound record, deducting stock quantities accordingly.
+/// Warehouse/admin role required. Returns 404 if record not found.
 pub async fn approve_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -169,6 +203,9 @@ pub async fn approve_outbound_handler(
     Ok(ApiResponse::ok("Outbound approved".into()))
 }
 
+/// PUT `/api/v1/outbound-records/{id}/reject` — Reject that outbound shit
+///
+/// Rejects an outbound record with a reason. Returns 404 if record not found.
 pub async fn reject_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -179,6 +216,9 @@ pub async fn reject_outbound_handler(
     Ok(ApiResponse::ok("Outbound rejected".into()))
 }
 
+/// DELETE `/api/v1/outbound-records/{id}` — Delete an outbound record
+///
+/// Soft-deletes an outbound record. Returns 404 if not found.
 pub async fn delete_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -189,6 +229,9 @@ pub async fn delete_outbound_handler(
 
 // ━━━ Inventory Handlers ━━━
 
+/// GET `/api/v1/inventory` — Paginated stock list
+///
+/// Returns paginated current stock by pipe spec, filterable by pipe type, grade, etc.
 pub async fn list_inventory_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<InventoryFilter>,
@@ -207,6 +250,9 @@ pub async fn list_inventory_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// GET `/api/v1/inventory/logs` — Paginated inventory change log
+///
+/// Returns paginated inventory audit trail, filterable by pipe, date range, etc.
 pub async fn list_inventory_logs_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<InventoryFilter>,
@@ -227,6 +273,9 @@ pub async fn list_inventory_logs_handler(
 
 // ━━━ Location Handlers ━━━
 
+/// GET `/api/v1/locations` — Paginated list of locations
+///
+/// Returns paginated storage locations, with optional `active_only` filter.
 pub async fn list_locations_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<LocationListQuery>,
@@ -246,6 +295,10 @@ pub async fn list_locations_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// POST `/api/v1/locations` — Create a new location
+///
+/// Creates a new storage location with area, row, shelf identifiers.
+/// Validates the request body. Warehouse/admin role required.
 pub async fn create_location_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateLocationRequest>,
@@ -255,6 +308,9 @@ pub async fn create_location_handler(
     Ok(ApiResponse::ok(location))
 }
 
+/// GET `/api/v1/locations/{id}` — Get location details
+///
+/// Returns a single storage location by ID. Returns 404 if not found.
 pub async fn get_location_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -263,6 +319,10 @@ pub async fn get_location_handler(
     Ok(ApiResponse::ok(location))
 }
 
+/// PUT `/api/v1/locations/{id}` — Update a location
+///
+/// Updates storage location fields (capacity, active status, etc.).
+/// Validates the request body. Returns 404 if not found.
 pub async fn update_location_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -273,6 +333,9 @@ pub async fn update_location_handler(
     Ok(ApiResponse::ok(location))
 }
 
+/// DELETE `/api/v1/locations/{id}` — Delete a location
+///
+/// Soft-deletes a storage location. Returns 404 if not found.
 pub async fn delete_location_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -283,6 +346,10 @@ pub async fn delete_location_handler(
 
 // ━━━ Check Handlers ━━━
 
+/// POST `/api/v1/inventory/checks` — Create a check task
+///
+/// Creates a new inventory check record. Warehouse/admin role required.
+/// Validates the request body.
 pub async fn create_check_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateCheckRequest>,
@@ -292,6 +359,9 @@ pub async fn create_check_handler(
     Ok(ApiResponse::ok(record))
 }
 
+/// GET `/api/v1/inventory/checks` — Paginated list of check tasks
+///
+/// Returns a paginated list of inventory check records.
 pub async fn list_checks_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<CheckListQuery>,
@@ -310,6 +380,9 @@ pub async fn list_checks_handler(
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
+/// GET `/api/v1/inventory/checks/{id}` — Get check task details
+///
+/// Returns the check record plus its checked items. Returns 404 if not found.
 pub async fn get_check_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -324,6 +397,10 @@ pub async fn get_check_handler(
     })))
 }
 
+/// POST `/api/v1/inventory/checks/{check_id}/items/{item_id}/submit` — Submit a check item
+///
+/// Submit the actual quantity counted for a specific check item.
+/// Validates the request body. QC/admin role required.
 pub async fn submit_check_item_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((check_id, item_id)): Path<(i64, i64)>,
@@ -336,6 +413,10 @@ pub async fn submit_check_item_handler(
 
 // ━━━ Trace Handlers ━━━
 
+/// GET `/api/v1/trace/pipe/{pipe_type}/{pipe_id}` — Trace the pipe's whole damn lifecycle
+///
+/// Returns the complete lifecycle trace for a pipe (inbound → outbound → quality).
+/// Accepts pipe_type (seamless/screen) and pipe_id.
 pub async fn trace_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((pipe_type, pipe_id)): Path<(String, i64)>,
@@ -344,6 +425,10 @@ pub async fn trace_pipe_handler(
     Ok(Json(serde_json::json!({ "success": true, "data": result })))
 }
 
+/// GET `/api/v1/trace/heat` — Trace by heat number
+///
+/// Returns all lifecycle events for pipes matching the given heat number.
+/// Requires `heat_number` query parameter. Returns 400 if empty.
 pub async fn trace_heat_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<HeatNumberQuery>,
@@ -355,6 +440,10 @@ pub async fn trace_heat_handler(
     Ok(Json(serde_json::json!({ "success": true, "data": results })))
 }
 
+/// GET `/api/v1/trace/order/{order_type}/{order_id}` — Trace by order ID
+///
+/// Returns inventory movements for all pipes associated with a given order.
+/// Accepts order_type (purchase/sales) and order_id.
 pub async fn trace_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((order_type, order_id)): Path<(String, i64)>,
@@ -365,6 +454,9 @@ pub async fn trace_order_handler(
 
 // ━━━ Statistics ━━━
 
+/// GET `/api/v1/inventory/statistics` — Inventory statistics overview
+///
+/// Returns aggregated inventory statistics (total quantity, value, counts by pipe type/grade, etc.).
 pub async fn inventory_statistics_handler(
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -374,6 +466,9 @@ pub async fn inventory_statistics_handler(
 
 // ━━━ Inbound / Outbound Items ━━━
 
+/// GET `/api/v1/inbound-records/{id}/items` — Inbound record line items
+///
+/// Returns all line items for a specific inbound record.
 pub async fn list_inbound_items_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -382,6 +477,9 @@ pub async fn list_inbound_items_handler(
     Ok(ApiResponse::ok(items))
 }
 
+/// GET `/api/v1/outbound-records/{id}/items` — Outbound record line items
+///
+/// Returns all line items for a specific outbound record.
 pub async fn list_outbound_items_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -392,6 +490,10 @@ pub async fn list_outbound_items_handler(
 
 // ━━━ Complete Check ━━━
 
+/// PUT `/api/v1/inventory/checks/{id}/complete` — Complete a check
+///
+/// Marks a check as completed, calculating variance from expected stock.
+/// Returns the check summary with discrepancy details.
 pub async fn complete_check_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
@@ -402,6 +504,10 @@ pub async fn complete_check_handler(
 
 // ━━━ Assign Location ━━━
 
+/// PUT `/api/v1/locations/{location_id}/assign` — Assign pipes to a location
+///
+/// Assigns pipes to a storage location. Validates the request body.
+/// Warehouse/admin role required. Returns 404 if location not found.
 pub async fn assign_location_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(location_id): Path<i64>,
@@ -414,6 +520,10 @@ pub async fn assign_location_handler(
 
 // ━━━ Transfer Location ━━━
 
+/// PUT `/api/v1/locations/transfer` — Transfer pipe location
+///
+/// Transfers a pipe from its current location to a new location.
+/// Validates the request body. Returns 404 if pipe or location not found.
 pub async fn transfer_location_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((pipe_type, pipe_id)): Path<(String, i64)>,
@@ -426,6 +536,10 @@ pub async fn transfer_location_handler(
 
 // ━━━ Batch Inbound ━━━
 
+/// POST `/api/v1/inbound-records/batch` — Batch create inbound records
+///
+/// Creates multiple inbound records in a single request for bulk operations.
+/// Validates the request body. Warehouse/admin role required.
 pub async fn batch_create_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<BatchCreateInboundRequest>,

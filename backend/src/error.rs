@@ -14,71 +14,87 @@ pub struct ApiErrorResponse {
     pub details: Option<serde_json::Value>,
 }
 
+/// Application-level errors with numeric codes (100xx–50001) and HTTP status mapping.
+/// Each variant carries the information needed for the frontend to display localized messages.
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    // General (100xx)
+    /// Internal server error — unexpected condition that should not happen under normal operation.
+    /// Records the underlying cause as a string message.
     #[error("Internal server error: {0}")]
     Internal(String),
+    /// Validation failed — request payload didn't pass validation rules (e.g., missing required field).
     #[error("Validation error: {0}")]
     Validation(String),
+    /// Bad request — the request is malformed or semantically invalid beyond validation.
     #[error("Bad request: {0}")]
     BadRequest(String),
+    /// Generic resource not found — the requested entity does not exist (non-specific).
     #[error("Resource not found: {0}")]
     NotFound(String),
 
-    // Auth (110xx)
+    /// Authentication failed — missing, invalid, or malformed credentials.
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
+    /// JWT token has exceeded its expiry time — client must re-authenticate.
     #[error("Token expired")]
     TokenExpired,
+    /// The user lacks the required role or permission for this operation.
     #[error("Forbidden: {0}")]
     Forbidden(String),
 
-    // Pipe (120xx)
+    /// Seamless/screen pipe not found by the given identifier.
     #[error("Pipe not found: {0}")]
     PipeNotFound(String),
+    /// Pipe number already exists — duplicate detection for unique pipe identifiers.
     #[error("Pipe number already exists: {0}")]
     PipeNumberDuplicate(String),
+    /// Pipe status does not allow the requested operation (e.g., scrapped pipe cannot be transferred).
     #[error("Pipe status conflict: {0}")]
     PipeStatusConflict(String),
 
-    // Inventory (130xx)
+    /// Requested quantity exceeds available stock — ATP check failed.
     #[error("Insufficient stock")]
     InsufficientStock,
+    /// Warehouse location not found or does not belong to the expected zone.
     #[error("Location not found: {0}")]
     LocationNotFound(String),
 
-    // Orders (140xx)
+    /// Order has reached a state where edits are no longer permitted.
     #[error("Order cannot be modified: {0}")]
     OrderCannotModify(String),
+    /// Order not found by the given order number or ID.
     #[error("Order not found: {0}")]
     OrderNotFound(String),
 
-    // Quality (150xx)
+    /// Quality inspection certificate not found or has been revoked.
     #[error("Quality cert not found: {0}")]
     QualityCertNotFound(String),
+    /// File attachment referenced by a quality record does not exist.
     #[error("Attachment not found: {0}")]
     AttachmentNotFound(String),
 
-    // Supplier (160xx)
+    /// Supplier record not found by the given code or ID.
     #[error("Supplier not found: {0}")]
     SupplierNotFound(String),
+    /// Supplier code violates the unique constraint — duplicate detected.
     #[error("Supplier code already exists: {0}")]
     SupplierCodeDuplicate(String),
 
-    // Customer (170xx)
+    /// Customer record not found by the given code or ID.
     #[error("Customer not found: {0}")]
     CustomerNotFound(String),
+    /// Customer code violates the unique constraint — duplicate detected.
     #[error("Customer code already exists: {0}")]
     CustomerCodeDuplicate(String),
 
-    // Data IO (180xx)
+    /// Bulk import failed — malformed file or row-level validation error.
     #[error("Import error: {0}")]
     ImportError(String),
+    /// Export generation failed — data retrieval or file format error.
     #[error("Export error: {0}")]
     ExportError(String),
 
-    // Generic DB
+    /// Database-level failure (connection, constraint violation, or query error).
     #[error("Database error: {0}")]
     Database(String),
 }

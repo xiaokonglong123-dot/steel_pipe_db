@@ -47,7 +47,7 @@ pub struct PaginatedResponse<T: Serialize> {
 }
 
 impl<T: Serialize> ApiResponse<T> {
-    /// 200 OK
+    /// Wrap a data payload in the standard API envelope. Returns 200 OK.
     pub fn ok(data: T) -> Json<Self> {
         Json(Self {
             success: true,
@@ -56,7 +56,7 @@ impl<T: Serialize> ApiResponse<T> {
         })
     }
 
-    /// 201 Created
+    /// Wrap a data payload and return 201 Created — used for resource-creation endpoints.
     pub fn created(data: T) -> Response {
         (
             StatusCode::CREATED,
@@ -71,7 +71,7 @@ impl<T: Serialize> ApiResponse<T> {
 }
 
 impl<T: Serialize> PaginatedResponse<T> {
-    /// 200 OK with pagination metadata
+    /// Build a paginated response envelope with items and computed metadata. Returns 200 OK.
     pub fn ok(items: Vec<T>, total: u64, page: u64, page_size: u64) -> Json<Self> {
         let total_pages = if total == 0 {
             0

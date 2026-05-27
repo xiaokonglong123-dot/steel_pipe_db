@@ -10,8 +10,7 @@ use crate::models::inventory::{
     OutboundItem, OutboundRecord,
 };
 
-// ━━━ CreateInventoryLog (helper struct, not a model) ━━━
-
+/// Helper struct for inserting into `inventory_logs` — not a DB model.
 #[derive(Debug, Clone)]
 pub struct CreateInventoryLog {
     pub pipe_type: String,
@@ -25,8 +24,7 @@ pub struct CreateInventoryLog {
     pub created_by: Option<i64>,
 }
 
-// ━━━ CheckInitItem (helper struct) ━━━
-
+/// Helper struct for seeding inventory check items — not a DB model.
 #[derive(Debug, Clone)]
 pub struct CheckInitItem {
     pub pipe_type: String,
@@ -34,11 +32,12 @@ pub struct CheckInitItem {
     pub expected_status: String,
 }
 
-// ━━━ InventoryRepo (ATP queries) ━━━
-
+/// ATP (Available-to-Promise) queries across `seamless_pipes` and `screen_pipes`.
 pub struct InventoryRepo;
 
 impl InventoryRepo {
+    /// UNION query across both `seamless_pipes` and `screen_pipes` to compute available-to-promise
+    /// stock grouped by `pipe_type`, `grade`, and `location_id`. Supports optional filters.
     pub async fn find_atp(
         pool: &SqlitePool,
         pipe_type: &Option<String>,
@@ -95,8 +94,7 @@ impl InventoryRepo {
         .await
     }
 
-    // ━━ Statistics ━━
-
+    /// Sums `COUNT(*)` of `in_stock` pipes from both `seamless_pipes` and `screen_pipes`.
     pub async fn get_total_in_stock(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
         let (seamless,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM seamless_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
@@ -113,6 +111,8 @@ impl InventoryRepo {
         Ok(seamless + screen)
     }
 
+    /// GROUP BY `grade`/`base_grade` across both pipe tables. Returns JSON objects with
+    /// `grade`, `count`, and `pipe_type` fields.
     pub async fn get_count_by_grade(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, sqlx::Error> {
         let seamless: Vec<(String, i64)> = sqlx::query_as(
             "SELECT grade, COUNT(*) as cnt FROM seamless_pipes \
@@ -138,6 +138,8 @@ impl InventoryRepo {
         Ok(result)
     }
 
+    /// GROUP BY `location_id` across both pipe tables. Returns JSON objects with
+    /// `location_id`, `count`, and `pipe_type` fields.
     pub async fn get_count_by_location(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, sqlx::Error> {
         let seamless: Vec<(Option<i64>, i64)> = sqlx::query_as(
             "SELECT location_id, COUNT(*) as cnt FROM seamless_pipes \
@@ -163,8 +165,8 @@ impl InventoryRepo {
         Ok(result)
     }
 
-    // ━━ Location assignment ━━
-
+    /// Updates `location_id` on either `seamless_pipes` or `screen_pipes` depending on
+    /// `pipe_type`. No-op if `pipe_type` is neither seamless nor screen.
     pub async fn update_pipe_location(
         pool: &SqlitePool,
         pipe_type: &str,
@@ -197,6 +199,7 @@ impl InventoryRepo {
         Ok(())
     }
 
+    /// Returns `location_id` for a given pipe (seamless or screen). Returns `None` if not found.
     pub async fn get_pipe_location_id(
         pool: &SqlitePool,
         pipe_type: &str,
@@ -226,11 +229,11 @@ impl InventoryRepo {
     }
 }
 
-// ━━━ LocationRepo ━━━
-
+/// CRUD for `locations` table (warehouse bin locations). All queries filter `deleted_at IS NULL`.
 pub struct LocationRepo;
 
 impl LocationRepo {
+    /// INSERT into `locations`. Returns the newly created row with generated `id`.
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateLocationRequest,
@@ -252,6 +255,8 @@ impl LocationRepo {
         .await
     }
 
+    /// UPDATE `locations` by id. Supports optional `description`, `capacity`, `is_active` fields.
+    /// Returns the updated row.
     pub async fn update(
         pool: &SqlitePool,
         id: i64,
@@ -284,6 +289,7 @@ impl LocationRepo {
         builder.build_query_as::<Location>().fetch_one(pool).await
     }
 
+    /// SELECT by primary key from `locations`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Location>, sqlx::Error> {
         sqlx::query_as::<_, Location>(
             "SELECT id, zone_code, shelf_code, level_code, full_code, description, capacity, \
@@ -295,6 +301,7 @@ impl LocationRepo {
         .await
     }
 
+    /// SELECT by unique `full_code` (e.g. `A-01-01`). Returns `None` if not found or soft-deleted.
     pub async fn find_by_full_code(
         pool: &SqlitePool,
         code: &str,
@@ -309,6 +316,7 @@ impl LocationRepo {
         .await
     }
 
+    /// Soft-delete by setting `deleted_at` timestamp. No-op if already deleted.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE locations SET deleted_at = datetime('now'), \
@@ -320,6 +328,8 @@ impl LocationRepo {
         Ok(())
     }
 
+    /// Paginated SELECT from `locations`. Optionally filters to only active locations.
+    /// Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         params: &PaginationParams,
@@ -356,11 +366,13 @@ impl LocationRepo {
 
 }
 
-// ━━━ InboundRepo ━━━
-
+/// CRUD for `inbound_records` and `inbound_items`. All queries filter `deleted_at IS NULL`.
 pub struct InboundRepo;
 
 impl InboundRepo {
+    /// INSERT into `inbound_records` + `inbound_items` in a single transaction.
+    /// Purchase-type records start as `auto_approved`; others as `pending`.
+    /// Returns the created `InboundRecord`.
     pub async fn create_with_items(
         pool: &SqlitePool,
         dto: &crate::dto::inventory_dto::CreateInboundRecordRequest,
@@ -402,6 +414,7 @@ impl InboundRepo {
         Ok(record)
     }
 
+    /// SELECT by primary key from `inbound_records`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -416,6 +429,7 @@ impl InboundRepo {
         .await
     }
 
+    /// SELECT all `InboundItem` rows for a given inbound record.
     pub async fn find_items(
         pool: &SqlitePool,
         inbound_id: i64,
@@ -429,6 +443,8 @@ impl InboundRepo {
         .await
     }
 
+    /// Paginated SELECT with optional filters (`q`, `inbound_type`, `approval_status`, `order_id`).
+    /// Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         filter: &InboundFilter,
@@ -504,6 +520,7 @@ impl InboundRepo {
         Ok((items, total.0 as u64))
     }
 
+    /// UPDATE `approval_status` on an inbound record. Optionally sets `rejection_reason`.
     pub async fn update_status(
         pool: &SqlitePool,
         id: i64,
@@ -534,6 +551,7 @@ impl InboundRepo {
         Ok(())
     }
 
+    /// Sets `order_id` on an inbound record to link it to a purchase order.
     pub async fn link_to_order(
         pool: &SqlitePool,
         inbound_id: i64,
@@ -550,6 +568,7 @@ impl InboundRepo {
         Ok(())
     }
 
+    /// Soft-delete by setting `deleted_at` timestamp. No-op if already deleted.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE inbound_records SET deleted_at = datetime('now'), \
@@ -562,11 +581,13 @@ impl InboundRepo {
     }
 }
 
-// ━━━ OutboundRepo ━━━
-
+/// CRUD for `outbound_records` and `outbound_items`. All queries filter `deleted_at IS NULL`.
 pub struct OutboundRepo;
 
 impl OutboundRepo {
+    /// INSERT into `outbound_records` + `outbound_items` in a single transaction.
+    /// Sales-type records start as `auto_approved`; others as `pending`.
+    /// Returns the created `OutboundRecord`.
     pub async fn create_with_items(
         pool: &SqlitePool,
         dto: &crate::dto::inventory_dto::CreateOutboundRecordRequest,
@@ -608,6 +629,7 @@ impl OutboundRepo {
         Ok(record)
     }
 
+    /// SELECT by primary key from `outbound_records`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -622,6 +644,7 @@ impl OutboundRepo {
         .await
     }
 
+    /// SELECT all `OutboundItem` rows for a given outbound record.
     pub async fn find_items(
         pool: &SqlitePool,
         outbound_id: i64,
@@ -635,6 +658,8 @@ impl OutboundRepo {
         .await
     }
 
+    /// Paginated SELECT with optional filters (`q`, `outbound_type`, `approval_status`, `order_id`).
+    /// Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         filter: &OutboundFilter,
@@ -710,6 +735,7 @@ impl OutboundRepo {
         Ok((items, total.0 as u64))
     }
 
+    /// UPDATE `approval_status` on an outbound record. Optionally sets `rejection_reason`.
     pub async fn update_status(
         pool: &SqlitePool,
         id: i64,
@@ -740,6 +766,7 @@ impl OutboundRepo {
         Ok(())
     }
 
+    /// Sets `order_id` on an outbound record to link it to a sales order.
     pub async fn link_to_order(
         pool: &SqlitePool,
         outbound_id: i64,
@@ -756,6 +783,7 @@ impl OutboundRepo {
         Ok(())
     }
 
+    /// Soft-delete by setting `deleted_at` timestamp. No-op if already deleted.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE outbound_records SET deleted_at = datetime('now'), \
@@ -768,11 +796,11 @@ impl OutboundRepo {
     }
 }
 
-// ━━━ InventoryLogRepo ━━━
-
+/// INSERT + paginated SELECT for `inventory_logs` (pipe movement audit trail).
 pub struct InventoryLogRepo;
 
 impl InventoryLogRepo {
+    /// INSERT a row into `inventory_logs`. Returns the newly created log entry with generated `id`.
     pub async fn create(
         pool: &SqlitePool,
         log: &CreateInventoryLog,
@@ -797,6 +825,8 @@ impl InventoryLogRepo {
         .await
     }
 
+    /// Paginated SELECT from `inventory_logs` with optional filters (`pipe_type`, `location_id`).
+    /// Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         filter: &InventoryFilter,
@@ -861,11 +891,13 @@ impl InventoryLogRepo {
 
 }
 
-// ━━━ CheckRepo ━━━
-
+/// CRUD for inventory check records and items (`inventory_check_records` + `inventory_check_items`).
+/// All queries filter `deleted_at IS NULL`.
 pub struct CheckRepo;
 
 impl CheckRepo {
+    /// INSERT into `inventory_check_records` + `inventory_check_items` in a single transaction.
+    /// Status starts as `in_progress`. Returns the created `InventoryCheckRecord`.
     pub async fn create(
         pool: &SqlitePool,
         dto: &CreateCheckRequest,
@@ -903,6 +935,7 @@ impl CheckRepo {
         Ok(record)
     }
 
+    /// SELECT by primary key from `inventory_check_records`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,
@@ -917,6 +950,7 @@ impl CheckRepo {
         .await
     }
 
+    /// SELECT all `InventoryCheckItem` rows for a given check.
     pub async fn get_check_items(
         pool: &SqlitePool,
         check_id: i64,
@@ -931,6 +965,7 @@ impl CheckRepo {
         .await
     }
 
+    /// Paginated SELECT from `inventory_check_records`. Returns `(items, total)`.
     pub async fn list(
         pool: &SqlitePool,
         params: &PaginationParams,
@@ -955,6 +990,7 @@ impl CheckRepo {
         Ok((items, total.0 as u64))
     }
 
+    /// UPDATE `status` on an inventory check record (e.g. `in_progress` → `completed`).
     pub async fn update_status(
         pool: &SqlitePool,
         check_id: i64,
@@ -971,6 +1007,7 @@ impl CheckRepo {
         Ok(())
     }
 
+    /// COUNT of check items that are mismatched (`is_match` IS NULL or 0).
     pub async fn get_mismatch_count(
         pool: &SqlitePool,
         check_id: i64,
@@ -985,6 +1022,7 @@ impl CheckRepo {
         Ok(cnt)
     }
 
+    /// UPDATE a single check item's `found_status` and compute `is_match`. Returns the updated item.
     pub async fn update_item_result(
         pool: &SqlitePool,
         check_id: i64,

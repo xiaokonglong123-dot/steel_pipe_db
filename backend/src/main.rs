@@ -19,7 +19,7 @@ mod services;
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing
+    // Tracing must be initialized before any logging — panic hooks capture early crashes
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env()
@@ -27,20 +27,20 @@ async fn main() {
         )
         .init();
 
-    // Load .env file
+    // Load .env before config — env vars must be present before from_env() reads them
     dotenvy::dotenv().ok();
 
-    // Load config
+    // Read all env-based config upfront — panics early if critical vars are missing
     let cfg = config::Config::from_env();
 
-    // Initialize database pool
+    // Pool must be created before routes — all handlers pull connections from this pool
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect(&cfg.database_url)
         .await
         .expect("Failed to connect to database");
 
-    // Run migrations
+    // Migrations must run before the server starts — stale schema causes runtime errors
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
@@ -48,10 +48,10 @@ async fn main() {
 
     tracing::info!("Database migrations completed");
 
-    // Build application
+    // Assemble the full router tree — all middleware and route groups merge here
     let app = router::create_app(pool, cfg.jwt_secret.clone());
 
-    // Start server
+    // Bind and serve — axum::serve is the outermost layer that drives the async event loop
     let addr: SocketAddr = cfg
         .server_addr()
         .parse()

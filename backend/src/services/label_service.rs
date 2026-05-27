@@ -4,9 +4,18 @@ use crate::dto::label_dto::{BatchLabelRequest, ShippingLabelRequest};
 use crate::error::AppError;
 use crate::repositories::label_repo::LabelRepo;
 
+/// Label generation service — produces HTML barcode labels, QC tags, and shipping
+/// labels for steel pipes. Renders seamless and screen pipe specs into printable
+/// HTML documents.
 pub struct LabelService;
 
 impl LabelService {
+    /// Generates a barcode label HTML for a single pipe. Queries the pipe data by
+    /// `pipe_type` (`seamless`/`screen`) and renders a 4-inch spec label.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNotFound` — pipe ID doesn't exist
+    /// - `AppError::Validation` — invalid pipe_type
     pub async fn generate_pipe_label(
         pool: &SqlitePool,
         pipe_type: &str,
@@ -34,6 +43,13 @@ impl LabelService {
         }
     }
 
+    /// Batch-generates barcode label HTML for multiple pipes. Processes each pipe_id
+    /// in the request and merges them into one continuous print-ready HTML doc
+    /// (page break per label).
+    ///
+    /// # Errors
+    /// - `AppError::PipeNotFound` — any pipe ID doesn't exist
+    /// - `AppError::Validation` — any pipe_type is invalid
     pub async fn generate_batch_labels(
         pool: &SqlitePool,
         req: &BatchLabelRequest,
@@ -74,6 +90,12 @@ impl LabelService {
         Ok(Self::batch_html(&labels))
     }
 
+    /// Generates a QC tag HTML. Queries the quality cert by ID and its linked pipe,
+    /// renders a status tag with cert number, grade, test results, and inspector.
+    ///
+    /// # Errors
+    /// - `AppError::QualityCertNotFound` — cert ID doesn't exist
+    /// - `AppError::PipeNotFound` — linked pipe doesn't exist
     pub async fn generate_quality_tag(
         pool: &SqlitePool,
         cert_id: i64,
@@ -113,6 +135,12 @@ impl LabelService {
         Ok(Self::quality_tag_html(&cert, &pipe_number, &grade))
     }
 
+    /// Generates a shipping label HTML. Includes pipe specs, customer details,
+    /// order number, destination, and other logistics info in a 6-inch wide doc.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNotFound` — pipe ID doesn't exist
+    /// - `AppError::Validation` — invalid pipe_type
     pub async fn generate_shipping_label(
         pool: &SqlitePool,
         req: &ShippingLabelRequest,

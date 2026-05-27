@@ -7,6 +7,8 @@ use crate::error::AppError;
 use crate::models::inventory::{InventoryCheckItem, InventoryCheckRecord};
 use crate::repositories::inventory_repo::{CheckInitItem, CheckRepo};
 
+/// Inventory check service — create check orders, submit results per item, complete the whole damn workflow.
+/// On creation, it auto-initializes all `in_stock` pipes as pending check items.
 pub struct CheckService;
 
 impl CheckService {
@@ -18,6 +20,7 @@ impl CheckService {
         format!("{}-{}-{}", prefix, date_str, short_serial)
     }
 
+    /// Creates a check order. Auto-scans all `in_stock` pipes into check items and generates a CHK-prefixed number.
     pub async fn create_check(
         pool: &SqlitePool,
         dto: &CreateCheckRequest,
@@ -61,6 +64,10 @@ impl CheckService {
             .map_err(AppError::from)
     }
 
+    /// Gets a check record with all its items. Returns `(record, items)` tuple.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — check record not found
     pub async fn get_check_detail(
         pool: &SqlitePool,
         id: i64,
@@ -77,6 +84,7 @@ impl CheckService {
         Ok((record, items))
     }
 
+    /// Paginated list of check records.
     pub async fn list_checks(
         pool: &SqlitePool,
         params: &PaginationParams,
@@ -86,6 +94,11 @@ impl CheckService {
             .map_err(AppError::from)
     }
 
+    /// Submitts the actual result for a check item (`found_status` + `notes`). Only works on `in_progress` checks.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — check record not found
+    /// - `AppError::Validation` — check ain't in progress
     pub async fn submit_check_item(
         pool: &SqlitePool,
         check_id: i64,
@@ -109,6 +122,11 @@ impl CheckService {
             .map_err(AppError::from)
     }
 
+    /// Completes a check — sets status to `completed` and returns the mismatch count. Only for `in_progress` checks.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — check record not found
+    /// - `AppError::Validation` — can't complete in the current state
     pub async fn complete_check(
         pool: &SqlitePool,
         check_id: i64,
