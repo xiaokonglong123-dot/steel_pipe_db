@@ -1,5 +1,6 @@
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
+use crate::domain::pipe::PipeType;
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{
     CreateCheckRequest, CreateLocationRequest, InboundFilter, InventoryFilter, OutboundFilter,
@@ -30,6 +31,22 @@ pub struct CheckInitItem {
     pub pipe_type: String,
     pub pipe_id: i64,
     pub expected_status: String,
+}
+
+/// Count of pipes grouped by steel grade.
+#[derive(Debug, serde::Serialize)]
+pub struct GradeCount {
+    pub grade: String,
+    pub count: i64,
+    pub pipe_type: String,
+}
+
+/// Count of pipes grouped by location.
+#[derive(Debug, serde::Serialize)]
+pub struct LocationCount {
+    pub location_id: Option<i64>,
+    pub count: i64,
+    pub pipe_type: String,
 }
 
 /// ATP (Available-to-Promise) queries across `seamless_pipes` and `screen_pipes`.
@@ -111,9 +128,8 @@ impl InventoryRepo {
         Ok(seamless + screen)
     }
 
-    /// GROUP BY `grade`/`base_grade` across both pipe tables. Returns JSON objects with
-    /// `grade`, `count`, and `pipe_type` fields.
-    pub async fn get_count_by_grade(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, sqlx::Error> {
+    /// GROUP BY `grade`/`base_grade` across both pipe tables. Returns typed structs.
+    pub async fn get_count_by_grade(pool: &SqlitePool) -> Result<Vec<GradeCount>, sqlx::Error> {
         let seamless: Vec<(String, i64)> = sqlx::query_as(
             "SELECT grade, COUNT(*) as cnt FROM seamless_pipes \
              WHERE status = 'in_stock' AND deleted_at IS NULL GROUP BY grade ORDER BY grade",
@@ -129,18 +145,17 @@ impl InventoryRepo {
         .await?;
 
         let mut result = Vec::new();
-        for (grade, cnt) in seamless {
-            result.push(serde_json::json!({"grade": grade, "count": cnt, "pipe_type": "seamless"}));
+        for (grade, count) in seamless {
+            result.push(GradeCount { grade, count, pipe_type: "seamless".to_string() });
         }
-        for (grade, cnt) in screen {
-            result.push(serde_json::json!({"grade": grade, "count": cnt, "pipe_type": "screen"}));
+        for (grade, count) in screen {
+            result.push(GradeCount { grade, count, pipe_type: "screen".to_string() });
         }
         Ok(result)
     }
 
-    /// GROUP BY `location_id` across both pipe tables. Returns JSON objects with
-    /// `location_id`, `count`, and `pipe_type` fields.
-    pub async fn get_count_by_location(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, sqlx::Error> {
+    /// GROUP BY `location_id` across both pipe tables. Returns typed structs.
+    pub async fn get_count_by_location(pool: &SqlitePool) -> Result<Vec<LocationCount>, sqlx::Error> {
         let seamless: Vec<(Option<i64>, i64)> = sqlx::query_as(
             "SELECT location_id, COUNT(*) as cnt FROM seamless_pipes \
              WHERE status = 'in_stock' AND deleted_at IS NULL GROUP BY location_id",
@@ -156,11 +171,11 @@ impl InventoryRepo {
         .await?;
 
         let mut result = Vec::new();
-        for (loc_id, cnt) in seamless {
-            result.push(serde_json::json!({"location_id": loc_id, "count": cnt, "pipe_type": "seamless"}));
+        for (location_id, count) in seamless {
+            result.push(LocationCount { location_id, count, pipe_type: "seamless".to_string() });
         }
-        for (loc_id, cnt) in screen {
-            result.push(serde_json::json!({"location_id": loc_id, "count": cnt, "pipe_type": "screen"}));
+        for (location_id, count) in screen {
+            result.push(LocationCount { location_id, count, pipe_type: "screen".to_string() });
         }
         Ok(result)
     }
@@ -173,8 +188,8 @@ impl InventoryRepo {
         pipe_id: i64,
         location_id: i64,
     ) -> Result<(), sqlx::Error> {
-        match pipe_type {
-            "seamless" | "casing" | "tubing" => {
+        match PipeType::from_pipe_type_str(pipe_type) {
+            Some(PipeType::Seamless) => {
                 sqlx::query(
                     "UPDATE seamless_pipes SET location_id = ?, updated_at = datetime('now') \
                      WHERE id = ? AND deleted_at IS NULL",
@@ -184,7 +199,7 @@ impl InventoryRepo {
                 .execute(pool)
                 .await?;
             }
-            "screen" | "screened" => {
+            Some(PipeType::Screen) => {
                 sqlx::query(
                     "UPDATE screen_pipes SET location_id = ?, updated_at = datetime('now') \
                      WHERE id = ? AND deleted_at IS NULL",
@@ -194,7 +209,7 @@ impl InventoryRepo {
                 .execute(pool)
                 .await?;
             }
-            _ => {}
+            None => {}
         }
         Ok(())
     }
@@ -205,8 +220,8 @@ impl InventoryRepo {
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<Option<i64>, sqlx::Error> {
-        match pipe_type {
-            "seamless" | "casing" | "tubing" => {
+        match PipeType::from_pipe_type_str(pipe_type) {
+            Some(PipeType::Seamless) => {
                 let row: Option<(Option<i64>,)> = sqlx::query_as(
                     "SELECT location_id FROM seamless_pipes WHERE id = ? AND deleted_at IS NULL",
                 )
@@ -215,7 +230,7 @@ impl InventoryRepo {
                 .await?;
                 Ok(row.and_then(|r| r.0))
             }
-            "screen" | "screened" => {
+            Some(PipeType::Screen) => {
                 let row: Option<(Option<i64>,)> = sqlx::query_as(
                     "SELECT location_id FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
                 )
@@ -224,7 +239,7 @@ impl InventoryRepo {
                 .await?;
                 Ok(row.and_then(|r| r.0))
             }
-            _ => Ok(None),
+            None => Ok(None),
         }
     }
 }

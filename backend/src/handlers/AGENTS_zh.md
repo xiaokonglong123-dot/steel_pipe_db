@@ -2,7 +2,7 @@
 
 ## Pattern
 
-Every handler follows the same damn pattern: **extract → call service → respond**
+Every handler follows the same pattern: **extract → call service → respond**
 
 ```rust
 pub async fn list_seamless_pipes_handler(

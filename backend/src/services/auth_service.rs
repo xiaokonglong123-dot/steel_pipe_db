@@ -12,8 +12,8 @@ use crate::middleware::auth::Claims;
 use crate::models::user::{User, UserInfo};
 use crate::repositories::user_repo::UserRepo;
 
-/// Auth service — handles login, token refresh, password bullshit, and user CRUD.
-/// Under the hood it kicks password verification to Argon2 and JWT generation to jsonwebtoken.
+/// Auth service — handles login, token refresh, password management, and user CRUD.
+/// Under the hood it delegates password verification to Argon2 and JWT generation to jsonwebtoken.
 pub struct AuthService;
 
 impl AuthService {
@@ -70,10 +70,11 @@ impl AuthService {
     /// Issue a new JWT by decoding and re-encoding the existing (possibly expired) token.
     ///
     /// Reads the original claims, discards the old expiry, and assigns a fresh `exp` + `iat`.
-    /// This is NOT a full refresh-token rotation — the old token remains valid until its original expiry.
+    /// Tokens expired within the leeway grace period (7 days) are accepted for refresh;
+    /// tokens expired beyond that are rejected to prevent indefinite token reuse.
     ///
     /// # Errors
-    /// - `AppError::TokenExpired` — the provided token has an expired signature
+    /// - `AppError::TokenExpired` — the token has been expired for too long (beyond leeway)
     /// - `AppError::Unauthorized` — the token is structurally invalid
     /// - `AppError::Internal` — system time is misconfigured or signing failed
     pub async fn refresh_token(
@@ -83,10 +84,15 @@ impl AuthService {
     ) -> Result<crate::dto::auth_dto::TokenResponse, AppError> {
         use jsonwebtoken::{decode, DecodingKey, Validation};
 
+        // Allow tokens expired within the last 7 days to be refreshed.
+        // Tokens expired beyond this window are permanently rejected.
+        let mut validation = Validation::default();
+        validation.leeway = 7 * 24 * 3600; // 7 days in seconds
+
         let token_data = decode::<Claims>(
             &req.token,
             &DecodingKey::from_secret(jwt_secret.as_bytes()),
-            &Validation::default(),
+            &validation,
         )
         .map_err(|e| match e.kind() {
             jsonwebtoken::errors::ErrorKind::ExpiredSignature => AppError::TokenExpired,
@@ -116,8 +122,8 @@ impl AuthService {
         Ok(crate::dto::auth_dto::TokenResponse { token })
     }
 
-    /// Creates a damn new user and gives you back the basic profile.
-    /// Hashes the password with Argon2 before shoving it into the DB.
+    /// Creates a new user and returns the basic profile.
+    /// Hashes the password with Argon2 before storing it in the DB.
     ///
     /// # Errors
     /// - `AppError::Validation` — username already exists
@@ -150,7 +156,7 @@ impl AuthService {
         })
     }
 
-    /// Updates the user's profile — display name, email, phone, that kinda shit.
+    /// Updates the user's profile — display name, email, phone, etc.
     /// Returns the updated `UserInfo`.
     ///
     /// # Errors
@@ -180,7 +186,7 @@ impl AuthService {
     }
 
     /// Changes the user's password.
-    /// Admins get a free pass on the old-password check; everyone else has to know their current shit.
+    /// Admins bypass the old-password check; everyone else must provide their current password.
     ///
     /// # Errors
     /// - `AppError::NotFound` — user ID does not exist

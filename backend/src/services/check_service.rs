@@ -7,7 +7,7 @@ use crate::error::AppError;
 use crate::models::inventory::{InventoryCheckItem, InventoryCheckRecord};
 use crate::repositories::inventory_repo::{CheckInitItem, CheckRepo};
 
-/// Inventory check service — create check orders, submit results per item, complete the whole damn workflow.
+/// Inventory check service — create check orders, submit results per item, complete the full workflow.
 /// On creation, it auto-initializes all `in_stock` pipes as pending check items.
 pub struct CheckService;
 

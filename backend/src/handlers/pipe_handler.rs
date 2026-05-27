@@ -173,7 +173,7 @@ pub async fn delete_screen_pipe_handler(
 
 // ━━━ Search Handler ━━━
 
-/// GET `/api/v1/pipes/search` — Search all damn pipes (seamless + screen)
+/// GET `/api/v1/pipes/search` — Search all pipes (seamless + screen)
 ///
 /// Searches both seamless and screen pipes by keyword query `q`.
 /// Searches across pipe number, heat number, grade, and other fields.

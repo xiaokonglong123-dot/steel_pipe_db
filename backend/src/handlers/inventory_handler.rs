@@ -87,18 +87,12 @@ pub async fn list_inbound_handler(
 pub async fn get_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<crate::dto::inventory_dto::InboundRecordDetail>>, AppError> {
     let (record, items) = InboundService::get_inbound_record(&pool, id).await?;
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "data": {
-            "record": record,
-            "items": items,
-        }
-    })))
+    Ok(ApiResponse::ok(crate::dto::inventory_dto::InboundRecordDetail { record, items }))
 }
 
-/// PUT `/api/v1/inbound-records/{id}/approve` — Approve that inbound shit
+/// PUT `/api/v1/inbound-records/{id}/approve` — Approve an inbound record
 ///
 /// Approves an inbound record, updating stock quantities accordingly.
 /// Warehouse/admin role required. Returns 404 if record not found.
@@ -112,7 +106,7 @@ pub async fn approve_inbound_handler(
     Ok(ApiResponse::ok("Inbound approved".into()))
 }
 
-/// PUT `/api/v1/inbound-records/{id}/reject` — Reject that inbound shit
+/// PUT `/api/v1/inbound-records/{id}/reject` — Reject an inbound record
 ///
 /// Rejects an inbound record with a reason. Returns 404 if record not found.
 pub async fn reject_inbound_handler(
@@ -178,18 +172,12 @@ pub async fn list_outbound_handler(
 pub async fn get_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<crate::dto::inventory_dto::OutboundRecordDetail>>, AppError> {
     let (record, items) = OutboundService::get_outbound_record(&pool, id).await?;
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "data": {
-            "record": record,
-            "items": items,
-        }
-    })))
+    Ok(ApiResponse::ok(crate::dto::inventory_dto::OutboundRecordDetail { record, items }))
 }
 
-/// PUT `/api/v1/outbound-records/{id}/approve` — Approve that outbound shit
+/// PUT `/api/v1/outbound-records/{id}/approve` — Approve an outbound record
 ///
 /// Approves an outbound record, deducting stock quantities accordingly.
 /// Warehouse/admin role required. Returns 404 if record not found.
@@ -203,7 +191,7 @@ pub async fn approve_outbound_handler(
     Ok(ApiResponse::ok("Outbound approved".into()))
 }
 
-/// PUT `/api/v1/outbound-records/{id}/reject` — Reject that outbound shit
+/// PUT `/api/v1/outbound-records/{id}/reject` — Reject an outbound record
 ///
 /// Rejects an outbound record with a reason. Returns 404 if record not found.
 pub async fn reject_outbound_handler(
@@ -235,7 +223,7 @@ pub async fn delete_outbound_handler(
 pub async fn list_inventory_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<InventoryFilter>,
-) -> Result<Json<PaginatedResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<PaginatedResponse<crate::dto::inventory_dto::StockItem>>, AppError> {
     let pagination = PaginationParams {
         page: filter.page,
         page_size: filter.page_size,
@@ -386,15 +374,9 @@ pub async fn list_checks_handler(
 pub async fn get_check_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<crate::dto::inventory_dto::CheckRecordDetail>>, AppError> {
     let (record, items) = CheckService::get_check_detail(&pool, id).await?;
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "data": {
-            "record": record,
-            "items": items,
-        }
-    })))
+    Ok(ApiResponse::ok(crate::dto::inventory_dto::CheckRecordDetail { record, items }))
 }
 
 /// POST `/api/v1/inventory/checks/{check_id}/items/{item_id}/submit` — Submit a check item
@@ -413,16 +395,16 @@ pub async fn submit_check_item_handler(
 
 // ━━━ Trace Handlers ━━━
 
-/// GET `/api/v1/trace/pipe/{pipe_type}/{pipe_id}` — Trace the pipe's whole damn lifecycle
+/// GET `/api/v1/trace/pipe/{pipe_type}/{pipe_id}` — Trace the pipe's full lifecycle
 ///
 /// Returns the complete lifecycle trace for a pipe (inbound → outbound → quality).
 /// Accepts pipe_type (seamless/screen) and pipe_id.
 pub async fn trace_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((pipe_type, pipe_id)): Path<(String, i64)>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let result = TraceService::trace_pipe_lifecycle(&pool, &pipe_type, pipe_id).await?;
-    Ok(Json(serde_json::json!({ "success": true, "data": result })))
+    Ok(ApiResponse::ok(result))
 }
 
 /// GET `/api/v1/trace/heat` — Trace by heat number
@@ -432,12 +414,12 @@ pub async fn trace_pipe_handler(
 pub async fn trace_heat_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<HeatNumberQuery>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     if query.heat_number.trim().is_empty() {
         return Err(AppError::Validation("Heat number is required".into()));
     }
     let results = TraceService::trace_by_heat_number(&pool, &query.heat_number).await?;
-    Ok(Json(serde_json::json!({ "success": true, "data": results })))
+    Ok(ApiResponse::ok(serde_json::Value::Array(results)))
 }
 
 /// GET `/api/v1/trace/order/{order_type}/{order_id}` — Trace by order ID
@@ -447,9 +429,9 @@ pub async fn trace_heat_handler(
 pub async fn trace_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((order_type, order_id)): Path<(String, i64)>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let result = TraceService::trace_by_order(&pool, &order_type, order_id).await?;
-    Ok(Json(serde_json::json!({ "success": true, "data": result })))
+    Ok(ApiResponse::ok(result))
 }
 
 // ━━━ Statistics ━━━
@@ -459,7 +441,7 @@ pub async fn trace_order_handler(
 /// Returns aggregated inventory statistics (total quantity, value, counts by pipe type/grade, etc.).
 pub async fn inventory_statistics_handler(
     Extension(pool): Extension<SqlitePool>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<crate::dto::inventory_dto::InventoryStatistics>>, AppError> {
     let stats = InventoryQueryService::inventory_statistics(&pool).await?;
     Ok(ApiResponse::ok(stats))
 }

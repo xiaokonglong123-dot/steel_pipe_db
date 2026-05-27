@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-/// Sales order DB row. Selling pipes to a customer — the whole damn SO.
+/// Sales order DB row. Represents a sales order for selling pipes to a customer.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct SalesOrder {
     pub id: i64,

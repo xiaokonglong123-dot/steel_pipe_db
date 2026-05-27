@@ -5,6 +5,20 @@ use validator::Validate;
 //  Inbound DTOs
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/// Inbound record detail response DTO — record header + line items.
+#[derive(Debug, Serialize)]
+pub struct InboundRecordDetail {
+    pub record: crate::models::inventory::InboundRecord,
+    pub items: Vec<crate::models::inventory::InboundItem>,
+}
+
+/// Outbound record detail response DTO — record header + line items.
+#[derive(Debug, Serialize)]
+pub struct OutboundRecordDetail {
+    pub record: crate::models::inventory::OutboundRecord,
+    pub items: Vec<crate::models::inventory::OutboundItem>,
+}
+
 /// Create inbound record request DTO.
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateInboundRecordRequest {
@@ -249,4 +263,34 @@ pub struct BatchCreateInboundRequest {
     /// List of inbound records.
     #[validate(length(min = 1))]
     pub records: Vec<CreateInboundRecordRequest>,
+}
+
+/// Inventory statistics response DTO — total stock, breakdown by grade and location.
+#[derive(Debug, Serialize)]
+pub struct InventoryStatistics {
+    pub total_in_stock: i64,
+    pub by_grade: Vec<crate::repositories::inventory_repo::GradeCount>,
+    pub by_location: Vec<crate::repositories::inventory_repo::LocationCount>,
+}
+
+/// Check record detail response DTO — record header + check items.
+#[derive(Debug, Serialize)]
+pub struct CheckRecordDetail {
+    pub record: crate::models::inventory::InventoryCheckRecord,
+    pub items: Vec<crate::models::inventory::InventoryCheckItem>,
+}
+
+/// Stock item DTO — unified row from seamless_pipes or screen_pipes.
+#[derive(Debug, Serialize)]
+pub struct StockItem {
+    pub id: i64,
+    pub pipe_number: String,
+    pub grade: String,
+    pub od: f64,
+    pub wt: f64,
+    pub pipe_type: String,
+    pub status: String,
+    pub location_id: Option<i64>,
+    pub created_at: String,
+    pub updated_at: String,
 }

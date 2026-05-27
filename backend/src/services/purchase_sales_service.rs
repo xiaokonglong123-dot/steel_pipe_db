@@ -25,7 +25,7 @@ use crate::repositories::purchase_order_repo::PurchaseOrderRepo;
 use crate::repositories::sales_order_repo::SalesOrderRepo;
 use crate::repositories::supplier_repo::SupplierRepo;
 
-/// Service handling the whole damn lifecycle of Purchase Orders (PO) and Sales Orders (SO)
+/// Service handling the full lifecycle of Purchase Orders (PO) and Sales Orders (SO)
 /// — creation, updates, status transitions, approvals, rejections, and linking to
 /// inbound/outbound orders. All status transitions are validated against the
 /// `OrderStatus` domain-enum rules under the hood.
@@ -35,9 +35,9 @@ impl PurchaseSalesService {
     fn generate_order_no(prefix: &str) -> String {
         let now = Utc::now();
         let date_str = now.format("%Y%m%d").to_string();
-        let timestamp = now.format("%H%M%S").to_string();
-        let serial: String = (now.timestamp_subsec_millis() % 1000).to_string();
-        format!("{}-{}-{}{}", prefix, date_str, timestamp, serial)
+        let serial = uuid::Uuid::new_v4().to_string();
+        let short_serial = &serial[..8];
+        format!("{}-{}-{}", prefix, date_str, short_serial)
     }
 
     fn validate_status_transition(
@@ -387,7 +387,7 @@ impl PurchaseSalesService {
     }
 
     /// Transitions a sales order's status. Validates the current→target hop against
-    /// `OrderStatus` domain rules — no bullshit transitions allowed.
+    /// `OrderStatus` domain rules — only valid transitions are allowed.
     ///
     /// # Errors
     /// - `AppError::OrderNotFound` — ID doesn't exist or was deleted

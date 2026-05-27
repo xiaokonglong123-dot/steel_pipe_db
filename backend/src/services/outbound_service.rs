@@ -1,6 +1,7 @@
 use chrono::Utc;
 use sqlx::SqlitePool;
 
+use crate::domain::pipe::PipeType;
 use crate::dto::inventory_dto::{CreateOutboundRecordRequest, OutboundFilter};
 use crate::error::AppError;
 use crate::models::inventory::{OutboundItem, OutboundRecord};
@@ -26,7 +27,7 @@ impl OutboundService {
     /// # Errors
     /// - `AppError::Validation` — pipe items list is empty
     /// - `AppError::NotFound` — pipe ID doesn't exist
-    /// - `AppError::InsufficientStock` — pipe ain't `in_stock`
+    /// - `AppError::InsufficientStock` — pipe is not `in_stock`
     pub async fn create_outbound(
         pool: &SqlitePool,
         dto: &CreateOutboundRecordRequest,
@@ -37,11 +38,11 @@ impl OutboundService {
 
         // Batch query all pipes to fix N+1 problem
         let seamless_ids: Vec<i64> = dto.pipes.iter()
-            .filter(|item| matches!(item.pipe_type.as_str(), "seamless" | "casing" | "tubing"))
+            .filter(|item| PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Seamless))
             .map(|item| item.pipe_id)
             .collect();
         let screen_ids: Vec<i64> = dto.pipes.iter()
-            .filter(|item| matches!(item.pipe_type.as_str(), "screen" | "screened"))
+            .filter(|item| PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Screen))
             .map(|item| item.pipe_id)
             .collect();
 
@@ -56,8 +57,11 @@ impl OutboundService {
             .collect();
 
         for item in &dto.pipes {
-            match item.pipe_type.as_str() {
-                "seamless" | "casing" | "tubing" => {
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
+                .ok_or_else(|| AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type)))?;
+
+            match pipe_type {
+                PipeType::Seamless => {
                     let status = seamless_map.get(&item.pipe_id)
                         .ok_or_else(|| AppError::NotFound(format!(
                             "Seamless pipe id={} not found", item.pipe_id
@@ -66,7 +70,7 @@ impl OutboundService {
                         return Err(AppError::InsufficientStock);
                     }
                 }
-                "screen" | "screened" => {
+                PipeType::Screen => {
                     let status = screen_map.get(&item.pipe_id)
                         .ok_or_else(|| AppError::NotFound(format!(
                             "Screen pipe id={} not found", item.pipe_id
@@ -75,9 +79,6 @@ impl OutboundService {
                         return Err(AppError::InsufficientStock);
                     }
                 }
-                _ => return Err(AppError::Validation(format!(
-                    "Unknown pipe_type: {}", item.pipe_type
-                ))),
             }
         }
 
@@ -88,68 +89,67 @@ impl OutboundService {
             .map_err(AppError::from)?;
 
         if record.approval_status == "auto_approved" {
-            for item in &dto.pipes {
-                Self::execute_outbound(pool, record.id, item).await?;
-            }
+            Self::execute_outbound_batch(pool, record.id, &dto.pipes).await?;
         }
 
         Ok(record)
     }
 
-    async fn execute_outbound(
+    /// Applies outbound stock changes for all pipe items in a single transaction.
+    /// If any item fails, the entire batch is rolled back.
+    async fn execute_outbound_batch(
         pool: &SqlitePool,
         record_id: i64,
-        item: &crate::dto::inventory_dto::OutboundPipeItem,
+        items: &[crate::dto::inventory_dto::OutboundPipeItem],
     ) -> Result<(), AppError> {
         let mut tx = pool.begin().await.map_err(AppError::from)?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-        match item.pipe_type.as_str() {
-            "seamless" | "casing" | "tubing" => {
-                sqlx::query(
-                    "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-                )
-                .bind(&now)
-                .bind(item.pipe_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(AppError::from)?;
-            }
-            "screen" | "screened" => {
-                sqlx::query(
-                    "UPDATE screen_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-                )
-                .bind(&now)
-                .bind(item.pipe_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(AppError::from)?;
-            }
-            _ => {
-                return Err(AppError::Validation(format!(
-                    "Unknown pipe_type: {}",
-                    item.pipe_type
-                )));
-            }
-        }
+        for item in items {
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
+                .ok_or_else(|| AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type)))?;
 
-        sqlx::query(
-            "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
-             from_location_id, to_location_id, notes, created_by) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&item.pipe_type)
-        .bind(item.pipe_id)
-        .bind("outbound")
-        .bind(Some("outbound"))
-        .bind(Some(record_id))
-        .bind(None::<i64>)
-        .bind(None::<i64>)
-        .bind(None::<String>)
-        .bind(None::<i64>)
-        .execute(&mut *tx)
-        .await
-        .map_err(AppError::from)?;
+            match pipe_type {
+                PipeType::Seamless => {
+                    sqlx::query(
+                        "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    )
+                    .bind(&now)
+                    .bind(item.pipe_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(AppError::from)?;
+                }
+                PipeType::Screen => {
+                    sqlx::query(
+                        "UPDATE screen_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    )
+                    .bind(&now)
+                    .bind(item.pipe_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(AppError::from)?;
+                }
+            }
+
+            sqlx::query(
+                "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
+                 from_location_id, to_location_id, notes, created_by) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(&item.pipe_type)
+            .bind(item.pipe_id)
+            .bind("outbound")
+            .bind(Some("outbound"))
+            .bind(Some(record_id))
+            .bind(None::<i64>)
+            .bind(None::<i64>)
+            .bind(None::<String>)
+            .bind(None::<i64>)
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::from)?;
+        }
 
         tx.commit().await.map_err(AppError::from)?;
         Ok(())
@@ -199,8 +199,11 @@ impl OutboundService {
         .map_err(AppError::from)?;
 
         for item in &items {
-            match item.pipe_type.as_str() {
-                "seamless" | "casing" | "tubing" => {
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
+                .ok_or_else(|| AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type)))?;
+
+            match pipe_type {
+                PipeType::Seamless => {
                     sqlx::query(
                         "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
                     )
@@ -210,7 +213,7 @@ impl OutboundService {
                     .await
                     .map_err(AppError::from)?;
                 }
-                "screen" | "screened" => {
+                PipeType::Screen => {
                     sqlx::query(
                         "UPDATE screen_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
                     )
@@ -219,12 +222,6 @@ impl OutboundService {
                     .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
-                }
-                _ => {
-                    return Err(AppError::Validation(format!(
-                        "Unknown pipe_type: {}",
-                        item.pipe_type
-                    )));
                 }
             }
 

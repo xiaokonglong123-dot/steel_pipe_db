@@ -41,6 +41,7 @@ impl RateLimiter {
     /// * `window_secs` — time window in seconds
     ///
     /// Returns `true` if the request is within limits, `false` if rate-limited.
+    /// Also performs periodic cleanup of stale buckets to prevent memory leaks.
     pub fn check(&self, key: &str, max_requests: u64, window_secs: u64) -> bool {
         // Handle poisoned mutex gracefully — don't crash the server
         let mut state = match self.inner.lock() {
@@ -53,9 +54,16 @@ impl RateLimiter {
         let now = Instant::now();
         let window = Duration::from_secs(window_secs);
 
+        // Periodic cleanup: remove stale buckets to prevent unbounded memory growth.
+        // This runs on every check call; the cost is amortized across all requests.
+        state.buckets.retain(|_, timestamps| {
+            timestamps.retain(|t| now.duration_since(*t) < window);
+            !timestamps.is_empty()
+        });
+
         let timestamps = state.buckets.entry(key.to_string()).or_default();
 
-        // Remove expired timestamps
+        // Remove expired timestamps for this specific key
         timestamps.retain(|t| now.duration_since(*t) < window);
 
         if timestamps.len() as u64 >= max_requests {

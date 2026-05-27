@@ -132,7 +132,7 @@ impl PipeService {
     /// Grabs a single seamless pipe by ID.
     ///
     /// # Errors
-    /// - `AppError::PipeNotFound` — can't find that damn ID
+    /// - `AppError::PipeNotFound` — pipe with the given ID not found
     pub async fn get_seamless_pipe(
         pool: &SqlitePool,
         id: i64,

@@ -1,7 +1,8 @@
 use sqlx::SqlitePool;
 
+use crate::domain::pipe::PipeType;
 use crate::dto::common::PaginationParams;
-use crate::dto::inventory_dto::{AtpItem, AtpQuery, InventoryFilter};
+use crate::dto::inventory_dto::{AtpItem, AtpQuery, InventoryFilter, InventoryStatistics, StockItem};
 use crate::error::AppError;
 use crate::models::inventory::InventoryLog;
 use crate::repositories::inventory_repo::{InventoryLogRepo, InventoryRepo};
@@ -17,7 +18,7 @@ impl InventoryQueryService {
     pub async fn list_inventory(
         pool: &SqlitePool,
         filter: &InventoryFilter,
-    ) -> Result<(Vec<serde_json::Value>, u64), AppError> {
+    ) -> Result<(Vec<StockItem>, u64), AppError> {
         let pagination = PaginationParams {
             page: filter.page,
             page_size: filter.page_size,
@@ -54,16 +55,16 @@ impl InventoryQueryService {
         let pipe_type_filter = filter.pipe_type.clone();
         let is_single_table = pipe_type_filter
             .as_deref()
-            .is_some_and(|pt| pt == "seamless" || pt == "casing" || pt == "tubing" || pt == "screen" || pt == "screened");
+            .is_some_and(|pt| PipeType::from_pipe_type_str(pt).is_some());
 
-        let count_sql = match pipe_type_filter.as_deref() {
-            Some("seamless" | "casing" | "tubing") => {
+        let count_sql = match pipe_type_filter.as_deref().and_then(PipeType::from_pipe_type_str) {
+            Some(PipeType::Seamless) => {
                 format!(
                     "SELECT COUNT(*) as cnt FROM seamless_pipes WHERE {}",
                     seamless_where
                 )
             }
-            Some("screen" | "screened") => {
+            Some(PipeType::Screen) => {
                 format!(
                     "SELECT COUNT(*) as cnt FROM screen_pipes WHERE {}",
                     screen_where
@@ -90,8 +91,8 @@ impl InventoryQueryService {
         }
         let total: (i64,) = count_q.fetch_one(pool).await.map_err(AppError::from)?;
 
-        let list_sql = match pipe_type_filter.as_deref() {
-            Some("seamless" | "casing" | "tubing") => {
+        let list_sql = match pipe_type_filter.as_deref().and_then(PipeType::from_pipe_type_str) {
+            Some(PipeType::Seamless) => {
                 format!(
                     "SELECT id, pipe_number, grade, od, wt, pipe_type, status, location_id, \
                      created_at, updated_at FROM seamless_pipes WHERE {} \
@@ -99,7 +100,7 @@ impl InventoryQueryService {
                     seamless_where
                 )
             }
-            Some("screen" | "screened") => {
+            Some(PipeType::Screen) => {
                 format!(
                     "SELECT id, pipe_number, base_grade as grade, base_od as od, base_wt as wt, \
                      screen_type as pipe_type, status, location_id, created_at, updated_at \
@@ -133,7 +134,7 @@ impl InventoryQueryService {
                 list_q = list_q.bind(val.as_str());
             }
         }
-        let items: Vec<serde_json::Value> = list_q
+        let items: Vec<StockItem> = list_q
             .bind(page_size as i64)
             .bind(offset as i64)
             .fetch_all(pool)
@@ -141,18 +142,7 @@ impl InventoryQueryService {
             .map_err(AppError::from)?
             .into_iter()
             .map(|(id, pipe_number, grade, od, wt, pipe_type, status, location_id, created_at, updated_at)| {
-                serde_json::json!({
-                    "id": id,
-                    "pipe_number": pipe_number,
-                    "grade": grade,
-                    "od": od,
-                    "wt": wt,
-                    "pipe_type": pipe_type,
-                    "status": status,
-                    "location_id": location_id,
-                    "created_at": created_at,
-                    "updated_at": updated_at,
-                })
+                StockItem { id, pipe_number, grade, od, wt, pipe_type, status, location_id, created_at, updated_at }
             })
             .collect();
 
@@ -172,7 +162,7 @@ impl InventoryQueryService {
     /// Gets inventory overview stats: total stock, breakdown by grade, breakdown by location.
     pub async fn inventory_statistics(
         pool: &SqlitePool,
-    ) -> Result<serde_json::Value, AppError> {
+    ) -> Result<InventoryStatistics, AppError> {
         let total = InventoryRepo::get_total_in_stock(pool)
             .await
             .map_err(AppError::from)?;
@@ -185,11 +175,11 @@ impl InventoryQueryService {
             .await
             .map_err(AppError::from)?;
 
-        Ok(serde_json::json!({
-            "total_in_stock": total,
-            "by_grade": by_grade,
-            "by_location": by_location,
-        }))
+        Ok(InventoryStatistics {
+            total_in_stock: total,
+            by_grade,
+            by_location,
+        })
     }
 
     /// ATP (Available-to-Promise) query.

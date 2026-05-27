@@ -206,7 +206,7 @@ pub async fn update_user_handler(
     Ok(ApiResponse::ok(user))
 }
 
-/// POST `/api/v1/users/{id}/change-password` — Change that damn password
+/// POST `/api/v1/users/{id}/change-password` — Change user password
 ///
 /// Changes password for the specified user. Non-admin users can only change their own password.
 /// Rate-limited (rate_limit_password_change middleware). Logs the operation.

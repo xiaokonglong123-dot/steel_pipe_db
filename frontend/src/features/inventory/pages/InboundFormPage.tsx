@@ -21,7 +21,7 @@ import { pipeSearchApi } from '../api/inventoryApi';
 import type { PipeSearchResult, CreateInboundData, InboundItem } from '../api/inventoryApi';
 
 const INBOUND_TYPES = ['purchase', 'production', 'return', 'transfer'];
-const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
+const PIPE_TYPES = ['seamless', 'casing', 'tubing', 'screen'];
 
 export default function InboundFormPage() {
   const { t } = useTranslation();
@@ -72,7 +72,7 @@ export default function InboundFormPage() {
     const pipes = form.getFieldValue('pipes') || [];
     const exists = pipes.some((p: { pipe_id: number }) => p.pipe_id === pipe.id);
     if (exists) {
-      message.warning(t('common.operate_failed'));
+      message.warning(t('inbound.pipe_already_added', 'This pipe has already been added to the list'));
       return;
     }
     form.setFieldsValue({
@@ -83,16 +83,30 @@ export default function InboundFormPage() {
 
   const handleSubmit = async (values: Record<string, unknown>) => {
     try {
+      const pipes = Array.isArray(values.pipes)
+        ? values.pipes.map((p: unknown) => {
+            const item = p as Record<string, unknown>;
+            return { pipe_type: String(item.pipe_type ?? ''), pipe_id: Number(item.pipe_id) };
+          })
+        : [];
+
       const cleanValues: CreateInboundData = {
-        inbound_type: values.inbound_type as string,
-        order_id: values.order_id as number | undefined,
-        supplier_id: values.supplier_id as number | undefined,
-        notes: values.notes as string | undefined,
-        pipes: ((values.pipes as Array<Record<string, unknown>>) ?? []).map((p) => ({
-          pipe_type: p.pipe_type as string,
-          pipe_id: p.pipe_id as number,
-        })),
+        inbound_type: String(values.inbound_type ?? ''),
+        order_id: values.order_id != null ? Number(values.order_id) : undefined,
+        supplier_id: values.supplier_id != null ? Number(values.supplier_id) : undefined,
+        notes: values.notes != null ? String(values.notes) : undefined,
+        pipes,
       };
+
+      if (!cleanValues.inbound_type || cleanValues.pipes.length === 0) {
+        message.error(t('common.required'));
+        return;
+      }
+      if (cleanValues.pipes.some((p) => !p.pipe_type || !p.pipe_id)) {
+        message.error(t('common.required'));
+        return;
+      }
+
       await createMutation.mutateAsync(cleanValues);
       message.success(t('common.operate_success'));
       navigate('/inventory/inbound');

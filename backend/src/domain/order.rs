@@ -39,7 +39,7 @@ impl FromStr for OrderStatus {
 
 impl OrderStatus {
 
-    /// Check whether transitioning from the current status to the target is kosher.
+    /// Check whether transitioning from the current status to the target is valid.
     /// Valid transition matrix:
     /// - Draft → Pending | Cancelled
     /// - Pending → Approved | Rejected

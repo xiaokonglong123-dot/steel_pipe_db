@@ -31,7 +31,15 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       useAuthStore.getState().logout();
-      window.location.href = '/login';
+      // Preserve current path so user can be redirected back after re-login
+      const currentPath = window.location.pathname;
+      const loginPath = currentPath && currentPath !== '/login'
+        ? `/login?redirect=${encodeURIComponent(currentPath)}`
+        : '/login';
+      // Use replace to avoid back-button loop; only redirect if not already on login page
+      if (window.location.pathname !== '/login') {
+        window.location.replace(loginPath);
+      }
     }
     return Promise.reject(error);
   },

@@ -1,6 +1,7 @@
 use chrono::Utc;
 use sqlx::SqlitePool;
 
+use crate::domain::pipe::PipeType;
 use crate::dto::inventory_dto::{
     BatchCreateInboundRequest, CreateInboundRecordRequest, InboundFilter,
 };
@@ -22,7 +23,8 @@ impl InboundService {
     }
 
     /// Creates an inbound record. Needs at least one pipe item.
-    /// If `auto_approved`, it straight-up applies stock changes (updates pipe status + writes logs).
+    /// If `auto_approved`, applies all stock changes in a single transaction
+    /// (updates pipe status + writes logs) to ensure atomicity.
     ///
     /// # Errors
     /// - `AppError::Validation` — pipe items list is empty
@@ -41,68 +43,67 @@ impl InboundService {
             .map_err(AppError::from)?;
 
         if record.approval_status == "auto_approved" {
-            for item in &dto.pipes {
-                Self::execute_inbound(pool, record.id, item).await?;
-            }
+            Self::execute_inbound_batch(pool, record.id, &dto.pipes).await?;
         }
 
         Ok(record)
     }
 
-    async fn execute_inbound(
+    /// Applies inbound stock changes for all pipe items in a single transaction.
+    /// If any item fails, the entire batch is rolled back.
+    async fn execute_inbound_batch(
         pool: &SqlitePool,
         record_id: i64,
-        item: &crate::dto::inventory_dto::InboundPipeItem,
+        items: &[crate::dto::inventory_dto::InboundPipeItem],
     ) -> Result<(), AppError> {
         let mut tx = pool.begin().await.map_err(AppError::from)?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-        match item.pipe_type.as_str() {
-            "seamless" | "casing" | "tubing" => {
-                sqlx::query(
-                    "UPDATE seamless_pipes SET status = 'in_stock', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-                )
-                .bind(&now)
-                .bind(item.pipe_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(AppError::from)?;
-            }
-            "screen" | "screened" => {
-                sqlx::query(
-                    "UPDATE screen_pipes SET status = 'in_stock', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-                )
-                .bind(&now)
-                .bind(item.pipe_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(AppError::from)?;
-            }
-            _ => {
-                return Err(AppError::Validation(format!(
-                    "Unknown pipe_type: {}",
-                    item.pipe_type
-                )));
-            }
-        }
+        for item in items {
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
+                .ok_or_else(|| AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type)))?;
 
-        sqlx::query(
-            "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
-             from_location_id, to_location_id, notes, created_by) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&item.pipe_type)
-        .bind(item.pipe_id)
-        .bind("inbound")
-        .bind(Some("inbound"))
-        .bind(Some(record_id))
-        .bind(None::<i64>)
-        .bind(None::<i64>)
-        .bind(None::<String>)
-        .bind(None::<i64>)
-        .execute(&mut *tx)
-        .await
-        .map_err(AppError::from)?;
+            match pipe_type {
+                PipeType::Seamless => {
+                    sqlx::query(
+                        "UPDATE seamless_pipes SET status = 'in_stock', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    )
+                    .bind(&now)
+                    .bind(item.pipe_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(AppError::from)?;
+                }
+                PipeType::Screen => {
+                    sqlx::query(
+                        "UPDATE screen_pipes SET status = 'in_stock', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    )
+                    .bind(&now)
+                    .bind(item.pipe_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(AppError::from)?;
+                }
+            }
+
+            sqlx::query(
+                "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
+                 from_location_id, to_location_id, notes, created_by) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(&item.pipe_type)
+            .bind(item.pipe_id)
+            .bind("inbound")
+            .bind(Some("inbound"))
+            .bind(Some(record_id))
+            .bind(None::<i64>)
+            .bind(None::<i64>)
+            .bind(None::<String>)
+            .bind(None::<i64>)
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::from)?;
+        }
 
         tx.commit().await.map_err(AppError::from)?;
         Ok(())
@@ -113,7 +114,7 @@ impl InboundService {
     ///
     /// # Errors
     /// - `AppError::NotFound` — record doesn't exist or was deleted
-    /// - `AppError::Validation` — current status says hell no
+    /// - `AppError::Validation` — current status does not allow approval
     pub async fn approve_inbound(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let record = InboundRepo::find_by_id(pool, id)
             .await
@@ -150,8 +151,11 @@ impl InboundService {
         .map_err(AppError::from)?;
 
         for item in &items {
-            match item.pipe_type.as_str() {
-                "seamless" | "casing" | "tubing" => {
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
+                .ok_or_else(|| AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type)))?;
+
+            match pipe_type {
+                PipeType::Seamless => {
                     sqlx::query(
                         "UPDATE seamless_pipes SET status = 'in_stock', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
                     )
@@ -161,7 +165,7 @@ impl InboundService {
                     .await
                     .map_err(AppError::from)?;
                 }
-                "screen" | "screened" => {
+                PipeType::Screen => {
                     sqlx::query(
                         "UPDATE screen_pipes SET status = 'in_stock', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
                     )
@@ -170,12 +174,6 @@ impl InboundService {
                     .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
-                }
-                _ => {
-                    return Err(AppError::Validation(format!(
-                        "Unknown pipe_type: {}",
-                        item.pipe_type
-                    )));
                 }
             }
 
@@ -298,7 +296,7 @@ impl InboundService {
     /// Batch-creates inbound records. Loops over each sub-record and calls `create_inbound`.
     ///
     /// # Errors
-    /// - `AppError::Validation` — record list is empty, dumbass
+    /// - `AppError::Validation` — record list is empty
     pub async fn batch_create_inbound(
         pool: &SqlitePool,
         dto: &BatchCreateInboundRequest,

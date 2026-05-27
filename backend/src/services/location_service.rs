@@ -22,7 +22,7 @@ impl LocationService {
     /// Creates a location. Auto-concatenates `zone-shelf-level` as the full code; rejects duplicates.
     ///
     /// # Errors
-    /// - `AppError::Validation` — full code already exists, dipshit
+    /// - `AppError::Validation` — full code already exists
     pub async fn create_location(
         pool: &SqlitePool,
         dto: &CreateLocationRequest,
