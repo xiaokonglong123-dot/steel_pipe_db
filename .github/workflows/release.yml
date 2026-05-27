@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version override (e.g. v0.0.1-alpha)'
+        required: false
+        default: ''
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 1
+
+  release-linux:
+    name: Build (Linux x86_64)
+    needs: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+      - name: Build backend (release)
+        run: cargo build --release
+        working-directory: backend
+      - name: Package
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          ARCHIVE="steel-pipe-db-${VERSION#v}-linux"
+          mkdir -p "release/$ARCHIVE"
+          cp backend/target/release/steel-pipe-db "release/$ARCHIVE/"
+          cp -r frontend/dist "release/$ARCHIVE/frontend"
+          cp README.md LICENSE "release/$ARCHIVE/"
+          cd release && tar czf "${ARCHIVE}.tar.gz" "$ARCHIVE/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: release/steel-pipe-db-*-linux.tar.gz
+          retention-days: 1
+
+  release-windows:
+    name: Build (Windows x86_64)
+    needs: frontend
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+      - name: Build backend (release)
+        run: cargo build --release
+        working-directory: backend
+      - name: Package
+        shell: pwsh
+        run: |
+          $VERSION = "${{ github.event.inputs.version || github.ref_name }}"
+          $ARCHIVE = "steel-pipe-db-$($VERSION.TrimStart('v'))-windows"
+          New-Item -ItemType Directory -Path "release/$ARCHIVE" -Force
+          Copy-Item "backend/target/release/steel-pipe-db.exe" "release/$ARCHIVE/"
+          Copy-Item -Recurse "frontend/dist" "release/$ARCHIVE/frontend"
+          Copy-Item "README.md", "LICENSE" "release/$ARCHIVE/"
+          Compress-Archive -Path "release/$ARCHIVE/*" -DestinationPath "release/${ARCHIVE}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: release/steel-pipe-db-*-windows.zip
+          retention-days: 1
+
+  publish:
+    name: Publish Release
+    needs: [frontend, release-linux, release-windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: artifacts/
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**
+          generate_release_notes: true
