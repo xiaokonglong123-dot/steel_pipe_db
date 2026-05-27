@@ -4,6 +4,7 @@ import { Table, Space, Tag, Input, Select } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useStockQuery, useLocations } from '../hooks/useInventory';
+import type { Location } from '../api/inventoryApi';
 
 const PIPE_TYPE_OPTIONS = ['casing', 'tubing', 'coupling', 'accessory'];
 const GRADE_OPTIONS = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
@@ -116,7 +117,7 @@ export default function StockQueryPage() {
               setLocationFilter(v);
               setPage(1);
             }}
-            options={(locations?.items ?? []).map((loc) => ({
+            options={(locations?.items ?? []).map((loc: Location) => ({
               label: loc.full_code,
               value: loc.id,
             }))}
