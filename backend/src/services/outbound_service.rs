@@ -111,24 +111,32 @@ impl OutboundService {
 
             match pipe_type {
                 PipeType::Seamless => {
-                    sqlx::query(
-                        "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    let result = sqlx::query(
+                        "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? \
+                         WHERE id = ? AND deleted_at IS NULL AND status = 'in_stock'",
                     )
                     .bind(&now)
                     .bind(item.pipe_id)
                     .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
+                    if result.rows_affected() == 0 {
+                        return Err(AppError::InsufficientStock);
+                    }
                 }
                 PipeType::Screen => {
-                    sqlx::query(
-                        "UPDATE screen_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    let result = sqlx::query(
+                        "UPDATE screen_pipes SET status = 'outbound', updated_at = ? \
+                         WHERE id = ? AND deleted_at IS NULL AND status = 'in_stock'",
                     )
                     .bind(&now)
                     .bind(item.pipe_id)
                     .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
+                    if result.rows_affected() == 0 {
+                        return Err(AppError::InsufficientStock);
+                    }
                 }
             }
 
@@ -164,7 +172,6 @@ impl OutboundService {
     pub async fn approve_outbound(
         pool: &SqlitePool,
         id: i64,
-        user_id: i64,
         approval_reason: Option<&str>,
     ) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
@@ -193,17 +200,23 @@ impl OutboundService {
         let mut tx = pool.begin().await.map_err(AppError::from)?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE outbound_records SET approval_status = 'approved', \
              rejection_reason = NULL, approval_reason = ?, handled_by = ?, handled_at = datetime('now'), updated_at = datetime('now') \
              WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(approval_reason)
-        .bind(user_id)
+        .bind(Option::<i64>::None)
         .bind(id)
         .execute(&mut *tx)
         .await
         .map_err(AppError::from)?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::NotFound(format!(
+                "Outbound record id={} not found or was deleted during approval", id
+            )));
+        }
 
         for item in &items {
             let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
@@ -211,24 +224,32 @@ impl OutboundService {
 
             match pipe_type {
                 PipeType::Seamless => {
-                    sqlx::query(
-                        "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    let result = sqlx::query(
+                        "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? \
+                         WHERE id = ? AND deleted_at IS NULL AND status = 'in_stock'",
                     )
                     .bind(&now)
                     .bind(item.pipe_id)
                     .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
+                    if result.rows_affected() == 0 {
+                        return Err(AppError::InsufficientStock);
+                    }
                 }
                 PipeType::Screen => {
-                    sqlx::query(
-                        "UPDATE screen_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                    let result = sqlx::query(
+                        "UPDATE screen_pipes SET status = 'outbound', updated_at = ? \
+                         WHERE id = ? AND deleted_at IS NULL AND status = 'in_stock'",
                     )
                     .bind(&now)
                     .bind(item.pipe_id)
                     .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
+                    if result.rows_affected() == 0 {
+                        return Err(AppError::InsufficientStock);
+                    }
                 }
             }
 

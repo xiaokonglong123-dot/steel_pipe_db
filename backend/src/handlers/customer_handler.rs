@@ -1,5 +1,7 @@
 use axum::{
     extract::{Extension, Path, Query},
+    http::StatusCode,
+    response::IntoResponse,
     Json,
 };
 use serde::Deserialize;
@@ -50,10 +52,10 @@ pub async fn list_customers_handler(
 pub async fn create_customer_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateCustomerRequest>,
-) -> Result<Json<ApiResponse<Customer>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let customer = CustomerService::create(&pool, &req).await?;
-    Ok(ApiResponse::ok(customer))
+    Ok(ApiResponse::created(customer))
 }
 
 /// GET `/api/v1/customers/{id}` — Get customer details
@@ -87,9 +89,9 @@ pub async fn update_customer_handler(
 pub async fn delete_customer_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     CustomerService::delete(&pool, id).await?;
-    Ok(ApiResponse::ok("Customer deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 /// GET `/api/v1/customers/search?q={keyword}` — Search customers by keyword

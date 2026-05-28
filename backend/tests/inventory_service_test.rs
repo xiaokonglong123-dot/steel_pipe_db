@@ -141,7 +141,7 @@ async fn approve_inbound_updates_pending_record_and_pipes() {
     assert_eq!(record.approval_status, "pending");
 
     // Approve
-    InboundService::approve_inbound(&pool, record.id)
+    InboundService::approve_inbound(&pool, record.id, None)
         .await
         .expect("approve_inbound must succeed");
 
@@ -195,7 +195,7 @@ async fn approve_inbound_fails_for_already_approved() {
     let record = InboundService::create_inbound(&pool, &dto).await.unwrap();
 
     // Trying to approve it again must fail
-    let err = InboundService::approve_inbound(&pool, record.id)
+    let err = InboundService::approve_inbound(&pool, record.id, None)
         .await
         .expect_err("approve must fail for already approved");
     assert!(
@@ -592,7 +592,7 @@ async fn pipe_status_transitions_correctly_through_inbound_outbound_cycle() {
         .unwrap();
 
     // 3. Approve → status becomes "in_stock"
-    InboundService::approve_inbound(&pool, inbound.id)
+    InboundService::approve_inbound(&pool, inbound.id, None)
         .await
         .expect("approve must succeed");
 

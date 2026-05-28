@@ -1,5 +1,7 @@
 use axum::{
     extract::{Extension, Path, Query},
+    http::StatusCode,
+    response::IntoResponse,
     Json,
 };
 use sqlx::SqlitePool;
@@ -47,10 +49,10 @@ pub async fn list_purchase_orders_handler(
 pub async fn create_purchase_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreatePurchaseOrderRequest>,
-) -> Result<Json<ApiResponse<PurchaseOrder>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let order = PurchaseSalesService::create_purchase_order(&pool, &req).await?;
-    Ok(ApiResponse::ok(order))
+    Ok(ApiResponse::created(order))
 }
 
 /// GET `/api/v1/purchase-orders/{id}` — Get purchase order details
@@ -85,9 +87,9 @@ pub async fn update_purchase_order_handler(
 pub async fn delete_purchase_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     PurchaseSalesService::delete_purchase_order(&pool, id).await?;
-    Ok(ApiResponse::ok("Purchase order deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 /// PUT `/api/v1/purchase-orders/{id}/status` — Transition purchase order status
@@ -128,9 +130,9 @@ pub async fn update_purchase_item_handler(
 pub async fn delete_purchase_item_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((order_id, item_id)): Path<(i64, i64)>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     PurchaseSalesService::delete_purchase_item(&pool, order_id, item_id).await?;
-    Ok(ApiResponse::ok("Purchase order item deleted".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 /// PUT `/api/v1/purchase-orders/{id}/approve` — Approve a purchase order
@@ -164,9 +166,8 @@ pub async fn reject_purchase_order_handler(
 /// Returns 404 if order or inbound record not found.
 pub async fn link_inbound_to_order_handler(
     Extension(pool): Extension<SqlitePool>,
-    Path(order_id): Path<i64>,
-    Json(dto): Json<LinkInboundRequest>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    PurchaseSalesService::link_inbound_to_order(&pool, order_id, dto.inbound_record_id).await?;
-    Ok(ApiResponse::ok("Inbound record linked to purchase order".into()))
+    Path((order_id, inbound_id)): Path<(i64, i64)>,
+) -> Result<axum::response::Response, AppError> {
+    PurchaseSalesService::link_inbound_to_order(&pool, order_id, inbound_id).await?;
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }

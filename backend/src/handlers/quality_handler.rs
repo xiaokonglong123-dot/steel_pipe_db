@@ -1,5 +1,7 @@
 use axum::{
     extract::{Extension, Path, Query},
+    http::StatusCode,
+    response::IntoResponse,
     Json,
 };
 use serde::Deserialize;
@@ -59,10 +61,10 @@ pub async fn list_certs_handler(
 pub async fn create_cert_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateQualityCertRequest>,
-) -> Result<Json<ApiResponse<QualityCert>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let cert = QualityService::create_cert(&pool, &req).await?;
-    Ok(ApiResponse::ok(cert))
+    Ok(ApiResponse::created(cert))
 }
 
 /// GET `/api/v1/quality/certs/{id}` — Get a quality cert by ID
@@ -96,9 +98,9 @@ pub async fn update_cert_handler(
 pub async fn delete_cert_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     QualityService::delete_cert(&pool, id).await?;
-    Ok(ApiResponse::ok("Quality cert deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 // ━━━ API 5CT Grade Ref Handlers ━━━
@@ -133,10 +135,10 @@ pub async fn list_grades_handler(
 pub async fn create_attachment_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateAttachmentRequest>,
-) -> Result<Json<ApiResponse<PipeAttachment>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let attachment = QualityService::create_attachment(&pool, &req).await?;
-    Ok(ApiResponse::ok(attachment))
+    Ok(ApiResponse::created(attachment))
 }
 
 /// DELETE `/api/v1/quality/attachments/{id}` — Delete a pipe attachment
@@ -145,9 +147,9 @@ pub async fn create_attachment_handler(
 pub async fn delete_attachment_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     QualityService::delete_attachment(&pool, id).await?;
-    Ok(ApiResponse::ok("Attachment deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 /// GET `/api/v1/quality/attachments` — List pipe attachments

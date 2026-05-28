@@ -1,4 +1,6 @@
 use axum::extract::{Extension, Path, Query};
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::Json;
 use sqlx::SqlitePool;
 
@@ -46,10 +48,10 @@ pub async fn list_contracts_handler(
 pub async fn create_contract_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateContractRequest>,
-) -> Result<Json<ApiResponse<ContractDetailResponse>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let result = ContractService::create_contract(&pool, &req).await?;
-    Ok(ApiResponse::ok(result))
+    Ok(ApiResponse::created(result))
 }
 
 /// GET `/api/v1/contracts/{id}` — Get contract details
@@ -84,9 +86,9 @@ pub async fn update_contract_handler(
 pub async fn delete_contract_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     ContractService::delete_contract(&pool, id).await?;
-    Ok(ApiResponse::ok("Contract deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 /// PUT `/api/v1/contracts/{id}/status` — Update contract status
@@ -113,10 +115,10 @@ pub async fn add_contract_item_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(contract_id): Path<i64>,
     Json(req): Json<CreateContractItemRequest>,
-) -> Result<Json<ApiResponse<ContractItem>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let item = ContractService::add_item(&pool, contract_id, &req).await?;
-    Ok(ApiResponse::ok(item))
+    Ok(ApiResponse::created(item))
 }
 
 /// PUT `/api/v1/contracts/{contract_id}/items/{item_id}` — Update a contract line item
@@ -139,9 +141,9 @@ pub async fn update_contract_item_handler(
 pub async fn delete_contract_item_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((contract_id, item_id)): Path<(i64, i64)>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     ContractService::delete_item(&pool, contract_id, item_id).await?;
-    Ok(ApiResponse::ok("Contract item deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 // ━━━ Payment Handlers ━━━
@@ -165,10 +167,10 @@ pub async fn add_contract_payment_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(contract_id): Path<i64>,
     Json(req): Json<CreatePaymentRequest>,
-) -> Result<Json<ApiResponse<ContractPayment>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let payment = ContractService::add_payment(&pool, contract_id, &req).await?;
-    Ok(ApiResponse::ok(payment))
+    Ok(ApiResponse::created(payment))
 }
 
 /// PUT `/api/v1/contracts/{contract_id}/payments/{payment_id}` — Update a payment milestone
@@ -191,7 +193,7 @@ pub async fn update_contract_payment_handler(
 pub async fn delete_contract_payment_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((contract_id, payment_id)): Path<(i64, i64)>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     ContractService::delete_payment(&pool, contract_id, payment_id).await?;
-    Ok(ApiResponse::ok("Contract payment deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }

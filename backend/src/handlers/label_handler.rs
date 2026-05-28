@@ -36,10 +36,10 @@ pub async fn get_pipe_label_handler(
 pub async fn create_batch_labels_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<BatchLabelRequest>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let html = LabelService::generate_batch_labels(&pool, &req).await?;
-    Ok(ApiResponse::ok(html))
+    Ok(ApiResponse::created(html))
 }
 
 /// GET `/api/v1/labels/quality/{cert_id}` — Generate QC inspection tag
@@ -60,8 +60,8 @@ pub async fn get_quality_label_handler(
 pub async fn create_shipping_label_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<ShippingLabelRequest>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let html = LabelService::generate_shipping_label(&pool, &req).await?;
-    Ok(ApiResponse::ok(html))
+    Ok(ApiResponse::created(html))
 }

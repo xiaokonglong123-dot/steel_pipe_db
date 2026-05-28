@@ -1,5 +1,7 @@
 use axum::{
     extract::{Extension, Path, Query},
+    http::StatusCode,
+    response::IntoResponse,
     Json,
 };
 use sqlx::SqlitePool;
@@ -47,10 +49,10 @@ pub async fn list_sales_orders_handler(
 pub async fn create_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSalesOrderRequest>,
-) -> Result<Json<ApiResponse<SalesOrder>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let order = PurchaseSalesService::create_sales_order(&pool, &req).await?;
-    Ok(ApiResponse::ok(order))
+    Ok(ApiResponse::created(order))
 }
 
 /// GET `/api/v1/sales-orders/{id}` — Get sales order details
@@ -85,9 +87,9 @@ pub async fn update_sales_order_handler(
 pub async fn delete_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     PurchaseSalesService::delete_sales_order(&pool, id).await?;
-    Ok(ApiResponse::ok("Sales order deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 /// PUT `/api/v1/sales-orders/{id}/status` — Transition sales order status
@@ -128,9 +130,9 @@ pub async fn update_sales_item_handler(
 pub async fn delete_sales_item_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((order_id, item_id)): Path<(i64, i64)>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     PurchaseSalesService::delete_sales_item(&pool, order_id, item_id).await?;
-    Ok(ApiResponse::ok("Sales order item deleted".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 /// PUT `/api/v1/sales-orders/{id}/approve` — Approve a sales order
@@ -164,9 +166,8 @@ pub async fn reject_sales_order_handler(
 /// Returns 404 if order or outbound record not found.
 pub async fn link_outbound_to_order_handler(
     Extension(pool): Extension<SqlitePool>,
-    Path(order_id): Path<i64>,
-    Json(dto): Json<LinkOutboundRequest>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    PurchaseSalesService::link_outbound_to_order(&pool, order_id, dto.outbound_record_id).await?;
-    Ok(ApiResponse::ok("Outbound record linked to sales order".into()))
+    Path((order_id, outbound_id)): Path<(i64, i64)>,
+) -> Result<axum::response::Response, AppError> {
+    PurchaseSalesService::link_outbound_to_order(&pool, order_id, outbound_id).await?;
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }

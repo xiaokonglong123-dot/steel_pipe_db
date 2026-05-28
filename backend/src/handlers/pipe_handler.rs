@@ -1,5 +1,7 @@
 use axum::{
     extract::{Extension, Path, Query},
+    http::StatusCode,
+    response::IntoResponse,
     Json,
 };
 use serde::Deserialize;
@@ -56,10 +58,10 @@ pub async fn list_seamless_pipes_handler(
 pub async fn create_seamless_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSeamlessPipeRequest>,
-) -> Result<Json<ApiResponse<SeamlessPipe>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let pipe = PipeService::create_seamless_pipe(&pool, &req).await?;
-    Ok(ApiResponse::ok(pipe))
+    Ok(ApiResponse::created(pipe))
 }
 
 /// GET `/api/v1/seamless-pipes/{id}` — Grab seamless pipe deets by ID
@@ -94,9 +96,9 @@ pub async fn update_seamless_pipe_handler(
 pub async fn delete_seamless_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     PipeService::delete_seamless_pipe(&pool, id).await?;
-    Ok(ApiResponse::ok("Seamless pipe deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 // ━━━ Screen Pipe Handlers ━━━
@@ -130,10 +132,10 @@ pub async fn list_screen_pipes_handler(
 pub async fn create_screen_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateScreenPipeRequest>,
-) -> Result<Json<ApiResponse<ScreenPipe>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let pipe = PipeService::create_screen_pipe(&pool, &req).await?;
-    Ok(ApiResponse::ok(pipe))
+    Ok(ApiResponse::created(pipe))
 }
 
 /// GET `/api/v1/screen-pipes/{id}` — Get screen pipe by ID
@@ -166,9 +168,9 @@ pub async fn update_screen_pipe_handler(
 pub async fn delete_screen_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     PipeService::delete_screen_pipe(&pool, id).await?;
-    Ok(ApiResponse::ok("Screen pipe deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 // ━━━ Search Handler ━━━

@@ -1,5 +1,7 @@
 use axum::{
     extract::{Extension, Path, Query},
+    http::StatusCode,
+    response::IntoResponse,
     Json,
 };
 use serde::Deserialize;
@@ -55,10 +57,10 @@ pub struct CheckListQuery {
 pub async fn create_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateInboundRecordRequest>,
-) -> Result<Json<ApiResponse<InboundRecord>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let record = InboundService::create_inbound(&pool, &req).await?;
-    Ok(ApiResponse::ok(record))
+    Ok(ApiResponse::created(record))
 }
 
 /// GET `/api/v1/inbound-records` — Paginated list of inbound records
@@ -104,7 +106,7 @@ pub async fn approve_inbound_handler(
     Json(req): Json<ApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    InboundService::approve_inbound(&pool, id, auth.user_id, req.reason.as_deref()).await?;
+    InboundService::approve_inbound(&pool, id, req.reason.as_deref()).await?;
     Ok(ApiResponse::ok("Inbound approved".into()))
 }
 
@@ -127,9 +129,9 @@ pub async fn reject_inbound_handler(
 pub async fn delete_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     InboundService::delete_inbound(&pool, id).await?;
-    Ok(ApiResponse::ok("Inbound record deleted".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 // ━━━ Outbound Handlers ━━━
@@ -141,10 +143,10 @@ pub async fn delete_inbound_handler(
 pub async fn create_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateOutboundRecordRequest>,
-) -> Result<Json<ApiResponse<OutboundRecord>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let record = OutboundService::create_outbound(&pool, &req).await?;
-    Ok(ApiResponse::ok(record))
+    Ok(ApiResponse::created(record))
 }
 
 /// GET `/api/v1/outbound-records` — Paginated list of outbound records
@@ -190,7 +192,7 @@ pub async fn approve_outbound_handler(
     Json(req): Json<ApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    OutboundService::approve_outbound(&pool, id, auth.user_id, req.reason.as_deref()).await?;
+    OutboundService::approve_outbound(&pool, id, req.reason.as_deref()).await?;
     Ok(ApiResponse::ok("Outbound approved".into()))
 }
 
@@ -213,9 +215,9 @@ pub async fn reject_outbound_handler(
 pub async fn delete_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     OutboundService::delete_outbound(&pool, id).await?;
-    Ok(ApiResponse::ok("Outbound record deleted".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 // ━━━ Inventory Handlers ━━━
@@ -293,10 +295,10 @@ pub async fn list_locations_handler(
 pub async fn create_location_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateLocationRequest>,
-) -> Result<Json<ApiResponse<Location>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let location = LocationService::create_location(&pool, &req).await?;
-    Ok(ApiResponse::ok(location))
+    Ok(ApiResponse::created(location))
 }
 
 /// GET `/api/v1/locations/{id}` — Get location details
@@ -330,9 +332,9 @@ pub async fn update_location_handler(
 pub async fn delete_location_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     LocationService::delete_location(&pool, id).await?;
-    Ok(ApiResponse::ok("Location deleted".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 // ━━━ Check Handlers ━━━
@@ -344,10 +346,10 @@ pub async fn delete_location_handler(
 pub async fn create_check_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateCheckRequest>,
-) -> Result<Json<ApiResponse<InventoryCheckRecord>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let record = CheckService::create_check(&pool, &req).await?;
-    Ok(ApiResponse::ok(record))
+    Ok(ApiResponse::created(record))
 }
 
 /// GET `/api/v1/inventory/checks` — Paginated list of check tasks
@@ -390,10 +392,10 @@ pub async fn submit_check_item_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((check_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<SubmitCheckItemRequest>,
-) -> Result<Json<ApiResponse<InventoryCheckItem>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let item = CheckService::submit_check_item(&pool, check_id, item_id, &req).await?;
-    Ok(ApiResponse::ok(item))
+    Ok(ApiResponse::created(item))
 }
 
 // ━━━ Trace Handlers ━━━
@@ -528,8 +530,8 @@ pub async fn transfer_location_handler(
 pub async fn batch_create_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<BatchCreateInboundRequest>,
-) -> Result<Json<ApiResponse<Vec<InboundRecord>>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let records = InboundService::batch_create_inbound(&pool, &req).await?;
-    Ok(ApiResponse::ok(records))
+    Ok(ApiResponse::created(records))
 }

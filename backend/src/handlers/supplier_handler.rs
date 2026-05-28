@@ -1,5 +1,7 @@
 use axum::{
     extract::{Extension, Path, Query},
+    http::StatusCode,
+    response::IntoResponse,
     Json,
 };
 use serde::Deserialize;
@@ -50,10 +52,10 @@ pub async fn list_suppliers_handler(
 pub async fn create_supplier_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSupplierRequest>,
-) -> Result<Json<ApiResponse<Supplier>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let supplier = SupplierService::create(&pool, &req).await?;
-    Ok(ApiResponse::ok(supplier))
+    Ok(ApiResponse::created(supplier))
 }
 
 /// GET `/api/v1/suppliers/{id}` — Get supplier details
@@ -87,9 +89,9 @@ pub async fn update_supplier_handler(
 pub async fn delete_supplier_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     SupplierService::delete(&pool, id).await?;
-    Ok(ApiResponse::ok("Supplier deleted successfully".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 /// GET `/api/v1/suppliers/search?q={keyword}` — Search suppliers by keyword

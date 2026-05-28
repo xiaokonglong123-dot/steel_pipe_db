@@ -1,6 +1,7 @@
 use axum::{
     extract::{Extension, FromRequestParts, Path, Query},
-    http::request::Parts,
+    http::{request::Parts, StatusCode},
+    response::IntoResponse,
     Json,
 };
 use sqlx::SqlitePool;
@@ -47,7 +48,7 @@ pub async fn login_handler(
     let cfg = crate::config::Config::from_env();
     let response = AuthService::login(&pool, jwt_secret.as_str(), cfg.jwt_expiry_hours, &req).await?;
 
-    let _ = OperationLogRepo::create(
+    if let Err(e) = OperationLogRepo::create(
         &pool,
         &CreateOperationLog {
             user_id: Some(response.user.id),
@@ -59,7 +60,9 @@ pub async fn login_handler(
             ip_address: None,
         },
     )
-    .await;
+    .await {
+        tracing::warn!("Failed to log login operation: {}", e);
+    }
 
     Ok(ApiResponse::ok(response))
 }
@@ -88,7 +91,7 @@ pub async fn logout_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    let _ = OperationLogRepo::create(
+    if let Err(e) = OperationLogRepo::create(
         &pool,
         &CreateOperationLog {
             user_id: Some(auth.user_id),
@@ -100,7 +103,9 @@ pub async fn logout_handler(
             ip_address: None,
         },
     )
-    .await;
+    .await {
+        tracing::warn!("Failed to log logout operation: {}", e);
+    }
 
     Ok(ApiResponse::ok("Logged out".into()))
 }
@@ -155,11 +160,11 @@ pub async fn create_user_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
     Json(req): Json<CreateUserRequest>,
-) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let user = AuthService::create_user(&pool, &req).await?;
 
-    let _ = OperationLogRepo::create(
+    if let Err(e) = OperationLogRepo::create(
         &pool,
         &CreateOperationLog {
             user_id: Some(auth.user_id),
@@ -171,9 +176,11 @@ pub async fn create_user_handler(
             ip_address: None,
         },
     )
-    .await;
+    .await {
+        tracing::warn!("Failed to log create_user operation: {}", e);
+    }
 
-    Ok(ApiResponse::ok(user))
+    Ok(ApiResponse::created(user))
 }
 
 /// PUT `/api/v1/users/{id}` — Update user info like a boss
@@ -189,7 +196,7 @@ pub async fn update_user_handler(
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let user = AuthService::update_user(&pool, id, &req).await?;
 
-    let _ = OperationLogRepo::create(
+    if let Err(e) = OperationLogRepo::create(
         &pool,
         &CreateOperationLog {
             user_id: Some(auth.user_id),
@@ -201,7 +208,9 @@ pub async fn update_user_handler(
             ip_address: None,
         },
     )
-    .await;
+    .await {
+        tracing::warn!("Failed to log update_user operation: {}", e);
+    }
 
     Ok(ApiResponse::ok(user))
 }
@@ -228,7 +237,7 @@ pub async fn change_password_handler(
 
     AuthService::change_password(&pool, id, &auth.role, &req).await?;
 
-    let _ = OperationLogRepo::create(
+    if let Err(e) = OperationLogRepo::create(
         &pool,
         &CreateOperationLog {
             user_id: Some(auth.user_id),
@@ -240,7 +249,9 @@ pub async fn change_password_handler(
             ip_address: None,
         },
     )
-    .await;
+    .await {
+        tracing::warn!("Failed to log change_password operation: {}", e);
+    }
 
     Ok(ApiResponse::ok("Password changed".into()))
 }
@@ -258,7 +269,7 @@ pub async fn change_role_handler(
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let user = AuthService::change_role(&pool, id, &req.role).await?;
 
-    let _ = OperationLogRepo::create(
+    if let Err(e) = OperationLogRepo::create(
         &pool,
         &CreateOperationLog {
             user_id: Some(auth.user_id),
@@ -270,7 +281,9 @@ pub async fn change_role_handler(
             ip_address: None,
         },
     )
-    .await;
+    .await {
+        tracing::warn!("Failed to log change_role operation: {}", e);
+    }
 
     Ok(ApiResponse::ok(user))
 }
@@ -283,10 +296,10 @@ pub async fn delete_user_handler(
     Extension(pool): Extension<SqlitePool>,
     AuthenticatedUser(auth): AuthenticatedUser,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     AuthService::delete_user(&pool, id).await?;
 
-    let _ = OperationLogRepo::create(
+    if let Err(e) = OperationLogRepo::create(
         &pool,
         &CreateOperationLog {
             user_id: Some(auth.user_id),
@@ -298,7 +311,9 @@ pub async fn delete_user_handler(
             ip_address: None,
         },
     )
-    .await;
+    .await {
+        tracing::warn!("Failed to log delete_user operation: {}", e);
+    }
 
-    Ok(ApiResponse::ok("User deleted".into()))
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
