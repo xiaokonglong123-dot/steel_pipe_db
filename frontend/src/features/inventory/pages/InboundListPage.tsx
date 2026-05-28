@@ -58,7 +58,7 @@ export default function InboundListPage() {
   const handlePOSelect = useCallback(
     (po: PurchaseOrder) => {
       const pipes: { pipe_type: string; pipe_id?: number }[] = [];
-      for (const item of po.items) {
+      for (const item of po.items ?? []) {
         for (let i = 0; i < item.quantity; i++) {
           pipes.push({ pipe_type: item.pipe_type, pipe_id: undefined });
         }

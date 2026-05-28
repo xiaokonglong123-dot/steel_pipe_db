@@ -2,7 +2,6 @@ use axum::{
     extract::{Extension, Path, Query},
     Json,
 };
-use serde_json;
 use sqlx::SqlitePool;
 
 use validator::Validate;
@@ -10,8 +9,8 @@ use validator::Validate;
 use crate::dto::common::PaginationParams;
 use crate::dto::sales_dto::{
     ApproveOrderRequest, CreateSalesOrderRequest, LinkOutboundRequest, RejectOrderRequest,
-    SalesOrderFilterParams, SalesOrderStatusTransitionRequest, UpdateSalesItemRequest,
-    UpdateSalesOrderRequest,
+    SalesOrderDetailResponse, SalesOrderFilterParams, SalesOrderStatusTransitionRequest,
+    UpdateSalesItemRequest, UpdateSalesOrderRequest,
 };
 use crate::error::AppError;
 use crate::models::sales_order::SalesOrder;
@@ -56,19 +55,14 @@ pub async fn create_sales_order_handler(
 
 /// GET `/api/v1/sales-orders/{id}` — Get sales order details
 ///
-/// Returns the sales order header plus its line items. Returns 404 if not found.
+/// Returns the sales order header plus its line items in a standard ApiResponse envelope.
+/// Returns 404 if not found.
 pub async fn get_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<SalesOrderDetailResponse>>, AppError> {
     let (order, items) = PurchaseSalesService::get_sales_order(&pool, id).await?;
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "data": {
-            "order": order,
-            "items": items,
-        }
-    })))
+    Ok(ApiResponse::ok(SalesOrderDetailResponse { order, items }))
 }
 
 /// PUT `/api/v1/sales-orders/{id}` — Update a sales order

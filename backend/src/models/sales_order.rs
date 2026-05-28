@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+use crate::domain::order::OrderStatus;
+use std::str::FromStr;
+
 /// Sales order DB row. Represents a sales order for selling pipes to a customer.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct SalesOrder {
@@ -11,7 +14,7 @@ pub struct SalesOrder {
     pub customer_id: i64,
     /// Order date.
     pub order_date: String,
-    /// Status: draft / pending / approved / rejected / completed / cancelled.
+    /// Status stored as string in DB; use `order_status()` for typed access.
     pub status: String,
     /// Total order amount.
     pub total_amount: Option<f64>,
@@ -22,6 +25,14 @@ pub struct SalesOrder {
     pub created_at: String,
     pub updated_at: String,
     pub deleted_at: Option<String>,
+}
+
+impl SalesOrder {
+    /// Returns the typed `OrderStatus` enum for this order.
+    /// Returns `None` if the stored string is not a valid status value.
+    pub fn order_status(&self) -> Option<OrderStatus> {
+        FromStr::from_str(&self.status).ok()
+    }
 }
 
 /// Sales order item DB row. Line items — what pipes and how many.

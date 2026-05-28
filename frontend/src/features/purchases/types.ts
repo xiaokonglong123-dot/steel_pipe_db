@@ -22,7 +22,7 @@ export interface PurchaseOrder {
   status: string;
   total_amount: number;
   notes?: string;
-  items: PurchaseOrderItem[];
+  items?: PurchaseOrderItem[];
   created_at: string;
   updated_at: string;
 }

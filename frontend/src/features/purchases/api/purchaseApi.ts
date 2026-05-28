@@ -8,7 +8,7 @@ import type {
   PurchaseOrderStatusTransitionRequest,
 } from '../types';
 import { validateResponse, paginatedDataSchema } from '@/lib/validateResponse';
-import { purchaseOrderSchema } from '@/zod-schemas/orders';
+import { purchaseOrderSchema, purchaseOrderDetailSchema } from '@/zod-schemas/orders';
 
 export const purchaseApi = {
   list: async (params?: PurchaseOrderFilterParams) => {
@@ -19,9 +19,10 @@ export const purchaseApi = {
     return validateResponse(paginatedDataSchema(purchaseOrderSchema), res.data.data);
   },
 
+  /** Get purchase order detail — returns { order, items } structure. */
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`);
-    return validateResponse(purchaseOrderSchema, res.data.data);
+    return validateResponse(purchaseOrderDetailSchema, res.data.data);
   },
 
   create: async (data: CreatePurchaseOrderData) => {

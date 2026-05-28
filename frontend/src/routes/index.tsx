@@ -51,6 +51,12 @@ const LabelPrintPage = lazy(() => import('@/features/labels/pages/LabelPrintPage
 const ProfileSettingsPage = lazy(() => import('@/features/profile/pages/ProfileSettingsPage'));
 const SearchPage = lazy(() => import('@/features/search/pages/SearchPage'));
 const UserManagementPage = lazy(() => import('@/features/auth/pages/UserManagementPage'));
+const DataImportPage = lazy(() => import('@/features/data-io/pages/DataImportPage'));
+const DataExportPage = lazy(() => import('@/features/data-io/pages/DataExportPage'));
+const OperationLogPage = lazy(() => import('@/features/data-io/pages/OperationLogPage'));
+const InventoryReportPage = lazy(() => import('@/features/reports/pages/InventoryReportPage'));
+const OrderReportPage = lazy(() => import('@/features/reports/pages/OrderReportPage'));
+const QualityReportPage = lazy(() => import('@/features/reports/pages/QualityReportPage'));
 
 export const router = createBrowserRouter([
   {
@@ -140,7 +146,14 @@ export const router = createBrowserRouter([
       // Reports & label printing
       { path: 'reports', element: <ReportListPage /> },
       { path: 'reports/dashboard', element: <DashboardPage /> },
+      { path: 'reports/inventory', element: <InventoryReportPage /> },
+      { path: 'reports/orders', element: <OrderReportPage /> },
+      { path: 'reports/quality', element: <QualityReportPage /> },
       { path: 'labels', element: <LabelPrintPage /> },
+      // Data IO: import/export/logs
+      { path: 'data-io/import', element: <DataImportPage /> },
+      { path: 'data-io/export', element: <DataExportPage /> },
+      { path: 'data-io/logs', element: <OperationLogPage /> },
       // System management
       { path: 'system/users', element: <UserManagementPage /> },
       // Global search & profile settings

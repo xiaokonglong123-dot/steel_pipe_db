@@ -49,7 +49,9 @@ async fn main() {
     tracing::info!("Database migrations completed");
 
     // Assemble the full router tree — all middleware and route groups merge here
-    let app = router::create_app(pool, cfg.jwt_secret.clone());
+    let cors_origins = cfg.parse_cors_origins();
+    tracing::info!("CORS origins: {:?}", cors_origins);
+    let app = router::create_app(pool, cfg.jwt_secret.clone(), cors_origins);
 
     // Bind and serve — axum::serve is the outermost layer that drives the async event loop
     let addr: SocketAddr = cfg

@@ -115,7 +115,12 @@ impl InboundService {
     /// # Errors
     /// - `AppError::NotFound` — record doesn't exist or was deleted
     /// - `AppError::Validation` — current status does not allow approval
-    pub async fn approve_inbound(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
+    pub async fn approve_inbound(
+        pool: &SqlitePool,
+        id: i64,
+        user_id: i64,
+        approval_reason: Option<&str>,
+    ) -> Result<(), AppError> {
         let record = InboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -142,9 +147,11 @@ impl InboundService {
 
         sqlx::query(
             "UPDATE inbound_records SET approval_status = 'approved', \
-             rejection_reason = NULL, updated_at = datetime('now') \
+             rejection_reason = NULL, approval_reason = ?, handled_by = ?, handled_at = datetime('now'), updated_at = datetime('now') \
              WHERE id = ? AND deleted_at IS NULL",
         )
+        .bind(approval_reason)
+        .bind(user_id)
         .bind(id)
         .execute(&mut *tx)
         .await

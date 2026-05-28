@@ -32,7 +32,9 @@ export default function SalesOrderDetailPage() {
   const [targetStatus, setTargetStatus] = useState<string | undefined>();
   const [transitionNotes, setTransitionNotes] = useState('');
 
-  const { data: order, isLoading } = useSalesOrder(orderId);
+  const { data: detail, isLoading } = useSalesOrder(orderId);
+  const order = detail?.order;
+  const items = detail?.items ?? [];
   const transitionMutation = useTransitionSalesOrder(orderId);
 
   const handleTransition = async () => {
@@ -114,7 +116,7 @@ export default function SalesOrderDetailPage() {
       <Card title={t('sales.items')} style={{ marginTop: 24 }}>
         <Table
           columns={itemColumns}
-          dataSource={order.items}
+          dataSource={items}
           rowKey="id"
           pagination={false}
         />

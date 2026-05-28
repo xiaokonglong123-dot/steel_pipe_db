@@ -20,6 +20,7 @@ import {
   LogoutOutlined,
   UserOutlined,
   ContainerOutlined,
+  ImportOutlined,
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
@@ -124,6 +125,16 @@ export default function MainLayout() {
       icon: <SearchOutlined />,
       label: t('menu.search'),
       children: [{ key: '/search', label: t('menu.search_global') }],
+    },
+    {
+      key: 'data-io',
+      icon: <ImportOutlined />,
+      label: t('menu.data_io'),
+      children: [
+        { key: '/data-io/import', label: t('menu.data_import') },
+        { key: '/data-io/export', label: t('menu.data_export') },
+        { key: '/data-io/logs', label: t('menu.operation_log') },
+      ],
     },
     {
       key: 'system',

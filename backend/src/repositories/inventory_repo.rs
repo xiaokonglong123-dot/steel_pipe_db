@@ -399,7 +399,7 @@ impl InboundRepo {
             "INSERT INTO inbound_records (inbound_no, inbound_type, order_id, supplier_id, notes, approval_status) \
              VALUES (?, ?, ?, ?, ?, ?) \
              RETURNING id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
-               rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
+               rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
         )
         .bind(inbound_no)
         .bind(&dto.inbound_type)
@@ -436,7 +436,7 @@ impl InboundRepo {
     ) -> Result<Option<InboundRecord>, sqlx::Error> {
         sqlx::query_as::<_, InboundRecord>(
             "SELECT id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
-             rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
+             rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM inbound_records WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
@@ -517,7 +517,7 @@ impl InboundRepo {
 
         let list_sql = format!(
             "SELECT id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
-             rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
+             rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM inbound_records WHERE {} \
              ORDER BY {} {} LIMIT ? OFFSET ?",
             where_clause, sort_by, sort_order
@@ -614,7 +614,7 @@ impl OutboundRepo {
             "INSERT INTO outbound_records (outbound_no, outbound_type, order_id, customer_id, notes, approval_status) \
              VALUES (?, ?, ?, ?, ?, ?) \
              RETURNING id, outbound_no, outbound_type, order_id, customer_id, notes, approval_status, \
-               rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
+               rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
         )
         .bind(outbound_no)
         .bind(&dto.outbound_type)
@@ -651,7 +651,7 @@ impl OutboundRepo {
     ) -> Result<Option<OutboundRecord>, sqlx::Error> {
         sqlx::query_as::<_, OutboundRecord>(
             "SELECT id, outbound_no, outbound_type, order_id, customer_id, notes, approval_status, \
-             rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
+             rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM outbound_records WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
@@ -732,7 +732,7 @@ impl OutboundRepo {
 
         let list_sql = format!(
             "SELECT id, outbound_no, outbound_type, order_id, customer_id, notes, approval_status, \
-             rejection_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
+             rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM outbound_records WHERE {} \
              ORDER BY {} {} LIMIT ? OFFSET ?",
             where_clause, sort_by, sort_order

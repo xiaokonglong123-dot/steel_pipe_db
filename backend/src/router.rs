@@ -58,6 +58,7 @@ use crate::middleware::auth::JwtSecret;
 
 use crate::handlers::atp_handler;
 use crate::handlers::auth_handler;
+use crate::handlers::health_handler;
 use crate::handlers::contract_handler;
 use crate::handlers::customer_handler;
 use crate::handlers::data_io_handler;
@@ -373,8 +374,11 @@ fn contract_write_routes() -> Router {
 
 // Main app builder — assembles all route groups, middleware, and shared layers
 
-pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
+pub fn create_app(pool: SqlitePool, jwt_secret: String, cors_origins: Vec<HeaderValue>) -> Router {
     // Public: no auth required
+    let public = Router::new()
+        .route("/api/v1/health", axum::routing::get(health_handler::health_handler));
+
     let public_auth = Router::new()
         .route("/api/v1/auth/login", axum::routing::post(auth_handler::login_handler))
         .route(
@@ -712,7 +716,8 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         ));
 
     Router::new()
-        // Public
+        // Public (no auth required)
+        .merge(public)
         .merge(public_auth)
         // Authenticated (any role)
         .merge(authenticated)
@@ -742,9 +747,7 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         // Shared layers — outermost (applied first)
         .layer(
             tower_http::cors::CorsLayer::new()
-                .allow_origin([
-                    "http://localhost:5173".parse::<HeaderValue>().unwrap(),
-                ])
+                .allow_origin(cors_origins)
                 .allow_methods([
                     Method::GET,
                     Method::POST,

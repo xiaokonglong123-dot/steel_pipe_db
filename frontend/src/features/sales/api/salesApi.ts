@@ -9,7 +9,7 @@ import type {
   UpdateSalesOrderItemData,
 } from '../types';
 import { validateResponse, paginatedDataSchema } from '@/lib/validateResponse';
-import { salesOrderSchema } from '@/zod-schemas/orders';
+import { salesOrderSchema, salesOrderDetailSchema } from '@/zod-schemas/orders';
 
 export const salesApi = {
   list: async (params?: SalesOrderFilterParams) => {
@@ -20,9 +20,10 @@ export const salesApi = {
     return validateResponse(paginatedDataSchema(salesOrderSchema), res.data.data);
   },
 
+  /** Get sales order detail — returns { order, items } structure. */
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<SalesOrder>>(`/sales-orders/${id}`);
-    return validateResponse(salesOrderSchema, res.data.data);
+    return validateResponse(salesOrderDetailSchema, res.data.data);
   },
 
   create: async (data: CreateSalesOrderData) => {

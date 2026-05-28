@@ -8,7 +8,7 @@ export interface SalesOrder {
   status: string;
   total_amount: number;
   notes?: string;
-  items: SalesOrderItem[];
+  items?: SalesOrderItem[];
   created_at: string;
   updated_at: string;
 }

@@ -15,6 +15,7 @@ use crate::dto::inventory_dto::{
 use validator::Validate;
 
 use crate::error::AppError;
+use crate::middleware::auth::AuthContext;
 use crate::models::inventory::{
     InboundItem, InboundRecord, InventoryCheckItem, InventoryCheckRecord, InventoryLog, Location,
     OutboundItem, OutboundRecord,
@@ -99,10 +100,11 @@ pub async fn get_inbound_handler(
 pub async fn approve_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
+    Extension(auth): Extension<AuthContext>,
     Json(req): Json<ApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    InboundService::approve_inbound(&pool, id).await?;
+    InboundService::approve_inbound(&pool, id, auth.user_id, req.reason.as_deref()).await?;
     Ok(ApiResponse::ok("Inbound approved".into()))
 }
 
@@ -184,10 +186,11 @@ pub async fn get_outbound_handler(
 pub async fn approve_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
+    Extension(auth): Extension<AuthContext>,
     Json(req): Json<ApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    OutboundService::approve_outbound(&pool, id).await?;
+    OutboundService::approve_outbound(&pool, id, auth.user_id, req.reason.as_deref()).await?;
     Ok(ApiResponse::ok("Outbound approved".into()))
 }
 

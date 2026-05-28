@@ -30,9 +30,14 @@ export const purchaseOrderSchema = z.object({
   status: z.string(),
   total_amount: z.number(),
   notes: z.string().optional(),
-  items: z.array(purchaseOrderItemSchema),
   created_at: z.string(),
   updated_at: z.string(),
+}).strict();
+
+/** Purchase order detail response — matches backend PurchaseOrderDetailResponse. */
+export const purchaseOrderDetailSchema = z.object({
+  order: purchaseOrderSchema,
+  items: z.array(purchaseOrderItemSchema),
 }).strict();
 
 export const salesOrderItemSchema = z.object({
@@ -61,9 +66,14 @@ export const salesOrderSchema = z.object({
   status: z.string(),
   total_amount: z.number(),
   notes: z.string().optional(),
-  items: z.array(salesOrderItemSchema),
   created_at: z.string(),
   updated_at: z.string(),
+}).strict();
+
+/** Sales order detail response — matches backend SalesOrderDetailResponse. */
+export const salesOrderDetailSchema = z.object({
+  order: salesOrderSchema,
+  items: z.array(salesOrderItemSchema),
 }).strict();
 
 export const contractItemSchema = z.object({

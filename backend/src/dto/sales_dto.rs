@@ -77,6 +77,9 @@ pub struct CreateSalesItemRequest {
 }
 
 /// Update sales order item request DTO.
+///
+/// Note: `total_price` is NOT client-writable — the server always computes it
+/// as `quantity * unit_price` to prevent tampering.
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateSalesItemRequest {
     pub pipe_type: Option<String>,
@@ -85,7 +88,6 @@ pub struct UpdateSalesItemRequest {
     pub wt: Option<f64>,
     pub quantity: Option<i64>,
     pub unit_price: Option<f64>,
-    pub total_price: Option<f64>,
     pub notes: Option<String>,
 }
 
@@ -114,4 +116,12 @@ pub struct SalesOrderStatusTransitionRequest {
     /// Target status.
     #[validate(length(min = 1))]
     pub status: String,
+}
+
+/// Sales order detail response DTO (includes order header + line items).
+/// Used by GET `/api/v1/sales-orders/{id}` to return a consistent ApiResponse shape.
+#[derive(Debug, serde::Serialize)]
+pub struct SalesOrderDetailResponse {
+    pub order: crate::models::sales_order::SalesOrder,
+    pub items: Vec<crate::models::sales_order::SalesOrderItem>,
 }

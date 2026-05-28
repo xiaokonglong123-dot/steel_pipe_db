@@ -22,7 +22,9 @@ export default function SalesOrderFormPage() {
   const isEdit = !!id;
   const orderId = isEdit ? Number(id) : 0;
 
-  const { data: order, isLoading: loadingOrder } = useSalesOrder(orderId);
+  const { data: detail, isLoading: loadingOrder } = useSalesOrder(orderId);
+  const order = detail?.order;
+  const orderItems = detail?.items ?? [];
   const createMutation = useCreateSalesOrder();
   const updateMutation = useUpdateSalesOrder(orderId);
 
@@ -36,7 +38,7 @@ export default function SalesOrderFormPage() {
         notes: order.notes,
       });
       setItems(
-        order.items.map((item: SalesOrderItem) => ({
+        orderItems.map((item: SalesOrderItem) => ({
           pipe_id: item.pipe_id,
           pipe_number: item.pipe_number,
           pipe_type: item.pipe_type,

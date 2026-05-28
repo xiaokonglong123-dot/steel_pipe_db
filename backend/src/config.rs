@@ -1,3 +1,4 @@
+use axum::http::HeaderValue;
 use std::env;
 
 /// Application configuration sourced from environment variables at startup.
@@ -19,6 +20,10 @@ pub struct Config {
     /// TCP port for the HTTP server.
     /// Default: 3000.
     pub server_port: u16,
+    /// Comma-separated list of allowed CORS origins.
+    /// Default: `http://localhost:5173` (Vite dev server).
+    /// Production example: `https://pipe.example.com,https://pipe2.example.com`
+    pub cors_origins: String,
 }
 
 impl Config {
@@ -38,10 +43,28 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(3000),
+            cors_origins: env::var("CORS_ORIGINS")
+                .unwrap_or_else(|_| "http://localhost:5173".to_string()),
         }
     }
 
     pub fn server_addr(&self) -> String {
         format!("{}:{}", self.server_host, self.server_port)
+    }
+
+    /// Parse the comma-separated `cors_origins` into a `Vec<HeaderValue>`.
+    /// Invalid origins are logged as warnings and skipped.
+    pub fn parse_cors_origins(&self) -> Vec<HeaderValue> {
+        self.cors_origins
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .filter_map(|origin| {
+                origin.parse::<HeaderValue>().ok().or_else(|| {
+                    tracing::warn!("Invalid CORS origin skipped: {}", origin);
+                    None
+                })
+            })
+            .collect()
     }
 }

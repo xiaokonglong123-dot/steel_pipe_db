@@ -77,6 +77,9 @@ pub struct CreatePurchaseItemRequest {
 }
 
 /// Update purchase order item request DTO.
+///
+/// Note: `total_price` is NOT client-writable — the server always computes it
+/// as `quantity * unit_price` to prevent tampering.
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdatePurchaseItemRequest {
     pub pipe_type: Option<String>,
@@ -85,7 +88,6 @@ pub struct UpdatePurchaseItemRequest {
     pub wt: Option<f64>,
     pub quantity: Option<i64>,
     pub unit_price: Option<f64>,
-    pub total_price: Option<f64>,
     pub notes: Option<String>,
 }
 
@@ -114,4 +116,12 @@ pub struct PurchaseOrderStatusTransitionRequest {
     /// Target status.
     #[validate(length(min = 1))]
     pub status: String,
+}
+
+/// Purchase order detail response DTO (includes order header + line items).
+/// Used by GET `/api/v1/purchase-orders/{id}` to return a consistent ApiResponse shape.
+#[derive(Debug, serde::Serialize)]
+pub struct PurchaseOrderDetailResponse {
+    pub order: crate::models::purchase_order::PurchaseOrder,
+    pub items: Vec<crate::models::purchase_order::PurchaseOrderItem>,
 }

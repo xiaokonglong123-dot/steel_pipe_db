@@ -31,7 +31,9 @@ export default function PurchaseOrderFormPage() {
   const isEdit = !!id;
   const orderId = isEdit ? Number(id) : 0;
 
-  const { data: order, isLoading: loadingOrder } = usePurchase(orderId);
+  const { data: detail, isLoading: loadingOrder } = usePurchase(orderId);
+  const order = detail?.order;
+  const orderItems = detail?.items ?? [];
   const createMutation = useCreatePurchaseOrder();
   const updateMutation = useUpdatePurchaseOrder(orderId);
 
@@ -42,7 +44,7 @@ export default function PurchaseOrderFormPage() {
         order_date: order.order_date ? dayjs(order.order_date) : undefined,
         expected_date: order.expected_date ? dayjs(order.expected_date) : undefined,
         notes: order.notes,
-        items: order.items.map((item: PurchaseOrderItem) => ({
+        items: orderItems.map((item: PurchaseOrderItem) => ({
           pipe_type: item.pipe_type,
           grade: item.grade,
           od: item.od,

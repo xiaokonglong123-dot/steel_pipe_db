@@ -44,6 +44,8 @@ pub struct InboundRecord {
     pub approval_status: String,
     /// Why it got rejected (if it did).
     pub rejection_reason: Option<String>,
+    /// Approval/rejection reason provided by the approver.
+    pub approval_reason: Option<String>,
     /// User ID of the handler / operator.
     pub handled_by: Option<i64>,
     /// When the handling happened.
@@ -84,6 +86,8 @@ pub struct OutboundRecord {
     pub approval_status: String,
     /// Rejection reason, if applicable.
     pub rejection_reason: Option<String>,
+    /// Approval/rejection reason provided by the approver.
+    pub approval_reason: Option<String>,
     /// User ID of the handler.
     pub handled_by: Option<i64>,
     /// When the handling happened.

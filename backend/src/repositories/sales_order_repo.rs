@@ -326,7 +326,7 @@ impl SalesOrderRepo {
         set_field_opt!(dto.wt, "wt");
         set_field_opt!(dto.quantity, "quantity");
         set_field_opt!(dto.unit_price, "unit_price");
-        set_field_opt!(dto.total_price, "total_price");
+        // total_price is NOT set from client — recomputed below after UPDATE
         set_field!(dto.notes, "notes");
 
         if first {
@@ -340,7 +340,25 @@ impl SalesOrderRepo {
              unit_price, total_price, notes, created_at",
         );
 
-        builder.build_query_as::<SalesOrderItem>().fetch_one(pool).await
+        let item = builder.build_query_as::<SalesOrderItem>().fetch_one(pool).await?;
+
+        // Recompute total_price server-side: quantity * unit_price
+        if dto.quantity.is_some() || dto.unit_price.is_some() {
+            let computed_total = item.quantity as f64 * item.unit_price.unwrap_or(0.0);
+            sqlx::query("UPDATE sales_order_items SET total_price = ? WHERE id = ?")
+                .bind(computed_total)
+                .bind(item.id)
+                .execute(pool)
+                .await?;
+            return sqlx::query_as::<_, SalesOrderItem>(
+                "SELECT id, order_id, pipe_type, grade, od, wt, quantity, delivered_quantity,                  unit_price, total_price, notes, created_at                  FROM sales_order_items WHERE id = ?"
+            )
+            .bind(item.id)
+            .fetch_one(pool)
+            .await;
+        }
+
+        Ok(item)
     }
 
     /// Hard DELETE from `sales_order_items` (no soft-delete for items).

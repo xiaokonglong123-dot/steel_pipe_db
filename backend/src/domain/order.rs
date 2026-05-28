@@ -38,6 +38,36 @@ impl FromStr for OrderStatus {
 }
 
 impl OrderStatus {
+    /// Convert to the snake_case string stored in the database.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Pending => "pending",
+            Self::Approved => "approved",
+            Self::Rejected => "rejected",
+            Self::Completed => "completed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    /// Custom serde deserializer that accepts both the enum form and a plain string.
+    /// This allows seamless reading from JSON (`"approved"`) and from sqlx string columns.
+    pub fn deserialize_from_string<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Self::from_str(&s).map_err(|()| serde::de::Error::custom(format!("Invalid OrderStatus: {}", s)))
+    }
+}
+
+impl std::fmt::Display for OrderStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl OrderStatus {
 
     /// Check whether transitioning from the current status to the target is valid.
     /// Valid transition matrix:

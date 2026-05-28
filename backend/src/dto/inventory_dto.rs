@@ -190,9 +190,11 @@ pub struct SubmitCheckItemRequest {
 //  Approval DTOs
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Approve request DTO (empty body — just triggers the action).
+/// Approve request DTO — optionally includes an approval reason/comment.
 #[derive(Debug, Deserialize, Validate)]
 pub struct ApproveRequest {
+    /// Optional approval reason or comment.
+    pub reason: Option<String>,
 }
 
 /// Reject request DTO.

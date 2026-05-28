@@ -327,7 +327,7 @@ impl PurchaseOrderRepo {
         set_field_opt!(dto.wt, "wt");
         set_field_opt!(dto.quantity, "quantity");
         set_field_opt!(dto.unit_price, "unit_price");
-        set_field_opt!(dto.total_price, "total_price");
+        // total_price is NOT set from client — recomputed below after UPDATE
         set_field!(dto.notes, "notes");
 
         if first {
@@ -341,7 +341,27 @@ impl PurchaseOrderRepo {
              unit_price, total_price, notes, created_at",
         );
 
-        builder.build_query_as::<PurchaseOrderItem>().fetch_one(pool).await
+        let item = builder.build_query_as::<PurchaseOrderItem>().fetch_one(pool).await?;
+
+        // Recompute total_price server-side: quantity * unit_price
+        // This runs after every update to ensure consistency even if only one field changed.
+        if dto.quantity.is_some() || dto.unit_price.is_some() {
+            let computed_total = item.quantity as f64 * item.unit_price.unwrap_or(0.0);
+            sqlx::query("UPDATE purchase_order_items SET total_price = ? WHERE id = ?")
+                .bind(computed_total)
+                .bind(item.id)
+                .execute(pool)
+                .await?;
+            // Re-fetch to get the updated total_price
+            return sqlx::query_as::<_, PurchaseOrderItem>(
+                "SELECT id, order_id, pipe_type, grade, od, wt, quantity, received_quantity,                  unit_price, total_price, notes, created_at                  FROM purchase_order_items WHERE id = ?"
+            )
+            .bind(item.id)
+            .fetch_one(pool)
+            .await;
+        }
+
+        Ok(item)
     }
 
     /// Hard DELETE from `purchase_order_items` (no soft-delete for items).

@@ -26,7 +26,9 @@ export default function PurchaseOrderDetailPage() {
   const navigate = useNavigate();
   const orderId = Number(id);
 
-  const { data: order, isLoading } = usePurchase(orderId);
+  const { data: detail, isLoading } = usePurchase(orderId);
+  const order = detail?.order;
+  const items = detail?.items ?? [];
   const transitionMutation = useTransitionPurchaseOrder(orderId);
 
   const [transitionModalOpen, setTransitionModalOpen] = useState(false);
@@ -166,11 +168,11 @@ export default function PurchaseOrderDetailPage() {
       <Card title={t('purchases.items')}>
         <Table
           columns={itemColumns}
-          dataSource={order.items}
+          dataSource={items}
           rowKey="id"
           pagination={false}
           summary={() => {
-            const total = order.items.reduce(
+            const total = items.reduce(
               (sum, item) => sum + item.total_price,
               0,
             );
