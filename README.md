@@ -116,29 +116,39 @@ Open `http://localhost:5173` and log in with:
 
 ## 🗄 Data Model
 
-19 tables in SQLite (WAL mode, no FK constraints — integrity enforced at the app layer because SQLite FK support is meh):
+25 tables in SQLite (WAL mode, no FK constraints — integrity enforced at the app layer because SQLite FK support is meh). Table names below match `backend/migrations/001`–`015`:
 
 ```
-pipes                → Master pipe data (API 5CT specs)
-inventory            → Current stock by pipe spec
-inventory_logs       → Per-pipe movement audit trail
-suppliers            → Supplier master
-customers            → Customer master
-purchase_orders      → PO header
-purchase_order_items → PO line items
-sales_orders         → SO header
-sales_order_items    → SO line items
-inbound_records      → Inbound header (purchase, production, return, transfer)
-inbound_record_items → Inbound line items
-outbound_records     → Outbound header (sales, scrapped, transfer)
-outbound_record_items→ Outbound line items
-quality_certificates → QC certificates
-quality_mechanical   → Mechanical test results
-quality_ndt          → NDT (UT/MI/MPI) results
-contracts            → Contract header
-contract_milestones  → Payment/delivery milestones
-users                → System users (4 roles)
+users                  → System users (4 roles)                         [001]
+seamless_pipes         → Seamless steel pipe master data (API 5CT specs) [002]
+screen_pipes           → Screen pipe master data                        [003]
+locations              → Warehouse locations                            [004]
+inbound_records        → Inbound header (purchase, production, return)   [005]
+inbound_items          → Inbound line items                             [005]
+outbound_records       → Outbound header (sales, scrapped, transfer)    [005]
+outbound_items         → Outbound line items                            [005]
+inventory_logs         → Per-pipe movement audit trail                  [005]
+inventory_check_records→ Inventory check (盘点) header                   [005]
+inventory_check_items  → Inventory check line items                     [005]
+suppliers              → Supplier master                                [006]
+customers              → Customer master                                [006]
+purchase_orders        → PO header                                      [006]
+purchase_order_items   → PO line items                                  [006]
+sales_orders           → SO header                                      [006]
+sales_order_items      → SO line items                                  [006]
+quality_certs          → QC certificates                                [007]
+api_5ct_grade_ref      → API 5CT steel grade reference data             [007]
+pipe_attachments       → Pipe document/attachment metadata              [007]
+operation_logs         → System operation audit trail                   [008]
+contracts              → Contract header                                [009]
+contract_items         → Contract line items                            [009]
+contract_payments      → Contract payment milestones                    [009]
+refresh_tokens         → Server-side hashed refresh token sessions       [014]
 ```
+
+> Migrations `010`–`013` seed reference data and add columns (e.g. `011` adds the
+> sales-order rejection reason). Migration `014` creates refresh-token storage, and
+> `015` rebuilds contract tables to tighten CHECK constraints.
 
 All timestamps are ISO 8601 strings. Soft deletes via `deleted_at` — nothing ever truly dies.
 
@@ -164,9 +174,16 @@ npm run lint                         # ESLint
 ## 🔐 Security
 
 - **Password**: Argon2id with recommended params (`m=19456, t=2, p=1`)
-- **Auth**: JWT with configurable expiration, refresh token rotation
+- **Auth**: Stateless JWT (HS256) for access tokens. Refresh tokens are stored server-side
+  (SHA-256 hashed in `refresh_tokens` table) and rotate on each `/auth/refresh` call.
+  Expired or revoked refresh tokens are rejected, and `/auth/logout` revokes all refresh
+  tokens for the user to prevent further token renewal.
 - **RBAC**: 4 roles — `admin`, `warehouse`, `qc`, `sales` — enforced via middleware
-- **Data**: Soft deletes on all business entities, audit trail via `inventory_logs`
+- **Rate limiting**: Per-IP throttling on auth endpoints (login/refresh) via middleware
+- **Data IO**: Batch import is admin-only; export is limited to `admin`/`warehouse`/`sales`;
+  operation logs are admin-only. CSV/XLSX exports escape spreadsheet formula prefixes
+  (`=`, `+`, `-`, `@`) so exported user-controlled values open as text.
+- **Data**: Soft deletes on all business entities, audit trail via `inventory_logs` and `operation_logs`
 
 ---
 
@@ -184,7 +201,7 @@ steel_pipe_db/
 │   │   ├── response.rs        # ApiResponse<T> / PaginatedResponse<T> / Meta struct with request_id (uuid v4)
 │   │   ├── domain/            # Domain enums & constants (pipe specs, etc.)
 │   │   ├── dto/               # Request/Response DTOs
-│   │   ├── models/            # DB models (19 tables)
+│   │   ├── models/            # DB models (25 tables)
 │   │   ├── repositories/      # SQL query layer
 │   │   ├── services/          # Business logic layer
 │   │   ├── handlers/          # Axum request handlers
@@ -238,7 +255,7 @@ All endpoints live under `/api/v1/`:
 | Contracts   | `/contracts/*`      | Yes |
 | Reports     | `/reports/*`        | Yes |
 | Labels      | `/labels/*`         | Yes |
-| Data IO     | `/data/*`           | Yes |
+| Data IO     | `/data-io/*`        | Yes |
 
 Every response follows the same shape:
 ```json
@@ -261,8 +278,10 @@ Paginated responses tack on `meta: { total, page, page_size, total_pages }`. Err
 | Suppliers/Customers (write) | ✅ | ✅ | ❌ | ✅ |
 | Contracts (write) | ✅ | ✅ | ❌ | ✅ |
 | Data Import | ✅ | ❌ | ❌ | ❌ |
+| Data Export | ✅ | ✅ | ❌ | ✅ |
+| Data IO Operation Logs | ✅ | ❌ | ❌ | ❌ |
 | Labels (write) | ✅ | ✅ | ❌ | ❌ |
-| All read endpoints | ✅ | ✅ | ✅ | ✅ |
+| General read endpoints | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
@@ -273,7 +292,7 @@ Design docs (in Chinese) live in [`docs/`](./docs/):
 | Document | Content |
 |----------|---------|
 | `requirements.en.md` | Full PRD: features, API 5CT standards, roadmap |
-| `detailed-design.en.md` | Architecture, 19-table DB schema, REST API, security |
+| `detailed-design.en.md` | Architecture, 25-table DB schema, REST API, security |
 | `frontend-design.en.md` | Component tree, routing, state, i18n, theme |
 | `需求文档.md` | PRD 中文版 |
 | `详细设计文档.md` | 架构设计中文版 |
