@@ -1,9 +1,7 @@
-// 库存盘点页 — 盘点任务创建、逐项核对（期望 vs 实际）、差异标记
+// 库存盘点页 — 使用 DataTable + PageLayout + usePagination
 import { useState } from 'react';
 import {
-  Table,
   Button,
-  Space,
   Tag,
   Modal,
   Form,
@@ -13,6 +11,9 @@ import {
 } from 'antd';
 import { PlusOutlined, EyeOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DataTable } from '@/shared/components/DataTable';
+import { usePagination } from '@/shared/hooks/usePagination';
 import {
   useInventoryChecks,
   useInventoryCheck,
@@ -43,8 +44,7 @@ const getFoundStatusOptions = (t: (key: string) => string) => [
 
 export default function InventoryCheckListPage() {
   const { t } = useTranslation();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { page, pageSize, onPaginationChange } = usePagination();
   const [createOpen, setCreateOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailCheckId, setDetailCheckId] = useState<number>(0);
@@ -139,15 +139,14 @@ export default function InventoryCheckListPage() {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: InventoryCheckRecord) => (
-        <Space>
-          <Button
-            type="link"
-            icon={<EyeOutlined />}
-            onClick={() => openDetailModal(record.id)}
-          >
-            {t('inventory_check.view_items')}
-          </Button>
-        </Space>
+        <Button
+          type="link"
+          size="small"
+          icon={<EyeOutlined />}
+          onClick={() => openDetailModal(record.id)}
+        >
+          {t('inventory_check.view_items')}
+        </Button>
       ),
     },
   ];
@@ -196,7 +195,7 @@ export default function InventoryCheckListPage() {
       render: (_: unknown, record: InventoryCheckItem) => {
         if (record.found_status) return null;
         return (
-          <Space>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Select
               size="small"
               style={{ width: 120 }}
@@ -212,42 +211,29 @@ export default function InventoryCheckListPage() {
             >
               {t('common.save')}
             </Button>
-          </Space>
+          </div>
         );
       },
     },
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          marginBottom: 16,
-        }}
-      >
+    <PageLayout
+      title={t('inventory_check.title')}
+      extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
           {t('inventory_check.create')}
         </Button>
-      </div>
-
-      <Table
+      }
+    >
+      <DataTable<InventoryCheckRecord>
         columns={listColumns}
-        dataSource={data?.items}
-        rowKey="id"
+        items={data?.items}
+        total={data?.total}
+        page={page}
+        pageSize={pageSize}
         loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-          showTotal: (total) => t('common.total_items', { total }),
-        }}
+        onPaginationChange={onPaginationChange}
       />
 
       <Modal
@@ -287,15 +273,15 @@ export default function InventoryCheckListPage() {
             <Input placeholder={t('inventory_check.note_optional')} />
           </Form.Item>
         </Form>
-        <Table
+        <DataTable<InventoryCheckItem>
           columns={itemColumns}
-          dataSource={checkDetail?.items}
-          rowKey="id"
+          items={checkDetail?.items}
+          page={1}
+          pageSize={checkDetail?.items?.length ?? 100}
+          onPaginationChange={() => {}}
           loading={loadingDetail}
-          pagination={false}
-          size="small"
         />
       </Modal>
-    </div>
+    </PageLayout>
   );
 }

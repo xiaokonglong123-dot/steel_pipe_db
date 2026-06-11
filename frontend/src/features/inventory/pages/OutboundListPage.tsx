@@ -1,9 +1,7 @@
-// 出库管理页 — 出库记录列表 + 弹窗创建/编辑，支持销售/报废/调拨等出库类型
+// 出库管理页 — 使用 DataTable + PageLayout + usePagination
 import { useState, useCallback } from 'react';
 import {
-  Table,
   Button,
-  Space,
   Tag,
   Input,
   Modal,
@@ -14,6 +12,10 @@ import {
 } from 'antd';
 import { PlusOutlined, SearchOutlined, StockOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DataTable } from '@/shared/components/DataTable';
+import { usePagination } from '@/shared/hooks/usePagination';
+import { OUTBOUND_TYPES, PIPE_TYPES } from '@/shared/constants';
 import {
   useOutboundRecords,
   useCreateOutbound,
@@ -23,9 +25,6 @@ import {
 } from '../hooks/useInventory';
 import type { OutboundRecord, CreateOutboundData } from '../api/inventoryApi';
 import StockSelector from '../components/StockSelector';
-
-const OUTBOUND_TYPES = ['sales', 'transfer', 'scrapped'];
-const PIPE_TYPES = ['seamless', 'casing', 'tubing', 'line_pipe', 'screen'];
 
 const STATUS_COLOR_MAP: Record<string, string> = {
   pending: 'orange',
@@ -42,8 +41,7 @@ const TYPE_LABEL_MAP: Record<string, string> = {
 
 export default function OutboundListPage() {
   const { t } = useTranslation();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { page, pageSize, onPaginationChange, reset } = usePagination();
   const [searchText, setSearchText] = useState('');
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
@@ -57,7 +55,6 @@ export default function OutboundListPage() {
   const handleStockSelect = useCallback(
     (selectedPipes: { pipe_type: string; pipe_id: number }[]) => {
       const currentPipes = form.getFieldValue('pipes') || [];
-      // Merge: append selected pipes to existing, avoiding duplicates by pipe_id
       const existingIds = new Set(currentPipes.map((p: { pipe_id: number }) => p.pipe_id));
       const newPipes = selectedPipes.filter((p) => !existingIds.has(p.pipe_id));
       form.setFieldsValue({ pipes: [...currentPipes, ...newPipes] });
@@ -163,11 +160,12 @@ export default function OutboundListPage() {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: OutboundRecord) => (
-        <Space>
+        <>
           {record.approval_status === 'pending' && (
             <>
               <Button
                 type="link"
+                size="small"
                 onClick={() => handleApprove(record.id)}
                 loading={approveMutation.isPending}
               >
@@ -175,6 +173,7 @@ export default function OutboundListPage() {
               </Button>
               <Button
                 type="link"
+                size="small"
                 danger
                 onClick={() => openRejectModal(record.id)}
               >
@@ -186,88 +185,74 @@ export default function OutboundListPage() {
             title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger>
+            <Button type="link" danger size="small">
               {t('common.delete')}
             </Button>
           </Popconfirm>
-        </Space>
+        </>
       ),
     },
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-          gap: 8,
-        }}
-      >
-        <Space wrap>
-          <Input
-            placeholder={t('common.search')}
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => {
-              setSearchText(e.target.value);
-              setPage(1);
-            }}
-            style={{ width: 200 }}
-          />
-          <Select
-            placeholder={t('outbound.outbound_type')}
-            allowClear
-            style={{ width: 130 }}
-            value={typeFilter}
-            onChange={(v) => {
-              setTypeFilter(v);
-              setPage(1);
-            }}
-            options={OUTBOUND_TYPES.map((ot) => ({
-              label: t(TYPE_LABEL_MAP[ot]),
-              value: ot,
-            }))}
-          />
-          <Select
-            placeholder={t('outbound.approval_status')}
-            allowClear
-            style={{ width: 130 }}
-            value={statusFilter}
-            onChange={(v) => {
-              setStatusFilter(v);
-              setPage(1);
-            }}
-            options={[
-              { label: t('outbound.status.pending'), value: 'pending' },
-              { label: t('outbound.status.approved'), value: 'approved' },
-              { label: t('outbound.status.rejected'), value: 'rejected' },
-            ]}
-          />
-        </Space>
+    <PageLayout
+      title={t('outbound.title')}
+      extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
           {t('outbound.create_outbound')}
         </Button>
+      }
+    >
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <Input
+          placeholder={t('common.search')}
+          prefix={<SearchOutlined />}
+          value={searchText}
+          onChange={(e) => {
+            setSearchText(e.target.value);
+            reset();
+          }}
+          style={{ width: 200 }}
+        />
+        <Select
+          placeholder={t('outbound.outbound_type')}
+          allowClear
+          style={{ width: 130 }}
+          value={typeFilter}
+          onChange={(v) => {
+            setTypeFilter(v);
+            reset();
+          }}
+          options={OUTBOUND_TYPES.map((ot) => ({
+            label: t(TYPE_LABEL_MAP[ot]),
+            value: ot,
+          }))}
+        />
+        <Select
+          placeholder={t('outbound.approval_status')}
+          allowClear
+          style={{ width: 130 }}
+          value={statusFilter}
+          onChange={(v) => {
+            setStatusFilter(v);
+            reset();
+          }}
+          options={[
+            { label: t('outbound.status.pending'), value: 'pending' },
+            { label: t('outbound.status.approved'), value: 'approved' },
+            { label: t('outbound.status.rejected'), value: 'rejected' },
+          ]}
+        />
       </div>
 
-      <Table
+      <DataTable<OutboundRecord>
         columns={columns}
-        dataSource={data?.items}
-        rowKey="id"
+        items={data?.items}
+        total={data?.total}
+        page={page}
+        pageSize={pageSize}
         loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-          showTotal: (total) => t('common.total_items', { total }),
-        }}
+        onPaginationChange={onPaginationChange}
       />
 
       <Modal
@@ -316,7 +301,7 @@ export default function OutboundListPage() {
               {(fields, { add, remove }) => (
                 <>
                   {fields.map(({ key, name, ...rest }) => (
-                    <Space key={key} align="baseline" style={{ marginBottom: 8 }}>
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                       <Form.Item
                         {...rest}
                         name={[name, 'pipe_type']}
@@ -344,7 +329,7 @@ export default function OutboundListPage() {
                           {t('common.delete')}
                         </Button>
                       )}
-                    </Space>
+                    </div>
                   ))}
                   <Button type="dashed" onClick={() => add({ pipe_type: 'casing' })} block>
                     + {t('outbound.add_pipe')}
@@ -383,6 +368,6 @@ export default function OutboundListPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </PageLayout>
   );
 }
