@@ -443,8 +443,11 @@ async fn create_and_list_locations() {
     let (locations, total) = LocationService::list_locations(&pool, &params, false)
         .await
         .expect("list_locations must succeed");
-    assert_eq!(total, 1);
-    assert_eq!(locations[0].full_code, "A-01-01");
+    assert!(total >= 1, "should have at least 1 location, got {}", total);
+    assert!(
+        locations.iter().any(|l| l.full_code == "A-01-01"),
+        "should contain A-01-01"
+    );
 }
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

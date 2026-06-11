@@ -3,8 +3,8 @@ use uuid::Uuid;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::{
-    CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams, PipeSearchResult,
-    UpdateScreenPipeRequest, UpdateSeamlessPipeRequest,
+    BatchCreatePipeRequest, CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams,
+    PipeSearchResult, UpdateScreenPipeRequest, UpdateSeamlessPipeRequest,
 };
 use crate::error::AppError;
 use crate::models::screen_pipe::ScreenPipe;
@@ -268,6 +268,89 @@ impl PipeService {
         ScreenPipeRepo::list(pool, filter, params)
             .await
             .map_err(AppError::from)
+    }
+
+    pub async fn batch_create_pipes(
+        pool: &SqlitePool,
+        dto: &BatchCreatePipeRequest,
+    ) -> Result<Vec<i64>, AppError> {
+        let mut pipe_ids = Vec::with_capacity(dto.quantity as usize);
+
+        for _ in 0..dto.quantity {
+            let prefix = match dto.pipe_type.as_str() {
+                "seamless" | "casing" | "tubing" => "SP",
+                "screen" => "SCP",
+                _ => "P",
+            };
+
+            let mut pipe_number = Self::generate_pipe_number(
+                prefix,
+                &dto.grade,
+                dto.od,
+                dto.wt,
+            );
+            while !PipeHelpers::check_pipe_number_unique(pool, &pipe_number).await? {
+                pipe_number = Self::generate_pipe_number(prefix, &dto.grade, dto.od, dto.wt);
+            }
+
+            match dto.pipe_type.as_str() {
+                "seamless" | "casing" | "tubing" => {
+                    let req = CreateSeamlessPipeRequest {
+                        pipe_number: Some(pipe_number),
+                        batch_number: dto.batch_number.clone(),
+                        pipe_type: Some(dto.pipe_type.clone()),
+                        grade: dto.grade.clone(),
+                        od: dto.od,
+                        wt: dto.wt,
+                        length: dto.length,
+                        weight_per_unit: None,
+                        end_type: dto.end_type.clone(),
+                        coupling_type: None,
+                        coupling_od: None,
+                        coupling_length: None,
+                        heat_number: dto.heat_number.clone(),
+                        serial_number: None,
+                        manufacturer: dto.manufacturer.clone(),
+                        production_date: None,
+                        cert_number: None,
+                        notes: dto.notes.clone(),
+                    };
+                    let pipe = Self::create_seamless_pipe(pool, &req).await?;
+                    pipe_ids.push(pipe.id);
+                }
+                "screen" => {
+                    let req = CreateScreenPipeRequest {
+                        pipe_number: Some(pipe_number),
+                        batch_number: dto.batch_number.clone(),
+                        screen_type: None,
+                        slot_size: None,
+                        filtration_grade: None,
+                        base_od: dto.od,
+                        base_wt: dto.wt,
+                        base_grade: dto.grade.clone(),
+                        base_end_type: dto.end_type.clone(),
+                        length: dto.length,
+                        weight_per_unit: None,
+                        heat_number: dto.heat_number.clone(),
+                        serial_number: None,
+                        manufacturer: dto.manufacturer.clone(),
+                        production_date: None,
+                        cert_number: None,
+                        notes: dto.notes.clone(),
+                    };
+                    let pipe = Self::create_screen_pipe(pool, &req).await?;
+                    pipe_ids.push(pipe.id);
+                }
+                _ => {
+                    return Err(AppError::Validation(format!(
+                        "Unknown pipe_type: {}",
+                        dto.pipe_type
+                    )));
+                }
+            }
+        }
+
+        Ok(pipe_ids)
     }
 
     // ━━━ Search ━━━

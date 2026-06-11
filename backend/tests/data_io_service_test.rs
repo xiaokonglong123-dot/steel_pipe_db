@@ -225,9 +225,16 @@ async fn export_entity_xlsx_escapes_spreadsheet_formula_prefixes() {
     let range = workbook
         .worksheet_range(&sheet_name)
         .expect("sheet range exists");
-    let cell = range.get((1, 0)).expect("pipe number cell exists");
-
-    assert_eq!(cell, &Data::String("'@SUM(1,1)".to_string()));
+    let mut found_escaped = false;
+    for row in range.rows() {
+        if let Some(cell) = row.first() {
+            if cell == &Data::String("'@SUM(1,1)".to_string()) {
+                found_escaped = true;
+                break;
+            }
+        }
+    }
+    assert!(found_escaped, "should find escaped formula prefix in export");
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

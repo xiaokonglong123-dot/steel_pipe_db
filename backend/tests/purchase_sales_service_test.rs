@@ -1600,9 +1600,9 @@ async fn approve_sales_order_fails_insufficient_stock() {
         notes: None,
         items: vec![CreateSalesItemRequest {
             pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
+            grade: "Q125".into(),
+            od: 244.5,
+            wt: 11.99,
             quantity: 1,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),

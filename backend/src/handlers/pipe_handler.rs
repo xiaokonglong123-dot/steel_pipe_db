@@ -11,8 +11,8 @@ use validator::Validate;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::{
-    CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams, PipeSearchResult,
-    UpdateScreenPipeRequest, UpdateSeamlessPipeRequest,
+    BatchCreatePipeRequest, CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams,
+    PipeSearchResult, UpdateScreenPipeRequest, UpdateSeamlessPipeRequest,
 };
 use crate::error::AppError;
 use crate::models::screen_pipe::ScreenPipe;
@@ -192,4 +192,14 @@ pub async fn search_pipes_handler(
     }
     let results = PipeService::search_pipes(&pool, &query.q).await?;
     Ok(ApiResponse::ok(results))
+}
+
+pub async fn batch_create_pipes_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Json(req): Json<BatchCreatePipeRequest>,
+) -> Result<axum::response::Response, AppError> {
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    let pipe_ids = PipeService::batch_create_pipes(&pool, &req).await?;
+    Ok(ApiResponse::created(pipe_ids))
 }

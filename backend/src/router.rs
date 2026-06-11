@@ -488,6 +488,10 @@ pub fn create_app(
             axum::routing::put(pipe_handler::update_screen_pipe_handler)
                 .delete(pipe_handler::delete_screen_pipe_handler),
         )
+        .route(
+            "/api/v1/pipes/batch",
+            axum::routing::post(pipe_handler::batch_create_pipes_handler),
+        )
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse"])
         }))
