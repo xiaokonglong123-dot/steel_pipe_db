@@ -7,7 +7,7 @@ use crate::dto::inventory_dto::{
 };
 use crate::error::AppError;
 use crate::models::inventory::{OutboundItem, OutboundRecord};
-use crate::repositories::inventory_repo::OutboundRepo;
+use crate::repositories::outbound_repo::OutboundRepo;
 use crate::repositories::pipe_repo::{ScreenPipeRepo, SeamlessPipeRepo};
 
 /// Outbound service — handles sales, scrapped, and transfer stock-out with create/approve/execute/query.

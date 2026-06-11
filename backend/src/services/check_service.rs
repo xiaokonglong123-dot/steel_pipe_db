@@ -5,7 +5,8 @@ use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateCheckRequest, SubmitCheckItemRequest};
 use crate::error::AppError;
 use crate::models::inventory::{InventoryCheckItem, InventoryCheckRecord};
-use crate::repositories::inventory_repo::{CheckInitItem, CheckRepo};
+use crate::repositories::check_repo::CheckRepo;
+use crate::repositories::inventory_repo::CheckInitItem;
 
 /// Inventory check service — create check orders, submit results per item, complete the full workflow.
 /// On creation, it auto-initializes all `in_stock` pipes as pending check items.

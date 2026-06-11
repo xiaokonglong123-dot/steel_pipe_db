@@ -1,4 +1,4 @@
-//! Integration tests for `PurchaseSalesService` — purchase and sales order lifecycle.
+//! Integration tests for `PurchaseService` and `SalesService` — purchase and sales order lifecycle.
 //!
 //! Covers PO/SO creation, status transitions, approval/rejection, item management,
 //! soft-delete, linking to inbound/outbound, and ATP validation for sales orders.
@@ -19,7 +19,8 @@ use steel_pipe_db::dto::sales_dto::{
     RejectOrderRequest as SalesRejectReq, SalesOrderFilterParams,
     SalesOrderStatusTransitionRequest, UpdateSalesItemRequest, UpdateSalesOrderRequest,
 };
-use steel_pipe_db::services::purchase_sales_service::PurchaseSalesService;
+use steel_pipe_db::services::purchase_service::PurchaseService;
+use steel_pipe_db::services::sales_service::SalesService;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Purchase Order — create
@@ -50,7 +51,7 @@ async fn create_purchase_order_with_items() {
         }],
     };
 
-    let order = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let order = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .expect("create_purchase_order must succeed");
 
@@ -77,7 +78,7 @@ async fn create_purchase_order_fails_empty_items() {
         items: vec![],
     };
 
-    let err = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let err = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .expect_err("must fail with empty items");
     assert!(err.to_string().contains("At least one item"));
@@ -119,7 +120,7 @@ async fn create_purchase_order_fails_inactive_supplier() {
         }],
     };
 
-    let err = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let err = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .expect_err("must fail for inactive supplier");
     assert!(err.to_string().contains("not active"));
@@ -151,12 +152,12 @@ async fn create_purchase_order_fails_duplicate_order_no() {
     };
 
     // First creation should succeed
-    PurchaseSalesService::create_purchase_order(&pool, &dto)
+    PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .expect("first create must succeed");
 
     // Second creation with same order_no should fail
-    let err = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let err = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .expect_err("duplicate order_no must fail");
     assert!(err.to_string().contains("already exists"));
@@ -183,7 +184,7 @@ async fn create_purchase_order_fails_nonexistent_supplier() {
         }],
     };
 
-    let err = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let err = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .expect_err("must fail for nonexistent supplier");
     assert!(err.to_string().contains("Supplier"));
@@ -218,7 +219,7 @@ async fn update_purchase_order_updates_header() {
         }],
     };
 
-    let order = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let order = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .unwrap();
 
@@ -227,7 +228,7 @@ async fn update_purchase_order_updates_header() {
         notes: Some("updated notes".into()),
     };
 
-    let updated = PurchaseSalesService::update_purchase_order(&pool, order.id, &update)
+    let updated = PurchaseService::update_purchase_order(&pool, order.id, &update)
         .await
         .expect("update_purchase_order must succeed");
 
@@ -259,7 +260,7 @@ async fn update_purchase_order_fails_non_draft() {
         }],
     };
 
-    let order = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let order = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .unwrap();
 
@@ -267,7 +268,7 @@ async fn update_purchase_order_fails_non_draft() {
     let trans = PurchaseOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order.id, &trans)
+    PurchaseService::transition_purchase_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
@@ -276,7 +277,7 @@ async fn update_purchase_order_fails_non_draft() {
         order_date: None,
         notes: Some("should fail".into()),
     };
-    let err = PurchaseSalesService::update_purchase_order(&pool, order.id, &update)
+    let err = PurchaseService::update_purchase_order(&pool, order.id, &update)
         .await
         .expect_err("update must fail for non-draft order");
     assert!(err.to_string().contains("Cannot modify"));
@@ -298,11 +299,11 @@ async fn transition_purchase_status_draft_to_pending() {
     let trans = PurchaseOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order.id, &trans)
+    PurchaseService::transition_purchase_status(&pool, order.id, &trans)
         .await
         .expect("draft -> pending must succeed");
 
-    let (fetched, _items) = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let (fetched, _items) = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(fetched.status, "pending");
@@ -320,11 +321,11 @@ async fn transition_purchase_status_draft_to_cancelled() {
     let trans = PurchaseOrderStatusTransitionRequest {
         status: "cancelled".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order.id, &trans)
+    PurchaseService::transition_purchase_status(&pool, order.id, &trans)
         .await
         .expect("draft -> cancelled must succeed");
 
-    let (fetched, _) = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let (fetched, _) = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(fetched.status, "cancelled");
@@ -343,7 +344,7 @@ async fn transition_purchase_status_invalid_hop_fails() {
     let trans = PurchaseOrderStatusTransitionRequest {
         status: "approved".into(),
     };
-    let err = PurchaseSalesService::transition_purchase_status(&pool, order.id, &trans)
+    let err = PurchaseService::transition_purchase_status(&pool, order.id, &trans)
         .await
         .expect_err("draft -> approved must fail");
     assert!(err.to_string().contains("Cannot transition"));
@@ -362,7 +363,7 @@ async fn transition_purchase_status_full_flow() {
     let t1 = PurchaseOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order.id, &t1)
+    PurchaseService::transition_purchase_status(&pool, order.id, &t1)
         .await
         .unwrap();
 
@@ -370,11 +371,11 @@ async fn transition_purchase_status_full_flow() {
     let t2 = PurchaseOrderStatusTransitionRequest {
         status: "approved".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order.id, &t2)
+    PurchaseService::transition_purchase_status(&pool, order.id, &t2)
         .await
         .unwrap();
 
-    let (fetched, _) = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let (fetched, _) = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(fetched.status, "approved");
@@ -420,11 +421,11 @@ async fn get_purchase_order_with_items() {
         ],
     };
 
-    let order = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let order = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .unwrap();
 
-    let (fetched, items) = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let (fetched, items) = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .expect("get_purchase_order must succeed");
 
@@ -437,7 +438,7 @@ async fn get_purchase_order_with_items() {
 async fn get_purchase_order_fails_not_found() {
     let pool = common::test_pool().await;
 
-    let err = PurchaseSalesService::get_purchase_order(&pool, 99999)
+    let err = PurchaseService::get_purchase_order(&pool, 99999)
         .await
         .expect_err("must fail for nonexistent order");
     assert!(err.to_string().contains("not found"));
@@ -469,7 +470,7 @@ async fn list_purchase_orders_pagination() {
                 notes: None,
             }],
         };
-        PurchaseSalesService::create_purchase_order(&pool, &dto)
+        PurchaseService::create_purchase_order(&pool, &dto)
             .await
             .unwrap();
     }
@@ -492,7 +493,7 @@ async fn list_purchase_orders_pagination() {
         sort_order: None,
     };
 
-    let (orders, total) = PurchaseSalesService::list_purchase_orders(&pool, &filter, &params)
+    let (orders, total) = PurchaseService::list_purchase_orders(&pool, &filter, &params)
         .await
         .expect("list must succeed");
 
@@ -526,7 +527,7 @@ async fn list_purchase_orders_status_filter() {
                 notes: None,
             }],
         };
-        PurchaseSalesService::create_purchase_order(&pool, &dto)
+        PurchaseService::create_purchase_order(&pool, &dto)
             .await
             .unwrap()
     };
@@ -548,13 +549,13 @@ async fn list_purchase_orders_status_filter() {
                 notes: None,
             }],
         };
-        let o = PurchaseSalesService::create_purchase_order(&pool, &dto)
+        let o = PurchaseService::create_purchase_order(&pool, &dto)
             .await
             .unwrap();
         let trans = PurchaseOrderStatusTransitionRequest {
             status: "pending".into(),
         };
-        PurchaseSalesService::transition_purchase_status(&pool, o.id, &trans)
+        PurchaseService::transition_purchase_status(&pool, o.id, &trans)
             .await
             .unwrap();
         o
@@ -579,7 +580,7 @@ async fn list_purchase_orders_status_filter() {
         sort_order: None,
     };
 
-    let (orders, total) = PurchaseSalesService::list_purchase_orders(&pool, &filter, &params)
+    let (orders, total) = PurchaseService::list_purchase_orders(&pool, &filter, &params)
         .await
         .expect("list with status filter must succeed");
     assert_eq!(total, 1);
@@ -600,7 +601,7 @@ async fn delete_purchase_order_draft() {
         .unwrap();
     let order = create_dummy_po(&pool, supplier_id).await;
 
-    PurchaseSalesService::delete_purchase_order(&pool, order.id)
+    PurchaseService::delete_purchase_order(&pool, order.id)
         .await
         .expect("delete draft PO must succeed");
 
@@ -614,7 +615,7 @@ async fn delete_purchase_order_draft() {
     assert!(deleted_at.0.is_some());
 
     // get should fail
-    let err = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let err = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .expect_err("deleted order should not be findable");
     assert!(err.to_string().contains("not found"));
@@ -633,7 +634,7 @@ async fn delete_purchase_order_fails_approved() {
         .await
         .unwrap();
 
-    let err = PurchaseSalesService::delete_purchase_order(&pool, order_id)
+    let err = PurchaseService::delete_purchase_order(&pool, order_id)
         .await
         .expect_err("deleting approved PO must fail");
     assert!(err.to_string().contains("Cannot delete"));
@@ -668,11 +669,11 @@ async fn update_purchase_item_changes_qty() {
             notes: None,
         }],
     };
-    let order = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let order = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .unwrap();
 
-    let (_order, items) = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let (_order, items) = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .unwrap();
     let item_id = items[0].id;
@@ -688,7 +689,7 @@ async fn update_purchase_item_changes_qty() {
     };
 
     let (_order, updated_item) =
-        PurchaseSalesService::update_purchase_item(&pool, order.id, item_id, &update)
+        PurchaseService::update_purchase_item(&pool, order.id, item_id, &update)
             .await
             .expect("update_purchase_item must succeed");
 
@@ -709,7 +710,7 @@ async fn update_purchase_item_fails_non_draft() {
     let trans = PurchaseOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order.id, &trans)
+    PurchaseService::transition_purchase_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
@@ -723,7 +724,7 @@ async fn update_purchase_item_fails_non_draft() {
         notes: None,
     };
 
-    let err = PurchaseSalesService::update_purchase_item(&pool, order.id, 0, &update)
+    let err = PurchaseService::update_purchase_item(&pool, order.id, 0, &update)
         .await
         .expect_err("update must fail for non-draft");
     assert!(err.to_string().contains("Cannot modify"));
@@ -769,21 +770,21 @@ async fn delete_purchase_item_removes_item() {
             },
         ],
     };
-    let order = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let order = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .unwrap();
 
-    let (_order, items) = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let (_order, items) = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(items.len(), 2);
 
     let item_id = items[0].id;
-    PurchaseSalesService::delete_purchase_item(&pool, order.id, item_id)
+    PurchaseService::delete_purchase_item(&pool, order.id, item_id)
         .await
         .expect("delete_purchase_item must succeed");
 
-    let (_order, remaining) = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let (_order, remaining) = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(remaining.len(), 1);
@@ -802,11 +803,11 @@ async fn delete_purchase_item_fails_non_draft() {
     let trans = PurchaseOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order.id, &trans)
+    PurchaseService::transition_purchase_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
-    let err = PurchaseSalesService::delete_purchase_item(&pool, order.id, 0)
+    let err = PurchaseService::delete_purchase_item(&pool, order.id, 0)
         .await
         .expect_err("delete item must fail for non-draft");
     assert!(err.to_string().contains("Cannot delete"));
@@ -829,17 +830,17 @@ async fn approve_purchase_order_approves() {
     let trans = PurchaseOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order.id, &trans)
+    PurchaseService::transition_purchase_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
     // approve
     let req = PurchaseApproveReq { notes: None };
-    PurchaseSalesService::approve_purchase_order(&pool, order.id, &req)
+    PurchaseService::approve_purchase_order(&pool, order.id, &req)
         .await
         .expect("approve must succeed");
 
-    let (fetched, _) = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let (fetched, _) = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(fetched.status, "approved");
@@ -856,7 +857,7 @@ async fn approve_purchase_order_fails_non_pending() {
 
     // Still in draft — approval must fail
     let req = PurchaseApproveReq { notes: None };
-    let err = PurchaseSalesService::approve_purchase_order(&pool, order.id, &req)
+    let err = PurchaseService::approve_purchase_order(&pool, order.id, &req)
         .await
         .expect_err("approve from draft must fail");
     assert!(err.to_string().contains("Cannot approve"));
@@ -875,7 +876,7 @@ async fn reject_purchase_order_rejects() {
     let trans = PurchaseOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order.id, &trans)
+    PurchaseService::transition_purchase_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
@@ -883,11 +884,11 @@ async fn reject_purchase_order_rejects() {
     let req = PurchaseRejectReq {
         reason: "price too high".into(),
     };
-    PurchaseSalesService::reject_purchase_order(&pool, order.id, &req)
+    PurchaseService::reject_purchase_order(&pool, order.id, &req)
         .await
         .expect("reject must succeed");
 
-    let (fetched, _) = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let (fetched, _) = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(fetched.status, "rejected");
@@ -911,7 +912,7 @@ async fn reject_purchase_order_fails_non_pending() {
     let req = PurchaseRejectReq {
         reason: "bad".into(),
     };
-    let err = PurchaseSalesService::reject_purchase_order(&pool, order.id, &req)
+    let err = PurchaseService::reject_purchase_order(&pool, order.id, &req)
         .await
         .expect_err("reject from draft must fail");
     assert!(err.to_string().contains("Cannot reject"));
@@ -931,11 +932,11 @@ async fn link_inbound_to_order_links() {
     let t1 = PurchaseOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order_id, &t1)
+    PurchaseService::transition_purchase_status(&pool, order_id, &t1)
         .await
         .unwrap();
     let req = PurchaseApproveReq { notes: None };
-    PurchaseSalesService::approve_purchase_order(&pool, order_id, &req)
+    PurchaseService::approve_purchase_order(&pool, order_id, &req)
         .await
         .unwrap();
 
@@ -954,7 +955,7 @@ async fn link_inbound_to_order_links() {
     .unwrap();
     let inbound_id = inbound_result.last_insert_rowid();
 
-    PurchaseSalesService::link_inbound_to_order(&pool, order_id, inbound_id)
+    PurchaseService::link_inbound_to_order(&pool, order_id, inbound_id)
         .await
         .expect("link_inbound must succeed");
 
@@ -997,7 +998,7 @@ async fn full_purchase_order_lifecycle() {
             notes: None,
         }],
     };
-    let order = PurchaseSalesService::create_purchase_order(&pool, &dto)
+    let order = PurchaseService::create_purchase_order(&pool, &dto)
         .await
         .unwrap();
     assert_eq!(order.status, "draft");
@@ -1007,7 +1008,7 @@ async fn full_purchase_order_lifecycle() {
         order_date: None,
         notes: Some("updated notes".into()),
     };
-    let updated = PurchaseSalesService::update_purchase_order(&pool, order.id, &update)
+    let updated = PurchaseService::update_purchase_order(&pool, order.id, &update)
         .await
         .unwrap();
     assert_eq!(updated.notes.as_deref(), Some("updated notes"));
@@ -1016,17 +1017,17 @@ async fn full_purchase_order_lifecycle() {
     let t1 = PurchaseOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_purchase_status(&pool, order.id, &t1)
+    PurchaseService::transition_purchase_status(&pool, order.id, &t1)
         .await
         .unwrap();
 
     // 4. Approve (pending -> approved)
     let approve_req = PurchaseApproveReq { notes: None };
-    PurchaseSalesService::approve_purchase_order(&pool, order.id, &approve_req)
+    PurchaseService::approve_purchase_order(&pool, order.id, &approve_req)
         .await
         .unwrap();
 
-    let (fetched, _) = PurchaseSalesService::get_purchase_order(&pool, order.id)
+    let (fetched, _) = PurchaseService::get_purchase_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(fetched.status, "approved");
@@ -1046,7 +1047,7 @@ async fn full_purchase_order_lifecycle() {
     .unwrap();
     let inbound_id = inbound_result.last_insert_rowid();
 
-    PurchaseSalesService::link_inbound_to_order(&pool, order.id, inbound_id)
+    PurchaseService::link_inbound_to_order(&pool, order.id, inbound_id)
         .await
         .expect("link_inbound must succeed");
 }
@@ -1080,7 +1081,7 @@ async fn create_sales_order_with_items() {
         }],
     };
 
-    let order = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let order = SalesService::create_sales_order(&pool, &dto)
         .await
         .expect("create_sales_order must succeed");
 
@@ -1106,7 +1107,7 @@ async fn create_sales_order_fails_empty_items() {
         items: vec![],
     };
 
-    let err = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let err = SalesService::create_sales_order(&pool, &dto)
         .await
         .expect_err("must fail with empty items");
     assert!(err.to_string().contains("At least one item"));
@@ -1148,7 +1149,7 @@ async fn create_sales_order_fails_inactive_customer() {
         }],
     };
 
-    let err = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let err = SalesService::create_sales_order(&pool, &dto)
         .await
         .expect_err("must fail for inactive customer");
     assert!(err.to_string().contains("not active"));
@@ -1175,7 +1176,7 @@ async fn create_sales_order_fails_nonexistent_customer() {
         }],
     };
 
-    let err = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let err = SalesService::create_sales_order(&pool, &dto)
         .await
         .expect_err("must fail for nonexistent customer");
     assert!(err.to_string().contains("Customer"));
@@ -1199,7 +1200,7 @@ async fn update_sales_order_updates_header() {
         notes: Some("updated SO notes".into()),
     };
 
-    let updated = PurchaseSalesService::update_sales_order(&pool, order.id, &update)
+    let updated = SalesService::update_sales_order(&pool, order.id, &update)
         .await
         .expect("update_sales_order must succeed");
     assert_eq!(updated.notes.as_deref(), Some("updated SO notes"));
@@ -1218,7 +1219,7 @@ async fn update_sales_order_fails_non_draft() {
     let trans = SalesOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_sales_status(&pool, order.id, &trans)
+    SalesService::transition_sales_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
@@ -1226,7 +1227,7 @@ async fn update_sales_order_fails_non_draft() {
         order_date: None,
         notes: Some("should fail".into()),
     };
-    let err = PurchaseSalesService::update_sales_order(&pool, order.id, &update)
+    let err = SalesService::update_sales_order(&pool, order.id, &update)
         .await
         .expect_err("update must fail for non-draft");
     assert!(err.to_string().contains("Cannot modify"));
@@ -1244,11 +1245,11 @@ async fn transition_sales_status_draft_to_pending() {
     let trans = SalesOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_sales_status(&pool, order.id, &trans)
+    SalesService::transition_sales_status(&pool, order.id, &trans)
         .await
         .expect("draft -> pending must succeed");
 
-    let (fetched, _) = PurchaseSalesService::get_sales_order(&pool, order.id)
+    let (fetched, _) = SalesService::get_sales_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(fetched.status, "pending");
@@ -1266,7 +1267,7 @@ async fn transition_sales_status_invalid_hop_fails() {
     let trans = SalesOrderStatusTransitionRequest {
         status: "approved".into(),
     };
-    let err = PurchaseSalesService::transition_sales_status(&pool, order.id, &trans)
+    let err = SalesService::transition_sales_status(&pool, order.id, &trans)
         .await
         .expect_err("draft -> approved must fail");
     assert!(err.to_string().contains("Cannot transition"));
@@ -1308,11 +1309,11 @@ async fn get_sales_order_with_items() {
         ],
     };
 
-    let order = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let order = SalesService::create_sales_order(&pool, &dto)
         .await
         .unwrap();
 
-    let (fetched, items) = PurchaseSalesService::get_sales_order(&pool, order.id)
+    let (fetched, items) = SalesService::get_sales_order(&pool, order.id)
         .await
         .expect("get_sales_order must succeed");
     assert_eq!(fetched.id, order.id);
@@ -1344,7 +1345,7 @@ async fn list_sales_orders_pagination() {
                 notes: None,
             }],
         };
-        PurchaseSalesService::create_sales_order(&pool, &dto)
+        SalesService::create_sales_order(&pool, &dto)
             .await
             .unwrap();
     }
@@ -1367,7 +1368,7 @@ async fn list_sales_orders_pagination() {
         sort_order: None,
     };
 
-    let (orders, total) = PurchaseSalesService::list_sales_orders(&pool, &filter, &params)
+    let (orders, total) = SalesService::list_sales_orders(&pool, &filter, &params)
         .await
         .expect("list_sales_orders must succeed");
     assert_eq!(orders.len(), 2);
@@ -1383,7 +1384,7 @@ async fn delete_sales_order_draft() {
         .unwrap();
     let order = create_dummy_so(&pool, customer_id).await;
 
-    PurchaseSalesService::delete_sales_order(&pool, order.id)
+    SalesService::delete_sales_order(&pool, order.id)
         .await
         .expect("delete draft SO must succeed");
 
@@ -1408,7 +1409,7 @@ async fn delete_sales_order_fails_approved() {
         .await
         .unwrap();
 
-    let err = PurchaseSalesService::delete_sales_order(&pool, order_id)
+    let err = SalesService::delete_sales_order(&pool, order_id)
         .await
         .expect_err("deleting approved SO must fail");
     assert!(err.to_string().contains("Cannot delete"));
@@ -1441,11 +1442,11 @@ async fn update_sales_item_changes_qty() {
             notes: None,
         }],
     };
-    let order = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let order = SalesService::create_sales_order(&pool, &dto)
         .await
         .unwrap();
 
-    let (_order, items) = PurchaseSalesService::get_sales_order(&pool, order.id)
+    let (_order, items) = SalesService::get_sales_order(&pool, order.id)
         .await
         .unwrap();
     let item_id = items[0].id;
@@ -1461,7 +1462,7 @@ async fn update_sales_item_changes_qty() {
     };
 
     let (_order, updated) =
-        PurchaseSalesService::update_sales_item(&pool, order.id, item_id, &update)
+        SalesService::update_sales_item(&pool, order.id, item_id, &update)
             .await
             .expect("update_sales_item must succeed");
     assert_eq!(updated.quantity, 45);
@@ -1503,20 +1504,20 @@ async fn delete_sales_item_removes_item() {
             },
         ],
     };
-    let order = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let order = SalesService::create_sales_order(&pool, &dto)
         .await
         .unwrap();
 
-    let (_order, items) = PurchaseSalesService::get_sales_order(&pool, order.id)
+    let (_order, items) = SalesService::get_sales_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(items.len(), 2);
 
-    PurchaseSalesService::delete_sales_item(&pool, order.id, items[0].id)
+    SalesService::delete_sales_item(&pool, order.id, items[0].id)
         .await
         .expect("delete_sales_item must succeed");
 
-    let (_order, remaining) = PurchaseSalesService::get_sales_order(&pool, order.id)
+    let (_order, remaining) = SalesService::get_sales_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(remaining.len(), 1);
@@ -1559,7 +1560,7 @@ async fn approve_sales_order_approves() {
             notes: None,
         }],
     };
-    let order = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let order = SalesService::create_sales_order(&pool, &dto)
         .await
         .unwrap();
 
@@ -1567,17 +1568,17 @@ async fn approve_sales_order_approves() {
     let trans = SalesOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_sales_status(&pool, order.id, &trans)
+    SalesService::transition_sales_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
     // approve
     let req = SalesApproveReq { notes: None };
-    PurchaseSalesService::approve_sales_order(&pool, order.id, &req)
+    SalesService::approve_sales_order(&pool, order.id, &req)
         .await
         .expect("approve_sales_order must succeed");
 
-    let (fetched, _) = PurchaseSalesService::get_sales_order(&pool, order.id)
+    let (fetched, _) = SalesService::get_sales_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(fetched.status, "approved");
@@ -1608,19 +1609,19 @@ async fn approve_sales_order_fails_insufficient_stock() {
             notes: None,
         }],
     };
-    let order = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let order = SalesService::create_sales_order(&pool, &dto)
         .await
         .unwrap();
 
     let trans = SalesOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_sales_status(&pool, order.id, &trans)
+    SalesService::transition_sales_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
     let req = SalesApproveReq { notes: None };
-    let err = PurchaseSalesService::approve_sales_order(&pool, order.id, &req)
+    let err = SalesService::approve_sales_order(&pool, order.id, &req)
         .await
         .expect_err("approve must fail with insufficient stock");
     assert!(err.to_string().to_lowercase().contains("insufficient"));
@@ -1636,7 +1637,7 @@ async fn approve_sales_order_fails_non_pending() {
     let order = create_dummy_so(&pool, customer_id).await;
 
     let req = SalesApproveReq { notes: None };
-    let err = PurchaseSalesService::approve_sales_order(&pool, order.id, &req)
+    let err = SalesService::approve_sales_order(&pool, order.id, &req)
         .await
         .expect_err("approve from draft must fail");
     assert!(err.to_string().contains("Cannot approve"));
@@ -1655,18 +1656,18 @@ async fn reject_sales_order_rejects() {
     let trans = SalesOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_sales_status(&pool, order.id, &trans)
+    SalesService::transition_sales_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
     let req = SalesRejectReq {
         reason: "customer changed mind".into(),
     };
-    PurchaseSalesService::reject_sales_order(&pool, order.id, &req)
+    SalesService::reject_sales_order(&pool, order.id, &req)
         .await
         .expect("reject_sales_order must succeed");
 
-    let (fetched, _) = PurchaseSalesService::get_sales_order(&pool, order.id)
+    let (fetched, _) = SalesService::get_sales_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(fetched.status, "rejected");
@@ -1706,7 +1707,7 @@ async fn link_outbound_to_order_links() {
             notes: None,
         }],
     };
-    let order = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let order = SalesService::create_sales_order(&pool, &dto)
         .await
         .unwrap();
 
@@ -1714,11 +1715,11 @@ async fn link_outbound_to_order_links() {
     let trans = SalesOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_sales_status(&pool, order.id, &trans)
+    SalesService::transition_sales_status(&pool, order.id, &trans)
         .await
         .unwrap();
     let req = SalesApproveReq { notes: None };
-    PurchaseSalesService::approve_sales_order(&pool, order.id, &req)
+    SalesService::approve_sales_order(&pool, order.id, &req)
         .await
         .unwrap();
 
@@ -1737,7 +1738,7 @@ async fn link_outbound_to_order_links() {
     .unwrap();
     let outbound_id = outbound_result.last_insert_rowid();
 
-    PurchaseSalesService::link_outbound_to_order(&pool, order.id, outbound_id)
+    SalesService::link_outbound_to_order(&pool, order.id, outbound_id)
         .await
         .expect("link_outbound must succeed");
 
@@ -1789,7 +1790,7 @@ async fn sales_order_atp_validation_passes_with_stock() {
             notes: None,
         }],
     };
-    let order = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let order = SalesService::create_sales_order(&pool, &dto)
         .await
         .unwrap();
 
@@ -1797,16 +1798,16 @@ async fn sales_order_atp_validation_passes_with_stock() {
     let trans = SalesOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_sales_status(&pool, order.id, &trans)
+    SalesService::transition_sales_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
     let req = SalesApproveReq { notes: None };
-    PurchaseSalesService::approve_sales_order(&pool, order.id, &req)
+    SalesService::approve_sales_order(&pool, order.id, &req)
         .await
         .expect("ATP check must pass with sufficient stock");
 
-    let (fetched, _) = PurchaseSalesService::get_sales_order(&pool, order.id)
+    let (fetched, _) = SalesService::get_sales_order(&pool, order.id)
         .await
         .unwrap();
     assert_eq!(fetched.status, "approved");
@@ -1841,19 +1842,19 @@ async fn sales_order_atp_validation_fails_without_stock() {
             notes: None,
         }],
     };
-    let order = PurchaseSalesService::create_sales_order(&pool, &dto)
+    let order = SalesService::create_sales_order(&pool, &dto)
         .await
         .unwrap();
 
     let trans = SalesOrderStatusTransitionRequest {
         status: "pending".into(),
     };
-    PurchaseSalesService::transition_sales_status(&pool, order.id, &trans)
+    SalesService::transition_sales_status(&pool, order.id, &trans)
         .await
         .unwrap();
 
     let req = SalesApproveReq { notes: None };
-    let err = PurchaseSalesService::approve_sales_order(&pool, order.id, &req)
+    let err = SalesService::approve_sales_order(&pool, order.id, &req)
         .await
         .expect_err("ATP check must fail with insufficient stock");
     assert!(err.to_string().to_lowercase().contains("insufficient"));
@@ -1884,7 +1885,7 @@ async fn create_dummy_po(
             notes: None,
         }],
     };
-    PurchaseSalesService::create_purchase_order(pool, &dto)
+    PurchaseService::create_purchase_order(pool, &dto)
         .await
         .expect("create_dummy_po must succeed")
 }
@@ -1910,7 +1911,7 @@ async fn create_dummy_so(
             notes: None,
         }],
     };
-    PurchaseSalesService::create_sales_order(pool, &dto)
+    SalesService::create_sales_order(pool, &dto)
         .await
         .expect("create_dummy_so must succeed")
 }

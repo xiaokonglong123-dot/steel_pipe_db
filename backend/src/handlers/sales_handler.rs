@@ -17,7 +17,7 @@ use crate::dto::sales_dto::{
 use crate::error::AppError;
 use crate::models::sales_order::SalesOrder;
 use crate::response::{ApiResponse, PaginatedResponse};
-use crate::services::purchase_sales_service::PurchaseSalesService;
+use crate::services::sales_service::SalesService;
 
 /// GET `/api/v1/sales-orders` — Paginated list of sales orders
 ///
@@ -37,7 +37,7 @@ pub async fn list_sales_orders_handler(
     let page_size = pagination.page_size();
 
     let (items, total) =
-        PurchaseSalesService::list_sales_orders(&pool, &filter, &pagination).await?;
+        SalesService::list_sales_orders(&pool, &filter, &pagination).await?;
 
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
@@ -52,7 +52,7 @@ pub async fn create_sales_order_handler(
 ) -> Result<axum::response::Response, AppError> {
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    let order = PurchaseSalesService::create_sales_order(&pool, &req).await?;
+    let order = SalesService::create_sales_order(&pool, &req).await?;
     Ok(ApiResponse::created(order))
 }
 
@@ -64,7 +64,7 @@ pub async fn get_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<SalesOrderDetailResponse>>, AppError> {
-    let (order, items) = PurchaseSalesService::get_sales_order(&pool, id).await?;
+    let (order, items) = SalesService::get_sales_order(&pool, id).await?;
     Ok(ApiResponse::ok(SalesOrderDetailResponse { order, items }))
 }
 
@@ -79,7 +79,7 @@ pub async fn update_sales_order_handler(
 ) -> Result<Json<ApiResponse<SalesOrder>>, AppError> {
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    let order = PurchaseSalesService::update_sales_order(&pool, id, &req).await?;
+    let order = SalesService::update_sales_order(&pool, id, &req).await?;
     Ok(ApiResponse::ok(order))
 }
 
@@ -90,7 +90,7 @@ pub async fn delete_sales_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
-    PurchaseSalesService::delete_sales_order(&pool, id).await?;
+    SalesService::delete_sales_order(&pool, id).await?;
     Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
@@ -105,7 +105,7 @@ pub async fn transition_sales_order_status_handler(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    PurchaseSalesService::transition_sales_status(&pool, id, &req).await?;
+    SalesService::transition_sales_status(&pool, id, &req).await?;
     Ok(ApiResponse::ok(format!(
         "Sales order status changed to '{}'",
         req.status
@@ -124,7 +124,7 @@ pub async fn update_sales_item_handler(
     req.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let (order, _item) =
-        PurchaseSalesService::update_sales_item(&pool, order_id, item_id, &req).await?;
+        SalesService::update_sales_item(&pool, order_id, item_id, &req).await?;
     Ok(ApiResponse::ok(order))
 }
 
@@ -135,7 +135,7 @@ pub async fn delete_sales_item_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((order_id, item_id)): Path<(i64, i64)>,
 ) -> Result<axum::response::Response, AppError> {
-    PurchaseSalesService::delete_sales_item(&pool, order_id, item_id).await?;
+    SalesService::delete_sales_item(&pool, order_id, item_id).await?;
     Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
@@ -148,7 +148,7 @@ pub async fn approve_sales_order_handler(
     Path(id): Path<i64>,
     Json(dto): Json<ApproveOrderRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    PurchaseSalesService::approve_sales_order(&pool, id, &dto).await?;
+    SalesService::approve_sales_order(&pool, id, &dto).await?;
     Ok(ApiResponse::ok("Sales order approved".into()))
 }
 
@@ -160,7 +160,7 @@ pub async fn reject_sales_order_handler(
     Path(id): Path<i64>,
     Json(dto): Json<RejectOrderRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    PurchaseSalesService::reject_sales_order(&pool, id, &dto).await?;
+    SalesService::reject_sales_order(&pool, id, &dto).await?;
     Ok(ApiResponse::ok("Sales order rejected".into()))
 }
 
@@ -172,6 +172,6 @@ pub async fn link_outbound_to_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((order_id, outbound_id)): Path<(i64, i64)>,
 ) -> Result<axum::response::Response, AppError> {
-    PurchaseSalesService::link_outbound_to_order(&pool, order_id, outbound_id).await?;
+    SalesService::link_outbound_to_order(&pool, order_id, outbound_id).await?;
     Ok((StatusCode::NO_CONTENT, ()).into_response())
 }

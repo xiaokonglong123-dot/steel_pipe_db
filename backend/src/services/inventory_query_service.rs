@@ -7,7 +7,8 @@ use crate::dto::inventory_dto::{
 };
 use crate::error::AppError;
 use crate::models::inventory::InventoryLog;
-use crate::repositories::inventory_repo::{InventoryLogRepo, InventoryRepo};
+use crate::repositories::inventory_log_repo::InventoryLogRepo;
+use crate::repositories::inventory_repo::InventoryRepo;
 
 /// Inventory query service — stock listing, logs, stats dashboard, and ATP calculations.
 /// Joins across seamless and screen pipe tables for unified queries and aggregation.

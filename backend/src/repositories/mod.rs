@@ -1,9 +1,14 @@
+pub mod check_repo;
 pub mod contract_repo;
 pub mod customer_repo;
 pub mod data_io_repo;
+pub mod inbound_repo;
+pub mod inventory_log_repo;
 pub mod inventory_repo;
 pub mod label_repo;
+pub mod location_repo;
 pub mod operation_log_repo;
+pub mod outbound_repo;
 pub mod pipe_repo;
 pub mod purchase_order_repo;
 pub mod quality_repo;

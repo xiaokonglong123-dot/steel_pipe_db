@@ -6,9 +6,9 @@ use crate::dto::inventory_dto::{
 };
 use crate::error::AppError;
 use crate::models::inventory::Location;
-use crate::repositories::inventory_repo::{
-    CreateInventoryLog, InventoryLogRepo, InventoryRepo, LocationRepo,
-};
+use crate::repositories::inventory_log_repo::InventoryLogRepo;
+use crate::repositories::inventory_repo::{CreateInventoryLog, InventoryRepo};
+use crate::repositories::location_repo::LocationRepo;
 
 /// Location service — CRUD for warehouse locations, pipe assignment, and cross-location transfers.
 /// Location codes follow the `zone-shelf-level` format and are globally unique.

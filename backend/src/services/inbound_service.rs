@@ -9,7 +9,7 @@ use crate::dto::inventory_dto::{
 };
 use crate::error::AppError;
 use crate::models::inventory::{InboundItem, InboundRecord};
-use crate::repositories::inventory_repo::InboundRepo;
+use crate::repositories::inbound_repo::InboundRepo;
 
 /// Inbound service — handles purchase, production, and return stock-in with create/approve/execute/query.
 /// Auto-approved inbound kicks off stock changes right away; pending ones need a separate `approve_inbound` call.
