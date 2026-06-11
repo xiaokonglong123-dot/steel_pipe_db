@@ -1,15 +1,6 @@
-/**
- * FormField — Modern form field wrapper with label, help text, and validation.
- *
- * Provides consistent form field patterns:
- * - Label with optional tooltip
- * - Help text
- * - Error message
- * - Required indicator
- * - Compact/normal layout
- */
 import { Form, Input, Select, DatePicker, InputNumber, Switch } from 'antd';
 import type { FormItemProps } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 const { TextArea } = Input;
 
@@ -53,6 +44,8 @@ export function FormField({
   readOnly,
   ...props
 }: FormFieldProps) {
+  const { t } = useTranslation('common');
+
   const renderField = () => {
     switch (type) {
       case 'textarea':
@@ -103,8 +96,8 @@ export function FormField({
         return (
           <Switch
             disabled={disabled}
-            checkedChildren="是"
-            unCheckedChildren="否"
+            checkedChildren={t('switch.yes', '是')}
+            unCheckedChildren={t('switch.no', '否')}
           />
         );
 

@@ -1,36 +1,17 @@
-/**
- * DataTable — Modern Ant Design Table wrapper with loading, empty, and pagination.
- *
- * Encapsulates common table patterns:
- * - Loading state
- * - Empty state
- * - Pagination
- * - Row selection
- * - Action columns
- */
 import { Table, Empty, Spin } from 'antd';
 import type { TableProps, TablePaginationConfig } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 export interface DataTableProps<T> extends Omit<TableProps<T>, 'pagination'> {
-  /** Data items to display */
   items?: T[];
-  /** Total count for server-side pagination */
   total?: number;
-  /** Current page (1-indexed) */
   page?: number;
-  /** Page size */
   pageSize?: number;
-  /** Loading state */
   loading?: boolean;
-  /** Empty state description */
   emptyText?: string;
-  /** Callback when pagination changes */
   onPaginationChange?: (page: number, pageSize: number) => void;
-  /** Show row selection checkbox */
   selectable?: boolean;
-  /** Selected row keys */
   selectedRowKeys?: React.Key[];
-  /** Callback when selection changes */
   onSelectionChange?: (selectedRowKeys: React.Key[], selectedRows: T[]) => void;
 }
 
@@ -40,7 +21,7 @@ export function DataTable<T extends object>({
   page = 1,
   pageSize = 20,
   loading = false,
-  emptyText = '暂无数据',
+  emptyText,
   onPaginationChange,
   selectable = false,
   selectedRowKeys,
@@ -49,21 +30,25 @@ export function DataTable<T extends object>({
   rowKey = 'id',
   ...rest
 }: DataTableProps<T>) {
+  const { t } = useTranslation('common');
+  const displayEmpty = emptyText || t('common.no_data', '暂无数据');
+
   const pagination: TablePaginationConfig = {
     current: page,
     pageSize,
     total,
     showSizeChanger: true,
     showQuickJumper: true,
-    showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+    showTotal: (total, range) =>
+      t('pagination.range', `第 ${range[0]}-${range[1]} 条，共 ${total} 条`)
+        .replace('{{from}}', String(range[0]))
+        .replace('{{to}}', String(range[1]))
+        .replace('{{total}}', String(total)),
     onChange: onPaginationChange,
   };
 
   const rowSelection = selectable
-    ? {
-        selectedRowKeys,
-        onChange: onSelectionChange,
-      }
+    ? { selectedRowKeys, onChange: onSelectionChange }
     : undefined;
 
   return (
@@ -73,13 +58,8 @@ export function DataTable<T extends object>({
       rowKey={rowKey}
       pagination={pagination}
       rowSelection={rowSelection}
-      locale={{
-        emptyText: <Empty description={emptyText} />,
-      }}
-      loading={{
-        spinning: loading,
-        indicator: <Spin size="large" />,
-      }}
+      locale={{ emptyText: <Empty description={displayEmpty} /> }}
+      loading={{ spinning: loading, indicator: <Spin size="large" /> }}
       {...rest}
     />
   );

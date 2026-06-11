@@ -1,13 +1,6 @@
-/**
- * StatusBadge — Modern status badge with color coding and icons.
- *
- * Provides consistent status display patterns:
- * - Color coding based on status
- * - Optional icon
- * - Custom status mapping
- */
 import React from 'react';
 import { Tag } from 'antd';
+import { useTranslation } from 'react-i18next';
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -21,52 +14,39 @@ export type StatusType = 'success' | 'error' | 'warning' | 'processing' | 'defau
 export interface StatusConfig {
   color: string;
   icon?: React.ReactNode;
-  label: string;
+  labelKey: string;
 }
 
-const DEFAULT_STATUS_MAP: Record<string, StatusConfig> = {
-  // Success states
-  approved: { color: 'success', icon: <CheckCircleOutlined />, label: '已审批' },
-  completed: { color: 'success', icon: <CheckCircleOutlined />, label: '已完成' },
-  delivered: { color: 'success', icon: <CheckCircleOutlined />, label: '已交付' },
-  paid: { color: 'success', icon: <CheckCircleOutlined />, label: '已付款' },
-  active: { color: 'success', icon: <CheckCircleOutlined />, label: '启用' },
-  // Error states
-  rejected: { color: 'error', icon: <CloseCircleOutlined />, label: '已拒绝' },
-  cancelled: { color: 'error', icon: <CloseCircleOutlined />, label: '已取消' },
-  inactive: { color: 'error', icon: <CloseCircleOutlined />, label: '停用' },
-  // Warning states
-  pending: { color: 'warning', icon: <ClockCircleOutlined />, label: '待处理' },
-  draft: { color: 'default', icon: <ClockCircleOutlined />, label: '草稿' },
-  // Processing states
-  processing: { color: 'processing', icon: <SyncOutlined spin />, label: '处理中' },
-  in_progress: { color: 'processing', icon: <SyncOutlined spin />, label: '进行中' },
+const STATUS_ICON_MAP: Record<string, { color: string; icon: React.ReactNode; labelKey: string }> = {
+  approved: { color: 'success', icon: <CheckCircleOutlined />, labelKey: 'status.approved' },
+  completed: { color: 'success', icon: <CheckCircleOutlined />, labelKey: 'status.completed' },
+  delivered: { color: 'success', icon: <CheckCircleOutlined />, labelKey: 'status.delivered' },
+  paid: { color: 'success', icon: <CheckCircleOutlined />, labelKey: 'status.paid' },
+  active: { color: 'success', icon: <CheckCircleOutlined />, labelKey: 'status.active' },
+  rejected: { color: 'error', icon: <CloseCircleOutlined />, labelKey: 'status.rejected' },
+  cancelled: { color: 'error', icon: <CloseCircleOutlined />, labelKey: 'status.cancelled' },
+  inactive: { color: 'error', icon: <CloseCircleOutlined />, labelKey: 'status.inactive' },
+  pending: { color: 'warning', icon: <ClockCircleOutlined />, labelKey: 'status.pending' },
+  draft: { color: 'default', icon: <ClockCircleOutlined />, labelKey: 'status.draft' },
+  processing: { color: 'processing', icon: <SyncOutlined spin />, labelKey: 'status.processing' },
+  in_progress: { color: 'processing', icon: <SyncOutlined spin />, labelKey: 'status.in_progress' },
 };
 
 export interface StatusBadgeProps {
-  /** Status value */
   status: string;
-  /** Custom status map (overrides defaults) */
-  statusMap?: Record<string, StatusConfig>;
-  /** Show as dot instead of tag */
   dot?: boolean;
-  /** Custom label override */
   label?: string;
 }
 
-export function StatusBadge({
-  status,
-  statusMap = DEFAULT_STATUS_MAP,
-  dot = false,
-  label,
-}: StatusBadgeProps) {
-  const config = statusMap[status] || {
+export function StatusBadge({ status, dot = false, label }: StatusBadgeProps) {
+  const { t } = useTranslation('common');
+  const config = STATUS_ICON_MAP[status] || {
     color: 'default',
     icon: <ExclamationCircleOutlined />,
-    label: status,
+    labelKey: status,
   };
 
-  const displayLabel = label || config.label;
+  const displayLabel = label || t(config.labelKey, status);
 
   if (dot) {
     return (
