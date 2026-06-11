@@ -4,9 +4,8 @@
  * Key decisions:
  * - Path alias: `@` → `src/` for clean imports
  * - Dev proxy: `/api/*` → `http://localhost:3000` (backend)
- * - Manual chunk splitting: vendor-ui (React, Ant Design, TanStack, etc.) and
- *   vendor-utils (Axios, Zod) to avoid circular chunk warnings and improve caching.
- * - chunkSizeWarningLimit: 1600 KB — Ant Design is large; this suppresses the
+ * - Manual chunk splitting: vendor-react, vendor-antd, vendor-utils for optimal caching
+ * - chunkSizeWarningLimit: 1200 KB — Ant Design is large; this suppresses the
  *   default 500 KB warning without hiding real issues.
  */
 import { defineConfig } from 'vite';
@@ -32,37 +31,50 @@ export default defineConfig({
   },
   build: {
     // Ant Design pushes chunks well above the 500 KB default warning threshold
-    chunkSizeWarningLimit: 1600,
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         /**
          * Manual chunk splitting strategy:
-         * - vendor-ui: Heavy UI libraries (React, Ant Design, TanStack Query, etc.)
-         *   — changes rarely, benefits from long-term caching
-         * - vendor-utils: Lightweight utility libraries (Axios, Zod)
-         *   — separated for parallel loading
-         * - All other node_modules: default chunking (shared dependencies)
+         * - vendor-react: React core (changes rarely, benefits from long-term caching)
+         * - vendor-antd: Ant Design (large, separate for parallel loading)
+         * - vendor-utils: Utility libraries (Zod, dayjs, i18next)
+         * - All other node_modules: default chunking
          * - App code: automatic code-splitting via React.lazy per page
          */
         manualChunks(id: string) {
           if (id.includes('node_modules')) {
+            // React core
             if (
-              id.includes('antd') ||
-              id.includes('@ant-design/icons') ||
               id.includes('react') ||
               id.includes('scheduler') ||
+              id.includes('react-dom')
+            ) {
+              return 'vendor-react';
+            }
+            // Ant Design (separate from React)
+            if (
+              id.includes('antd') ||
+              id.includes('@ant-design')
+            ) {
+              return 'vendor-antd';
+            }
+            // Other UI libraries
+            if (
               id.includes('zustand') ||
-              id.includes('@tanstack') ||
+              id.includes('@tanstack')
+            ) {
+              return 'vendor-ui';
+            }
+            // Utilities
+            if (
+              id.includes('zod') ||
               id.includes('dayjs') ||
               id.includes('i18next') ||
               id.includes('react-i18next')
-            )
-              return 'vendor-ui';
-            if (
-              id.includes('axios') ||
-              id.includes('zod')
-            )
+            ) {
               return 'vendor-utils';
+            }
           }
         },
       },
