@@ -1,5 +1,4 @@
-// 入库单新增/编辑表单页 — 表头信息 + 可动态增删的多行管材列表（管材类型 + 管材ID）
-// 支持从管材搜索弹窗选取已有管材加入入库列表
+// 入库单新增/编辑表单页 — 使用 PageLayout + 共享常量
 import { useEffect, useState } from 'react';
 import {
   Form,
@@ -16,12 +15,12 @@ import {
 import { PlusOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { INBOUND_TYPES, DETAILED_PIPE_TYPES } from '@/shared/constants';
+import { parsePipeIds } from '@/shared/utils/pipeIds';
 import { useCreateInbound, useUpdateInbound, useInboundRecord } from '../hooks/useInventory';
 import { pipeSearchApi } from '../api/inventoryApi';
 import type { PipeSearchResult, CreateInboundData, InboundItem } from '../api/inventoryApi';
-
-const INBOUND_TYPES = ['purchase', 'production', 'return'];
-const PIPE_TYPES = ['seamless', 'casing', 'tubing', 'screen'];
 
 interface PipeFormRow {
   pipe_type?: string;
@@ -30,37 +29,6 @@ interface PipeFormRow {
   grade?: string;
   od?: number;
   wt?: number;
-}
-
-function parsePipeIds(input: string): number[] {
-  const tokens = input
-    .replace(/[，、；;\r\n\t]+/g, ',')
-    .replace(/\s+/g, ',')
-    .split(',')
-    .map((token) => token.trim())
-    .filter(Boolean);
-
-  const ids: number[] = [];
-  for (const token of tokens) {
-    const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/);
-    if (rangeMatch) {
-      const start = Number(rangeMatch[1]);
-      const end = Number(rangeMatch[2]);
-      if (Number.isInteger(start) && Number.isInteger(end) && start > 0 && end >= start) {
-        for (let id = start; id <= end; id += 1) {
-          ids.push(id);
-        }
-      }
-      continue;
-    }
-
-    const id = Number(token);
-    if (Number.isInteger(id) && id > 0) {
-      ids.push(id);
-    }
-  }
-
-  return [...new Set(ids)];
 }
 
 function pipeRowKey(pipeType: string | undefined, pipeId: number | undefined): string | null {
@@ -266,7 +234,7 @@ export default function InboundFormPage() {
           style={{ margin: 0 }}
         >
           <Select style={{ width: 120 }}>
-            {PIPE_TYPES.map((type) => (
+            {DETAILED_PIPE_TYPES.map((type) => (
               <Select.Option key={type} value={type}>
                 {t(`pipe_type.${type}`, type)}
               </Select.Option>
@@ -338,10 +306,10 @@ export default function InboundFormPage() {
   ];
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('inbound.create_inbound')}
-      </h2>
+    <PageLayout
+      title={isEdit ? t('common.edit') : t('inbound.create_inbound')}
+      onBack={() => navigate('/inventory/inbound')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -488,13 +456,8 @@ export default function InboundFormPage() {
             value={batchPipeType}
             onChange={setBatchPipeType}
             style={{ width: 200 }}
-          >
-            {PIPE_TYPES.map((type) => (
-              <Select.Option key={type} value={type}>
-                {t(`pipe_type.${type}`, type)}
-              </Select.Option>
-            ))}
-          </Select>
+            options={DETAILED_PIPE_TYPES.map((pt) => ({ label: t(`pipe_type.${pt}`, pt), value: pt }))}
+          />
           <Input.TextArea
             rows={6}
             value={batchPipeIds}
@@ -503,6 +466,6 @@ export default function InboundFormPage() {
           />
         </Space>
       </Modal>
-    </div>
+    </PageLayout>
   );
 }

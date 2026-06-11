@@ -1,4 +1,4 @@
-// 销售订单新增/编辑表单页 — 表头信息 + 从库存选取钢管作为行项，自动 ATP 校验
+// 销售订单新增/编辑表单页 — 使用 PageLayout
 import { useEffect, useState } from 'react';
 import {
   Form, Input, DatePicker, InputNumber, Button, Space, message,
@@ -7,6 +7,7 @@ import {
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { useSalesOrder, useCreateSalesOrder, useUpdateSalesOrder } from '../hooks/useSales';
 import { usePipeSearch } from '@/features/inventory/hooks/useInventory';
 import type { PipeSearchResult } from '@/features/inventory/hooks/useInventory';
@@ -101,10 +102,10 @@ export default function SalesOrderFormPage() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} {t('sales.sales_order')}
-      </h2>
+    <PageLayout
+      title={`${isEdit ? t('common.edit') : t('common.create')} ${t('sales.sales_order')}`}
+      onBack={() => navigate('/sales')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -193,7 +194,7 @@ export default function SalesOrderFormPage() {
           }}
         />
       </Modal>
-    </div>
+    </PageLayout>
   );
 }
 

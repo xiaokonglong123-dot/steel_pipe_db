@@ -1,16 +1,14 @@
-// 无缝钢管新增/编辑表单页 — 支持 API 5CT 规格参数录入（钢级、端部类型、热处理号等）
+// 无缝钢管新增/编辑表单页 — 使用 PageLayout + 共享常量
 import { useEffect } from 'react';
 import { Form, Input, Select, DatePicker, InputNumber, Button, Space, message } from 'antd';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { API_5CT_GRADES, SEAMLESS_PIPE_TYPES, END_TYPES } from '@/shared/constants';
 import { useSeamlessPipe, useCreateSeamlessPipe, useUpdateSeamlessPipe } from '../hooks/useSeamlessPipes';
 import type { CreateSeamlessPipeData } from '../types';
-
-const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
-const API_5CT_GRADES = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
-const END_TYPES = ['plain_end', 'threaded', 'threaded_coupled', 'upset'];
 
 type SeamlessPipeFormValues = Omit<CreateSeamlessPipeData, 'production_date'> & {
   production_date?: Dayjs;
@@ -78,10 +76,10 @@ export default function SeamlessPipeFormPage() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} {t('nav.seamless_pipes')}
-      </h2>
+    <PageLayout
+      title={`${isEdit ? t('common.edit') : t('common.create')} ${t('pipes.seamless_pipes')}`}
+      onBack={() => navigate('/pipes/seamless')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -105,13 +103,7 @@ export default function SeamlessPipeFormPage() {
           name="pipe_type"
           rules={[{ required: true, message: t('common.required') }]}
         >
-          <Select>
-            {PIPE_TYPES.map((type) => (
-              <Select.Option key={type} value={type}>
-                {type}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select options={SEAMLESS_PIPE_TYPES.map((pt) => ({ label: t('pipe_type.' + pt), value: pt }))} />
         </Form.Item>
 
         <Form.Item
@@ -119,13 +111,7 @@ export default function SeamlessPipeFormPage() {
           name="grade"
           rules={[{ required: true, message: t('common.required') }]}
         >
-          <Select showSearch>
-            {API_5CT_GRADES.map((grade) => (
-              <Select.Option key={grade} value={grade}>
-                {grade}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select showSearch options={API_5CT_GRADES.map((g) => ({ label: g, value: g }))} />
         </Form.Item>
 
         <Form.Item
@@ -153,13 +139,7 @@ export default function SeamlessPipeFormPage() {
         </Form.Item>
 
         <Form.Item label={t('pipes.end_type')} name="end_type">
-          <Select allowClear>
-            {END_TYPES.map((type) => (
-              <Select.Option key={type} value={type}>
-                {type}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select allowClear options={END_TYPES.map((et) => ({ label: t('pipe_type.' + et), value: et }))} />
         </Form.Item>
 
         <Form.Item label={t('pipes.coupling_type')} name="coupling_type">
@@ -213,6 +193,6 @@ export default function SeamlessPipeFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }

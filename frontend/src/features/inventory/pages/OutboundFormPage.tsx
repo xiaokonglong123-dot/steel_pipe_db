@@ -1,5 +1,4 @@
-// 出库单新增/编辑表单页 — 表头信息 + 可动态增删的多行管材列表（管材类型 + 管材ID）
-// 支持从管材搜索弹窗选取已有管材加入出库列表
+// 出库单新增/编辑表单页 — 使用 PageLayout + 共享常量
 import { useEffect, useState } from 'react';
 import {
   Form,
@@ -16,12 +15,11 @@ import {
 import { PlusOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { OUTBOUND_TYPES, DETAILED_PIPE_TYPES } from '@/shared/constants';
 import { useCreateOutbound, useUpdateOutbound, useOutboundRecord } from '../hooks/useInventory';
 import { pipeSearchApi } from '../api/inventoryApi';
 import type { PipeSearchResult, CreateOutboundData, OutboundItem } from '../api/inventoryApi';
-
-const OUTBOUND_TYPES = ['sales', 'transfer', 'scrapped'];
-const PIPE_TYPES = ['seamless', 'casing', 'tubing', 'line_pipe', 'screen'];
 
 export default function OutboundFormPage() {
   const { t } = useTranslation();
@@ -189,7 +187,7 @@ export default function OutboundFormPage() {
           style={{ margin: 0 }}
         >
           <Select style={{ width: 120 }}>
-            {PIPE_TYPES.map((type) => (
+            {DETAILED_PIPE_TYPES.map((type) => (
               <Select.Option key={type} value={type}>
                 {t(`pipe_type.${type}`, type)}
               </Select.Option>
@@ -261,10 +259,10 @@ export default function OutboundFormPage() {
   ];
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('outbound.create_outbound')}
-      </h2>
+    <PageLayout
+      title={isEdit ? t('common.edit') : t('outbound.create_outbound')}
+      onBack={() => navigate('/inventory/outbound')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -386,6 +384,6 @@ export default function OutboundFormPage() {
           locale={{ emptyText: t('common.no_data') }}
         />
       </Modal>
-    </div>
+    </PageLayout>
   );
 }

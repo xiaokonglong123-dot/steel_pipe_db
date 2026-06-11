@@ -1,14 +1,12 @@
-// 质检证书新增/编辑表单 — 力学性能（屈服/抗拉/延伸率）、NDT（UT/MI/MPI）等检测数据录入
+// 质检证书新增/编辑表单 — 使用 PageLayout + 共享常量
 import { useEffect } from 'react';
 import { Form, Input, Select, DatePicker, InputNumber, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DETAILED_PIPE_TYPES, API_5CT_GRADES, CERT_STATUSES } from '@/shared/constants';
 import { useCert, useCreateCert, useUpdateCert } from '../hooks/useQuality';
 import type { CreateQualityCertData } from '../types';
-
-const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
-const API_5CT_GRADES = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
-const CERT_STATUSES = ['draft', 'active', 'void'];
 
 export default function CertFormPage() {
   const { t } = useTranslation();
@@ -57,10 +55,10 @@ export default function CertFormPage() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('quality.edit_certificate') : t('quality.create_certificate')}
-      </h2>
+    <PageLayout
+      title={isEdit ? t('quality.edit_certificate') : t('quality.create_certificate')}
+      onBack={() => navigate('/quality/certs')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -84,13 +82,7 @@ export default function CertFormPage() {
           name="pipe_type"
           rules={[{ required: true, message: t('common.required') }]}
         >
-          <Select>
-            {PIPE_TYPES.map((type) => (
-              <Select.Option key={type} value={type}>
-                {t('pipe_type.' + type)}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select options={DETAILED_PIPE_TYPES.map((pt) => ({ label: t('pipe_type.' + pt), value: pt }))} />
         </Form.Item>
 
         <Form.Item
@@ -98,13 +90,7 @@ export default function CertFormPage() {
           name="grade"
           rules={[{ required: true, message: t('common.required') }]}
         >
-          <Select showSearch>
-            {API_5CT_GRADES.map((grade) => (
-              <Select.Option key={grade} value={grade}>
-                {grade}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select showSearch options={API_5CT_GRADES.map((g) => ({ label: g, value: g }))} />
         </Form.Item>
 
         <Form.Item
@@ -184,13 +170,7 @@ export default function CertFormPage() {
           name="status"
           rules={[{ required: true, message: t('common.required') }]}
         >
-          <Select>
-            {CERT_STATUSES.map((s) => (
-              <Select.Option key={s} value={s}>
-                {t('quality.cert_status_' + s)}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select options={CERT_STATUSES.map((s) => ({ label: t('quality.cert_status_' + s), value: s }))} />
         </Form.Item>
 
         <Form.Item label={t('quality.notes')} name="notes">
@@ -212,6 +192,6 @@ export default function CertFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }

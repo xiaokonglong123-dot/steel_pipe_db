@@ -1,16 +1,14 @@
-// 筛管新增/编辑表单页 — 支持筛管类型（绕丝/预填充/割缝等）及基管规格录入
+// 筛管新增/编辑表单页 — 使用 PageLayout + 共享常量
 import { useEffect } from 'react';
 import { Form, Input, Select, DatePicker, InputNumber, Button, Space, message } from 'antd';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { API_5CT_GRADES, SCREEN_PIPE_TYPES, END_TYPES } from '@/shared/constants';
 import { useScreenPipe, useCreateScreenPipe, useUpdateScreenPipe } from '../hooks/useScreenPipes';
 import type { CreateScreenPipeData } from '../types';
-
-const SCREEN_TYPES = ['wire_wrapped', 'pre_packed', 'slotted_liner', 'mesh'];
-const API_5CT_GRADES = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
-const END_TYPES = ['plain_end', 'threaded', 'threaded_coupled', 'upset'];
 
 type ScreenPipeFormValues = Omit<CreateScreenPipeData, 'production_date'> & {
   production_date?: Dayjs;
@@ -77,10 +75,10 @@ export default function ScreenPipeFormPage() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} {t('nav.screen_pipes')}
-      </h2>
+    <PageLayout
+      title={`${isEdit ? t('common.edit') : t('common.create')} ${t('pipes.screen_pipes')}`}
+      onBack={() => navigate('/pipes/screen')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -104,13 +102,7 @@ export default function ScreenPipeFormPage() {
           name="screen_type"
           rules={[{ required: true, message: t('common.required') }]}
         >
-          <Select>
-            {SCREEN_TYPES.map((type) => (
-              <Select.Option key={type} value={type}>
-                {type}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select options={SCREEN_PIPE_TYPES.map((st) => ({ label: t('screen_pipes.screen_type.' + st), value: st }))} />
         </Form.Item>
 
         <Form.Item label={t('screen_pipes.slot_size')} name="slot_size">
@@ -142,23 +134,11 @@ export default function ScreenPipeFormPage() {
           name="base_grade"
           rules={[{ required: true, message: t('common.required') }]}
         >
-          <Select showSearch>
-            {API_5CT_GRADES.map((grade) => (
-              <Select.Option key={grade} value={grade}>
-                {grade}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select showSearch options={API_5CT_GRADES.map((g) => ({ label: g, value: g }))} />
         </Form.Item>
 
         <Form.Item label={t('screen_pipes.base_end_type')} name="base_end_type">
-          <Select allowClear>
-            {END_TYPES.map((type) => (
-              <Select.Option key={type} value={type}>
-                {type}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select allowClear options={END_TYPES.map((et) => ({ label: t('pipe_type.' + et), value: et }))} />
         </Form.Item>
 
         <Form.Item label={t('pipes.length')} name="length">
@@ -208,6 +188,6 @@ export default function ScreenPipeFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }

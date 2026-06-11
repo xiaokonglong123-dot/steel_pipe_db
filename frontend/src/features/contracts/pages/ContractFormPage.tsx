@@ -1,4 +1,4 @@
-// Contract create/edit form — contract fields + dynamic line items + payment milestones
+// 合同新增/编辑表单 — 使用 PageLayout
 import { useEffect, useState } from 'react';
 import {
   Form,
@@ -16,6 +16,7 @@ import {
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { useContract, useCreateContract, useUpdateContract } from '../hooks/useContracts';
 import type { ContractItem } from '../types';
 
@@ -239,15 +240,18 @@ export default function ContractFormPage() {
   ];
 
   return (
-    <div style={{ maxWidth: 960 }}>
+    <PageLayout
+      title={isEdit ? t('contracts.edit_contract') : t('contracts.create_contract')}
+      onBack={() => navigate('/contracts')}
+    >
       <Form
         form={form}
         layout="vertical"
         onFinish={handleFinish}
         initialValues={{ contract_type: 'purchase' }}
+        style={{ maxWidth: 960 }}
       >
-        <Card title={isEdit ? t('contracts.edit_contract') : t('contracts.create_contract')} style={{ marginBottom: 16 }}>
-          <Space style={{ display: 'flex' }} wrap>
+        <Space style={{ display: 'flex' }} wrap>
             {isEdit && (
               <Form.Item label={t('contracts.contract_number')}>
                 <Input value={contract?.contract_no} disabled />
@@ -307,7 +311,6 @@ export default function ContractFormPage() {
               <Input.TextArea rows={2} style={{ width: 300 }} />
             </Form.Item>
           </Space>
-        </Card>
 
         <Card title={t('contracts.contract_items')} style={{ marginBottom: 16 }}>
           <Table
@@ -339,6 +342,6 @@ export default function ContractFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }

@@ -1,4 +1,4 @@
-// 采购订单新增/编辑表单页 — 表头信息 + 可动态增删的多行采购项（钢管规格、数量、单价）
+// 采购订单新增/编辑表单页 — 使用 PageLayout + 共享常量
 import { useEffect } from 'react';
 import {
   Form,
@@ -16,11 +16,10 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { PIPE_TYPES, API_5CT_GRADES } from '@/shared/constants';
 import type { PurchaseOrderItem } from '../types';
 import { usePurchase, useCreatePurchaseOrder, useUpdatePurchaseOrder } from '../hooks/usePurchases';
-
-const PIPE_TYPES = ['seamless', 'screen'];
-const API_5CT_GRADES = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
 
 export default function PurchaseOrderFormPage() {
   const { t } = useTranslation();
@@ -90,13 +89,7 @@ export default function PurchaseOrderFormPage() {
           rules={[{ required: true, message: t('common.required') }]}
           style={{ margin: 0 }}
         >
-          <Select style={{ width: 120 }}>
-            {PIPE_TYPES.map((type) => (
-              <Select.Option key={type} value={type}>
-                {type}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select style={{ width: 120 }} options={PIPE_TYPES.map((pt) => ({ label: pt, value: pt }))} />
         </Form.Item>
       ),
     },
@@ -111,13 +104,7 @@ export default function PurchaseOrderFormPage() {
           rules={[{ required: true, message: t('common.required') }]}
           style={{ margin: 0 }}
         >
-          <Select showSearch style={{ width: 100 }}>
-            {API_5CT_GRADES.map((grade) => (
-              <Select.Option key={grade} value={grade}>
-                {grade}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select showSearch style={{ width: 100 }} options={API_5CT_GRADES.map((g) => ({ label: g, value: g }))} />
         </Form.Item>
       ),
     },
@@ -223,10 +210,10 @@ export default function PurchaseOrderFormPage() {
   ];
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('purchases.edit_purchase') : t('purchases.create_purchase')}
-      </h2>
+    <PageLayout
+      title={isEdit ? t('purchases.edit_purchase') : t('purchases.create_purchase')}
+      onBack={() => navigate('/purchases')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -308,6 +295,6 @@ export default function PurchaseOrderFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }
