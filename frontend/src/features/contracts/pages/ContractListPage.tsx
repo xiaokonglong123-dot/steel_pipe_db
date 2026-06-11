@@ -1,29 +1,33 @@
-// Contract list page — paginated purchase/sales contracts, status tags, search, CRUD
+// 合同列表页 — 使用 DataTable + PageLayout 共享组件
 import { useState } from 'react';
-import { Table, Button, Space, Tag, Input, Select, Popconfirm } from 'antd';
+import { Button, Tag, Input, Popconfirm, Select } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DataTable } from '@/shared/components/DataTable';
+import { usePagination } from '@/shared/hooks/usePagination';
 import { useContracts, useDeleteContract } from '../hooks/useContracts';
 import type { Contract } from '../types';
 
-const statusColors: Record<string, string> = {
+const STATUS_COLORS: Record<string, string> = {
   draft: 'default',
   active: 'processing',
   completed: 'success',
   terminated: 'error',
 };
 
-const typeColors: Record<string, string> = {
+const TYPE_COLORS: Record<string, string> = {
   purchase: 'blue',
   sales: 'green',
 };
 
+const CONTRACT_STATUS_OPTIONS = ['draft', 'active', 'completed', 'terminated'] as const;
+
 export default function ContractListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { page, pageSize, onPaginationChange, reset } = usePagination();
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
@@ -53,7 +57,7 @@ export default function ContractListPage() {
       title: t('contracts.contract_type'),
       dataIndex: 'contract_type',
       key: 'contract_type',
-      render: (type: string) => <Tag color={typeColors[type]}>{type}</Tag>,
+      render: (type: string) => <Tag color={TYPE_COLORS[type]}>{type}</Tag>,
     },
     {
       title: t('contracts.party_a'),
@@ -77,22 +81,24 @@ export default function ContractListPage() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
-        <Tag color={statusColors[status]}>{status}</Tag>
+        <Tag color={STATUS_COLORS[status]}>{status}</Tag>
       ),
     },
     {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: Contract) => (
-        <Space>
+        <>
           <Button
             type="link"
+            size="small"
             onClick={() => navigate(`/contracts/${record.id}`)}
           >
             {t('common.detail')}
           </Button>
           <Button
             type="link"
+            size="small"
             onClick={() => navigate(`/contracts/${record.id}/edit`)}
           >
             {t('common.edit')}
@@ -101,80 +107,68 @@ export default function ContractListPage() {
             title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger loading={deleteMutation.isPending}>{t('common.delete')}</Button>
+            <Button type="link" danger size="small" loading={deleteMutation.isPending}>
+              {t('common.delete')}
+            </Button>
           </Popconfirm>
-        </Space>
+        </>
       ),
     },
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <Space>
-          <Input
-            placeholder={t('common.search')}
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 250 }}
-          />
-          <Select
-            placeholder={t('contracts.contract_type')}
-            allowClear
-            style={{ width: 140 }}
-            value={typeFilter}
-            onChange={setTypeFilter}
-            options={[
-              { label: t('contracts.purchase'), value: 'purchase' },
-              { label: t('contracts.sales'), value: 'sales' },
-            ]}
-          />
-          <Select
-            placeholder={t('contracts.status')}
-            allowClear
-            style={{ width: 140 }}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              { label: t('contracts.status.draft'), value: 'draft' },
-              { label: t('contracts.status.active'), value: 'active' },
-              { label: t('contracts.status.completed'), value: 'completed' },
-              { label: t('contracts.status.terminated'), value: 'terminated' },
-            ]}
-          />
-        </Space>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/contracts/new')}
-        >
+    <PageLayout
+      title={t('contracts.title')}
+      extra={
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/contracts/new')}>
           {t('common.create')}
         </Button>
+      }
+    >
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+        <Input
+          placeholder={t('common.search')}
+          prefix={<SearchOutlined />}
+          value={searchText}
+          onChange={(e) => {
+            setSearchText(e.target.value);
+            reset();
+          }}
+          style={{ width: 250 }}
+          allowClear
+        />
+        <Select
+          placeholder={t('contracts.contract_type')}
+          allowClear
+          style={{ width: 140 }}
+          value={typeFilter}
+          onChange={setTypeFilter}
+          options={[
+            { label: t('contracts.purchase'), value: 'purchase' },
+            { label: t('contracts.sales'), value: 'sales' },
+          ]}
+        />
+        <Select
+          placeholder={t('contracts.status')}
+          allowClear
+          style={{ width: 140 }}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={CONTRACT_STATUS_OPTIONS.map((s) => ({
+            label: t(`contracts.status.${s}`),
+            value: s,
+          }))}
+        />
       </div>
-      <Table
+      <DataTable<Contract>
         columns={columns}
-        dataSource={data?.items}
-        rowKey="id"
+        items={data?.items}
+        total={data?.total}
+        page={page}
+        pageSize={pageSize}
         loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-          showTotal: (total) => t('common.total_items', { total }),
-        }}
+        onPaginationChange={onPaginationChange}
       />
-    </div>
+    </PageLayout>
   );
 }

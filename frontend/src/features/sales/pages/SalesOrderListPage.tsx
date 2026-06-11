@@ -1,9 +1,13 @@
-// 销售订单列表页 — 分页查询、状态标签、搜索、新建/编辑/删除/审核流转
+// 销售订单列表页 — 使用 DataTable + PageLayout 共享组件
 import { useState } from 'react';
-import { Table, Button, Space, Tag, Input, Popconfirm, Select } from 'antd';
+import { Button, Tag, Input, Popconfirm, Select } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DataTable } from '@/shared/components/DataTable';
+import { usePagination } from '@/shared/hooks/usePagination';
+import { ORDER_STATUSES } from '@/shared/constants';
 import { useSalesOrders, useDeleteSalesOrder } from '../hooks/useSales';
 import type { SalesOrder } from '../types';
 
@@ -16,13 +20,10 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'red',
 };
 
-const ORDER_STATUSES = ['draft', 'pending', 'approved', 'delivered', 'invoiced', 'cancelled'];
-
 export default function SalesOrderListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { page, pageSize, onPaginationChange, reset } = usePagination();
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
 
@@ -65,9 +66,10 @@ export default function SalesOrderListPage() {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: SalesOrder) => (
-        <Space>
+        <>
           <Button
             type="link"
+            size="small"
             onClick={() => navigate(`/sales/${record.id}`)}
           >
             {t('common.edit')}
@@ -76,71 +78,59 @@ export default function SalesOrderListPage() {
             title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger loading={deleteMutation.isPending}>
+            <Button type="link" danger size="small" loading={deleteMutation.isPending}>
               {t('common.delete')}
             </Button>
           </Popconfirm>
-        </Space>
+        </>
       ),
     },
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <Space>
-          <Input
-            placeholder={t('common.search')}
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 250 }}
-          />
-          <Select
-            placeholder={t('sales.status')}
-            allowClear
-            value={statusFilter}
-            onChange={(val) => setStatusFilter(val)}
-            style={{ width: 150 }}
-          >
-            {ORDER_STATUSES.map((s) => (
-              <Select.Option key={s} value={s}>
-                {t('sales.status.' + s)}
-              </Select.Option>
-            ))}
-          </Select>
-        </Space>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/sales/new')}
-        >
+    <PageLayout
+      title={t('sales.title')}
+      extra={
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/sales/new')}>
           {t('common.create')}
         </Button>
+      }
+    >
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+        <Input
+          placeholder={t('common.search')}
+          prefix={<SearchOutlined />}
+          value={searchText}
+          onChange={(e) => {
+            setSearchText(e.target.value);
+            reset();
+          }}
+          style={{ width: 250 }}
+          allowClear
+        />
+        <Select
+          placeholder={t('sales.status')}
+          allowClear
+          value={statusFilter}
+          onChange={setStatusFilter}
+          style={{ width: 150 }}
+        >
+          {ORDER_STATUSES.map((s) => (
+            <Select.Option key={s} value={s}>
+              {t('sales.status.' + s)}
+            </Select.Option>
+          ))}
+        </Select>
       </div>
-      <Table
+      <DataTable<SalesOrder>
         columns={columns}
-        dataSource={data?.items}
-        rowKey="id"
+        items={data?.items}
+        total={data?.total}
+        page={page}
+        pageSize={pageSize}
         loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-          showTotal: (total) => t('common.total_items', { total }),
-        }}
+        onPaginationChange={onPaginationChange}
       />
-    </div>
+    </PageLayout>
   );
 }

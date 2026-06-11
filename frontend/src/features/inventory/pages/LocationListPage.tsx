@@ -1,9 +1,7 @@
-// 库位管理页 — 库位（区/架/层）CRUD，支持容量与已用数量跟踪
+// 库位管理页 — 使用 DataTable + PageLayout + usePagination
 import { useState } from 'react';
 import {
-  Table,
   Button,
-  Space,
   Tag,
   Input,
   Modal,
@@ -13,8 +11,11 @@ import {
   Popconfirm,
   message,
 } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DataTable } from '@/shared/components/DataTable';
+import { usePagination } from '@/shared/hooks/usePagination';
 import {
   useLocations,
   useCreateLocation,
@@ -27,9 +28,7 @@ type ModalMode = 'create' | 'edit' | null;
 
 export default function LocationListPage() {
   const { t } = useTranslation();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [searchText, setSearchText] = useState('');
+  const { page, pageSize, onPaginationChange } = usePagination();
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedLoc, setSelectedLoc] = useState<Location | null>(null);
 
@@ -88,12 +87,6 @@ export default function LocationListPage() {
     }
   };
 
-  const filteredData = data?.items?.filter((loc: Location) =>
-    searchText
-      ? loc.full_code.toLowerCase().includes(searchText.toLowerCase())
-      : true,
-  );
-
   const columns = [
     {
       title: t('location.full_code'),
@@ -140,62 +133,40 @@ export default function LocationListPage() {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: Location) => (
-        <Space>
-          <Button type="link" onClick={() => openEditModal(record)}>
+        <>
+          <Button type="link" size="small" onClick={() => openEditModal(record)}>
             {t('common.edit')}
           </Button>
           <Popconfirm
             title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger>
+            <Button type="link" danger size="small">
               {t('common.delete')}
             </Button>
           </Popconfirm>
-        </Space>
+        </>
       ),
     },
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <Space>
-          <Input
-            placeholder={t('common.search')}
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 250 }}
-          />
-        </Space>
+    <PageLayout
+      title={t('location.title')}
+      extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
           {t('location.create')}
         </Button>
-      </div>
-
-      <Table
+      }
+    >
+      <DataTable<Location>
         columns={columns}
-        dataSource={filteredData}
-        rowKey="id"
+        items={data?.items}
+        total={data?.total}
+        page={page}
+        pageSize={pageSize}
         loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-          showTotal: (total) => t('common.total_items', { total }),
-        }}
+        onPaginationChange={onPaginationChange}
       />
 
       <Modal
@@ -261,6 +232,6 @@ export default function LocationListPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </PageLayout>
   );
 }
