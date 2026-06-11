@@ -33,25 +33,14 @@ export default function PurchaseOrderListPage() {
   const columns = [
     {
       title: t('purchases.order_number'),
-      dataIndex: 'order_number',
-      key: 'order_number',
+      dataIndex: 'order_no',
+      key: 'order_no',
       sorter: true,
-    },
-    {
-      title: t('purchases.supplier'),
-      dataIndex: 'supplier_name',
-      key: 'supplier_name',
     },
     {
       title: t('purchases.order_date'),
       dataIndex: 'order_date',
       key: 'order_date',
-    },
-    {
-      title: t('purchases.expected_delivery'),
-      dataIndex: 'expected_date',
-      key: 'expected_date',
-      render: (val: string | undefined) => val ?? '-',
     },
     {
       title: t('purchases.status'),
@@ -65,7 +54,7 @@ export default function PurchaseOrderListPage() {
       title: t('purchases.total_amount'),
       dataIndex: 'total_amount',
       key: 'total_amount',
-      render: (val: number) => val.toFixed(2),
+      render: (val: number | null) => val != null ? val.toFixed(2) : '-',
     },
     {
       title: t('common.actions'),

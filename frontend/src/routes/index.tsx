@@ -159,6 +159,7 @@ export const router = createBrowserRouter([
       // Global search & profile settings
       { path: 'search', element: <SearchPage /> },
       { path: 'profile/settings', element: <ProfileSettingsPage /> },
+      { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
 ]);

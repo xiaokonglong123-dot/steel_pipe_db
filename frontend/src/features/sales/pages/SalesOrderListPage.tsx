@@ -38,14 +38,9 @@ export default function SalesOrderListPage() {
   const columns = [
     {
       title: t('sales.order_number'),
-      dataIndex: 'order_number',
-      key: 'order_number',
+      dataIndex: 'order_no',
+      key: 'order_no',
       sorter: true,
-    },
-    {
-      title: t('sales.customer'),
-      dataIndex: 'customer_name',
-      key: 'customer_name',
     },
     {
       title: t('sales.order_date'),
@@ -53,16 +48,10 @@ export default function SalesOrderListPage() {
       key: 'order_date',
     },
     {
-      title: t('sales.expected_delivery'),
-      dataIndex: 'expected_delivery',
-      key: 'expected_delivery',
-      render: (val: string | null) => val ?? '-',
-    },
-    {
       title: t('sales.total_amount'),
       dataIndex: 'total_amount',
       key: 'total_amount',
-      render: (val: number) => val.toLocaleString(),
+      render: (val: number | null) => val != null ? val.toLocaleString() : '-',
     },
     {
       title: t('sales.status'),

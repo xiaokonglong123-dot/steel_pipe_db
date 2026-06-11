@@ -3,6 +3,7 @@ import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
 import type {
   SalesOrder,
+  SalesOrderItem,
   CreateSalesOrderData,
   SalesOrderFilterParams,
   SalesOrderStatusTransitionRequest,
@@ -22,8 +23,8 @@ export const salesApi = {
 
   /** Get sales order detail — returns { order, items } structure. */
   get: async (id: number) => {
-    const res = await apiClient.get<ApiResponse<SalesOrder>>(`/sales-orders/${id}`);
-    return validateResponse(salesOrderDetailSchema, res.data.data);
+    const res = await apiClient.get(`/sales-orders/${id}`);
+    return validateResponse(salesOrderDetailSchema, res.data.data) as { order: SalesOrder; items: SalesOrderItem[] };
   },
 
   create: async (data: CreateSalesOrderData) => {

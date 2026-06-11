@@ -40,7 +40,7 @@ export default function SalesOrderDetailPage() {
   const handleTransition = async () => {
     if (!targetStatus) return;
     try {
-      await transitionMutation.mutateAsync({ status: targetStatus, notes: transitionNotes || undefined });
+      await transitionMutation.mutateAsync({ status: targetStatus });
       message.success(t('common.operate_success'));
       setTargetStatus(undefined);
       setTransitionNotes('');
@@ -50,15 +50,14 @@ export default function SalesOrderDetailPage() {
   };
 
   const itemColumns = [
-    { title: t('pipes.pipe_number'), dataIndex: 'pipe_number', key: 'pipe_number' },
     { title: t('pipes.pipe_type'), dataIndex: 'pipe_type', key: 'pipe_type' },
     { title: t('pipes.grade'), dataIndex: 'grade', key: 'grade' },
-  { title: t('sales.od'), dataIndex: 'od', key: 'od', render: (v: number | null) => v ?? '-' },
-  { title: t('sales.wt'), dataIndex: 'wt', key: 'wt', render: (v: number | null) => v ?? '-' },
-  { title: t('sales.length'), dataIndex: 'length', key: 'length', render: (v: number | null) => v ?? '-' },
-  { title: t('sales.quantity'), dataIndex: 'quantity', key: 'quantity' },
-    { title: t('sales.unit_price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number) => v.toLocaleString() },
-    { title: t('sales.total_price'), dataIndex: 'total_price', key: 'total_price', render: (v: number) => v.toLocaleString() },
+    { title: t('sales.od'), dataIndex: 'od', key: 'od' },
+    { title: t('sales.wt'), dataIndex: 'wt', key: 'wt' },
+    { title: t('sales.quantity'), dataIndex: 'quantity', key: 'quantity' },
+    { title: t('sales.delivered_quantity'), dataIndex: 'delivered_quantity', key: 'delivered_quantity' },
+    { title: t('sales.unit_price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number | null) => v != null ? v.toLocaleString() : '-' },
+    { title: t('sales.total_price'), dataIndex: 'total_price', key: 'total_price', render: (v: number | null) => v != null ? v.toLocaleString() : '-' },
   ];
 
   if (isLoading) {
@@ -81,7 +80,7 @@ export default function SalesOrderDetailPage() {
           marginBottom: 24,
         }}
       >
-        <h2 style={{ margin: 0 }}>{t('sales.sales_order')} — {order.order_number}</h2>
+        <h2 style={{ margin: 0 }}>{t('sales.sales_order')} — {order.order_no}</h2>
         <Space>
           <Button
             type="primary"
@@ -101,11 +100,9 @@ export default function SalesOrderDetailPage() {
 
       <Card>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
-          <Descriptions.Item label={t('sales.order_number')}>{order.order_number}</Descriptions.Item>
-          <Descriptions.Item label={t('sales.customer')}>{order.customer_name ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('sales.order_number')}>{order.order_no}</Descriptions.Item>
           <Descriptions.Item label={t('sales.order_date')}>{order.order_date}</Descriptions.Item>
-          <Descriptions.Item label={t('sales.expected_delivery')}>{order.expected_delivery ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={t('sales.total_amount')}>{order.total_amount.toLocaleString()}</Descriptions.Item>
+          <Descriptions.Item label={t('sales.total_amount')}>{order.total_amount?.toLocaleString() ?? '-'}</Descriptions.Item>
           <Descriptions.Item label={t('sales.status')}>
             <Tag color={STATUS_COLORS[order.status] ?? 'default'}>{t('sales.status.' + order.status)}</Tag>
           </Descriptions.Item>

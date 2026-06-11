@@ -1,6 +1,6 @@
 // Customer create/edit form — basic info (contact, tax ID, bank info, industry, etc.)
 import { useEffect } from 'react';
-import { Form, Input, Select, Button, Space, message } from 'antd';
+import { Form, Input, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useCustomer, useCreateCustomer, useUpdateCustomer } from '../hooks/useCustomers';
@@ -22,17 +22,13 @@ export default function CustomerFormPage() {
   useEffect(() => {
     if (isEdit && customer) {
       form.setFieldsValue({
-        code: customer.code,
+        customer_code: customer.customer_code,
         name: customer.name,
-        contact_person: customer.contact_person,
-        phone: customer.phone,
-        email: customer.email,
-        address: customer.address,
-        tax_id: customer.tax_id,
-        bank_info: customer.bank_info,
-        industry: customer.industry,
-        status: customer.status,
-        notes: customer.notes,
+        contact_person: customer.contact_person ?? undefined,
+        phone: customer.phone ?? undefined,
+        email: customer.email ?? undefined,
+        address: customer.address ?? undefined,
+        notes: customer.notes ?? undefined,
       });
     }
   }, [isEdit, customer, form]);
@@ -68,7 +64,7 @@ export default function CustomerFormPage() {
       >
         <Form.Item
           label={t('customers.code')}
-          name="code"
+          name="customer_code"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <Input disabled={isEdit} placeholder={t('common.required')} />
@@ -96,25 +92,6 @@ export default function CustomerFormPage() {
 
         <Form.Item label={t('customers.address')} name="address">
           <Input.TextArea rows={2} />
-        </Form.Item>
-
-        <Form.Item label={t('customers.tax_id')} name="tax_id">
-          <Input />
-        </Form.Item>
-
-        <Form.Item label={t('customers.bank_info')} name="bank_info">
-          <Input />
-        </Form.Item>
-
-        <Form.Item label={t('customers.industry')} name="industry">
-          <Input />
-        </Form.Item>
-
-        <Form.Item label={t('customers.status')} name="status">
-          <Select>
-            <Select.Option value="active">{t('customers.status_active')}</Select.Option>
-            <Select.Option value="inactive">{t('customers.status_inactive')}</Select.Option>
-          </Select>
         </Form.Item>
 
         <Form.Item label={t('customers.notes')} name="notes">

@@ -1,6 +1,8 @@
 // 筛管新增/编辑表单页 — 支持筛管类型（绕丝/预填充/割缝等）及基管规格录入
 import { useEffect } from 'react';
 import { Form, Input, Select, DatePicker, InputNumber, Button, Space, message } from 'antd';
+import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useScreenPipe, useCreateScreenPipe, useUpdateScreenPipe } from '../hooks/useScreenPipes';
@@ -10,11 +12,15 @@ const SCREEN_TYPES = ['wire_wrapped', 'pre_packed', 'slotted_liner', 'mesh'];
 const API_5CT_GRADES = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
 const END_TYPES = ['plain_end', 'threaded', 'threaded_coupled', 'upset'];
 
+type ScreenPipeFormValues = Omit<CreateScreenPipeData, 'production_date'> & {
+  production_date?: Dayjs;
+};
+
 export default function ScreenPipeFormPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
-  const [form] = Form.useForm<CreateScreenPipeData>();
+  const [form] = Form.useForm<ScreenPipeFormValues>();
 
   const isEdit = !!id;
   const pipeId = isEdit ? Number(id) : 0;
@@ -27,32 +33,37 @@ export default function ScreenPipeFormPage() {
     if (isEdit && pipe) {
       form.setFieldsValue({
         pipe_number: pipe.pipe_number,
-        batch_number: pipe.batch_number,
+        batch_number: pipe.batch_number ?? undefined,
         screen_type: pipe.screen_type,
-        slot_size: pipe.slot_size,
-        filtration_grade: pipe.filtration_grade,
+        slot_size: pipe.slot_size ?? undefined,
+        filtration_grade: pipe.filtration_grade ?? undefined,
         base_od: pipe.base_od,
         base_wt: pipe.base_wt,
         base_grade: pipe.base_grade,
-        base_end_type: pipe.base_end_type,
-        length: pipe.length,
-        weight_per_unit: pipe.weight_per_unit,
-        heat_number: pipe.heat_number,
-        serial_number: pipe.serial_number,
-        manufacturer: pipe.manufacturer,
-        production_date: pipe.production_date,
-        cert_number: pipe.cert_number,
-        notes: pipe.notes,
+        base_end_type: pipe.base_end_type ?? undefined,
+        length: pipe.length ?? undefined,
+        weight_per_unit: pipe.weight_per_unit ?? undefined,
+        heat_number: pipe.heat_number ?? undefined,
+        serial_number: pipe.serial_number ?? undefined,
+        manufacturer: pipe.manufacturer ?? undefined,
+        production_date: pipe.production_date ? dayjs(pipe.production_date) : undefined,
+        cert_number: pipe.cert_number ?? undefined,
+        notes: pipe.notes ?? undefined,
       });
     }
   }, [isEdit, pipe, form]);
 
-  const handleSubmit = async (values: CreateScreenPipeData) => {
+  const handleSubmit = async (values: ScreenPipeFormValues) => {
+    const payload: CreateScreenPipeData = {
+      ...values,
+      production_date: values.production_date?.format('YYYY-MM-DD'),
+    };
+
     try {
       if (isEdit) {
-        await updateMutation.mutateAsync(values);
+        await updateMutation.mutateAsync(payload);
       } else {
-        await createMutation.mutateAsync(values);
+        await createMutation.mutateAsync(payload);
       }
       message.success(t('common.operate_success'));
       navigate('/pipes/screen');

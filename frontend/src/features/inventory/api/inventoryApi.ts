@@ -26,14 +26,17 @@ export interface InboundRecord {
   id: number;
   inbound_no: string;
   inbound_type: string;
-  order_id?: number;
-  supplier_id?: number;
-  notes?: string;
+  order_id?: number | null;
+  supplier_id?: number | null;
+  notes?: string | null;
   approval_status: string;
-  handled_by?: number;
-  handled_at?: string;
+  rejection_reason?: string | null;
+  approval_reason?: string | null;
+  handled_by?: number | null;
+  handled_at?: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface InboundItem {
@@ -48,14 +51,17 @@ export interface OutboundRecord {
   id: number;
   outbound_no: string;
   outbound_type: string;
-  order_id?: number;
-  customer_id?: number;
-  notes?: string;
+  order_id?: number | null;
+  customer_id?: number | null;
+  notes?: string | null;
   approval_status: string;
-  handled_by?: number;
-  handled_at?: string;
+  rejection_reason?: string | null;
+  approval_reason?: string | null;
+  handled_by?: number | null;
+  handled_at?: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface OutboundItem {
@@ -72,12 +78,13 @@ export interface Location {
   shelf_code: string;
   level_code: string;
   full_code: string;
-  description?: string;
-  capacity?: number;
+  description?: string | null;
+  capacity?: number | null;
   used_count: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface InventoryLog {
@@ -85,24 +92,25 @@ export interface InventoryLog {
   pipe_type: string;
   pipe_id: number;
   change_type: string;
-  ref_type?: string;
-  ref_id?: number;
-  from_location_id?: number;
-  to_location_id?: number;
-  notes?: string;
-  created_by?: number;
+  ref_type?: string | null;
+  ref_id?: number | null;
+  from_location_id?: number | null;
+  to_location_id?: number | null;
+  notes?: string | null;
+  created_by?: number | null;
   created_at: string;
 }
 
 export interface InventoryCheckRecord {
   id: number;
   check_no: string;
-  location_id?: number;
+  location_id?: number | null;
   status: string;
-  notes?: string;
-  created_by?: number;
+  notes?: string | null;
+  created_by?: number | null;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface InventoryCheckItem {
@@ -111,9 +119,9 @@ export interface InventoryCheckItem {
   pipe_type: string;
   pipe_id: number;
   expected_status: string;
-  found_status?: string;
-  is_match?: boolean;
-  notes?: string;
+  found_status?: string | null;
+  is_match?: boolean | null;
+  notes?: string | null;
   created_at: string;
 }
 
@@ -240,6 +248,11 @@ export const inboundApi = {
     return validateResponse(z.string(), res.data.data);
   },
 
+  update: async (id: number, data: CreateInboundData) => {
+    const res = await apiClient.put<ApiResponse<InboundRecord>>(`/inbound-records/${id}`, data);
+    return validateResponse(inboundRecordSchema, res.data.data);
+  },
+
   delete: async (id: number) => {
     await apiClient.delete(`/inbound-records/${id}`);
   },
@@ -271,6 +284,11 @@ export const outboundApi = {
   reject: async (id: number, reason: string) => {
     const res = await apiClient.post<ApiResponse<string>>(`/outbound-records/${id}/reject`, { reason });
     return validateResponse(z.string(), res.data.data);
+  },
+
+  update: async (id: number, data: CreateOutboundData) => {
+    const res = await apiClient.put<ApiResponse<OutboundRecord>>(`/outbound-records/${id}`, data);
+    return validateResponse(outboundRecordSchema, res.data.data);
   },
 
   delete: async (id: number) => {
@@ -372,7 +390,7 @@ export interface PipeSearchResult {
   od: number;
   wt: number;
   status: string;
-  location_id?: number;
+  location_id?: number | null;
 }
 
 export const pipeSearchApi = {

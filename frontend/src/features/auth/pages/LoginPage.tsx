@@ -1,5 +1,4 @@
 // Login page — username/password auth, useLogin hook handles token storage + redirect on success
-import { useState } from 'react';
 import { Form, Input, Button, Card, Typography, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -10,17 +9,12 @@ const { Title, Text } = Typography;
 export default function LoginPage() {
   const { t } = useTranslation();
   const loginMutation = useLogin();
-  const [loading, setLoading] = useState(false);
 
-  // Login submit: handled by TanStack Query mutation, shows generic error on failure (no leaky details)
   const onFinish = async (values: { username: string; password: string }) => {
-    setLoading(true);
     try {
       await loginMutation.mutateAsync(values);
     } catch {
       message.error(t('common.operate_failed'));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -67,7 +61,7 @@ export default function LoginPage() {
             <Button
               type="primary"
               htmlType="submit"
-              loading={loading}
+              loading={loginMutation.isPending}
               block
             >
               {t('user.login')}

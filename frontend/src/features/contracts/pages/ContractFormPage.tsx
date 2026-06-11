@@ -24,16 +24,14 @@ interface ItemFormValue {
   grade: string;
   od: number;
   wt: number;
-  length?: number;
   quantity: number;
   unit_price: number;
   total_price: number;
-  delivery_date?: string;
   notes?: string;
 }
 
 interface FormValues {
-  contract_name: string;
+  title: string;
   contract_type: 'purchase' | 'sales';
   party_a: string;
   party_b: string;
@@ -60,15 +58,15 @@ export default function ContractFormPage() {
   useEffect(() => {
     if (contract && isEdit) {
       form.setFieldsValue({
-        contract_name: contract.contract_name,
+        title: contract.title,
         contract_type: contract.contract_type,
         party_a: contract.party_a,
         party_b: contract.party_b,
-        sign_date: contract.sign_date,
-        start_date: contract.start_date,
-        end_date: contract.end_date,
-        total_amount: contract.total_amount,
-        notes: contract.notes,
+        sign_date: contract.sign_date ?? undefined,
+        start_date: contract.start_date ?? undefined,
+        end_date: contract.end_date ?? undefined,
+        total_amount: contract.total_amount ?? 0,
+        notes: contract.notes ?? undefined,
       });
       if (contract.items) {
         setItems(
@@ -77,12 +75,10 @@ export default function ContractFormPage() {
             grade: item.grade,
             od: item.od,
             wt: item.wt,
-            length: item.length,
             quantity: item.quantity,
-            unit_price: item.unit_price,
-            total_price: item.total_price,
-            delivery_date: item.delivery_date,
-            notes: item.notes,
+            unit_price: item.unit_price ?? 0,
+            total_price: item.total_price ?? 0,
+            notes: item.notes ?? undefined,
           })),
         );
       }
@@ -254,12 +250,12 @@ export default function ContractFormPage() {
           <Space style={{ display: 'flex' }} wrap>
             {isEdit && (
               <Form.Item label={t('contracts.contract_number')}>
-                <Input value={contract?.contract_number} disabled />
+                <Input value={contract?.contract_no} disabled />
               </Form.Item>
             )}
             <Form.Item
               label={t('contracts.contract_name')}
-              name="contract_name"
+              name="title"
               rules={[{ required: true }]}
             >
               <Input style={{ width: 250 }} />

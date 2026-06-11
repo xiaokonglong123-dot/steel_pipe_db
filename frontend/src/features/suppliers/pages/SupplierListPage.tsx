@@ -73,7 +73,7 @@ export default function SupplierListPage() {
         <Space>
           <Button
             type="link"
-            onClick={() => navigate(`/suppliers/${record.id}`)}
+            onClick={() => navigate(`/suppliers/${record.id}/edit`)}
           >
             {t('common.edit')}
           </Button>

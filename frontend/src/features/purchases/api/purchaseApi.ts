@@ -3,6 +3,7 @@ import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
 import type {
   PurchaseOrder,
+  PurchaseOrderItem,
   CreatePurchaseOrderData,
   PurchaseOrderFilterParams,
   PurchaseOrderStatusTransitionRequest,
@@ -21,8 +22,8 @@ export const purchaseApi = {
 
   /** Get purchase order detail — returns { order, items } structure. */
   get: async (id: number) => {
-    const res = await apiClient.get<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`);
-    return validateResponse(purchaseOrderDetailSchema, res.data.data);
+    const res = await apiClient.get(`/purchase-orders/${id}`);
+    return validateResponse(purchaseOrderDetailSchema, res.data.data) as { order: PurchaseOrder; items: PurchaseOrderItem[] };
   },
 
   create: async (data: CreatePurchaseOrderData) => {

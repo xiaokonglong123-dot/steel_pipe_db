@@ -16,12 +16,56 @@ import {
 import { PlusOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useCreateInbound, useInboundRecord } from '../hooks/useInventory';
+import { useCreateInbound, useUpdateInbound, useInboundRecord } from '../hooks/useInventory';
 import { pipeSearchApi } from '../api/inventoryApi';
 import type { PipeSearchResult, CreateInboundData, InboundItem } from '../api/inventoryApi';
 
-const INBOUND_TYPES = ['purchase', 'production', 'return', 'transfer'];
+const INBOUND_TYPES = ['purchase', 'production', 'return'];
 const PIPE_TYPES = ['seamless', 'casing', 'tubing', 'screen'];
+
+interface PipeFormRow {
+  pipe_type?: string;
+  pipe_id?: number;
+  pipe_number?: string;
+  grade?: string;
+  od?: number;
+  wt?: number;
+}
+
+function parsePipeIds(input: string): number[] {
+  const tokens = input
+    .replace(/[，、；;\r\n\t]+/g, ',')
+    .replace(/\s+/g, ',')
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  const ids: number[] = [];
+  for (const token of tokens) {
+    const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      if (Number.isInteger(start) && Number.isInteger(end) && start > 0 && end >= start) {
+        for (let id = start; id <= end; id += 1) {
+          ids.push(id);
+        }
+      }
+      continue;
+    }
+
+    const id = Number(token);
+    if (Number.isInteger(id) && id > 0) {
+      ids.push(id);
+    }
+  }
+
+  return [...new Set(ids)];
+}
+
+function pipeRowKey(pipeType: string | undefined, pipeId: number | undefined): string | null {
+  return pipeType && typeof pipeId === 'number' ? `${pipeType}:${pipeId}` : null;
+}
 
 export default function InboundFormPage() {
   const { t } = useTranslation();
@@ -34,11 +78,15 @@ export default function InboundFormPage() {
 
   const { data: inboundRecord, isLoading: loadingRecord } = useInboundRecord(orderId);
   const createMutation = useCreateInbound();
+  const updateMutation = useUpdateInbound(orderId);
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [searchResults, setSearchResults] = useState<PipeSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchPipeType, setBatchPipeType] = useState('casing');
+  const [batchPipeIds, setBatchPipeIds] = useState('');
 
   useEffect(() => {
     if (isEdit && inboundRecord) {
@@ -69,8 +117,9 @@ export default function InboundFormPage() {
   };
 
   const handleSelectPipe = (pipe: PipeSearchResult) => {
-    const pipes = form.getFieldValue('pipes') || [];
-    const exists = pipes.some((p: { pipe_id: number }) => p.pipe_id === pipe.id);
+    const pipes = (form.getFieldValue('pipes') || []) as PipeFormRow[];
+    const nextKey = pipeRowKey(pipe.pipe_type, pipe.id);
+    const exists = pipes.some((p) => pipeRowKey(p.pipe_type, p.pipe_id) === nextKey);
     if (exists) {
       message.warning(t('inbound.pipe_already_added', 'This pipe has already been added to the list'));
       return;
@@ -79,6 +128,34 @@ export default function InboundFormPage() {
       pipes: [...pipes, { pipe_type: pipe.pipe_type, pipe_id: pipe.id, pipe_number: pipe.pipe_number, grade: pipe.grade, od: pipe.od, wt: pipe.wt }],
     });
     setSearchModalOpen(false);
+  };
+
+  const handleBatchAddPipes = () => {
+    const ids = parsePipeIds(batchPipeIds);
+    if (ids.length === 0) {
+      message.error(t('common.required'));
+      return;
+    }
+
+    const currentPipes = (form.getFieldValue('pipes') || []) as PipeFormRow[];
+    const existingKeys = new Set(
+      currentPipes
+        .map((pipe) => pipeRowKey(pipe.pipe_type, pipe.pipe_id))
+        .filter((key): key is string => key !== null),
+    );
+    const rowsToAdd = ids
+      .filter((pipeId) => !existingKeys.has(pipeRowKey(batchPipeType, pipeId) ?? ''))
+      .map((pipeId) => ({ pipe_type: batchPipeType, pipe_id: pipeId }));
+
+    if (rowsToAdd.length === 0) {
+      message.warning(t('inbound.pipe_already_added', 'This pipe has already been added to the list'));
+      return;
+    }
+
+    form.setFieldsValue({ pipes: [...currentPipes, ...rowsToAdd] });
+    setBatchPipeIds('');
+    setBatchModalOpen(false);
+    message.success(t('common.operate_success'));
   };
 
   const handleSubmit = async (values: Record<string, unknown>) => {
@@ -107,7 +184,11 @@ export default function InboundFormPage() {
         return;
       }
 
-      await createMutation.mutateAsync(cleanValues);
+      if (isEdit) {
+        await updateMutation.mutateAsync(cleanValues);
+      } else {
+        await createMutation.mutateAsync(cleanValues);
+      }
       message.success(t('common.operate_success'));
       navigate('/inventory/inbound');
     } catch (err) {
@@ -309,6 +390,18 @@ export default function InboundFormPage() {
             >
               {t('common.search')}
             </Button>
+            <Button
+              type="primary"
+              ghost
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setBatchPipeIds('');
+                setBatchModalOpen(true);
+              }}
+            >
+              {t('inbound.batch_add_pipes', '批量添加')}
+            </Button>
           </Space>
         </h3>
 
@@ -345,7 +438,7 @@ export default function InboundFormPage() {
             <Button
               type="primary"
               htmlType="submit"
-              loading={createMutation.isPending}
+              loading={isEdit ? updateMutation.isPending : createMutation.isPending}
             >
               {t('common.save')}
             </Button>
@@ -381,6 +474,34 @@ export default function InboundFormPage() {
           pagination={false}
           locale={{ emptyText: t('common.no_data') }}
         />
+      </Modal>
+
+      <Modal
+        title={t('inbound.batch_add_pipes', '批量添加管材')}
+        open={batchModalOpen}
+        onOk={handleBatchAddPipes}
+        onCancel={() => setBatchModalOpen(false)}
+        destroyOnClose
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Select
+            value={batchPipeType}
+            onChange={setBatchPipeType}
+            style={{ width: 200 }}
+          >
+            {PIPE_TYPES.map((type) => (
+              <Select.Option key={type} value={type}>
+                {t(`pipe_type.${type}`, type)}
+              </Select.Option>
+            ))}
+          </Select>
+          <Input.TextArea
+            rows={6}
+            value={batchPipeIds}
+            onChange={(event) => setBatchPipeIds(event.target.value)}
+            placeholder={t('inbound.batch_pipe_ids_placeholder', '例如：1001,1002,1003 或 1001-1010；支持空格、换行、逗号分隔')}
+          />
+        </Space>
       </Modal>
     </div>
   );

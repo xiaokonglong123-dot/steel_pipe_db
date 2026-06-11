@@ -1,17 +1,11 @@
 // 质检证书列表页 — 分页查询、状态标签、按管类型/钢级筛选
 import { useState } from 'react';
-import { Table, Button, Space, Tag, Input, Select, Popconfirm } from 'antd';
+import { Table, Button, Space, Tag, Input, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useCerts, useDeleteCert } from '../hooks/useQuality';
 import type { QualityCert } from '../types';
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'default',
-  active: 'green',
-  void: 'red',
-};
 
 export default function CertListPage() {
   const { t } = useTranslation();
@@ -19,13 +13,11 @@ export default function CertListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
 
   const { data, isLoading } = useCerts({
     page,
     page_size: pageSize,
     q: searchText || undefined,
-    status: statusFilter,
   });
 
   const deleteMutation = useDeleteCert();
@@ -37,38 +29,29 @@ export default function CertListPage() {
       key: 'cert_number',
     },
     {
-      title: t('pipes.grade'),
-      dataIndex: 'grade',
-      key: 'grade',
-      render: (grade: string) => <Tag color="blue">{grade}</Tag>,
+      title: t('quality.pipe_type'),
+      dataIndex: 'pipe_type',
+      key: 'pipe_type',
     },
     {
-      title: t('pipes.od'),
-      dataIndex: 'od',
-      key: 'od',
-    },
-    {
-      title: t('pipes.wt'),
-      dataIndex: 'wt',
-      key: 'wt',
-    },
-    {
-      title: t('quality.quantity'),
-      dataIndex: 'quantity',
-      key: 'quantity',
+      title: t('quality.result'),
+      dataIndex: 'result',
+      key: 'result',
+      render: (result: string) => (
+        <Tag color={result === 'pass' ? 'green' : 'red'}>{result}</Tag>
+      ),
     },
     {
       title: t('quality.inspector'),
       dataIndex: 'inspector',
       key: 'inspector',
+      render: (val: string | null) => val ?? '-',
     },
     {
-      title: t('quality.status'),
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => (
-        <Tag color={STATUS_COLORS[status] ?? 'default'}>{status}</Tag>
-      ),
+      title: t('quality.cert_date'),
+      dataIndex: 'cert_date',
+      key: 'cert_date',
+      render: (val: string | null) => val ?? '-',
     },
     {
       title: t('common.actions'),
@@ -108,17 +91,6 @@ export default function CertListPage() {
             onChange={(e) => setSearchText(e.target.value)}
             style={{ width: 250 }}
           />
-          <Select
-            placeholder={t('quality.status')}
-            allowClear
-            style={{ width: 120 }}
-            value={statusFilter}
-            onChange={(v) => setStatusFilter(v)}
-          >
-            <Select.Option value="draft">draft</Select.Option>
-            <Select.Option value="active">active</Select.Option>
-            <Select.Option value="void">void</Select.Option>
-          </Select>
         </Space>
         <Button
           type="primary"

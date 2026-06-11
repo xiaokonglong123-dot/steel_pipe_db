@@ -41,13 +41,13 @@ export default function ContractListPage() {
   const columns = [
     {
       title: t('contracts.contract_number'),
-      dataIndex: 'contract_number',
-      key: 'contract_number',
+      dataIndex: 'contract_no',
+      key: 'contract_no',
     },
     {
       title: t('contracts.contract_name'),
-      dataIndex: 'contract_name',
-      key: 'contract_name',
+      dataIndex: 'title',
+      key: 'title',
     },
     {
       title: t('contracts.contract_type'),
@@ -70,7 +70,7 @@ export default function ContractListPage() {
       dataIndex: 'total_amount',
       key: 'total_amount',
       align: 'right' as const,
-      render: (val: number) => val?.toLocaleString(),
+      render: (val: number | null) => val != null ? val.toLocaleString() : '-',
     },
     {
       title: t('contracts.status'),

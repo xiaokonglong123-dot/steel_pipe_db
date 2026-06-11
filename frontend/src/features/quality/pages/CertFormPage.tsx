@@ -27,26 +27,13 @@ export default function CertFormPage() {
     if (isEdit && cert) {
       form.setFieldsValue({
         cert_number: cert.cert_number,
-        batch_number: cert.batch_number,
         pipe_type: cert.pipe_type,
-        grade: cert.grade,
-        od: cert.od,
-        wt: cert.wt,
-        length: cert.length,
-        quantity: cert.quantity,
-        heat_number: cert.heat_number,
-        manufacturer: cert.manufacturer,
-        production_date: cert.production_date,
-        test_pressure: cert.test_pressure,
-        yield_strength: cert.yield_strength,
-        tensile_strength: cert.tensile_strength,
-        elongation: cert.elongation,
-        hardness: cert.hardness,
-        inspection_standard: cert.inspection_standard,
-        inspector: cert.inspector,
-        cert_date: cert.cert_date,
-        status: cert.status,
-        notes: cert.notes,
+        pipe_id: cert.pipe_id,
+        cert_date: cert.cert_date ?? undefined,
+        result: cert.result,
+        inspector: cert.inspector ?? undefined,
+        inspection_body: cert.inspection_body ?? undefined,
+        notes: cert.notes ?? undefined,
       });
     }
   }, [isEdit, cert, form]);

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useStockQuery, useLocations } from '../hooks/useInventory';
 import type { Location } from '../api/inventoryApi';
 
-const PIPE_TYPE_OPTIONS = ['casing', 'tubing', 'coupling', 'accessory'];
+const PIPE_TYPE_OPTIONS = ['seamless', 'casing', 'tubing', 'line_pipe', 'screen'];
 const GRADE_OPTIONS = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
 
 export default function StockQueryPage() {
@@ -128,7 +128,7 @@ export default function StockQueryPage() {
       <Table
         columns={columns}
         dataSource={data?.items as Record<string, unknown>[]}
-        rowKey={(record) => `${record.pipe_type}-${record.grade}-${record.location_id || 0}-${page}`}
+        rowKey={(record) => `${record.pipe_type}-${record.grade}-${record.location_id || 0}`}
         loading={isLoading}
         pagination={{
           current: page,

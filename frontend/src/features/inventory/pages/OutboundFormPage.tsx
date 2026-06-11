@@ -16,12 +16,12 @@ import {
 import { PlusOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useCreateOutbound, useOutboundRecord } from '../hooks/useInventory';
+import { useCreateOutbound, useUpdateOutbound, useOutboundRecord } from '../hooks/useInventory';
 import { pipeSearchApi } from '../api/inventoryApi';
 import type { PipeSearchResult, CreateOutboundData, OutboundItem } from '../api/inventoryApi';
 
-const OUTBOUND_TYPES = ['sales', 'production', 'return', 'transfer', 'scrapped'];
-const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
+const OUTBOUND_TYPES = ['sales', 'transfer', 'scrapped'];
+const PIPE_TYPES = ['seamless', 'casing', 'tubing', 'line_pipe', 'screen'];
 
 export default function OutboundFormPage() {
   const { t } = useTranslation();
@@ -34,6 +34,7 @@ export default function OutboundFormPage() {
 
   const { data: outboundRecord, isLoading: loadingRecord } = useOutboundRecord(orderId);
   const createMutation = useCreateOutbound();
+  const updateMutation = useUpdateOutbound(orderId);
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -83,17 +84,34 @@ export default function OutboundFormPage() {
 
   const handleSubmit = async (values: Record<string, unknown>) => {
     try {
+      const pipes = Array.isArray(values.pipes)
+        ? values.pipes.map((p: unknown) => {
+            const item = p as Record<string, unknown>;
+            return { pipe_type: String(item.pipe_type ?? ''), pipe_id: Number(item.pipe_id) };
+          })
+        : [];
+
       const cleanValues: CreateOutboundData = {
-        outbound_type: values.outbound_type as string,
-        order_id: values.order_id as number | undefined,
-        customer_id: values.customer_id as number | undefined,
-        notes: values.notes as string | undefined,
-        pipes: ((values.pipes as Array<Record<string, unknown>>) ?? []).map((p) => ({
-          pipe_type: p.pipe_type as string,
-          pipe_id: p.pipe_id as number,
-        })),
+        outbound_type: String(values.outbound_type ?? ''),
+        order_id: values.order_id != null ? Number(values.order_id) : undefined,
+        customer_id: values.customer_id != null ? Number(values.customer_id) : undefined,
+        notes: values.notes != null ? String(values.notes) : undefined,
+        pipes,
       };
-      await createMutation.mutateAsync(cleanValues);
+
+      if (!cleanValues.outbound_type || cleanValues.pipes.length === 0) {
+        message.error(t('common.required'));
+        return;
+      }
+      if (cleanValues.pipes.some((p) => !p.pipe_type || !p.pipe_id)) {
+        message.error(t('common.required'));
+        return;
+      }
+      if (isEdit) {
+        await updateMutation.mutateAsync(cleanValues);
+      } else {
+        await createMutation.mutateAsync(cleanValues);
+      }
       message.success(t('common.operate_success'));
       navigate('/inventory/outbound');
     } catch (err) {
@@ -331,7 +349,7 @@ export default function OutboundFormPage() {
             <Button
               type="primary"
               htmlType="submit"
-              loading={createMutation.isPending}
+              loading={isEdit ? updateMutation.isPending : createMutation.isPending}
             >
               {t('common.save')}
             </Button>

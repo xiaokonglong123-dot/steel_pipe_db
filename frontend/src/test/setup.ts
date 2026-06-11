@@ -29,3 +29,21 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: vi.fn(),
   })),
 });
+
+// localStorage may be unavailable in Node 26's jsdom — provide a mock instead.
+const createLocalStorageMock = () => {
+  const store = new Map<string, string>();
+  return {
+    getItem: (key: string): string | null => store.get(key) ?? null,
+    setItem: (key: string, value: string): void => { store.set(key, value); },
+    removeItem: (key: string): void => { store.delete(key); },
+    clear: (): void => store.clear(),
+    get length(): number { return store.size; },
+    key: (index: number): string | null => [...store.keys()][index] ?? null,
+  } as Storage;
+};
+
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: createLocalStorageMock(),
+});

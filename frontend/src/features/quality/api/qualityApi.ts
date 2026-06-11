@@ -1,10 +1,10 @@
 // 质量管理 API — 质量证书 CRUD + 钢级参考 + 附件上传
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
-import type { QualityCert, CreateQualityCertData, CertFilterParams, GradeRef, Attachment } from '../types';
+import type { QualityCert, CreateQualityCertData, CertFilterParams, GradeRef, PipeAttachment } from '../types';
 import { validateResponse, paginatedDataSchema } from '@/lib/validateResponse';
 import { z } from 'zod';
-import { qualityCertSchema, gradeRefSchema, attachmentSchema } from '@/zod-schemas/quality';
+import { qualityCertSchema, gradeRefSchema, pipeAttachmentSchema } from '@/zod-schemas/quality';
 
 export const qualityApi = {
   getCerts: async (params?: CertFilterParams) => {
@@ -44,15 +44,15 @@ export const qualityApi = {
 
   // 上传证书附件（PDF/图片），使用 FormData + multipart
   createAttachment: async (data: FormData) => {
-    const res = await apiClient.post<ApiResponse<Attachment>>('/quality/attachments', data, {
+    const res = await apiClient.post<ApiResponse<PipeAttachment>>('/quality/attachments', data, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return validateResponse(attachmentSchema, res.data.data);
+    return validateResponse(pipeAttachmentSchema, res.data.data);
   },
 
-  getAttachments: async (cert_id: number) => {
-    const res = await apiClient.get<ApiResponse<Attachment[]>>('/quality/attachments', { params: { cert_id } });
-    return validateResponse(z.array(attachmentSchema), res.data.data);
+  getAttachments: async (pipe_id: number) => {
+    const res = await apiClient.get<ApiResponse<PipeAttachment[]>>('/quality/attachments', { params: { pipe_id } });
+    return validateResponse(z.array(pipeAttachmentSchema), res.data.data);
   },
 
   deleteAttachment: async (id: number) => {

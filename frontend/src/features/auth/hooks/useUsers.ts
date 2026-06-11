@@ -32,12 +32,8 @@ export function useUpdateUser() {
 }
 
 export function useChangePassword() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: ChangePasswordData }) =>
       userApi.changePassword(id, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: userQueryKeys.all });
-    },
   });
 }

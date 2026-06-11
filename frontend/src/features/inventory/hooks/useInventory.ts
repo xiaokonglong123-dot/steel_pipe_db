@@ -50,6 +50,17 @@ export function useCreateInbound() {
   });
 }
 
+export function useUpdateInbound(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateInboundData) => inboundApi.update(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.details });
+    },
+  });
+}
+
 export function useApproveInbound() {
   const qc = useQueryClient();
   return useMutation({
@@ -107,6 +118,17 @@ export function useCreateOutbound() {
     mutationFn: (data: CreateOutboundData) => outboundApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
+    },
+  });
+}
+
+export function useUpdateOutbound(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateOutboundData) => outboundApi.update(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.details });
     },
   });
 }

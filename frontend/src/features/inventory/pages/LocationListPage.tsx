@@ -53,8 +53,8 @@ export default function LocationListPage() {
   const openEditModal = (loc: Location) => {
     setSelectedLoc(loc);
     editForm.setFieldsValue({
-      description: loc.description,
-      capacity: loc.capacity,
+      description: loc.description ?? undefined,
+      capacity: loc.capacity ?? undefined,
       is_active: loc.is_active,
     });
     setModalMode('edit');

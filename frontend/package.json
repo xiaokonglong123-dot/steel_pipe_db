@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "analyze": "vite build --config vite.config.analyze.ts",
     "lint": "eslint .",
+    "test": "vitest",
     "preview": "vite preview"
   },
   "dependencies": {

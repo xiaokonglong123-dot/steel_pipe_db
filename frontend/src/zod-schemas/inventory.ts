@@ -6,18 +6,24 @@
  */
 import { z } from 'zod';
 
+const nullableString = z.string().nullable().optional();
+const nullableNumber = z.number().nullable().optional();
+
 export const inboundRecordSchema = z.object({
   id: z.number(),
   inbound_no: z.string(),
   inbound_type: z.string(),
-  order_id: z.number().optional(),
-  supplier_id: z.number().optional(),
-  notes: z.string().optional(),
+  order_id: nullableNumber,
+  supplier_id: nullableNumber,
+  notes: nullableString,
   approval_status: z.string(),
-  handled_by: z.number().optional(),
-  handled_at: z.string().optional(),
+  rejection_reason: nullableString,
+  approval_reason: nullableString,
+  handled_by: nullableNumber,
+  handled_at: nullableString,
   created_at: z.string(),
   updated_at: z.string(),
+  deleted_at: nullableString,
 }).strict();
 
 export const inboundItemSchema = z.object({
@@ -37,14 +43,17 @@ export const outboundRecordSchema = z.object({
   id: z.number(),
   outbound_no: z.string(),
   outbound_type: z.string(),
-  order_id: z.number().optional(),
-  customer_id: z.number().optional(),
-  notes: z.string().optional(),
+  order_id: nullableNumber,
+  customer_id: nullableNumber,
+  notes: nullableString,
   approval_status: z.string(),
-  handled_by: z.number().optional(),
-  handled_at: z.string().optional(),
+  rejection_reason: nullableString,
+  approval_reason: nullableString,
+  handled_by: nullableNumber,
+  handled_at: nullableString,
   created_at: z.string(),
   updated_at: z.string(),
+  deleted_at: nullableString,
 }).strict();
 
 export const outboundItemSchema = z.object({
@@ -66,12 +75,13 @@ export const locationSchema = z.object({
   shelf_code: z.string(),
   level_code: z.string(),
   full_code: z.string(),
-  description: z.string().optional(),
-  capacity: z.number().optional(),
+  description: nullableString,
+  capacity: nullableNumber,
   used_count: z.number(),
   is_active: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
+  deleted_at: nullableString,
 }).strict();
 
 export const inventoryLogSchema = z.object({
@@ -79,24 +89,25 @@ export const inventoryLogSchema = z.object({
   pipe_type: z.string(),
   pipe_id: z.number(),
   change_type: z.string(),
-  ref_type: z.string().optional(),
-  ref_id: z.number().optional(),
-  from_location_id: z.number().optional(),
-  to_location_id: z.number().optional(),
-  notes: z.string().optional(),
-  created_by: z.number().optional(),
+  ref_type: nullableString,
+  ref_id: nullableNumber,
+  from_location_id: nullableNumber,
+  to_location_id: nullableNumber,
+  notes: nullableString,
+  created_by: nullableNumber,
   created_at: z.string(),
 }).strict();
 
 export const inventoryCheckRecordSchema = z.object({
   id: z.number(),
   check_no: z.string(),
-  location_id: z.number().optional(),
+  location_id: nullableNumber,
   status: z.string(),
-  notes: z.string().optional(),
-  created_by: z.number().optional(),
+  notes: nullableString,
+  created_by: nullableNumber,
   created_at: z.string(),
   updated_at: z.string(),
+  deleted_at: nullableString,
 }).strict();
 
 export const inventoryCheckItemSchema = z.object({
@@ -105,9 +116,9 @@ export const inventoryCheckItemSchema = z.object({
   pipe_type: z.string(),
   pipe_id: z.number(),
   expected_status: z.string(),
-  found_status: z.string().optional(),
-  is_match: z.boolean().optional(),
-  notes: z.string().optional(),
+  found_status: nullableString,
+  is_match: z.boolean().nullable().optional(),
+  notes: nullableString,
   created_at: z.string(),
 }).strict();
 
@@ -124,21 +135,21 @@ export const pipeSearchResultSchema = z.object({
   od: z.number(),
   wt: z.number(),
   status: z.string(),
-  location_id: z.number().optional(),
+  location_id: nullableNumber,
 }).strict();
 
 // Stock query result (dynamically built from seamless/screen pipes with location join)
 export const stockItemSchema = z.object({
   id: z.number(),
   pipe_type: z.string(),
-  pipe_number: z.string().optional(),
-  grade: z.string().optional(),
-  od: z.number().optional(),
-  wt: z.number().optional(),
+  pipe_number: nullableString,
+  grade: nullableString,
+  od: nullableNumber,
+  wt: nullableNumber,
   status: z.string(),
-  location_id: z.number().optional(),
-  full_code: z.string().optional(),
-  total_count: z.number().optional(),
+  location_id: nullableNumber,
+  full_code: nullableString,
+  total_count: nullableNumber,
 }).passthrough();
 
 // Trace pipe lifecycle result
@@ -149,17 +160,17 @@ export const tracePipeSchema = z.object({
   od: z.number(),
   wt: z.number(),
   current_status: z.string(),
-  current_location_id: z.number().nullable(),
+  current_location_id: nullableNumber,
 }).passthrough();
 
 // Trace heat number result item
 export const traceHeatItemSchema = z.object({
   pipe_type: z.string(),
   pipe_number: z.string(),
-  grade: z.string().optional(),
-  od: z.number().optional(),
-  wt: z.number().optional(),
-  status: z.string().optional(),
+  grade: nullableString,
+  od: nullableNumber,
+  wt: nullableNumber,
+  status: nullableString,
 }).passthrough();
 
 // Trace order result

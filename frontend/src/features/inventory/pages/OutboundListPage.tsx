@@ -24,19 +24,18 @@ import {
 import type { OutboundRecord, CreateOutboundData } from '../api/inventoryApi';
 import StockSelector from '../components/StockSelector';
 
-const OUTBOUND_TYPES = ['sales', 'production', 'return', 'transfer', 'scrapped'];
-const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
+const OUTBOUND_TYPES = ['sales', 'transfer', 'scrapped'];
+const PIPE_TYPES = ['seamless', 'casing', 'tubing', 'line_pipe', 'screen'];
 
 const STATUS_COLOR_MAP: Record<string, string> = {
   pending: 'orange',
+  auto_approved: 'green',
   approved: 'green',
   rejected: 'red',
 };
 
 const TYPE_LABEL_MAP: Record<string, string> = {
   sales: 'outbound.type.sales',
-  production: 'outbound.type.production',
-  return: 'outbound.type.return',
   transfer: 'outbound.type.transfer',
   scrapped: 'outbound.type.scrapped',
 };

@@ -1,6 +1,8 @@
 // 无缝钢管新增/编辑表单页 — 支持 API 5CT 规格参数录入（钢级、端部类型、热处理号等）
 import { useEffect } from 'react';
 import { Form, Input, Select, DatePicker, InputNumber, Button, Space, message } from 'antd';
+import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSeamlessPipe, useCreateSeamlessPipe, useUpdateSeamlessPipe } from '../hooks/useSeamlessPipes';
@@ -10,11 +12,15 @@ const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
 const API_5CT_GRADES = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
 const END_TYPES = ['plain_end', 'threaded', 'threaded_coupled', 'upset'];
 
+type SeamlessPipeFormValues = Omit<CreateSeamlessPipeData, 'production_date'> & {
+  production_date?: Dayjs;
+};
+
 export default function SeamlessPipeFormPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
-  const [form] = Form.useForm<CreateSeamlessPipeData>();
+  const [form] = Form.useForm<SeamlessPipeFormValues>();
 
   const isEdit = !!id;
   const pipeId = isEdit ? Number(id) : 0;
@@ -27,33 +33,38 @@ export default function SeamlessPipeFormPage() {
     if (isEdit && pipe) {
       form.setFieldsValue({
         pipe_number: pipe.pipe_number,
-        batch_number: pipe.batch_number,
+        batch_number: pipe.batch_number ?? undefined,
         pipe_type: pipe.pipe_type,
         grade: pipe.grade,
         od: pipe.od,
         wt: pipe.wt,
-        length: pipe.length,
-        weight_per_unit: pipe.weight_per_unit,
-        end_type: pipe.end_type,
-        coupling_type: pipe.coupling_type,
-        coupling_od: pipe.coupling_od,
-        coupling_length: pipe.coupling_length,
-        heat_number: pipe.heat_number,
-        serial_number: pipe.serial_number,
-        manufacturer: pipe.manufacturer,
-        production_date: pipe.production_date,
-        cert_number: pipe.cert_number,
-        notes: pipe.notes,
+        length: pipe.length ?? undefined,
+        weight_per_unit: pipe.weight_per_unit ?? undefined,
+        end_type: pipe.end_type ?? undefined,
+        coupling_type: pipe.coupling_type ?? undefined,
+        coupling_od: pipe.coupling_od ?? undefined,
+        coupling_length: pipe.coupling_length ?? undefined,
+        heat_number: pipe.heat_number ?? undefined,
+        serial_number: pipe.serial_number ?? undefined,
+        manufacturer: pipe.manufacturer ?? undefined,
+        production_date: pipe.production_date ? dayjs(pipe.production_date) : undefined,
+        cert_number: pipe.cert_number ?? undefined,
+        notes: pipe.notes ?? undefined,
       });
     }
   }, [isEdit, pipe, form]);
 
-  const handleSubmit = async (values: CreateSeamlessPipeData) => {
+  const handleSubmit = async (values: SeamlessPipeFormValues) => {
+    const payload: CreateSeamlessPipeData = {
+      ...values,
+      production_date: values.production_date?.format('YYYY-MM-DD'),
+    };
+
     try {
       if (isEdit) {
-        await updateMutation.mutateAsync(values);
+        await updateMutation.mutateAsync(payload);
       } else {
-        await createMutation.mutateAsync(values);
+        await createMutation.mutateAsync(payload);
       }
       message.success(t('common.operate_success'));
       navigate('/pipes/seamless');
@@ -175,7 +186,7 @@ export default function SeamlessPipeFormPage() {
           <Input />
         </Form.Item>
 
-        <Form.Item label={t('pipes.production_date')} name="production_date" normalize={(val) => val?.format('YYYY-MM-DD')}>
+        <Form.Item label={t('pipes.production_date')} name="production_date">
           <DatePicker style={{ width: '100%' }} />
         </Form.Item>
 

@@ -1,8 +1,8 @@
 /**
- * Auth state management — currently logged-in user info and JWT, backed by localStorage
+ * Auth state management — in-memory only (no localStorage)
  *
- * Provides setAuth/setUser to update user, logout to clear auth state.
- * Recovers user from localStorage on page refresh.
+ * Access token lives in memory; refresh token is in httpOnly cookie (backend-managed).
+ * On page refresh, auth is restored via /auth/refresh using the cookie.
  */
 import { create } from 'zustand';
 import type { UserInfo } from '@/types';
@@ -10,34 +10,28 @@ import type { UserInfo } from '@/types';
 interface AuthState {
   user: UserInfo | null;
   token: string | null;
+  /** true while attempting to restore session from refresh cookie */
+  isRestoring: boolean;
   setAuth: (user: UserInfo, token: string) => void;
   setUser: (user: UserInfo) => void;
+  setRestoring: (v: boolean) => void;
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  user: (() => {
-    try {
-      const raw = localStorage.getItem('auth_user');
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      localStorage.removeItem('auth_user');
-      return null;
-    }
-  })(),
-  token: localStorage.getItem('auth_token'),
+  user: null,
+  token: null,
+  isRestoring: true,
   setAuth: (user, token) => {
-    localStorage.setItem('auth_user', JSON.stringify(user));
-    localStorage.setItem('auth_token', token);
-    set({ user, token });
+    set({ user, token, isRestoring: false });
   },
   setUser: (user) => {
-    localStorage.setItem('auth_user', JSON.stringify(user));
     set({ user });
   },
+  setRestoring: (v) => {
+    set({ isRestoring: v });
+  },
   logout: () => {
-    localStorage.removeItem('auth_user');
-    localStorage.removeItem('auth_token');
-    set({ user: null, token: null });
+    set({ user: null, token: null, isRestoring: false });
   },
 }));

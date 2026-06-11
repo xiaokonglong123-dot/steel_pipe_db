@@ -18,6 +18,7 @@ export default function SalesOrderFormPage() {
   const navigate = useNavigate();
   const [form] = Form.useForm<CreateSalesOrderData>();
   const [items, setItems] = useState<CreateSalesOrderItemData[]>([]);
+  const [pipeModalOpen, setPipeModalOpen] = useState(false);
 
   const isEdit = !!id;
   const orderId = isEdit ? Number(id) : 0;
@@ -32,24 +33,18 @@ export default function SalesOrderFormPage() {
     if (isEdit && order) {
       form.setFieldsValue({
         customer_id: order.customer_id,
-        customer_name: order.customer_name,
         order_date: order.order_date,
-        expected_delivery: order.expected_delivery,
-        notes: order.notes,
+        notes: order.notes ?? undefined,
       });
       setItems(
         orderItems.map((item: SalesOrderItem) => ({
-          pipe_id: item.pipe_id,
-          pipe_number: item.pipe_number,
           pipe_type: item.pipe_type,
           grade: item.grade,
           od: item.od,
           wt: item.wt,
-          length: item.length,
           quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.total_price,
-          notes: item.notes,
+          unit_price: item.unit_price ?? undefined,
+          notes: item.notes ?? undefined,
         })),
       );
     }
@@ -146,29 +141,7 @@ export default function SalesOrderFormPage() {
             <Button
               type="dashed"
               icon={<PlusOutlined />}
-              onClick={() => {
-                Modal.info({
-                  title: t('sales.select_pipe'),
-                  content: (
-                    <PipeSelector
-                      onSelect={(pipe) => {
-                        addItem({
-                          pipe_id: pipe.id,
-                          pipe_number: pipe.pipe_number,
-                          pipe_type: pipe.pipe_type,
-                          grade: pipe.grade,
-                          od: pipe.od,
-                          wt: pipe.wt,
-                          length: pipe.length,
-                          quantity: 1,
-                          unit_price: 0,
-                        });
-                        Modal.destroyAll();
-                      }}
-                    />
-                  ),
-                });
-              }}
+              onClick={() => setPipeModalOpen(true)}
             >
               {t('sales.add_item')}
             </Button>
@@ -198,11 +171,33 @@ export default function SalesOrderFormPage() {
           </Space>
         </Form.Item>
       </Form>
+
+      <Modal
+        title={t('sales.select_pipe')}
+        open={pipeModalOpen}
+        onCancel={() => setPipeModalOpen(false)}
+        footer={null}
+        width={700}
+      >
+        <PipeSelector
+          onSelect={(pipe) => {
+            addItem({
+              pipe_type: pipe.pipe_type,
+              grade: pipe.grade,
+              od: pipe.od,
+              wt: pipe.wt,
+              quantity: 1,
+              unit_price: 0,
+            });
+            setPipeModalOpen(false);
+          }}
+        />
+      </Modal>
     </div>
   );
 }
 
-function PipeSelector({ onSelect }: { onSelect: (pipe: { id: number; pipe_number: string; pipe_type?: string; grade?: string; od?: number; wt?: number; length?: number }) => void }) {
+function PipeSelector({ onSelect }: { onSelect: (pipe: { id: number; pipe_number: string; pipe_type: string; grade: string; od: number; wt: number }) => void }) {
   const { data: pipes, isLoading } = usePipeSearch({ status: 'in_stock' });
   const { t: tp } = useTranslation();
 

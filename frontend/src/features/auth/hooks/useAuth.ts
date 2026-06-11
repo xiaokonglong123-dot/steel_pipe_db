@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authApi } from '../api/authApi';
@@ -12,8 +13,6 @@ export function useLogin() {
     mutationFn: authApi.login,
     onSuccess: (data) => {
       setAuth(data.user, data.token);
-      // Redirect to the page the user was trying to access before being logged out,
-      // or fall back to the home page
       const redirect = searchParams.get('redirect') || '/';
       navigate(redirect);
     },
@@ -25,7 +24,36 @@ export function useLogout() {
   const navigate = useNavigate();
 
   return () => {
-    logout();
-    navigate('/login');
+    authApi.logout().catch(() => {}).finally(() => {
+      logout();
+      navigate('/login');
+    });
   };
+}
+
+export function useRestoreSession() {
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const setRestoring = useAuthStore((s) => s.setRestoring);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    authApi.refresh()
+      .then((data) => {
+        if (!cancelled) {
+          return authApi.getMe().then((user) => {
+            if (!cancelled) {
+              setAuth(user, data.token);
+            }
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRestoring(false);
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [setAuth, setRestoring]);
 }

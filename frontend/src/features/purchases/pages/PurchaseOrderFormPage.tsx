@@ -42,17 +42,15 @@ export default function PurchaseOrderFormPage() {
       form.setFieldsValue({
         supplier_id: order.supplier_id,
         order_date: order.order_date ? dayjs(order.order_date) : undefined,
-        expected_date: order.expected_date ? dayjs(order.expected_date) : undefined,
-        notes: order.notes,
+        notes: order.notes ?? undefined,
         items: orderItems.map((item: PurchaseOrderItem) => ({
           pipe_type: item.pipe_type,
           grade: item.grade,
           od: item.od,
           wt: item.wt,
-          length: item.length,
           quantity: item.quantity,
-          unit_price: item.unit_price,
-          notes: item.notes,
+          unit_price: item.unit_price ?? undefined,
+          notes: item.notes ?? undefined,
         })),
       });
     }
@@ -62,7 +60,6 @@ export default function PurchaseOrderFormPage() {
     const payload = {
       ...values,
       order_date: (values.order_date as dayjs.Dayjs)?.format('YYYY-MM-DD'),
-      expected_date: (values.expected_date as dayjs.Dayjs)?.format('YYYY-MM-DD'),
     };
     try {
       if (isEdit) {

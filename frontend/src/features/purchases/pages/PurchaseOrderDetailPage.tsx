@@ -39,7 +39,6 @@ export default function PurchaseOrderDetailPage() {
     try {
       await transitionMutation.mutateAsync({
         status: targetStatus,
-        notes: transitionNotes || undefined,
       });
       message.success(t('common.operate_success'));
       setTransitionModalOpen(false);
@@ -84,27 +83,26 @@ export default function PurchaseOrderDetailPage() {
       key: 'wt',
     },
     {
-      title: t('purchases.length'),
-      dataIndex: 'length',
-      key: 'length',
-      render: (val: number | undefined) => val ?? '-',
-    },
-    {
       title: t('purchases.quantity'),
       dataIndex: 'quantity',
       key: 'quantity',
     },
     {
+      title: t('purchases.received_quantity'),
+      dataIndex: 'received_quantity',
+      key: 'received_quantity',
+    },
+    {
       title: t('purchases.unit_price'),
       dataIndex: 'unit_price',
       key: 'unit_price',
-      render: (val: number) => `¥${val.toFixed(2)}`,
+      render: (val: number | null) => val != null ? `¥${val.toFixed(2)}` : '-',
     },
     {
       title: t('purchases.total_price'),
       dataIndex: 'total_price',
       key: 'total_price',
-      render: (val: number) => `¥${val.toFixed(2)}`,
+      render: (val: number | null) => val != null ? `¥${val.toFixed(2)}` : '-',
     },
     {
       title: t('purchases.notes'),
@@ -124,7 +122,7 @@ export default function PurchaseOrderDetailPage() {
           marginBottom: 24,
         }}
       >
-        <h2 style={{ margin: 0 }}>{t('purchases.purchase_order')} — {order.order_number}</h2>
+        <h2 style={{ margin: 0 }}>{t('purchases.purchase_order')} — {order.order_no}</h2>
         <Space>
           {showTransitionBtn && (
             <Button
@@ -151,14 +149,12 @@ export default function PurchaseOrderDetailPage() {
 
       <Card title={t('purchases.order_info')} style={{ marginBottom: 24 }}>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
-          <Descriptions.Item label={t('purchases.order_number')}>{order.order_number}</Descriptions.Item>
-          <Descriptions.Item label={t('purchases.supplier')}>{order.supplier_name}</Descriptions.Item>
+          <Descriptions.Item label={t('purchases.order_number')}>{order.order_no}</Descriptions.Item>
           <Descriptions.Item label={t('purchases.order_date')}>{order.order_date}</Descriptions.Item>
-          <Descriptions.Item label={t('purchases.expected_delivery')}>{order.expected_date ?? '-'}</Descriptions.Item>
           <Descriptions.Item label={t('purchases.status')}>
             <Tag color={STATUS_COLORS[order.status] ?? 'default'}>{t(`purchases.status.${order.status}`)}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label={t('purchases.total_amount')}>¥{order.total_amount.toFixed(2)}</Descriptions.Item>
+          <Descriptions.Item label={t('purchases.total_amount')}>¥{order.total_amount?.toFixed(2) ?? '-'}</Descriptions.Item>
           <Descriptions.Item label={t('purchases.notes')} span={3}>
             {order.notes ?? '-'}
           </Descriptions.Item>
@@ -173,7 +169,7 @@ export default function PurchaseOrderDetailPage() {
           pagination={false}
           summary={() => {
             const total = items.reduce(
-              (sum, item) => sum + item.total_price,
+              (sum, item) => sum + (item.total_price ?? 0),
               0,
             );
             return (

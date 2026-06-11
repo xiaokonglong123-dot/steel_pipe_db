@@ -93,10 +93,11 @@ i18n
 /**
  * Lazy-load translations for a specific feature module.
  *
- * Uses addResourceBundle to nest translation keys under the translation namespace,
- * keeping the same data structure as the earlier static imports.
+ * Strips the feature prefix from keys and loads into the feature's own namespace,
+ * so useTranslation('search') can resolve t('search.title') correctly.
  *
- * e.g. after loadFeatureTranslations('pipes'), components can use t('pipes.pipe_number')
+ * e.g. JSON key "search.title" → namespace 'search', key "title"
+ * e.g. JSON key "order_number" → namespace 'purchase', key "order_number" (no prefix to strip)
  */
 export async function loadFeatureTranslations(
   key: FeatureKey | string,
@@ -108,12 +109,12 @@ export async function loadFeatureTranslations(
 
   try {
     const data = normalizeModule(await loader());
-    if (key === 'purchase') {
-      // purchase.json registers under both 'purchases' and 'purchase' keys
-      i18n.addResourceBundle(lang, 'translation', { purchases: data, purchase: data }, true, true);
-    } else {
-      i18n.addResourceBundle(lang, 'translation', { [key]: data }, true, true);
+    const prefix = key + '.';
+    const stripped: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) {
+      stripped[k.startsWith(prefix) ? k.slice(prefix.length) : k] = v;
     }
+    i18n.addResourceBundle(lang, key, stripped, true, true);
   } catch (err) {
     console.error(`[i18n] Failed to load ${lang}/${key}.json:`, err);
   }

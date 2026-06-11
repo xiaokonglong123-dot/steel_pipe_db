@@ -29,9 +29,9 @@ import type {
 } from '../api/inventoryApi';
 
 const STATUS_COLOR_MAP: Record<string, string> = {
-  InProgress: 'blue',
-  Completed: 'green',
-  Cancelled: 'red',
+  in_progress: 'blue',
+  completed: 'green',
+  cancelled: 'red',
 };
 
 const getFoundStatusOptions = (t: (key: string) => string) => [

@@ -2,29 +2,25 @@
 // RouterProvider consumes createBrowserRouter from routes/index.tsx
 import { Suspense } from 'react';
 import { ConfigProvider, Spin } from 'antd';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router-dom';
+import { queryClient } from '@/api/queryClient';
 import { theme } from '@/styles/theme';
 import { router } from '@/routes';
 import ErrorBoundary from '@/shared/components/ErrorBoundary';
+import { useRestoreSession } from '@/features/auth/hooks/useAuth';
 
-// 2min staleTime works for most biz data; pages needing real-time should set refetchInterval individually
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 2 * 60 * 1000,
-      gcTime: 5 * 60 * 1000,
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+function RestoreSession() {
+  useRestoreSession();
+  return null;
+}
 
 export default function App() {
   return (
     <ErrorBoundary>
       <ConfigProvider theme={theme}>
         <QueryClientProvider client={queryClient}>
+          <RestoreSession />
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Spin size="large" /></div>}>
             <RouterProvider router={router} />
           </Suspense>

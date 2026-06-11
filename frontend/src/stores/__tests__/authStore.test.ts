@@ -1,12 +1,9 @@
 /**
  * Auth store unit tests.
  *
- * Tests the Zustand authStore:
- * - Initial state from empty localStorage
- * - setAuth stores user + token
- * - setUser updates user
- * - logout clears everything
- * - localStorage persistence
+ * Auth state is in-memory only (refresh via httpOnly cookie, no localStorage).
+ * Tests verifying localStorage interaction have been removed — the store
+ * does not write to localStorage. Recovery tests simulate the init logic.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useAuthStore } from '@/stores/authStore';
@@ -34,16 +31,12 @@ describe('authStore', () => {
     expect(token).toBeNull();
   });
 
-  it('setAuth stores user and token in state and localStorage', () => {
+  it('setAuth stores user and token in store state', () => {
     useAuthStore.getState().setAuth(testUser, 'jwt-token-123');
 
     const { user, token } = useAuthStore.getState();
     expect(user).toEqual(testUser);
     expect(token).toBe('jwt-token-123');
-
-    // Verify localStorage
-    expect(localStorage.getItem('auth_user')).toBe(JSON.stringify(testUser));
-    expect(localStorage.getItem('auth_token')).toBe('jwt-token-123');
   });
 
   it('setUser updates user without changing token', () => {
@@ -57,16 +50,13 @@ describe('authStore', () => {
     expect(token).toBe('jwt-token-123');
   });
 
-  it('logout clears user, token, and localStorage', () => {
+  it('logout clears user and token from store state', () => {
     useAuthStore.getState().setAuth(testUser, 'jwt-token-123');
     useAuthStore.getState().logout();
 
     const { user, token } = useAuthStore.getState();
     expect(user).toBeNull();
     expect(token).toBeNull();
-
-    expect(localStorage.getItem('auth_user')).toBeNull();
-    expect(localStorage.getItem('auth_token')).toBeNull();
   });
 
   it('recovers user and token from localStorage on store creation', () => {

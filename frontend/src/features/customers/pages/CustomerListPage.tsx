@@ -65,7 +65,7 @@ export default function CustomerListPage() {
         <Space>
           <Button
             type="link"
-            onClick={() => navigate(`/customers/${record.id}`)}
+            onClick={() => navigate(`/customers/${record.id}/edit`)}
           >
             {t('common.edit')}
           </Button>
