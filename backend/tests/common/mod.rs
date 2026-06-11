@@ -11,6 +11,8 @@ use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 pub const TEST_JWT_SECRET: &str = "test-jwt-secret-for-integration-tests";
 /// JWT expiry in hours for tests.
 pub const TEST_JWT_EXPIRY_HOURS: i64 = 24;
+/// Refresh token expiry in days for tests.
+pub const TEST_REFRESH_TOKEN_EXPIRY_DAYS: i64 = 30;
 
 /// Create a test database pool using an in-memory SQLite database.
 /// Runs all migrations from `./migrations` and returns the pool.
@@ -32,10 +34,7 @@ pub async fn test_pool_with_migrations(_migrations_path: &str) -> SqlitePool {
 
     // Run migrations
     let migrator = sqlx::migrate!("./migrations");
-    migrator
-        .run(&pool)
-        .await
-        .expect("failed to run migrations");
+    migrator.run(&pool).await.expect("failed to run migrations");
 
     // Enable foreign keys for integrity checks
     sqlx::query("PRAGMA foreign_keys = ON")
@@ -52,8 +51,7 @@ pub async fn test_pool_with_migrations(_migrations_path: &str) -> SqlitePool {
 /// ## Panics
 /// Panics if pool creation or migration fails.
 pub async fn temp_file_pool() -> (SqlitePool, tempfile::NamedTempFile) {
-    let temp_file = tempfile::NamedTempFile::new()
-        .expect("failed to create temp file");
+    let temp_file = tempfile::NamedTempFile::new().expect("failed to create temp file");
     let path = temp_file.path().to_str().unwrap();
     let database_url = format!("sqlite://{path}?mode=rwc");
 
@@ -223,8 +221,7 @@ pub async fn seed_user_with_password(
 ) -> sqlx::Result<i64> {
     use argon2::{
         password_hash::{rand_core::OsRng, SaltString},
-        Argon2,
-        PasswordHasher,
+        Argon2, PasswordHasher,
     };
 
     let salt = SaltString::generate(&mut OsRng);
@@ -258,11 +255,7 @@ pub async fn seed_user_with_password(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Create a supplier row for testing (returns supplier ID).
-pub async fn seed_supplier(
-    pool: &SqlitePool,
-    code: &str,
-    name: &str,
-) -> sqlx::Result<i64> {
+pub async fn seed_supplier(pool: &SqlitePool, code: &str, name: &str) -> sqlx::Result<i64> {
     let result = sqlx::query(
         r#"
         INSERT INTO suppliers
@@ -287,11 +280,7 @@ pub async fn seed_supplier(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Create a customer row for testing (returns customer ID).
-pub async fn seed_customer(
-    pool: &SqlitePool,
-    code: &str,
-    name: &str,
-) -> sqlx::Result<i64> {
+pub async fn seed_customer(pool: &SqlitePool, code: &str, name: &str) -> sqlx::Result<i64> {
     let result = sqlx::query(
         r#"
         INSERT INTO customers
@@ -468,10 +457,7 @@ pub async fn seed_quality_cert(
 }
 
 /// Create an API 5CT grade reference row (returns ID).
-pub async fn seed_api5ct_grade_ref(
-    pool: &SqlitePool,
-    grade: &str,
-) -> sqlx::Result<i64> {
+pub async fn seed_api5ct_grade_ref(pool: &SqlitePool, grade: &str) -> sqlx::Result<i64> {
     let result = sqlx::query(
         r#"
         INSERT INTO api_5ct_grade_ref

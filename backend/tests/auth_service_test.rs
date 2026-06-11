@@ -31,6 +31,7 @@ async fn login_successful_returns_token_and_user_info() {
         &pool,
         common::TEST_JWT_SECRET,
         common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
         &req,
     )
     .await
@@ -56,6 +57,7 @@ async fn login_wrong_password_returns_unauthorized() {
         &pool,
         common::TEST_JWT_SECRET,
         common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
         &req,
     )
     .await
@@ -88,6 +90,7 @@ async fn login_inactive_user_returns_forbidden() {
         &pool,
         common::TEST_JWT_SECRET,
         common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
         &req,
     )
     .await
@@ -113,6 +116,7 @@ async fn login_nonexistent_user_returns_unauthorized() {
         &pool,
         common::TEST_JWT_SECRET,
         common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
         &req,
     )
     .await
@@ -132,7 +136,9 @@ async fn login_nonexistent_user_returns_unauthorized() {
 #[tokio::test]
 async fn refresh_token_returns_new_token() {
     let pool = common::test_pool().await;
-    common::seed_user(&pool, "refresh_me", "admin").await.unwrap();
+    common::seed_user(&pool, "refresh_me", "admin")
+        .await
+        .unwrap();
 
     let login_req = LoginRequest {
         username: "refresh_me".into(),
@@ -142,18 +148,21 @@ async fn refresh_token_returns_new_token() {
         &pool,
         common::TEST_JWT_SECRET,
         common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
         &login_req,
     )
     .await
     .expect("login must succeed");
 
     let refresh_req = RefreshTokenRequest {
-        token: login_resp.token,
+        refresh_token: login_resp.refresh_token,
     };
 
     let resp = AuthService::refresh_token(
+        &pool,
         common::TEST_JWT_SECRET,
         common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
         &refresh_req,
     )
     .await
@@ -164,13 +173,16 @@ async fn refresh_token_returns_new_token() {
 
 #[tokio::test]
 async fn refresh_token_invalid_format_returns_unauthorized() {
+    let pool = common::test_pool().await;
     let refresh_req = RefreshTokenRequest {
-        token: "this.is.not.a.valid.jwt".into(),
+        refresh_token: "this.is.not.a.valid.jwt".into(),
     };
 
     let err = AuthService::refresh_token(
+        &pool,
         common::TEST_JWT_SECRET,
         common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
         &refresh_req,
     )
     .await
@@ -178,20 +190,23 @@ async fn refresh_token_invalid_format_returns_unauthorized() {
 
     let msg = err.to_string();
     assert!(
-        msg.contains("Invalid token") || msg.contains("Unauthorized"),
+        msg.contains("Invalid or expired refresh token") || msg.contains("Unauthorized"),
         "expected invalid-token error, got: {msg}",
     );
 }
 
 #[tokio::test]
 async fn refresh_token_garbage_string_returns_unauthorized() {
+    let pool = common::test_pool().await;
     let refresh_req = RefreshTokenRequest {
-        token: "complete-garbage-string-not-a-jwt-at-all".into(),
+        refresh_token: "complete-garbage-string-not-a-jwt-at-all".into(),
     };
 
     let err = AuthService::refresh_token(
+        &pool,
         common::TEST_JWT_SECRET,
         common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
         &refresh_req,
     )
     .await
@@ -199,8 +214,56 @@ async fn refresh_token_garbage_string_returns_unauthorized() {
 
     let msg = err.to_string();
     assert!(
-        msg.contains("Invalid token") || msg.contains("Unauthorized"),
+        msg.contains("Invalid or expired refresh token") || msg.contains("Unauthorized"),
         "expected invalid-token error, got: {msg}",
+    );
+}
+
+#[tokio::test]
+async fn refresh_token_expired_token_returns_unauthorized() {
+    let pool = common::test_pool().await;
+    let user_id = common::seed_user(&pool, "expired_refresh", "admin")
+        .await
+        .unwrap();
+
+    let login_req = LoginRequest {
+        username: "expired_refresh".into(),
+        password: "password123".into(),
+    };
+    let login_resp = AuthService::login(
+        &pool,
+        common::TEST_JWT_SECRET,
+        common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
+        &login_req,
+    )
+    .await
+    .expect("login must succeed");
+
+    sqlx::query("UPDATE refresh_tokens SET expires_at = '2000-01-01T00:00:00Z' WHERE user_id = ?")
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let refresh_req = RefreshTokenRequest {
+        refresh_token: login_resp.refresh_token,
+    };
+
+    let err = AuthService::refresh_token(
+        &pool,
+        common::TEST_JWT_SECRET,
+        common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
+        &refresh_req,
+    )
+    .await
+    .expect_err("must fail with expired refresh token");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("Invalid or expired refresh token") || msg.contains("Unauthorized"),
+        "expected expired-token error, got: {msg}",
     );
 }
 
@@ -288,7 +351,9 @@ async fn create_user_duplicate_username_returns_validation_error() {
 #[tokio::test]
 async fn update_user_changes_display_name_and_email() {
     let pool = common::test_pool().await;
-    let user_id = common::seed_user(&pool, "updatable", "warehouse").await.unwrap();
+    let user_id = common::seed_user(&pool, "updatable", "warehouse")
+        .await
+        .unwrap();
 
     let dto = UpdateUserRequest {
         display_name: Some("Updated Name".into()),
@@ -311,7 +376,9 @@ async fn update_user_changes_display_name_and_email() {
 #[tokio::test]
 async fn update_user_partial_fields_only_changes_specified_fields() {
     let pool = common::test_pool().await;
-    let user_id = common::seed_user(&pool, "partial", "warehouse").await.unwrap();
+    let user_id = common::seed_user(&pool, "partial", "warehouse")
+        .await
+        .unwrap();
 
     let dto = UpdateUserRequest {
         display_name: Some("Just Name".into()),
@@ -359,7 +426,9 @@ async fn update_user_nonexistent_returns_not_found() {
 #[tokio::test]
 async fn change_password_with_correct_old_password_succeeds() {
     let pool = common::test_pool().await;
-    let user_id = common::seed_user(&pool, "chpass", "warehouse").await.unwrap();
+    let user_id = common::seed_user(&pool, "chpass", "warehouse")
+        .await
+        .unwrap();
 
     let req = ChangePasswordRequest {
         old_password: "password123".into(),
@@ -379,6 +448,7 @@ async fn change_password_with_correct_old_password_succeeds() {
         &pool,
         common::TEST_JWT_SECRET,
         common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
         &login_req,
     )
     .await
@@ -390,7 +460,9 @@ async fn change_password_with_correct_old_password_succeeds() {
 #[tokio::test]
 async fn change_password_with_wrong_old_password_returns_unauthorized() {
     let pool = common::test_pool().await;
-    let user_id = common::seed_user(&pool, "chpass2", "warehouse").await.unwrap();
+    let user_id = common::seed_user(&pool, "chpass2", "warehouse")
+        .await
+        .unwrap();
 
     let req = ChangePasswordRequest {
         old_password: "wrongOldPassword".into(),
@@ -411,7 +483,9 @@ async fn change_password_with_wrong_old_password_returns_unauthorized() {
 #[tokio::test]
 async fn change_password_admin_bypasses_old_password_check() {
     let pool = common::test_pool().await;
-    let user_id = common::seed_user(&pool, "chpass3", "warehouse").await.unwrap();
+    let user_id = common::seed_user(&pool, "chpass3", "warehouse")
+        .await
+        .unwrap();
 
     // Admin can change any user's password without knowing the old one
     let req = ChangePasswordRequest {
@@ -432,6 +506,7 @@ async fn change_password_admin_bypasses_old_password_check() {
         &pool,
         common::TEST_JWT_SECRET,
         common::TEST_JWT_EXPIRY_HOURS,
+        common::TEST_REFRESH_TOKEN_EXPIRY_DAYS,
         &login_req,
     )
     .await
@@ -474,7 +549,9 @@ async fn get_me_nonexistent_user_returns_not_found() {
 #[tokio::test]
 async fn get_me_soft_deleted_user_returns_not_found() {
     let pool = common::test_pool().await;
-    let user_id = common::seed_user(&pool, "deleted_getme", "admin").await.unwrap();
+    let user_id = common::seed_user(&pool, "deleted_getme", "admin")
+        .await
+        .unwrap();
     AuthService::delete_user(&pool, user_id).await.unwrap();
 
     let err = AuthService::get_me(&pool, user_id)
@@ -498,7 +575,9 @@ async fn list_users_returns_paginated_results() {
 
     // Seed users (the seed from test setup also counts)
     common::seed_user(&pool, "list_a", "admin").await.unwrap();
-    common::seed_user(&pool, "list_b", "warehouse").await.unwrap();
+    common::seed_user(&pool, "list_b", "warehouse")
+        .await
+        .unwrap();
     common::seed_user(&pool, "list_c", "qc").await.unwrap();
 
     let params = PaginationParams {
@@ -512,8 +591,8 @@ async fn list_users_returns_paginated_results() {
         .await
         .expect("list_users must succeed");
 
-    // Migration 001 creates a seed admin user, so total is 4 (seed admin + 3 seeded)
-    assert_eq!(total, 4, "total should include seed admin + 3 seeded users");
+    // B2 removed seed admin from migration 001, so total is just the 3 seeded users
+    assert_eq!(total, 3, "total should equal 3 seeded users");
     assert_eq!(users.len(), 2, "page_size=2 should return 2 users");
 }
 
@@ -522,7 +601,9 @@ async fn list_users_second_page_returns_remaining() {
     let pool = common::test_pool().await;
 
     common::seed_user(&pool, "page_a", "admin").await.unwrap();
-    common::seed_user(&pool, "page_b", "warehouse").await.unwrap();
+    common::seed_user(&pool, "page_b", "warehouse")
+        .await
+        .unwrap();
     common::seed_user(&pool, "page_c", "qc").await.unwrap();
 
     let params = PaginationParams {
@@ -536,9 +617,13 @@ async fn list_users_second_page_returns_remaining() {
         .await
         .expect("list_users must succeed");
 
-    // Migration 001 creates a seed admin user, so total is 4 (seed admin + 3 seeded)
-    assert_eq!(total, 4, "total must reflect all users");
-    assert_eq!(users.len(), 2, "page 2 with total=4 and page_size=2 should return 2 users");
+    // B2 removed seed admin from migration 001, so total is just the 3 seeded users
+    assert_eq!(total, 3, "total must reflect all users");
+    assert_eq!(
+        users.len(),
+        1,
+        "page 2 with total=3 and page_size=2 should return 1 user"
+    );
 }
 
 #[tokio::test]
@@ -571,7 +656,9 @@ async fn list_users_filters_by_search_query() {
 #[tokio::test]
 async fn change_role_updates_role_successfully() {
     let pool = common::test_pool().await;
-    let user_id = common::seed_user(&pool, "role_switch", "warehouse").await.unwrap();
+    let user_id = common::seed_user(&pool, "role_switch", "warehouse")
+        .await
+        .unwrap();
 
     let info = AuthService::change_role(&pool, user_id, "admin")
         .await
@@ -587,7 +674,9 @@ async fn change_role_updates_role_successfully() {
 #[tokio::test]
 async fn change_role_invalid_role_returns_validation_error() {
     let pool = common::test_pool().await;
-    let user_id = common::seed_user(&pool, "role_bad", "warehouse").await.unwrap();
+    let user_id = common::seed_user(&pool, "role_bad", "warehouse")
+        .await
+        .unwrap();
 
     let err = AuthService::change_role(&pool, user_id, "superadmin")
         .await
@@ -622,25 +711,28 @@ async fn change_role_nonexistent_user_returns_not_found() {
 #[tokio::test]
 async fn delete_user_sets_deleted_at_timestamp() {
     let pool = common::test_pool().await;
-    let user_id = common::seed_user(&pool, "deletable", "admin").await.unwrap();
+    let user_id = common::seed_user(&pool, "deletable", "admin")
+        .await
+        .unwrap();
 
     AuthService::delete_user(&pool, user_id)
         .await
         .expect("delete_user must succeed");
 
-    let row: (Option<String>,) =
-        sqlx::query_as("SELECT deleted_at FROM users WHERE id = ?")
-            .bind(user_id)
-            .fetch_one(&pool)
-            .await
-            .expect("user row must still exist");
+    let row: (Option<String>,) = sqlx::query_as("SELECT deleted_at FROM users WHERE id = ?")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("user row must still exist");
     assert!(row.0.is_some(), "deleted_at must be set after soft delete");
 }
 
 #[tokio::test]
 async fn delete_user_already_deleted_returns_not_found() {
     let pool = common::test_pool().await;
-    let user_id = common::seed_user(&pool, "double_del", "admin").await.unwrap();
+    let user_id = common::seed_user(&pool, "double_del", "admin")
+        .await
+        .unwrap();
 
     AuthService::delete_user(&pool, user_id)
         .await

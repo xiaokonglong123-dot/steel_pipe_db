@@ -202,9 +202,15 @@ async fn list_suppliers_pagination() {
     let pool = common::test_pool().await;
 
     // Seed 3 suppliers
-    common::seed_supplier(&pool, "SUP-010", "Alpha").await.unwrap();
-    common::seed_supplier(&pool, "SUP-011", "Beta").await.unwrap();
-    common::seed_supplier(&pool, "SUP-012", "Gamma").await.unwrap();
+    common::seed_supplier(&pool, "SUP-010", "Alpha")
+        .await
+        .unwrap();
+    common::seed_supplier(&pool, "SUP-011", "Beta")
+        .await
+        .unwrap();
+    common::seed_supplier(&pool, "SUP-012", "Gamma")
+        .await
+        .unwrap();
 
     let filter = SupplierFilterParams {
         q: None,
@@ -305,8 +311,12 @@ async fn list_suppliers_search_by_name() {
 async fn search_suppliers_by_keyword() {
     let pool = common::test_pool().await;
 
-    common::seed_supplier(&pool, "SUP-040", "Found Co").await.unwrap();
-    common::seed_supplier(&pool, "SUP-041", "Hidden Co").await.unwrap();
+    common::seed_supplier(&pool, "SUP-040", "Found Co")
+        .await
+        .unwrap();
+    common::seed_supplier(&pool, "SUP-041", "Hidden Co")
+        .await
+        .unwrap();
 
     let results = SupplierService::search(&pool, "Found")
         .await
@@ -350,6 +360,10 @@ async fn list_active_suppliers_returns_only_active() {
         .await
         .expect("list_active must succeed");
 
-    assert_eq!(active.len(), 1, "only the non-deleted supplier should appear");
+    assert_eq!(
+        active.len(),
+        1,
+        "only the non-deleted supplier should appear"
+    );
     assert_eq!(active[0].supplier_code, "SUP-051");
 }

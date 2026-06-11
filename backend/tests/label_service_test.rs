@@ -40,9 +40,10 @@ async fn generate_pipe_label_seamless_returns_html() {
 async fn generate_pipe_label_seamless_contains_specs() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe_full(&pool, "PN-LBL-002", "in_stock", "J55", 177.8, 9.19, 9.5)
-        .await
-        .unwrap();
+    let pipe_id =
+        common::seed_seamless_pipe_full(&pool, "PN-LBL-002", "in_stock", "J55", 177.8, 9.19, 9.5)
+            .await
+            .unwrap();
 
     let html = LabelService::generate_pipe_label(&pool, "seamless", pipe_id)
         .await
@@ -126,8 +127,14 @@ async fn generate_batch_labels_multiple_pipes() {
 
     let req = BatchLabelRequest {
         pipe_ids: vec![
-            PipeIdentifier { pipe_type: "seamless".into(), pipe_id: pid1 },
-            PipeIdentifier { pipe_type: "screen".into(), pipe_id: pid2 },
+            PipeIdentifier {
+                pipe_type: "seamless".into(),
+                pipe_id: pid1,
+            },
+            PipeIdentifier {
+                pipe_type: "screen".into(),
+                pipe_id: pid2,
+            },
         ],
     };
 
@@ -150,7 +157,10 @@ async fn generate_batch_labels_single_pipe() {
         .unwrap();
 
     let req = BatchLabelRequest {
-        pipe_ids: vec![PipeIdentifier { pipe_type: "seamless".into(), pipe_id: pid }],
+        pipe_ids: vec![PipeIdentifier {
+            pipe_type: "seamless".into(),
+            pipe_id: pid,
+        }],
     };
 
     let html = LabelService::generate_batch_labels(&pool, &req)
@@ -166,7 +176,10 @@ async fn generate_batch_labels_invalid_pipe_type_in_batch() {
     let pool = common::test_pool().await;
 
     let req = BatchLabelRequest {
-        pipe_ids: vec![PipeIdentifier { pipe_type: "bogus".into(), pipe_id: 1 }],
+        pipe_ids: vec![PipeIdentifier {
+            pipe_type: "bogus".into(),
+            pipe_id: 1,
+        }],
     };
 
     let err = LabelService::generate_batch_labels(&pool, &req)
@@ -181,7 +194,10 @@ async fn generate_batch_labels_pipe_not_found_in_batch() {
     let pool = common::test_pool().await;
 
     let req = BatchLabelRequest {
-        pipe_ids: vec![PipeIdentifier { pipe_type: "seamless".into(), pipe_id: 99999 }],
+        pipe_ids: vec![PipeIdentifier {
+            pipe_type: "seamless".into(),
+            pipe_id: 99999,
+        }],
     };
 
     let err = LabelService::generate_batch_labels(&pool, &req)

@@ -70,9 +70,7 @@ async fn inventory_summary_with_pipes_shows_counts() {
         "should count 2 in_stock pipes"
     );
 
-    let l80_grade = by_grade
-        .iter()
-        .find(|v| v["grade"].as_str() == Some("L80"));
+    let l80_grade = by_grade.iter().find(|v| v["grade"].as_str() == Some("L80"));
     assert!(l80_grade.is_some(), "should have L80 grade entry");
 }
 
@@ -272,7 +270,10 @@ async fn dashboard_empty_returns_zero_counts() {
     assert!(dash["recent_inbound"].as_array().unwrap().is_empty());
     assert!(dash["recent_outbound"].as_array().unwrap().is_empty());
     assert!(dash["pending_approval_list"].as_array().unwrap().is_empty());
-    assert!(dash["recent_quality_failures"].as_array().unwrap().is_empty());
+    assert!(dash["recent_quality_failures"]
+        .as_array()
+        .unwrap()
+        .is_empty());
 }
 
 #[tokio::test]

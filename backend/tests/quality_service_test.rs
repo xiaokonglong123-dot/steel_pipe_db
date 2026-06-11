@@ -137,10 +137,7 @@ async fn update_cert_fields() {
     assert_eq!(updated.id, cert_id);
     assert_eq!(updated.result, "fail");
     assert_eq!(updated.inspector.as_deref(), Some("Jane"));
-    assert_eq!(
-        updated.inspection_body.as_deref(),
-        Some("Third Party Lab")
-    );
+    assert_eq!(updated.inspection_body.as_deref(), Some("Third Party Lab"));
     assert_eq!(updated.notes.as_deref(), Some("updated notes"));
     assert_eq!(updated.cert_date.as_deref(), Some("2025-07-15"));
 }
@@ -318,9 +315,7 @@ async fn get_cert_after_delete_not_found() {
         .await
         .unwrap();
 
-    QualityService::delete_cert(&pool, cert_id)
-        .await
-        .unwrap();
+    QualityService::delete_cert(&pool, cert_id).await.unwrap();
 
     let err = QualityService::get_cert(&pool, cert_id)
         .await

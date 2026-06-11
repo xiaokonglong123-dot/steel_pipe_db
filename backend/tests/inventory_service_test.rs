@@ -141,7 +141,7 @@ async fn approve_inbound_updates_pending_record_and_pipes() {
     assert_eq!(record.approval_status, "pending");
 
     // Approve
-    InboundService::approve_inbound(&pool, record.id, None)
+    InboundService::approve_inbound(&pool, record.id, None, None)
         .await
         .expect("approve_inbound must succeed");
 
@@ -163,12 +163,13 @@ async fn approve_inbound_updates_pending_record_and_pipes() {
     assert_eq!(pipe.0, "in_stock");
 
     // Verify inventory log was created
-    let log_count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM inventory_logs WHERE ref_id = ? AND change_type = 'inbound'")
-            .bind(record.id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let log_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM inventory_logs WHERE ref_id = ? AND change_type = 'inbound'",
+    )
+    .bind(record.id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     assert_eq!(log_count.0, 1);
 }
 
@@ -195,11 +196,12 @@ async fn approve_inbound_fails_for_already_approved() {
     let record = InboundService::create_inbound(&pool, &dto).await.unwrap();
 
     // Trying to approve it again must fail
-    let err = InboundService::approve_inbound(&pool, record.id, None)
+    let err = InboundService::approve_inbound(&pool, record.id, None, None)
         .await
         .expect_err("approve must fail for already approved");
     assert!(
-        err.to_string().contains("Cannot approve inbound with status")
+        err.to_string()
+            .contains("Cannot approve inbound with status")
             || err.to_string().contains("auto_approved")
     );
 }
@@ -312,7 +314,8 @@ async fn delete_inbound_fails_for_pending_record() {
         .await
         .expect_err("delete must fail for pending");
     assert!(
-        err.to_string().contains("Cannot delete inbound with status")
+        err.to_string()
+            .contains("Cannot delete inbound with status")
             || err.to_string().contains("pending")
     );
 }
@@ -421,10 +424,9 @@ async fn create_and_list_locations() {
         capacity: Some(50),
     };
 
-    let location =
-        LocationService::create_location(&pool, &dto)
-            .await
-            .expect("create_location must succeed");
+    let location = LocationService::create_location(&pool, &dto)
+        .await
+        .expect("create_location must succeed");
 
     assert_eq!(location.full_code, "A-01-01");
     assert_eq!(location.zone_code, "A");
@@ -454,9 +456,7 @@ async fn create_and_submit_check_record() {
     let pool = common::test_pool().await;
 
     // Seed a location
-    let location_id = common::seed_location(&pool, "B", "02", "03")
-        .await
-        .unwrap();
+    let location_id = common::seed_location(&pool, "B", "02", "03").await.unwrap();
 
     // We need at least one in_stock pipe for the check to create items
     let pipe_id = common::seed_seamless_pipe(&pool, "PN-CHK-001", "scrapped", "J55")
@@ -568,12 +568,11 @@ async fn pipe_status_transitions_correctly_through_inbound_outbound_cycle() {
         .await
         .unwrap();
 
-    let status: (String,) =
-        sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
-            .bind(pipe_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let status: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
+        .bind(pipe_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(status.0, "scrapped");
 
     // 2. Create a pending inbound (non-purchase, e.g. "return")
@@ -592,16 +591,15 @@ async fn pipe_status_transitions_correctly_through_inbound_outbound_cycle() {
         .unwrap();
 
     // 3. Approve → status becomes "in_stock"
-    InboundService::approve_inbound(&pool, inbound.id, None)
+    InboundService::approve_inbound(&pool, inbound.id, None, None)
         .await
         .expect("approve must succeed");
 
-    let status: (String,) =
-        sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
-            .bind(pipe_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let status: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
+        .bind(pipe_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(status.0, "in_stock");
 
     // 4. Create outbound (sales = auto_approved) → status becomes "outbound"
@@ -619,11 +617,10 @@ async fn pipe_status_transitions_correctly_through_inbound_outbound_cycle() {
         .await
         .unwrap();
 
-    let status: (String,) =
-        sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
-            .bind(pipe_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let status: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
+        .bind(pipe_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(status.0, "outbound");
 }

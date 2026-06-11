@@ -10,6 +10,7 @@
 
 mod common;
 
+use rust_decimal_macros::dec;
 use steel_pipe_db::dto::common::PaginationParams;
 use steel_pipe_db::dto::contract_dto::{
     ContractFilterParams, CreateContractItemRequest, CreateContractRequest, CreatePaymentRequest,
@@ -40,7 +41,7 @@ async fn create_contract_sales_success() {
             od: 177.8,
             wt: 9.19,
             quantity: 100,
-            unit_price: Some(500.0),
+            unit_price: Some(dec!(500.0)),
             notes: None,
         }],
     };
@@ -56,7 +57,10 @@ async fn create_contract_sales_success() {
     assert_eq!(detail.contract.party_a, "Seller Corp");
     assert_eq!(detail.contract.party_b, "Buyer Corp");
     assert_eq!(detail.contract.status, "draft");
-    assert_eq!(detail.contract.notes.as_deref(), Some("test sales contract"));
+    assert_eq!(
+        detail.contract.notes.as_deref(),
+        Some("test sales contract")
+    );
     assert_eq!(detail.items.len(), 1);
     assert_eq!(detail.items[0].quantity, 100);
     assert_eq!(detail.items[0].grade, "L80");
@@ -84,7 +88,7 @@ async fn create_contract_purchase_success() {
                 od: 139.7,
                 wt: 7.72,
                 quantity: 50,
-                unit_price: Some(450.0),
+                unit_price: Some(dec!(450.0)),
                 notes: None,
             },
             CreateContractItemRequest {
@@ -93,7 +97,7 @@ async fn create_contract_purchase_success() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 20,
-                unit_price: Some(600.0),
+                unit_price: Some(dec!(600.0)),
                 notes: Some("premium screen".into()),
             },
         ],
@@ -308,9 +312,10 @@ async fn delete_contract_nonexistent_fails() {
 async fn delete_contract_active_status_rejected() {
     let pool = common::test_pool().await;
 
-    let contract_id = common::seed_contract(&pool, "CT-DEL-002", "purchase", "Active Del", "active")
-        .await
-        .unwrap();
+    let contract_id =
+        common::seed_contract(&pool, "CT-DEL-002", "purchase", "Active Del", "active")
+            .await
+            .unwrap();
 
     let err = ContractService::delete_contract(&pool, contract_id)
         .await
@@ -342,7 +347,7 @@ async fn get_contract_detail_with_items_and_payments() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 30,
-                unit_price: Some(550.0),
+                unit_price: Some(dec!(550.0)),
                 notes: None,
             },
             CreateContractItemRequest {
@@ -351,7 +356,7 @@ async fn get_contract_detail_with_items_and_payments() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 10,
-                unit_price: Some(700.0),
+                unit_price: Some(dec!(700.0)),
                 notes: Some("special".into()),
             },
         ],
@@ -365,7 +370,7 @@ async fn get_contract_detail_with_items_and_payments() {
     // Add a payment milestone
     let pay_dto = CreatePaymentRequest {
         due_date: "2025-06-15".into(),
-        amount: 10000.0,
+        amount: dec!(10000.0),
         payment_type: "deposit".into(),
         notes: Some("initial deposit".into()),
     };
@@ -479,9 +484,15 @@ async fn list_contracts_filter_by_type() {
     common::seed_contract(&pool, "CT-LST-020", "sales", "Sales Contract", "draft")
         .await
         .unwrap();
-    common::seed_contract(&pool, "CT-LST-021", "purchase", "Purchase Contract", "draft")
-        .await
-        .unwrap();
+    common::seed_contract(
+        &pool,
+        "CT-LST-021",
+        "purchase",
+        "Purchase Contract",
+        "draft",
+    )
+    .await
+    .unwrap();
 
     let filter = ContractFilterParams {
         q: None,
@@ -756,7 +767,7 @@ async fn add_item_to_draft_contract() {
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(500.0),
+            unit_price: Some(dec!(500.0)),
             notes: None,
         }],
     };
@@ -772,7 +783,7 @@ async fn add_item_to_draft_contract() {
         od: 177.8,
         wt: 9.19,
         quantity: 5,
-        unit_price: Some(800.0),
+        unit_price: Some(dec!(800.0)),
         notes: Some("added later".into()),
     };
 
@@ -855,7 +866,7 @@ async fn update_item_in_draft_contract() {
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(500.0),
+            unit_price: Some(dec!(500.0)),
             notes: None,
         }],
     };
@@ -872,7 +883,7 @@ async fn update_item_in_draft_contract() {
         od: None,
         wt: None,
         quantity: Some(20),
-        unit_price: Some(450.0),
+        unit_price: Some(dec!(450.0)),
         notes: Some("updated".into()),
     };
 
@@ -961,7 +972,7 @@ async fn delete_item_from_draft_contract() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 10,
-                unit_price: Some(100.0),
+                unit_price: Some(dec!(100.0)),
                 notes: None,
             },
             CreateContractItemRequest {
@@ -970,7 +981,7 @@ async fn delete_item_from_draft_contract() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 5,
-                unit_price: Some(200.0),
+                unit_price: Some(dec!(200.0)),
                 notes: None,
             },
         ],
@@ -1043,7 +1054,7 @@ async fn add_payment_to_contract() {
 
     let pay_dto = CreatePaymentRequest {
         due_date: "2025-07-01".into(),
-        amount: 50000.0,
+        amount: dec!(50000.0),
         payment_type: "milestone".into(),
         notes: Some("first milestone".into()),
     };
@@ -1057,7 +1068,7 @@ async fn add_payment_to_contract() {
     assert_eq!(payment.due_date, "2025-07-01");
     assert_eq!(payment.amount, 50000.0);
     assert_eq!(payment.payment_type, "milestone");
-    assert_eq!(payment.is_paid, 0);
+    assert_eq!(payment.is_paid, false);
     assert!(payment.paid_date.is_none());
     assert_eq!(payment.notes.as_deref(), Some("first milestone"));
 }
@@ -1072,7 +1083,7 @@ async fn add_payment_negative_amount_rejected() {
 
     let pay_dto = CreatePaymentRequest {
         due_date: "2025-07-01".into(),
-        amount: -100.0,
+        amount: dec!(-100.0),
         payment_type: "deposit".into(),
         notes: None,
     };
@@ -1093,7 +1104,7 @@ async fn add_payment_invalid_type_rejected() {
 
     let pay_dto = CreatePaymentRequest {
         due_date: "2025-07-01".into(),
-        amount: 1000.0,
+        amount: dec!(1000.0),
         payment_type: "invalid_type".into(),
         notes: None,
     };
@@ -1115,7 +1126,7 @@ async fn add_payment_to_terminated_contract_rejected() {
 
     let pay_dto = CreatePaymentRequest {
         due_date: "2025-07-01".into(),
-        amount: 1000.0,
+        amount: dec!(1000.0),
         payment_type: "deposit".into(),
         notes: None,
     };
@@ -1136,7 +1147,7 @@ async fn update_payment_fields() {
 
     let pay_dto = CreatePaymentRequest {
         due_date: "2025-08-01".into(),
-        amount: 30000.0,
+        amount: dec!(30000.0),
         payment_type: "deposit".into(),
         notes: Some("initial".into()),
     };
@@ -1146,9 +1157,9 @@ async fn update_payment_fields() {
 
     let update = UpdatePaymentRequest {
         due_date: Some("2025-09-01".into()),
-        amount: Some(35000.0),
+        amount: Some(dec!(35000.0)),
         payment_type: Some("milestone".into()),
-        is_paid: Some(1),
+        is_paid: Some(true),
         paid_date: Some("2025-09-01".into()),
         notes: Some("updated".into()),
     };
@@ -1161,7 +1172,7 @@ async fn update_payment_fields() {
     assert_eq!(updated.due_date, "2025-09-01");
     assert_eq!(updated.amount, 35000.0);
     assert_eq!(updated.payment_type, "milestone");
-    assert_eq!(updated.is_paid, 1);
+    assert_eq!(updated.is_paid, true);
     assert_eq!(updated.paid_date.as_deref(), Some("2025-09-01"));
     assert_eq!(updated.notes.as_deref(), Some("updated"));
 }
@@ -1179,7 +1190,7 @@ async fn update_payment_wrong_contract_rejected() {
 
     let pay_dto = CreatePaymentRequest {
         due_date: "2025-08-01".into(),
-        amount: 1000.0,
+        amount: dec!(1000.0),
         payment_type: "deposit".into(),
         notes: None,
     };
@@ -1229,19 +1240,23 @@ async fn update_payment_nonexistent_fails() {
 async fn update_payment_terminated_contract_rejected() {
     let pool = common::test_pool().await;
 
-    let contract_id =
-        common::seed_contract(&pool, "CT-PAY-040", "sales", "Term", "terminated")
-            .await
-            .unwrap();
+    let contract_id = common::seed_contract(&pool, "CT-PAY-040", "sales", "Term", "terminated")
+        .await
+        .unwrap();
 
-    let err = ContractService::update_payment(&pool, contract_id, 99999, &UpdatePaymentRequest {
-        due_date: None,
-        amount: None,
-        payment_type: None,
-        is_paid: None,
-        paid_date: None,
-        notes: None,
-    })
+    let err = ContractService::update_payment(
+        &pool,
+        contract_id,
+        99999,
+        &UpdatePaymentRequest {
+            due_date: None,
+            amount: None,
+            payment_type: None,
+            is_paid: None,
+            paid_date: None,
+            notes: None,
+        },
+    )
     .await
     .expect_err("must reject update on terminated contract");
     assert!(err.to_string().contains("Cannot modify payments"));
@@ -1257,7 +1272,7 @@ async fn delete_payment_success() {
 
     let pay_dto = CreatePaymentRequest {
         due_date: "2025-10-01".into(),
-        amount: 20000.0,
+        amount: dec!(20000.0),
         payment_type: "final".into(),
         notes: None,
     };
@@ -1317,21 +1332,29 @@ async fn get_payments_by_contract_id() {
         .unwrap();
 
     // Add two payments
-    ContractService::add_payment(&pool, contract_id, &CreatePaymentRequest {
-        due_date: "2025-11-01".into(),
-        amount: 10000.0,
-        payment_type: "deposit".into(),
-        notes: None,
-    })
+    ContractService::add_payment(
+        &pool,
+        contract_id,
+        &CreatePaymentRequest {
+            due_date: "2025-11-01".into(),
+            amount: dec!(10000.0),
+            payment_type: "deposit".into(),
+            notes: None,
+        },
+    )
     .await
     .expect("add first payment");
 
-    ContractService::add_payment(&pool, contract_id, &CreatePaymentRequest {
-        due_date: "2025-12-01".into(),
-        amount: 20000.0,
-        payment_type: "final".into(),
-        notes: None,
-    })
+    ContractService::add_payment(
+        &pool,
+        contract_id,
+        &CreatePaymentRequest {
+            due_date: "2025-12-01".into(),
+            amount: dec!(20000.0),
+            payment_type: "final".into(),
+            notes: None,
+        },
+    )
     .await
     .expect("add second payment");
 
@@ -1385,17 +1408,15 @@ async fn contract_lifecycle() {
         start_date: Some("2025-02-01".into()),
         end_date: Some("2025-12-31".into()),
         notes: Some("lifecycle test".into()),
-        items: vec![
-            CreateContractItemRequest {
-                pipe_type: "seamless".into(),
-                grade: "L80".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 50,
-                unit_price: Some(500.0),
-                notes: None,
-            },
-        ],
+        items: vec![CreateContractItemRequest {
+            pipe_type: "seamless".into(),
+            grade: "L80".into(),
+            od: 177.8,
+            wt: 9.19,
+            quantity: 50,
+            unit_price: Some(dec!(500.0)),
+            notes: None,
+        }],
     };
 
     let detail = ContractService::create_contract(&pool, &dto)
@@ -1411,7 +1432,7 @@ async fn contract_lifecycle() {
         od: 177.8,
         wt: 9.19,
         quantity: 10,
-        unit_price: Some(700.0),
+        unit_price: Some(dec!(700.0)),
         notes: None,
     };
     let added_item = ContractService::add_item(&pool, contract_id, &new_item)
@@ -1420,12 +1441,16 @@ async fn contract_lifecycle() {
     assert!(added_item.id > 0);
 
     // ── Add payment ──
-    let pay = ContractService::add_payment(&pool, contract_id, &CreatePaymentRequest {
-        due_date: "2025-03-01".into(),
-        amount: 15000.0,
-        payment_type: "deposit".into(),
-        notes: None,
-    })
+    let pay = ContractService::add_payment(
+        &pool,
+        contract_id,
+        &CreatePaymentRequest {
+            due_date: "2025-03-01".into(),
+            amount: dec!(15000.0),
+            payment_type: "deposit".into(),
+            notes: None,
+        },
+    )
     .await
     .expect("add_payment must succeed");
 

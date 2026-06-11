@@ -202,9 +202,15 @@ async fn list_customers_pagination() {
     let pool = common::test_pool().await;
 
     // Seed 3 customers
-    common::seed_customer(&pool, "CUS-010", "Alpha").await.unwrap();
-    common::seed_customer(&pool, "CUS-011", "Beta").await.unwrap();
-    common::seed_customer(&pool, "CUS-012", "Gamma").await.unwrap();
+    common::seed_customer(&pool, "CUS-010", "Alpha")
+        .await
+        .unwrap();
+    common::seed_customer(&pool, "CUS-011", "Beta")
+        .await
+        .unwrap();
+    common::seed_customer(&pool, "CUS-012", "Gamma")
+        .await
+        .unwrap();
 
     let filter = CustomerFilterParams {
         q: None,
@@ -305,8 +311,12 @@ async fn list_customers_search_by_name() {
 async fn search_customers_by_keyword() {
     let pool = common::test_pool().await;
 
-    common::seed_customer(&pool, "CUS-040", "Found Co").await.unwrap();
-    common::seed_customer(&pool, "CUS-041", "Hidden Co").await.unwrap();
+    common::seed_customer(&pool, "CUS-040", "Found Co")
+        .await
+        .unwrap();
+    common::seed_customer(&pool, "CUS-041", "Hidden Co")
+        .await
+        .unwrap();
 
     let results = CustomerService::search(&pool, "Found")
         .await
@@ -350,6 +360,10 @@ async fn list_active_customers_returns_only_active() {
         .await
         .expect("list_active must succeed");
 
-    assert_eq!(active.len(), 1, "only the non-deleted customer should appear");
+    assert_eq!(
+        active.len(),
+        1,
+        "only the non-deleted customer should appear"
+    );
     assert_eq!(active[0].customer_code, "CUS-051");
 }

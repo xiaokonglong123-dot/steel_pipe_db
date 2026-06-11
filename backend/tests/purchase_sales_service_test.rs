@@ -7,6 +7,7 @@
 
 mod common;
 
+use rust_decimal_macros::dec;
 use steel_pipe_db::dto::common::PaginationParams;
 use steel_pipe_db::dto::purchase_dto::{
     ApproveOrderRequest as PurchaseApproveReq, CreatePurchaseItemRequest,
@@ -15,8 +16,8 @@ use steel_pipe_db::dto::purchase_dto::{
 };
 use steel_pipe_db::dto::sales_dto::{
     ApproveOrderRequest as SalesApproveReq, CreateSalesItemRequest, CreateSalesOrderRequest,
-    RejectOrderRequest as SalesRejectReq, SalesOrderFilterParams, SalesOrderStatusTransitionRequest,
-    UpdateSalesItemRequest, UpdateSalesOrderRequest,
+    RejectOrderRequest as SalesRejectReq, SalesOrderFilterParams,
+    SalesOrderStatusTransitionRequest, UpdateSalesItemRequest, UpdateSalesOrderRequest,
 };
 use steel_pipe_db::services::purchase_sales_service::PurchaseSalesService;
 
@@ -43,8 +44,8 @@ async fn create_purchase_order_with_items() {
             od: 177.8,
             wt: 9.19,
             quantity: 100,
-            unit_price: Some(150.0),
-            total_price: Some(15000.0),
+            unit_price: Some(dec!(150.0)),
+            total_price: Some(dec!(15000.0)),
             notes: None,
         }],
     };
@@ -112,8 +113,8 @@ async fn create_purchase_order_fails_inactive_supplier() {
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(100.0),
-            total_price: Some(1000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(1000.0)),
             notes: None,
         }],
     };
@@ -143,8 +144,8 @@ async fn create_purchase_order_fails_duplicate_order_no() {
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(100.0),
-            total_price: Some(1000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(1000.0)),
             notes: None,
         }],
     };
@@ -176,8 +177,8 @@ async fn create_purchase_order_fails_nonexistent_supplier() {
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(100.0),
-            total_price: Some(1000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(1000.0)),
             notes: None,
         }],
     };
@@ -211,8 +212,8 @@ async fn update_purchase_order_updates_header() {
             od: 177.8,
             wt: 9.19,
             quantity: 50,
-            unit_price: Some(100.0),
-            total_price: Some(5000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(5000.0)),
             notes: None,
         }],
     };
@@ -252,8 +253,8 @@ async fn update_purchase_order_fails_non_draft() {
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(100.0),
-            total_price: Some(1000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(1000.0)),
             notes: None,
         }],
     };
@@ -402,8 +403,8 @@ async fn get_purchase_order_with_items() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 20,
-                unit_price: Some(100.0),
-                total_price: Some(2000.0),
+                unit_price: Some(dec!(100.0)),
+                total_price: Some(dec!(2000.0)),
                 notes: None,
             },
             CreatePurchaseItemRequest {
@@ -412,8 +413,8 @@ async fn get_purchase_order_with_items() {
                 od: 88.9,
                 wt: 6.45,
                 quantity: 30,
-                unit_price: Some(80.0),
-                total_price: Some(2400.0),
+                unit_price: Some(dec!(80.0)),
+                total_price: Some(dec!(2400.0)),
                 notes: None,
             },
         ],
@@ -463,8 +464,8 @@ async fn list_purchase_orders_pagination() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 10,
-                unit_price: Some(100.0),
-            total_price: Some(1000.0),
+                unit_price: Some(dec!(100.0)),
+                total_price: Some(dec!(1000.0)),
                 notes: None,
             }],
         };
@@ -520,8 +521,8 @@ async fn list_purchase_orders_status_filter() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 10,
-                unit_price: Some(100.0),
-            total_price: Some(1000.0),
+                unit_price: Some(dec!(100.0)),
+                total_price: Some(dec!(1000.0)),
                 notes: None,
             }],
         };
@@ -542,8 +543,8 @@ async fn list_purchase_orders_status_filter() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 10,
-                unit_price: Some(100.0),
-            total_price: Some(1000.0),
+                unit_price: Some(dec!(100.0)),
+                total_price: Some(dec!(1000.0)),
                 notes: None,
             }],
         };
@@ -662,8 +663,8 @@ async fn update_purchase_item_changes_qty() {
             od: 177.8,
             wt: 9.19,
             quantity: 50,
-            unit_price: Some(100.0),
-            total_price: Some(5000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(5000.0)),
             notes: None,
         }],
     };
@@ -682,7 +683,7 @@ async fn update_purchase_item_changes_qty() {
         od: None,
         wt: None,
         quantity: Some(75),
-        unit_price: Some(90.0),
+        unit_price: Some(dec!(90.0)),
         notes: None,
     };
 
@@ -752,8 +753,8 @@ async fn delete_purchase_item_removes_item() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 10,
-                unit_price: Some(100.0),
-            total_price: Some(1000.0),
+                unit_price: Some(dec!(100.0)),
+                total_price: Some(dec!(1000.0)),
                 notes: None,
             },
             CreatePurchaseItemRequest {
@@ -762,8 +763,8 @@ async fn delete_purchase_item_removes_item() {
                 od: 88.9,
                 wt: 6.45,
                 quantity: 20,
-                unit_price: Some(100.0),
-            total_price: Some(1000.0),
+                unit_price: Some(dec!(100.0)),
+                total_price: Some(dec!(1000.0)),
                 notes: None,
             },
         ],
@@ -891,7 +892,11 @@ async fn reject_purchase_order_rejects() {
         .unwrap();
     assert_eq!(fetched.status, "rejected");
     // Reject stores reason in notes
-    assert!(fetched.notes.as_deref().unwrap_or("").contains("price too high"));
+    assert!(fetched
+        .notes
+        .as_deref()
+        .unwrap_or("")
+        .contains("price too high"));
 }
 
 #[tokio::test]
@@ -987,8 +992,8 @@ async fn full_purchase_order_lifecycle() {
             od: 177.8,
             wt: 9.19,
             quantity: 100,
-            unit_price: Some(120.0),
-            total_price: Some(12000.0),
+            unit_price: Some(dec!(120.0)),
+            total_price: Some(dec!(12000.0)),
             notes: None,
         }],
     };
@@ -1069,8 +1074,8 @@ async fn create_sales_order_with_items() {
             od: 177.8,
             wt: 9.19,
             quantity: 50,
-            unit_price: Some(200.0),
-            total_price: Some(10000.0),
+            unit_price: Some(dec!(200.0)),
+            total_price: Some(dec!(10000.0)),
             notes: None,
         }],
     };
@@ -1137,8 +1142,8 @@ async fn create_sales_order_fails_inactive_customer() {
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(100.0),
-            total_price: Some(1000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(1000.0)),
             notes: None,
         }],
     };
@@ -1164,8 +1169,8 @@ async fn create_sales_order_fails_nonexistent_customer() {
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(100.0),
-            total_price: Some(1000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(1000.0)),
             notes: None,
         }],
     };
@@ -1286,8 +1291,8 @@ async fn get_sales_order_with_items() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 20,
-                unit_price: Some(200.0),
-                total_price: Some(4000.0),
+                unit_price: Some(dec!(200.0)),
+                total_price: Some(dec!(4000.0)),
                 notes: None,
             },
             CreateSalesItemRequest {
@@ -1296,8 +1301,8 @@ async fn get_sales_order_with_items() {
                 od: 88.9,
                 wt: 6.45,
                 quantity: 30,
-                unit_price: Some(150.0),
-                total_price: Some(4500.0),
+                unit_price: Some(dec!(150.0)),
+                total_price: Some(dec!(4500.0)),
                 notes: None,
             },
         ],
@@ -1334,8 +1339,8 @@ async fn list_sales_orders_pagination() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 10,
-                unit_price: Some(100.0),
-            total_price: Some(1000.0),
+                unit_price: Some(dec!(100.0)),
+                total_price: Some(dec!(1000.0)),
                 notes: None,
             }],
         };
@@ -1399,10 +1404,9 @@ async fn delete_sales_order_fails_approved() {
         .await
         .unwrap();
 
-    let order_id =
-        common::seed_sales_order(&pool, "SO-DEL-002", customer_id, "approved")
-            .await
-            .unwrap();
+    let order_id = common::seed_sales_order(&pool, "SO-DEL-002", customer_id, "approved")
+        .await
+        .unwrap();
 
     let err = PurchaseSalesService::delete_sales_order(&pool, order_id)
         .await
@@ -1432,8 +1436,8 @@ async fn update_sales_item_changes_qty() {
             od: 177.8,
             wt: 9.19,
             quantity: 30,
-            unit_price: Some(200.0),
-            total_price: Some(6000.0),
+            unit_price: Some(dec!(200.0)),
+            total_price: Some(dec!(6000.0)),
             notes: None,
         }],
     };
@@ -1452,7 +1456,7 @@ async fn update_sales_item_changes_qty() {
         od: None,
         wt: None,
         quantity: Some(45),
-        unit_price: Some(180.0),
+        unit_price: Some(dec!(180.0)),
         notes: None,
     };
 
@@ -1483,8 +1487,8 @@ async fn delete_sales_item_removes_item() {
                 od: 177.8,
                 wt: 9.19,
                 quantity: 10,
-                unit_price: Some(100.0),
-            total_price: Some(1000.0),
+                unit_price: Some(dec!(100.0)),
+                total_price: Some(dec!(1000.0)),
                 notes: None,
             },
             CreateSalesItemRequest {
@@ -1493,8 +1497,8 @@ async fn delete_sales_item_removes_item() {
                 od: 88.9,
                 wt: 6.45,
                 quantity: 20,
-                unit_price: Some(100.0),
-            total_price: Some(1000.0),
+                unit_price: Some(dec!(100.0)),
+                total_price: Some(dec!(1000.0)),
                 notes: None,
             },
         ],
@@ -1550,8 +1554,8 @@ async fn approve_sales_order_approves() {
             od: 177.8,
             wt: 9.19,
             quantity: 2,
-            unit_price: Some(200.0),
-            total_price: Some(400.0),
+            unit_price: Some(dec!(200.0)),
+            total_price: Some(dec!(400.0)),
             notes: None,
         }],
     };
@@ -1599,8 +1603,8 @@ async fn approve_sales_order_fails_insufficient_stock() {
             od: 177.8,
             wt: 9.19,
             quantity: 1,
-            unit_price: Some(100.0),
-            total_price: Some(1000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(1000.0)),
             notes: None,
         }],
     };
@@ -1666,7 +1670,11 @@ async fn reject_sales_order_rejects() {
         .await
         .unwrap();
     assert_eq!(fetched.status, "rejected");
-    assert!(fetched.notes.as_deref().unwrap_or("").contains("changed mind"));
+    assert!(fetched
+        .notes
+        .as_deref()
+        .unwrap_or("")
+        .contains("changed mind"));
 }
 
 #[tokio::test]
@@ -1693,8 +1701,8 @@ async fn link_outbound_to_order_links() {
             od: 177.8,
             wt: 9.19,
             quantity: 1,
-            unit_price: Some(200.0),
-            total_price: Some(200.0),
+            unit_price: Some(dec!(200.0)),
+            total_price: Some(dec!(200.0)),
             notes: None,
         }],
     };
@@ -1776,8 +1784,8 @@ async fn sales_order_atp_validation_passes_with_stock() {
             od: 177.8,
             wt: 9.19,
             quantity: 3,
-            unit_price: Some(200.0),
-            total_price: Some(600.0),
+            unit_price: Some(dec!(200.0)),
+            total_price: Some(dec!(600.0)),
             notes: None,
         }],
     };
@@ -1828,8 +1836,8 @@ async fn sales_order_atp_validation_fails_without_stock() {
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(100.0),
-            total_price: Some(1000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(1000.0)),
             notes: None,
         }],
     };
@@ -1856,7 +1864,10 @@ async fn sales_order_atp_validation_fails_without_stock() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Create a minimal purchase order with a single item (draft status).
-async fn create_dummy_po(pool: &sqlx::SqlitePool, supplier_id: i64) -> steel_pipe_db::models::purchase_order::PurchaseOrder {
+async fn create_dummy_po(
+    pool: &sqlx::SqlitePool,
+    supplier_id: i64,
+) -> steel_pipe_db::models::purchase_order::PurchaseOrder {
     let dto = CreatePurchaseOrderRequest {
         order_no: None,
         supplier_id,
@@ -1868,8 +1879,8 @@ async fn create_dummy_po(pool: &sqlx::SqlitePool, supplier_id: i64) -> steel_pip
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(100.0),
-            total_price: Some(1000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(1000.0)),
             notes: None,
         }],
     };
@@ -1879,7 +1890,10 @@ async fn create_dummy_po(pool: &sqlx::SqlitePool, supplier_id: i64) -> steel_pip
 }
 
 /// Create a minimal sales order with a single item (draft status).
-async fn create_dummy_so(pool: &sqlx::SqlitePool, customer_id: i64) -> steel_pipe_db::models::sales_order::SalesOrder {
+async fn create_dummy_so(
+    pool: &sqlx::SqlitePool,
+    customer_id: i64,
+) -> steel_pipe_db::models::sales_order::SalesOrder {
     let dto = CreateSalesOrderRequest {
         order_no: None,
         customer_id,
@@ -1891,8 +1905,8 @@ async fn create_dummy_so(pool: &sqlx::SqlitePool, customer_id: i64) -> steel_pip
             od: 177.8,
             wt: 9.19,
             quantity: 10,
-            unit_price: Some(100.0),
-            total_price: Some(1000.0),
+            unit_price: Some(dec!(100.0)),
+            total_price: Some(dec!(1000.0)),
             notes: None,
         }],
     };

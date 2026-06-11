@@ -12,8 +12,8 @@ mod common;
 
 use steel_pipe_db::dto::common::PaginationParams;
 use steel_pipe_db::dto::pipe_dto::{
-    CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams,
-    UpdateScreenPipeRequest, UpdateSeamlessPipeRequest,
+    CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams, UpdateScreenPipeRequest,
+    UpdateSeamlessPipeRequest,
 };
 use steel_pipe_db::services::pipe_service::PipeService;
 
@@ -171,7 +171,9 @@ async fn update_seamless_pipe_updates_fields() {
         cert_number: None,
         notes: Some("original".into()),
     };
-    let pipe = PipeService::create_seamless_pipe(&pool, &dto).await.unwrap();
+    let pipe = PipeService::create_seamless_pipe(&pool, &dto)
+        .await
+        .unwrap();
 
     // Update several fields
     let update = UpdateSeamlessPipeRequest {
@@ -299,8 +301,7 @@ async fn delete_seamless_pipe_not_in_stock_fails() {
 
     let msg = err.to_string();
     assert!(
-        msg.contains("Cannot delete")
-            || msg.contains("status conflict"),
+        msg.contains("Cannot delete") || msg.contains("status conflict"),
         "Expected status conflict error, got: {msg}"
     );
 }
@@ -457,10 +458,9 @@ async fn list_seamless_pipes_filters_by_status_and_grade() {
         sort_order: None,
     };
 
-    let (_items, total) =
-        PipeService::list_seamless_pipes(&pool, &filter_status, &default_params)
-            .await
-            .expect("list with status filter must succeed");
+    let (_items, total) = PipeService::list_seamless_pipes(&pool, &filter_status, &default_params)
+        .await
+        .expect("list with status filter must succeed");
     assert_eq!(total, 2, "should find 2 in_stock pipes");
 
     // Filter by grade = "N80"
@@ -566,10 +566,9 @@ async fn list_seamless_pipes_sorts_by_column() {
         sort_order: Some("desc".into()),
     };
 
-    let (items_desc, _total_desc) =
-        PipeService::list_seamless_pipes(&pool, &filter, &params_desc)
-            .await
-            .expect("list sorted desc must succeed");
+    let (items_desc, _total_desc) = PipeService::list_seamless_pipes(&pool, &filter, &params_desc)
+        .await
+        .expect("list sorted desc must succeed");
 
     assert_eq!(items_desc.len(), 2);
     assert_eq!(
@@ -835,8 +834,7 @@ async fn delete_screen_pipe_not_in_stock_fails() {
 
     let msg = err.to_string();
     assert!(
-        msg.contains("Cannot delete")
-            || msg.contains("status conflict"),
+        msg.contains("Cannot delete") || msg.contains("status conflict"),
         "Expected status conflict error, got: {msg}"
     );
 }
@@ -887,14 +885,9 @@ async fn list_screen_pipes_pagination() {
     let pool = common::test_pool().await;
 
     for i in 1..=4 {
-        common::seed_screen_pipe(
-            &pool,
-            &format!("SC-LIST-{:03}", i),
-            "in_stock",
-            "J55",
-        )
-        .await
-        .unwrap();
+        common::seed_screen_pipe(&pool, &format!("SC-LIST-{:03}", i), "in_stock", "J55")
+            .await
+            .unwrap();
     }
 
     let filter = PipeFilterParams {
@@ -1006,14 +999,12 @@ async fn list_screen_pipes_filters_by_grade_and_status() {
 async fn search_pipes_finds_by_pipe_number() {
     let pool = common::test_pool().await;
 
-    let _seamless_id =
-        common::seed_seamless_pipe(&pool, "PN-SRCH-001", "in_stock", "J55")
-            .await
-            .unwrap();
-    let _screen_id =
-        common::seed_screen_pipe(&pool, "SC-SRCH-001", "in_stock", "N80")
-            .await
-            .unwrap();
+    let _seamless_id = common::seed_seamless_pipe(&pool, "PN-SRCH-001", "in_stock", "J55")
+        .await
+        .unwrap();
+    let _screen_id = common::seed_screen_pipe(&pool, "SC-SRCH-001", "in_stock", "N80")
+        .await
+        .unwrap();
 
     // Search for the seamless pipe by number
     let results = PipeService::search_pipes(&pool, "PN-SRCH-001")
@@ -1032,10 +1023,7 @@ async fn search_pipes_finds_by_pipe_number() {
         results
     );
 
-    let screen_results: Vec<_> = results
-        .iter()
-        .filter(|r| r.pipe_type == "screen")
-        .collect();
+    let screen_results: Vec<_> = results.iter().filter(|r| r.pipe_type == "screen").collect();
     assert_eq!(screen_results.len(), 0, "should not match screen pipes");
 }
 
@@ -1061,10 +1049,7 @@ async fn search_pipes_finds_both_types() {
         .iter()
         .filter(|r| r.pipe_type == "seamless")
         .collect();
-    let screen: Vec<_> = results
-        .iter()
-        .filter(|r| r.pipe_type == "screen")
-        .collect();
+    let screen: Vec<_> = results.iter().filter(|r| r.pipe_type == "screen").collect();
 
     assert!(
         !seamless.is_empty(),

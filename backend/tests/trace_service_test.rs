@@ -97,7 +97,10 @@ async fn trace_pipe_lifecycle_screen_with_logs() {
         .await
         .expect("trace_pipe_lifecycle for screen must succeed");
 
-    assert_eq!(result["pipe"]["pipe_number"].as_str(), Some("SCR-TRACE-001"));
+    assert_eq!(
+        result["pipe"]["pipe_number"].as_str(),
+        Some("SCR-TRACE-001")
+    );
     assert_eq!(result["pipe"]["current_status"].as_str(), Some("in_stock"));
 
     let events = result["events"].as_array().unwrap();
@@ -198,7 +201,8 @@ async fn trace_by_heat_number_finds_pipes() {
         .expect("trace_by_heat_number must succeed");
 
     assert_eq!(results.len(), 2);
-    let nums: Vec<&str> = results.iter()
+    let nums: Vec<&str> = results
+        .iter()
         .filter_map(|v| v["pipe_number"].as_str())
         .collect();
     assert!(nums.contains(&"PN-HEAT-001"));
@@ -265,7 +269,8 @@ async fn trace_by_heat_number_returns_both_types() {
         .expect("trace_by_heat_number must succeed");
 
     assert_eq!(results.len(), 2);
-    let types: Vec<&str> = results.iter()
+    let types: Vec<&str> = results
+        .iter()
         .filter_map(|v| v["pipe_type"].as_str())
         .collect();
     assert!(types.contains(&"seamless"));
