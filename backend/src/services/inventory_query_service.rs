@@ -2,7 +2,9 @@ use sqlx::SqlitePool;
 
 use crate::domain::pipe::PipeType;
 use crate::dto::common::PaginationParams;
-use crate::dto::inventory_dto::{AtpItem, AtpQuery, InventoryFilter, InventoryStatistics, StockItem};
+use crate::dto::inventory_dto::{
+    AtpItem, AtpQuery, InventoryFilter, InventoryStatistics, StockItem,
+};
 use crate::error::AppError;
 use crate::models::inventory::InventoryLog;
 use crate::repositories::inventory_repo::{InventoryLogRepo, InventoryRepo};
@@ -57,7 +59,10 @@ impl InventoryQueryService {
             .as_deref()
             .is_some_and(|pt| PipeType::from_pipe_type_str(pt).is_some());
 
-        let count_sql = match pipe_type_filter.as_deref().and_then(PipeType::from_pipe_type_str) {
+        let count_sql = match pipe_type_filter
+            .as_deref()
+            .and_then(PipeType::from_pipe_type_str)
+        {
             Some(PipeType::Seamless) => {
                 format!(
                     "SELECT COUNT(*) as cnt FROM seamless_pipes WHERE {}",
@@ -91,7 +96,10 @@ impl InventoryQueryService {
         }
         let total: (i64,) = count_q.fetch_one(pool).await.map_err(AppError::from)?;
 
-        let list_sql = match pipe_type_filter.as_deref().and_then(PipeType::from_pipe_type_str) {
+        let list_sql = match pipe_type_filter
+            .as_deref()
+            .and_then(PipeType::from_pipe_type_str)
+        {
             Some(PipeType::Seamless) => {
                 format!(
                     "SELECT id, pipe_number, grade, od, wt, pipe_type, status, location_id, \
@@ -123,9 +131,21 @@ impl InventoryQueryService {
             }
         };
 
-        let mut list_q = sqlx::query_as::<_, (i64, String, String, f64, f64, String, String, Option<i64>, String, String)>(
-            &list_sql,
-        );
+        let mut list_q = sqlx::query_as::<
+            _,
+            (
+                i64,
+                String,
+                String,
+                f64,
+                f64,
+                String,
+                String,
+                Option<i64>,
+                String,
+                String,
+            ),
+        >(&list_sql);
         for val in &bind_values {
             list_q = list_q.bind(val.as_str());
         }
@@ -141,9 +161,33 @@ impl InventoryQueryService {
             .await
             .map_err(AppError::from)?
             .into_iter()
-            .map(|(id, pipe_number, grade, od, wt, pipe_type, status, location_id, created_at, updated_at)| {
-                StockItem { id, pipe_number, grade, od, wt, pipe_type, status, location_id, created_at, updated_at }
-            })
+            .map(
+                |(
+                    id,
+                    pipe_number,
+                    grade,
+                    od,
+                    wt,
+                    pipe_type,
+                    status,
+                    location_id,
+                    created_at,
+                    updated_at,
+                )| {
+                    StockItem {
+                        id,
+                        pipe_number,
+                        grade,
+                        od,
+                        wt,
+                        pipe_type,
+                        status,
+                        location_id,
+                        created_at,
+                        updated_at,
+                    }
+                },
+            )
             .collect();
 
         Ok((items, total.0 as u64))
@@ -160,9 +204,7 @@ impl InventoryQueryService {
     }
 
     /// Gets inventory overview stats: total stock, breakdown by grade, breakdown by location.
-    pub async fn inventory_statistics(
-        pool: &SqlitePool,
-    ) -> Result<InventoryStatistics, AppError> {
+    pub async fn inventory_statistics(pool: &SqlitePool) -> Result<InventoryStatistics, AppError> {
         let total = InventoryRepo::get_total_in_stock(pool)
             .await
             .map_err(AppError::from)?;
@@ -184,13 +226,11 @@ impl InventoryQueryService {
 
     /// ATP (Available-to-Promise) query.
     /// Aggregates available stock by pipe type, grade, and location.
-    pub async fn check_atp(
-        pool: &SqlitePool,
-        query: &AtpQuery,
-    ) -> Result<Vec<AtpItem>, AppError> {
-        let rows = InventoryRepo::find_atp(pool, &query.pipe_type, &query.grade, &query.location_id)
-            .await
-            .map_err(AppError::from)?;
+    pub async fn check_atp(pool: &SqlitePool, query: &AtpQuery) -> Result<Vec<AtpItem>, AppError> {
+        let rows =
+            InventoryRepo::find_atp(pool, &query.pipe_type, &query.grade, &query.location_id)
+                .await
+                .map_err(AppError::from)?;
         Ok(rows
             .into_iter()
             .map(|(pipe_type, grade, quantity, location_id)| AtpItem {

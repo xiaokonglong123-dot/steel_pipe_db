@@ -10,7 +10,9 @@ use crate::dto::common::PaginationParams;
 use crate::dto::data_io_dto::*;
 use crate::error::AppError;
 use crate::repositories::data_io_repo::DataIORepo;
-use crate::repositories::operation_log_repo::{CreateOperationLog, OperationLog, OperationLogFilter, OperationLogRepo};
+use crate::repositories::operation_log_repo::{
+    CreateOperationLog, OperationLog, OperationLogFilter, OperationLogRepo,
+};
 
 /// Data import/export service — supports Excel/CSV export, template download, and
 /// batch import for seamless pipes, screen pipes, inventory, orders, and QC certs.
@@ -18,6 +20,14 @@ use crate::repositories::operation_log_repo::{CreateOperationLog, OperationLog, 
 pub struct DataIOService;
 
 impl DataIOService {
+    fn escape_spreadsheet_formula(value: &str) -> String {
+        if value.starts_with(['=', '+', '-', '@']) {
+            format!("'{}", value)
+        } else {
+            value.to_string()
+        }
+    }
+
     fn get_columns(entity_type: &str) -> Vec<(&'static str, &'static str)> {
         match entity_type {
             ENTITY_SEAMLESS_PIPES => vec![
@@ -158,15 +168,18 @@ impl DataIOService {
                 match value {
                     Some(serde_json::Value::Null) | None => {}
                     Some(serde_json::Value::String(s)) => {
+                        let safe_value = Self::escape_spreadsheet_formula(s);
                         sheet
-                            .write_string(row_idx as u32 + 1, col as u16, s)
+                            .write_string(row_idx as u32 + 1, col as u16, &safe_value)
                             .map_err(|e| AppError::ExportError(format!("Write string: {}", e)))?;
                     }
                     Some(serde_json::Value::Number(n)) => {
                         if let Some(f) = n.as_f64() {
                             sheet
                                 .write_number(row_idx as u32 + 1, col as u16, f)
-                                .map_err(|e| AppError::ExportError(format!("Write number: {}", e)))?;
+                                .map_err(|e| {
+                                    AppError::ExportError(format!("Write number: {}", e))
+                                })?;
                         } else if let Some(i) = n.as_i64() {
                             sheet
                                 .write_number(row_idx as u32 + 1, col as u16, i as f64)
@@ -203,7 +216,7 @@ impl DataIOService {
             for field in field_names {
                 let value = match row.get(field) {
                     Some(serde_json::Value::Null) | None => String::new(),
-                    Some(serde_json::Value::String(s)) => s.clone(),
+                    Some(serde_json::Value::String(s)) => Self::escape_spreadsheet_formula(s),
                     Some(serde_json::Value::Number(n)) => n.to_string(),
                     Some(serde_json::Value::Bool(b)) => b.to_string(),
                     _ => String::new(),
@@ -250,10 +263,14 @@ impl DataIOService {
             .iter()
             .enumerate()
             .filter_map(|(idx, name)| {
-                header_row.iter().position(|h| {
-                    let h_str = h.to_string().trim().to_lowercase();
-                    h_str == name.to_lowercase() || h_str == name.replace("_", " ").to_lowercase()
-                }).map(|pos| (pos, idx))
+                header_row
+                    .iter()
+                    .position(|h| {
+                        let h_str = h.to_string().trim().to_lowercase();
+                        h_str == name.to_lowercase()
+                            || h_str == name.replace("_", " ").to_lowercase()
+                    })
+                    .map(|pos| (pos, idx))
             })
             .collect();
 
@@ -264,11 +281,9 @@ impl DataIOService {
                     let field_name = &field_names[field_idx];
                     let value: serde_json::Value = match cell {
                         Data::String(s) => serde_json::Value::String(s.clone()),
-                        Data::Float(f) => {
-                            serde_json::Number::from_f64(*f)
-                                .map(serde_json::Value::Number)
-                                .unwrap_or(serde_json::Value::Null)
-                        }
+                        Data::Float(f) => serde_json::Number::from_f64(*f)
+                            .map(serde_json::Value::Number)
+                            .unwrap_or(serde_json::Value::Null),
                         Data::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
                         Data::Bool(b) => serde_json::Value::Bool(*b),
                         Data::DateTime(_) => serde_json::Value::String(cell.to_string()),
@@ -305,14 +320,17 @@ impl DataIOService {
             .filter_map(|(idx, name)| {
                 headers
                     .iter()
-                    .position(|h| *h == name.to_lowercase() || *h == name.replace("_", " ").to_lowercase())
+                    .position(|h| {
+                        *h == name.to_lowercase() || *h == name.replace("_", " ").to_lowercase()
+                    })
                     .map(|pos| (pos, idx))
             })
             .collect();
 
         let mut rows = Vec::new();
         for result in reader.records() {
-            let record = result.map_err(|e| AppError::ImportError(format!("Read CSV row: {}", e)))?;
+            let record =
+                result.map_err(|e| AppError::ImportError(format!("Read CSV row: {}", e)))?;
             let mut obj = serde_json::Map::new();
             for (col_idx, field) in record.iter().enumerate() {
                 if let Some(&field_idx) = col_map.get(&col_idx) {
@@ -323,7 +341,10 @@ impl DataIOService {
                             if let Some(num) = serde_json::Number::from_f64(n) {
                                 obj.insert(field_name.clone(), serde_json::Value::Number(num));
                             } else {
-                                obj.insert(field_name.clone(), serde_json::Value::String(trimmed.to_string()));
+                                obj.insert(
+                                    field_name.clone(),
+                                    serde_json::Value::String(trimmed.to_string()),
+                                );
                             }
                         } else {
                             obj.insert(
@@ -377,10 +398,7 @@ impl DataIOService {
     ///
     /// # Errors
     /// - `AppError::Validation` — unknown entity type
-    pub async fn download_template(
-        entity_type: &str,
-        format: &str,
-    ) -> Result<Vec<u8>, AppError> {
+    pub async fn download_template(entity_type: &str, format: &str) -> Result<Vec<u8>, AppError> {
         Self::validate_entity(entity_type)?;
 
         let field_names = Self::get_field_names(entity_type);
@@ -421,12 +439,8 @@ impl DataIOService {
         }
 
         let (imported_count, errors) = match entity_type {
-            ENTITY_SEAMLESS_PIPES => {
-                DataIORepo::import_seamless_pipes(pool, &rows).await?
-            }
-            ENTITY_SCREEN_PIPES => {
-                DataIORepo::import_screen_pipes(pool, &rows).await?
-            }
+            ENTITY_SEAMLESS_PIPES => DataIORepo::import_seamless_pipes(pool, &rows).await?,
+            ENTITY_SCREEN_PIPES => DataIORepo::import_screen_pipes(pool, &rows).await?,
             _ => {
                 return Err(AppError::ImportError(format!(
                     "Import not supported for entity type: {}",

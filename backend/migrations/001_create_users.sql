@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_role ON users(role);
 
--- Insert default admin user (password: admin123)
-INSERT INTO users (username, password_hash, display_name, role)
-VALUES ('admin', '$argon2id$v=19$m=19456,t=2,p=1$+YobHflrRI2qxqqUqIIB8A$0ECSCWpGHdX73H5CVw1n3YYAQJABRnRHQ76Mg3f+ebI', 'Administrator', 'admin');
+-- NOTE: No seed admin is inserted here. The first admin user is bootstrapped
+-- at application startup from ADMIN_USERNAME / ADMIN_PASSWORD env vars
+-- (see main.rs bootstrap_admin()). This avoids shipping a hardcoded credential
+-- that every deployment inherits.

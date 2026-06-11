@@ -12,15 +12,16 @@ use crate::dto::inventory_dto::{
     ApproveRequest, AssignLocationRequest, BatchCreateInboundRequest, CreateCheckRequest,
     CreateInboundRecordRequest, CreateLocationRequest, CreateOutboundRecordRequest, InboundFilter,
     InventoryFilter, OutboundFilter, RejectRequest, SubmitCheckItemRequest,
-    TransferLocationRequest, UpdateLocationRequest,
+    TransferLocationRequest, UpdateInboundRecordRequest, UpdateLocationRequest,
+    UpdateOutboundRecordRequest,
 };
 use validator::Validate;
 
 use crate::error::AppError;
 use crate::middleware::auth::AuthContext;
 use crate::models::inventory::{
-    InboundItem, InboundRecord, InventoryCheckItem, InventoryCheckRecord, InventoryLog, Location,
-    OutboundItem, OutboundRecord,
+    InboundItem, InboundRecord, InventoryCheckRecord, InventoryLog, Location, OutboundItem,
+    OutboundRecord,
 };
 use crate::response::{ApiResponse, PaginatedResponse};
 use crate::services::check_service::CheckService;
@@ -58,7 +59,8 @@ pub async fn create_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateInboundRecordRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let record = InboundService::create_inbound(&pool, &req).await?;
     Ok(ApiResponse::created(record))
 }
@@ -92,7 +94,9 @@ pub async fn get_inbound_handler(
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<crate::dto::inventory_dto::InboundRecordDetail>>, AppError> {
     let (record, items) = InboundService::get_inbound_record(&pool, id).await?;
-    Ok(ApiResponse::ok(crate::dto::inventory_dto::InboundRecordDetail { record, items }))
+    Ok(ApiResponse::ok(
+        crate::dto::inventory_dto::InboundRecordDetail { record, items },
+    ))
 }
 
 /// PUT `/api/v1/inbound-records/{id}/approve` — Approve an inbound record
@@ -105,8 +109,9 @@ pub async fn approve_inbound_handler(
     Extension(auth): Extension<AuthContext>,
     Json(req): Json<ApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    InboundService::approve_inbound(&pool, id, req.reason.as_deref()).await?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    InboundService::approve_inbound(&pool, id, req.reason.as_deref(), Some(auth.user_id)).await?;
     Ok(ApiResponse::ok("Inbound approved".into()))
 }
 
@@ -118,9 +123,23 @@ pub async fn reject_inbound_handler(
     Path(id): Path<i64>,
     Json(req): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     InboundService::reject_inbound(&pool, id, &req.reason).await?;
     Ok(ApiResponse::ok("Inbound rejected".into()))
+}
+
+/// PUT `/api/v1/inbound-records/{id}` — Update an inbound record
+///
+/// Updates editable fields on an inbound record. Only `auto_approved` or `rejected` records can be updated.
+/// Validates the request body. Returns the updated record.
+pub async fn update_inbound_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateInboundRecordRequest>,
+) -> Result<Json<ApiResponse<InboundRecord>>, AppError> {
+    let record = InboundService::update_inbound(&pool, id, &req).await?;
+    Ok(ApiResponse::ok(record))
 }
 
 /// DELETE `/api/v1/inbound-records/{id}` — Delete an inbound record
@@ -144,7 +163,8 @@ pub async fn create_outbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateOutboundRecordRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let record = OutboundService::create_outbound(&pool, &req).await?;
     Ok(ApiResponse::created(record))
 }
@@ -178,7 +198,9 @@ pub async fn get_outbound_handler(
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<crate::dto::inventory_dto::OutboundRecordDetail>>, AppError> {
     let (record, items) = OutboundService::get_outbound_record(&pool, id).await?;
-    Ok(ApiResponse::ok(crate::dto::inventory_dto::OutboundRecordDetail { record, items }))
+    Ok(ApiResponse::ok(
+        crate::dto::inventory_dto::OutboundRecordDetail { record, items },
+    ))
 }
 
 /// PUT `/api/v1/outbound-records/{id}/approve` — Approve an outbound record
@@ -191,8 +213,9 @@ pub async fn approve_outbound_handler(
     Extension(auth): Extension<AuthContext>,
     Json(req): Json<ApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    OutboundService::approve_outbound(&pool, id, req.reason.as_deref()).await?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    OutboundService::approve_outbound(&pool, id, req.reason.as_deref(), Some(auth.user_id)).await?;
     Ok(ApiResponse::ok("Outbound approved".into()))
 }
 
@@ -204,9 +227,23 @@ pub async fn reject_outbound_handler(
     Path(id): Path<i64>,
     Json(req): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     OutboundService::reject_outbound(&pool, id, &req.reason).await?;
     Ok(ApiResponse::ok("Outbound rejected".into()))
+}
+
+/// PUT `/api/v1/outbound-records/{id}` — Update an outbound record
+///
+/// Updates editable fields on an outbound record. Only `auto_approved` or `rejected` records can be updated.
+/// Validates the request body. Returns the updated record.
+pub async fn update_outbound_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateOutboundRecordRequest>,
+) -> Result<Json<ApiResponse<OutboundRecord>>, AppError> {
+    let record = OutboundService::update_outbound(&pool, id, &req).await?;
+    Ok(ApiResponse::ok(record))
 }
 
 /// DELETE `/api/v1/outbound-records/{id}` — Delete an outbound record
@@ -296,7 +333,8 @@ pub async fn create_location_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateLocationRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let location = LocationService::create_location(&pool, &req).await?;
     Ok(ApiResponse::created(location))
 }
@@ -321,7 +359,8 @@ pub async fn update_location_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateLocationRequest>,
 ) -> Result<Json<ApiResponse<Location>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let location = LocationService::update_location(&pool, id, &req).await?;
     Ok(ApiResponse::ok(location))
 }
@@ -347,7 +386,8 @@ pub async fn create_check_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateCheckRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let record = CheckService::create_check(&pool, &req).await?;
     Ok(ApiResponse::created(record))
 }
@@ -381,7 +421,9 @@ pub async fn get_check_handler(
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<crate::dto::inventory_dto::CheckRecordDetail>>, AppError> {
     let (record, items) = CheckService::get_check_detail(&pool, id).await?;
-    Ok(ApiResponse::ok(crate::dto::inventory_dto::CheckRecordDetail { record, items }))
+    Ok(ApiResponse::ok(
+        crate::dto::inventory_dto::CheckRecordDetail { record, items },
+    ))
 }
 
 /// POST `/api/v1/inventory/checks/{check_id}/items/{item_id}/submit` — Submit a check item
@@ -393,7 +435,8 @@ pub async fn submit_check_item_handler(
     Path((check_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<SubmitCheckItemRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let item = CheckService::submit_check_item(&pool, check_id, item_id, &req).await?;
     Ok(ApiResponse::created(item))
 }
@@ -500,7 +543,8 @@ pub async fn assign_location_handler(
     Path(location_id): Path<i64>,
     Json(req): Json<AssignLocationRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let result = LocationService::assign_location(&pool, location_id, &req).await?;
     Ok(ApiResponse::ok(result))
 }
@@ -516,7 +560,8 @@ pub async fn transfer_location_handler(
     Path((pipe_type, pipe_id)): Path<(String, i64)>,
     Json(req): Json<TransferLocationRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let result = LocationService::transfer_location(&pool, &pipe_type, pipe_id, &req).await?;
     Ok(ApiResponse::ok(result))
 }
@@ -531,7 +576,8 @@ pub async fn batch_create_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<BatchCreateInboundRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let records = InboundService::batch_create_inbound(&pool, &req).await?;
     Ok(ApiResponse::created(records))
 }

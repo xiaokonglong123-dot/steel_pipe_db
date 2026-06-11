@@ -38,13 +38,25 @@ impl ReportService {
                 let orders = ReportRepo::sales_order_report(pool, period).await?;
                 let top = ReportRepo::top_customers(pool, 10).await?;
                 let status = ReportRepo::order_status_distribution(pool, "sales_orders").await?;
-                (orders, serde_json::json!(top), status, "sales", "top_customers")
+                (
+                    orders,
+                    serde_json::json!(top),
+                    status,
+                    "sales",
+                    "top_customers",
+                )
             }
             _ => {
                 let orders = ReportRepo::purchase_order_report(pool, period).await?;
                 let top = ReportRepo::top_suppliers(pool, 10).await?;
                 let status = ReportRepo::order_status_distribution(pool, "purchase_orders").await?;
-                (orders, serde_json::json!(top), status, "purchase", "top_suppliers")
+                (
+                    orders,
+                    serde_json::json!(top),
+                    status,
+                    "purchase",
+                    "top_suppliers",
+                )
             }
         };
 

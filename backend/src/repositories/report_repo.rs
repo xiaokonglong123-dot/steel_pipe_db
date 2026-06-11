@@ -51,9 +51,7 @@ impl ReportRepo {
     }
 
     /// Count of seamless/screen pipes grouped by grade.
-    pub async fn inventory_by_grade(
-        pool: &SqlitePool,
-    ) -> Result<Vec<serde_json::Value>, AppError> {
+    pub async fn inventory_by_grade(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, i64)> = sqlx::query_as(
             "SELECT grade, COUNT(*) as cnt FROM seamless_pipes \
              WHERE deleted_at IS NULL GROUP BY grade ORDER BY cnt DESC",
@@ -81,9 +79,7 @@ impl ReportRepo {
     }
 
     /// Count of seamless pipes by `pipe_type`, plus total screen count.
-    pub async fn inventory_by_type(
-        pool: &SqlitePool,
-    ) -> Result<Vec<serde_json::Value>, AppError> {
+    pub async fn inventory_by_type(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, i64)> = sqlx::query_as(
             "SELECT pipe_type, COUNT(*) as cnt FROM seamless_pipes \
              WHERE deleted_at IS NULL GROUP BY pipe_type ORDER BY cnt DESC",
@@ -92,12 +88,11 @@ impl ReportRepo {
         .await
         .map_err(AppError::from)?;
 
-        let screen_cnt: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM screen_pipes WHERE deleted_at IS NULL",
-        )
-        .fetch_one(pool)
-        .await
-        .map_err(AppError::from)?;
+        let screen_cnt: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM screen_pipes WHERE deleted_at IS NULL")
+                .fetch_one(pool)
+                .await
+                .map_err(AppError::from)?;
 
         let mut result: Vec<serde_json::Value> = Vec::new();
         for (pt, cnt) in rows {
@@ -484,9 +479,7 @@ impl ReportRepo {
     }
 
     /// Pending inbound/outbound records and pending purchase/sales orders (up to 20 each).
-    pub async fn pending_approvals(
-        pool: &SqlitePool,
-    ) -> Result<Vec<serde_json::Value>, AppError> {
+    pub async fn pending_approvals(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, AppError> {
         let mut result: Vec<serde_json::Value> = Vec::new();
 
         let inbound: Vec<(i64, String, String)> = sqlx::query_as(

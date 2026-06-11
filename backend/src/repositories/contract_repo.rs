@@ -1,10 +1,10 @@
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
+use crate::domain::money::{from_decimal, from_decimal_opt};
 use crate::dto::common::PaginationParams;
 use crate::dto::contract_dto::{
-    ContractFilterParams, CreateContractItemRequest, CreateContractRequest,
-    CreatePaymentRequest, UpdateContractItemRequest, UpdateContractRequest,
-    UpdatePaymentRequest,
+    ContractFilterParams, CreateContractItemRequest, CreateContractRequest, CreatePaymentRequest,
+    UpdateContractItemRequest, UpdateContractRequest, UpdatePaymentRequest,
 };
 use crate::models::contract::{Contract, ContractItem, ContractPayment};
 
@@ -14,20 +14,22 @@ pub struct ContractRepo;
 
 impl ContractRepo {
     /// Generated the next sequential contract number (`CT-SAL-000001` / `CT-PUR-000001`).
-    async fn next_contract_no(pool: &SqlitePool, contract_type: &str) -> Result<String, sqlx::Error> {
+    async fn next_contract_no(
+        pool: &SqlitePool,
+        contract_type: &str,
+    ) -> Result<String, sqlx::Error> {
         let prefix = match contract_type {
             "sales" => "CT-SAL",
             "purchase" => "CT-PUR",
             _ => "CT",
         };
         let like = format!("{}%", prefix);
-        let row: (Option<String>,) = sqlx::query_as(
-            "SELECT MAX(contract_no) FROM contracts WHERE contract_no LIKE ?",
-        )
-        .bind(&like)
-        .fetch_optional(pool)
-        .await?
-        .unwrap_or((None,));
+        let row: (Option<String>,) =
+            sqlx::query_as("SELECT MAX(contract_no) FROM contracts WHERE contract_no LIKE ?")
+                .bind(&like)
+                .fetch_optional(pool)
+                .await?
+                .unwrap_or((None,));
 
         let next_seq = match row.0 {
             Some(last) => {
@@ -78,9 +80,8 @@ impl ContractRepo {
         id: i64,
         dto: &UpdateContractRequest,
     ) -> Result<Contract, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "UPDATE contracts SET updated_at = datetime('now')",
-        );
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE contracts SET updated_at = datetime('now')");
 
         if let Some(ref val) = dto.title {
             builder.push(", title = ");
@@ -113,18 +114,17 @@ impl ContractRepo {
 
         builder.push(" WHERE id = ");
         builder.push_bind(id);
-        builder.push(" AND deleted_at IS NULL RETURNING id, contract_no, contract_type, \
+        builder.push(
+            " AND deleted_at IS NULL RETURNING id, contract_no, contract_type, \
             title, party_a, party_b, sign_date, start_date, end_date, total_amount, \
-            status, notes, created_by, created_at, updated_at, deleted_at");
+            status, notes, created_by, created_at, updated_at, deleted_at",
+        );
 
         builder.build_query_as::<Contract>().fetch_one(pool).await
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
-    pub async fn find_by_id(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<Option<Contract>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Contract>, sqlx::Error> {
         sqlx::query_as::<_, Contract>(
             "SELECT id, contract_no, contract_type, title, party_a, party_b, sign_date, \
              start_date, end_date, total_amount, status, notes, created_by, created_at, \
@@ -168,14 +168,11 @@ impl ContractRepo {
     }
 
     /// Recalculate `total_amount` from contract_items SUM. Called after item changes.
-    pub async fn update_total_amount(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn update_total_amount(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE contracts SET total_amount = (SELECT COALESCE(SUM(total_price), 0) \
              FROM contract_items WHERE contract_id = ?), updated_at = datetime('now') \
-             WHERE id = ?",
+             WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .bind(id)
@@ -200,8 +197,11 @@ impl ContractRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push("(c.contract_no LIKE ? OR c.title LIKE ? \
-                 OR c.party_a LIKE ? OR c.party_b LIKE ?)".into());
+                conditions.push(
+                    "(c.contract_no LIKE ? OR c.title LIKE ? \
+                 OR c.party_a LIKE ? OR c.party_b LIKE ?)"
+                        .into(),
+                );
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern.clone());
@@ -281,7 +281,7 @@ impl ContractRepo {
         for item in items {
             let total_price = item
                 .unit_price
-                .map(|p| p * item.quantity as f64)
+                .map(|p| from_decimal(p) * item.quantity as f64)
                 .unwrap_or(0.0);
             let row = sqlx::query_as::<_, ContractItem>(
                 "INSERT INTO contract_items (contract_id, pipe_type, grade, od, wt, \
@@ -296,7 +296,7 @@ impl ContractRepo {
             .bind(item.od)
             .bind(item.wt)
             .bind(item.quantity)
-            .bind(item.unit_price)
+            .bind(from_decimal_opt(item.unit_price))
             .bind(total_price)
             .bind(&item.notes)
             .fetch_one(pool)
@@ -343,49 +343,61 @@ impl ContractRepo {
         item_id: i64,
         dto: &UpdateContractItemRequest,
     ) -> Result<ContractItem, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "UPDATE contract_items SET",
-        );
+        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE contract_items SET");
 
         let mut sep = false;
         if let Some(ref val) = dto.pipe_type {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" pipe_type = ");
             builder.push_bind(val);
             sep = true;
         }
         if let Some(ref val) = dto.grade {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" grade = ");
             builder.push_bind(val);
             sep = true;
         }
         if let Some(val) = dto.od {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" od = ");
             builder.push_bind(val);
             sep = true;
         }
         if let Some(val) = dto.wt {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" wt = ");
             builder.push_bind(val);
             sep = true;
         }
         if let Some(val) = dto.quantity {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" quantity = ");
             builder.push_bind(val);
             sep = true;
         }
         if let Some(val) = dto.unit_price {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" unit_price = ");
-            builder.push_bind(val);
+            builder.push_bind(from_decimal(val));
             sep = true;
         }
         if let Some(ref val) = dto.notes {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" notes = ");
             builder.push_bind(val);
             sep = true;
@@ -403,14 +415,23 @@ impl ContractRepo {
 
         builder.push(" WHERE id = ");
         builder.push_bind(item_id);
-        builder.push(" RETURNING id, contract_id, pipe_type, grade, od, wt, quantity, \
-            unit_price, total_price, notes, created_at");
+        builder.push(
+            " RETURNING id, contract_id, pipe_type, grade, od, wt, quantity, \
+            unit_price, total_price, notes, created_at",
+        );
 
-        let item = builder.build_query_as::<ContractItem>().fetch_one(pool).await?;
+        let item = builder
+            .build_query_as::<ContractItem>()
+            .fetch_one(pool)
+            .await?;
 
         if dto.unit_price.is_some() || dto.quantity.is_some() {
             let qty = dto.quantity.unwrap_or(item.quantity);
-            let price = dto.unit_price.or(item.unit_price).unwrap_or(0.0);
+            let price = dto
+                .unit_price
+                .map(from_decimal)
+                .or(item.unit_price)
+                .unwrap_or(0.0);
             let new_total = qty as f64 * price;
             sqlx::query("UPDATE contract_items SET total_price = ? WHERE id = ?")
                 .bind(new_total)
@@ -453,7 +474,7 @@ impl ContractRepo {
         )
         .bind(contract_id)
         .bind(&dto.due_date)
-        .bind(dto.amount)
+        .bind(from_decimal(dto.amount))
         .bind(&dto.payment_type)
         .bind(&dto.notes)
         .fetch_one(pool)
@@ -467,43 +488,53 @@ impl ContractRepo {
         payment_id: i64,
         dto: &UpdatePaymentRequest,
     ) -> Result<ContractPayment, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "UPDATE contract_payments SET",
-        );
+        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE contract_payments SET");
 
         let mut sep = false;
         if let Some(ref val) = dto.due_date {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" due_date = ");
             builder.push_bind(val);
             sep = true;
         }
         if let Some(val) = dto.amount {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" amount = ");
-            builder.push_bind(val);
+            builder.push_bind(from_decimal(val));
             sep = true;
         }
         if let Some(ref val) = dto.payment_type {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" payment_type = ");
             builder.push_bind(val);
             sep = true;
         }
         if let Some(val) = dto.is_paid {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" is_paid = ");
             builder.push_bind(val);
             sep = true;
         }
         if let Some(ref val) = dto.paid_date {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" paid_date = ");
             builder.push_bind(val);
             sep = true;
         }
         if let Some(ref val) = dto.notes {
-            if sep { builder.push(", "); }
+            if sep {
+                builder.push(", ");
+            }
             builder.push(" notes = ");
             builder.push_bind(val);
             sep = true;
@@ -521,10 +552,15 @@ impl ContractRepo {
 
         builder.push(" WHERE id = ");
         builder.push_bind(payment_id);
-        builder.push(" RETURNING id, contract_id, due_date, amount, payment_type, is_paid, \
-            paid_date, notes, created_at");
+        builder.push(
+            " RETURNING id, contract_id, due_date, amount, payment_type, is_paid, \
+            paid_date, notes, created_at",
+        );
 
-        builder.build_query_as::<ContractPayment>().fetch_one(pool).await
+        builder
+            .build_query_as::<ContractPayment>()
+            .fetch_one(pool)
+            .await
     }
 
     /// SELECT payments by contract, ordered by `due_date`.

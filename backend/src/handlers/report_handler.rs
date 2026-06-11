@@ -1,4 +1,3 @@
-
 use axum::extract::{Extension, Query};
 use axum::Json;
 use sqlx::SqlitePool;
@@ -27,7 +26,9 @@ pub async fn order_report_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<OrderReportQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    query.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    query
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let order_type = query.r#type.as_deref().unwrap_or("purchase");
     let period = query.period.as_deref().unwrap_or("monthly");
 

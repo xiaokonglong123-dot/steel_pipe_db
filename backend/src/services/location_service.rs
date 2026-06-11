@@ -111,9 +111,7 @@ impl LocationService {
             )));
         }
 
-        LocationRepo::delete(pool, id)
-            .await
-            .map_err(AppError::from)
+        LocationRepo::delete(pool, id).await.map_err(AppError::from)
     }
 
     /// Assigns a pipe to a target location. Updates the pipe's location and logs it.
@@ -130,7 +128,9 @@ impl LocationService {
         let location = LocationRepo::find_by_id(pool, location_id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::LocationNotFound(format!("Location id={} not found", location_id)))?;
+            .ok_or_else(|| {
+                AppError::LocationNotFound(format!("Location id={} not found", location_id))
+            })?;
 
         if !location.is_active {
             return Err(AppError::Validation(format!(
@@ -140,6 +140,9 @@ impl LocationService {
         }
 
         InventoryRepo::update_pipe_location(pool, &dto.pipe_type, dto.pipe_id, location_id)
+            .await
+            .map_err(AppError::from)?;
+        LocationRepo::refresh_used_count(pool, location_id)
             .await
             .map_err(AppError::from)?;
 
@@ -200,6 +203,14 @@ impl LocationService {
         }
 
         InventoryRepo::update_pipe_location(pool, pipe_type, pipe_id, dto.to_location_id)
+            .await
+            .map_err(AppError::from)?;
+        if let Some(location_id) = from_location_id {
+            LocationRepo::refresh_used_count(pool, location_id)
+                .await
+                .map_err(AppError::from)?;
+        }
+        LocationRepo::refresh_used_count(pool, dto.to_location_id)
             .await
             .map_err(AppError::from)?;
 

@@ -2,8 +2,8 @@ use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::{
-    CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams,
-    UpdateScreenPipeRequest, UpdateSeamlessPipeRequest,
+    CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams, UpdateScreenPipeRequest,
+    UpdateSeamlessPipeRequest,
 };
 use crate::models::screen_pipe::ScreenPipe;
 use crate::models::seamless_pipe::SeamlessPipe;
@@ -58,9 +58,8 @@ impl SeamlessPipeRepo {
         id: i64,
         dto: &UpdateSeamlessPipeRequest,
     ) -> Result<SeamlessPipe, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "UPDATE seamless_pipes SET updated_at = datetime('now')",
-        );
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE seamless_pipes SET updated_at = datetime('now')");
 
         if let Some(ref val) = dto.batch_number {
             builder.push(", batch_number = ");
@@ -133,13 +132,18 @@ impl SeamlessPipeRepo {
 
         builder.push(" WHERE id = ");
         builder.push_bind(id);
-        builder.push(" AND deleted_at IS NULL RETURNING id, pipe_number, batch_number, \
+        builder.push(
+            " AND deleted_at IS NULL RETURNING id, pipe_number, batch_number, \
             pipe_type, grade, od, wt, length, weight_per_unit, end_type, coupling_type, \
             coupling_od, coupling_length, heat_number, serial_number, manufacturer, \
             production_date, cert_number, location_id, status, notes, created_at, \
-            updated_at, deleted_at");
+            updated_at, deleted_at",
+        );
 
-        builder.build_query_as::<SeamlessPipe>().fetch_one(pool).await
+        builder
+            .build_query_as::<SeamlessPipe>()
+            .fetch_one(pool)
+            .await
     }
 
     /// SELECT by primary key from `seamless_pipes`. Returns `None` if not found or soft-deleted.
@@ -229,7 +233,8 @@ impl SeamlessPipeRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push("(pipe_number LIKE ? OR batch_number LIKE ? OR grade LIKE ?)".into());
+                conditions
+                    .push("(pipe_number LIKE ? OR batch_number LIKE ? OR grade LIKE ?)".into());
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern.clone());
@@ -323,10 +328,7 @@ impl SeamlessPipeRepo {
     }
 
     /// Full-text LIKE search across `pipe_number` and `batch_number`. Returns up to 50 results.
-    pub async fn search(
-        pool: &SqlitePool,
-        query: &str,
-    ) -> Result<Vec<SeamlessPipe>, sqlx::Error> {
+    pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<SeamlessPipe>, sqlx::Error> {
         let like = format!("%{}%", query);
         sqlx::query_as::<_, SeamlessPipe>(
             "SELECT id, pipe_number, batch_number, pipe_type, grade, od, wt, length, \
@@ -393,9 +395,8 @@ impl ScreenPipeRepo {
         id: i64,
         dto: &UpdateScreenPipeRequest,
     ) -> Result<ScreenPipe, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "UPDATE screen_pipes SET updated_at = datetime('now')",
-        );
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE screen_pipes SET updated_at = datetime('now')");
 
         if let Some(ref val) = dto.batch_number {
             builder.push(", batch_number = ");
@@ -464,20 +465,19 @@ impl ScreenPipeRepo {
 
         builder.push(" WHERE id = ");
         builder.push_bind(id);
-        builder.push(" AND deleted_at IS NULL RETURNING id, pipe_number, batch_number, \
+        builder.push(
+            " AND deleted_at IS NULL RETURNING id, pipe_number, batch_number, \
             screen_type, slot_size, filtration_grade, base_od, base_wt, base_grade, \
             base_end_type, length, weight_per_unit, heat_number, serial_number, \
             manufacturer, production_date, cert_number, location_id, status, notes, \
-            created_at, updated_at, deleted_at");
+            created_at, updated_at, deleted_at",
+        );
 
         builder.build_query_as::<ScreenPipe>().fetch_one(pool).await
     }
 
     /// SELECT by primary key from `screen_pipes`. Returns `None` if not found or soft-deleted.
-    pub async fn find_by_id(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<Option<ScreenPipe>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<ScreenPipe>, sqlx::Error> {
         sqlx::query_as::<_, ScreenPipe>(
             "SELECT id, pipe_number, batch_number, screen_type, slot_size, \
              filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
@@ -560,7 +560,9 @@ impl ScreenPipeRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push("(pipe_number LIKE ? OR batch_number LIKE ? OR base_grade LIKE ?)".into());
+                conditions.push(
+                    "(pipe_number LIKE ? OR batch_number LIKE ? OR base_grade LIKE ?)".into(),
+                );
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern.clone());
@@ -653,10 +655,7 @@ impl ScreenPipeRepo {
     }
 
     /// Full-text LIKE search across `pipe_number` and `batch_number`. Returns up to 50 results.
-    pub async fn search(
-        pool: &SqlitePool,
-        query: &str,
-    ) -> Result<Vec<ScreenPipe>, sqlx::Error> {
+    pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<ScreenPipe>, sqlx::Error> {
         let like = format!("%{}%", query);
         sqlx::query_as::<_, ScreenPipe>(
             "SELECT id, pipe_number, batch_number, screen_type, slot_size, \

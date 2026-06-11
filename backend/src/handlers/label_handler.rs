@@ -37,7 +37,8 @@ pub async fn create_batch_labels_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<BatchLabelRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let html = LabelService::generate_batch_labels(&pool, &req).await?;
     Ok(ApiResponse::created(html))
 }
@@ -61,7 +62,8 @@ pub async fn create_shipping_label_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<ShippingLabelRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let html = LabelService::generate_shipping_label(&pool, &req).await?;
     Ok(ApiResponse::created(html))
 }

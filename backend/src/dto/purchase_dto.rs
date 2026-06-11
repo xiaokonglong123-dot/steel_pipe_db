@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -69,9 +70,9 @@ pub struct CreatePurchaseItemRequest {
     #[validate(range(min = 1))]
     pub quantity: i64,
     /// Unit price.
-    pub unit_price: Option<f64>,
+    pub unit_price: Option<Decimal>,
     /// Total price.
-    pub total_price: Option<f64>,
+    pub total_price: Option<Decimal>,
     /// Notes.
     pub notes: Option<String>,
 }
@@ -87,7 +88,7 @@ pub struct UpdatePurchaseItemRequest {
     pub od: Option<f64>,
     pub wt: Option<f64>,
     pub quantity: Option<i64>,
-    pub unit_price: Option<f64>,
+    pub unit_price: Option<Decimal>,
     pub notes: Option<String>,
 }
 

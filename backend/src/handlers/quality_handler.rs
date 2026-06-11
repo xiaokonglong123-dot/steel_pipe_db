@@ -62,7 +62,8 @@ pub async fn create_cert_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateQualityCertRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let cert = QualityService::create_cert(&pool, &req).await?;
     Ok(ApiResponse::created(cert))
 }
@@ -87,7 +88,8 @@ pub async fn update_cert_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateQualityCertRequest>,
 ) -> Result<Json<ApiResponse<QualityCert>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let cert = QualityService::update_cert(&pool, id, &req).await?;
     Ok(ApiResponse::ok(cert))
 }
@@ -136,7 +138,8 @@ pub async fn create_attachment_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateAttachmentRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let attachment = QualityService::create_attachment(&pool, &req).await?;
     Ok(ApiResponse::created(attachment))
 }
@@ -164,9 +167,9 @@ pub async fn list_attachments_handler(
         let cert = QualityService::get_cert(&pool, cert_id).await?;
         (cert.pipe_type, cert.pipe_id)
     } else if let Some(ref pipe_type) = query.pipe_type {
-        let pipe_id = query
-            .pipe_id
-            .ok_or_else(|| AppError::Validation("pipe_id is required when pipe_type is provided".into()))?;
+        let pipe_id = query.pipe_id.ok_or_else(|| {
+            AppError::Validation("pipe_id is required when pipe_type is provided".into())
+        })?;
         (pipe_type.clone(), pipe_id)
     } else {
         return Err(AppError::Validation(

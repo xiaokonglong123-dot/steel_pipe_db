@@ -76,5 +76,3 @@ pub struct CreateAttachmentRequest {
     /// Uploader user ID.
     pub uploaded_by: Option<i64>,
 }
-
-

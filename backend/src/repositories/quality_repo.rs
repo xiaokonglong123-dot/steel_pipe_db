@@ -42,9 +42,8 @@ impl QualityCertRepo {
         id: i64,
         dto: &UpdateQualityCertRequest,
     ) -> Result<QualityCert, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "UPDATE quality_certs SET updated_at = datetime('now')",
-        );
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE quality_certs SET updated_at = datetime('now')");
 
         if let Some(ref val) = dto.cert_date {
             builder.push(", cert_date = ");
@@ -70,10 +69,15 @@ impl QualityCertRepo {
         builder.push(" WHERE id = ");
         builder.push_bind(id);
         builder.push(" AND deleted_at IS NULL");
-        builder.push(" RETURNING id, cert_number, pipe_type, pipe_id, cert_date, result, \
-            inspector, inspection_body, notes, created_at, updated_at, deleted_at");
+        builder.push(
+            " RETURNING id, cert_number, pipe_type, pipe_id, cert_date, result, \
+            inspector, inspection_body, notes, created_at, updated_at, deleted_at",
+        );
 
-        builder.build_query_as::<QualityCert>().fetch_one(pool).await
+        builder
+            .build_query_as::<QualityCert>()
+            .fetch_one(pool)
+            .await
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
@@ -193,9 +197,7 @@ impl Api5ctGradeRefRepo {
     }
 
     /// SELECT all grades ordered by `grade` name.
-    pub async fn list_all(
-        pool: &SqlitePool,
-    ) -> Result<Vec<Api5ctGradeRef>, sqlx::Error> {
+    pub async fn list_all(pool: &SqlitePool) -> Result<Vec<Api5ctGradeRef>, sqlx::Error> {
         sqlx::query_as::<_, Api5ctGradeRef>(
             "SELECT id, grade, yield_strength_min, yield_strength_max, tensile_strength_min, \
              hardness_max, carbon_content_max, manganese_content_max, phosphorus_content_max, \

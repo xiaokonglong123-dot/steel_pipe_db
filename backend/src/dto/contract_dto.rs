@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -103,7 +104,7 @@ pub struct CreateContractItemRequest {
     #[validate(range(min = 1))]
     pub quantity: i64,
     /// Unit price.
-    pub unit_price: Option<f64>,
+    pub unit_price: Option<Decimal>,
     /// Notes.
     pub notes: Option<String>,
 }
@@ -116,7 +117,7 @@ pub struct UpdateContractItemRequest {
     pub od: Option<f64>,
     pub wt: Option<f64>,
     pub quantity: Option<i64>,
-    pub unit_price: Option<f64>,
+    pub unit_price: Option<Decimal>,
     pub notes: Option<String>,
 }
 
@@ -131,9 +132,8 @@ pub struct CreatePaymentRequest {
     #[validate(length(min = 1))]
     pub due_date: String,
     /// Payment amount.
-    #[validate(range(min = 0.0))]
-    pub amount: f64,
-    /// Payment type: deposit / progress / final / retention.
+    pub amount: Decimal,
+    /// Payment type: deposit / progress / milestone / final / retention.
     #[validate(length(min = 1))]
     pub payment_type: String,
     /// Notes.
@@ -146,11 +146,11 @@ pub struct UpdatePaymentRequest {
     /// Due date.
     pub due_date: Option<String>,
     /// Amount.
-    pub amount: Option<f64>,
+    pub amount: Option<Decimal>,
     /// Payment type.
     pub payment_type: Option<String>,
-    /// Whether paid (0 = unpaid, 1 = paid).
-    pub is_paid: Option<i64>,
+    /// Whether paid.
+    pub is_paid: Option<bool>,
     /// Actual payment date.
     pub paid_date: Option<String>,
     /// Notes.

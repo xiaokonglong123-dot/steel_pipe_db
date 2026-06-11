@@ -1,5 +1,6 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Sqlite, SqlitePool, Transaction};
 
+use crate::domain::money::from_decimal_opt;
 use crate::dto::common::PaginationParams;
 use crate::dto::purchase_dto::{
     CreatePurchaseItemRequest, CreatePurchaseOrderRequest, PurchaseOrderFilterParams,
@@ -19,6 +20,8 @@ impl PurchaseOrderRepo {
         dto: &CreatePurchaseOrderRequest,
         order_no: &str,
     ) -> Result<PurchaseOrder, sqlx::Error> {
+        let mut tx = pool.begin().await?;
+
         let order = sqlx::query_as::<_, PurchaseOrder>(
             "INSERT INTO purchase_orders (order_no, supplier_id, order_date, status, \
              total_amount, notes) \
@@ -30,13 +33,16 @@ impl PurchaseOrderRepo {
         .bind(dto.supplier_id)
         .bind(&dto.order_date)
         .bind(&dto.notes)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await?;
 
         for item in &dto.items {
-            Self::create_item(pool, order.id, item).await?;
+            Self::create_item(&mut tx, order.id, item).await?;
         }
 
+        tx.commit().await?;
+
+        // Recompute total_amount after commit
         let total: f64 = Self::sum_item_totals(pool, order.id).await?;
         if total > 0.0 {
             sqlx::query("UPDATE purchase_orders SET total_amount = ? WHERE id = ?")
@@ -53,7 +59,7 @@ impl PurchaseOrderRepo {
     }
 
     async fn create_item(
-        pool: &SqlitePool,
+        tx: &mut Transaction<'_, Sqlite>,
         order_id: i64,
         dto: &CreatePurchaseItemRequest,
     ) -> Result<PurchaseOrderItem, sqlx::Error> {
@@ -70,10 +76,10 @@ impl PurchaseOrderRepo {
         .bind(dto.od)
         .bind(dto.wt)
         .bind(dto.quantity)
-        .bind(dto.unit_price)
-        .bind(dto.total_price)
+        .bind(from_decimal_opt(dto.unit_price))
+        .bind(from_decimal_opt(dto.total_price))
         .bind(&dto.notes)
-        .fetch_one(pool)
+        .fetch_one(&mut **tx)
         .await
     }
 
@@ -113,7 +119,10 @@ impl PurchaseOrderRepo {
              total_amount, notes, created_by, created_at, updated_at, deleted_at",
         );
 
-        builder.build_query_as::<PurchaseOrder>().fetch_one(pool).await
+        builder
+            .build_query_as::<PurchaseOrder>()
+            .fetch_one(pool)
+            .await
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
@@ -326,7 +335,7 @@ impl PurchaseOrderRepo {
         set_field_opt!(dto.od, "od");
         set_field_opt!(dto.wt, "wt");
         set_field_opt!(dto.quantity, "quantity");
-        set_field_opt!(dto.unit_price, "unit_price");
+        set_field_opt!(from_decimal_opt(dto.unit_price), "unit_price");
         // total_price is NOT set from client — recomputed below after UPDATE
         set_field!(dto.notes, "notes");
 
@@ -341,7 +350,10 @@ impl PurchaseOrderRepo {
              unit_price, total_price, notes, created_at",
         );
 
-        let item = builder.build_query_as::<PurchaseOrderItem>().fetch_one(pool).await?;
+        let item = builder
+            .build_query_as::<PurchaseOrderItem>()
+            .fetch_one(pool)
+            .await?;
 
         // Recompute total_price server-side: quantity * unit_price
         // This runs after every update to ensure consistency even if only one field changed.

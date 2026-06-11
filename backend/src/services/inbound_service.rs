@@ -1,10 +1,11 @@
 use chrono::Utc;
-use sqlx::{SqlitePool, Transaction};
 use sqlx::sqlite::Sqlite;
+use sqlx::{SqlitePool, Transaction};
 
 use crate::domain::pipe::PipeType;
 use crate::dto::inventory_dto::{
     BatchCreateInboundRequest, CreateInboundRecordRequest, InboundFilter,
+    UpdateInboundRecordRequest,
 };
 use crate::error::AppError;
 use crate::models::inventory::{InboundItem, InboundRecord};
@@ -58,8 +59,9 @@ impl InboundService {
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
         for item in items {
-            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
-                .ok_or_else(|| AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type)))?;
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+            })?;
 
             match pipe_type {
                 PipeType::Seamless => {
@@ -73,7 +75,8 @@ impl InboundService {
                     .map_err(AppError::from)?;
                     if result.rows_affected() == 0 {
                         return Err(AppError::NotFound(format!(
-                            "Seamless pipe id={} not found for inbound execution", item.pipe_id
+                            "Seamless pipe id={} not found for inbound execution",
+                            item.pipe_id
                         )));
                     }
                 }
@@ -88,7 +91,8 @@ impl InboundService {
                     .map_err(AppError::from)?;
                     if result.rows_affected() == 0 {
                         return Err(AppError::NotFound(format!(
-                            "Screen pipe id={} not found for inbound execution", item.pipe_id
+                            "Screen pipe id={} not found for inbound execution",
+                            item.pipe_id
                         )));
                     }
                 }
@@ -179,6 +183,7 @@ impl InboundService {
         pool: &SqlitePool,
         id: i64,
         approval_reason: Option<&str>,
+        handled_by: Option<i64>,
     ) -> Result<(), AppError> {
         let record = InboundRepo::find_by_id(pool, id)
             .await
@@ -199,7 +204,9 @@ impl InboundService {
             )));
         }
 
-        let items = InboundRepo::find_items(pool, id).await.map_err(AppError::from)?;
+        let items = InboundRepo::find_items(pool, id)
+            .await
+            .map_err(AppError::from)?;
 
         let mut tx = pool.begin().await.map_err(AppError::from)?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -210,7 +217,7 @@ impl InboundService {
              WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(approval_reason)
-        .bind(Option::<i64>::None)
+        .bind(handled_by)
         .bind(id)
         .execute(&mut *tx)
         .await
@@ -218,13 +225,15 @@ impl InboundService {
 
         if result.rows_affected() == 0 {
             return Err(AppError::NotFound(format!(
-                "Inbound record id={} not found or was deleted during approval", id
+                "Inbound record id={} not found or was deleted during approval",
+                id
             )));
         }
 
         for item in &items {
-            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
-                .ok_or_else(|| AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type)))?;
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+            })?;
 
             match pipe_type {
                 PipeType::Seamless => {
@@ -238,7 +247,8 @@ impl InboundService {
                     .map_err(AppError::from)?;
                     if result.rows_affected() == 0 {
                         return Err(AppError::NotFound(format!(
-                            "Seamless pipe id={} not found during inbound approval", item.pipe_id
+                            "Seamless pipe id={} not found during inbound approval",
+                            item.pipe_id
                         )));
                     }
                 }
@@ -253,7 +263,8 @@ impl InboundService {
                     .map_err(AppError::from)?;
                     if result.rows_affected() == 0 {
                         return Err(AppError::NotFound(format!(
-                            "Screen pipe id={} not found during inbound approval", item.pipe_id
+                            "Screen pipe id={} not found during inbound approval",
+                            item.pipe_id
                         )));
                     }
                 }
@@ -269,7 +280,7 @@ impl InboundService {
             .bind("inbound")
             .bind(Some("inbound"))
             .bind(Some(id))
-            .bind(Option::<i64>::None)
+            .bind(handled_by)
             .bind(Option::<i64>::None)
             .bind(Option::<String>::None)
             .bind(Option::<i64>::None)
@@ -287,11 +298,7 @@ impl InboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     /// - `AppError::Validation` — can't reject in the current state
-    pub async fn reject_inbound(
-        pool: &SqlitePool,
-        id: i64,
-        reason: &str,
-    ) -> Result<(), AppError> {
+    pub async fn reject_inbound(pool: &SqlitePool, id: i64, reason: &str) -> Result<(), AppError> {
         let record = InboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -360,7 +367,40 @@ impl InboundService {
             )));
         }
 
-        InboundRepo::delete(pool, id)
+        InboundRepo::delete(pool, id).await.map_err(AppError::from)
+    }
+
+    /// Updates editable fields on an inbound record.
+    /// Only records with `auto_approved` or `rejected` status can be updated.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record not found or was deleted
+    /// - `AppError::Validation` — current status doesn't allow updates
+    pub async fn update_inbound(
+        pool: &SqlitePool,
+        id: i64,
+        dto: &UpdateInboundRecordRequest,
+    ) -> Result<InboundRecord, AppError> {
+        let record = InboundRepo::find_by_id(pool, id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::NotFound(format!("Inbound record id={} not found", id)))?;
+
+        if record.deleted_at.is_some() {
+            return Err(AppError::NotFound(format!(
+                "Inbound record id={} has been deleted",
+                id
+            )));
+        }
+
+        if record.approval_status != "auto_approved" && record.approval_status != "rejected" {
+            return Err(AppError::Validation(format!(
+                "Cannot update inbound with status '{}'. Only auto-approved or rejected records can be updated.",
+                record.approval_status
+            )));
+        }
+
+        InboundRepo::update(pool, id, dto)
             .await
             .map_err(AppError::from)
     }
@@ -385,7 +425,9 @@ impl InboundService {
         dto: &BatchCreateInboundRequest,
     ) -> Result<Vec<InboundRecord>, AppError> {
         if dto.records.is_empty() {
-            return Err(AppError::Validation("At least one inbound record is required".into()));
+            return Err(AppError::Validation(
+                "At least one inbound record is required".into(),
+            ));
         }
 
         let mut tx = pool.begin().await.map_err(AppError::from)?;

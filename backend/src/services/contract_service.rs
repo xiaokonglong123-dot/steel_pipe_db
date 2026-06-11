@@ -1,10 +1,10 @@
+use rust_decimal::Decimal;
 use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::contract_dto::{
-    ContractDetailResponse, ContractFilterParams, CreateContractItemRequest,
-    CreateContractRequest, CreatePaymentRequest, UpdateContractItemRequest,
-    UpdateContractRequest, UpdatePaymentRequest,
+    ContractDetailResponse, ContractFilterParams, CreateContractItemRequest, CreateContractRequest,
+    CreatePaymentRequest, UpdateContractItemRequest, UpdateContractRequest, UpdatePaymentRequest,
 };
 use crate::error::AppError;
 use crate::models::contract::{Contract, ContractItem, ContractPayment};
@@ -119,10 +119,7 @@ impl ContractService {
     /// # Errors
     /// - `AppError::NotFound` — ID doesn't exist
     /// - `AppError::Validation` — current status doesn't allow deletion
-    pub async fn delete_contract(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<(), AppError> {
+    pub async fn delete_contract(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let existing = ContractRepo::find_by_id(pool, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Contract id={} not found", id)))?;
@@ -238,10 +235,14 @@ impl ContractService {
             )));
         }
 
-        let items = ContractRepo::create_items(pool, contract_id, std::slice::from_ref(dto)).await?;
+        let items =
+            ContractRepo::create_items(pool, contract_id, std::slice::from_ref(dto)).await?;
         ContractRepo::update_total_amount(pool, contract_id).await?;
 
-        items.into_iter().next().ok_or_else(|| AppError::Internal("Failed to create item".into()))
+        items
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::Internal("Failed to create item".into()))
     }
 
     /// Updates a contract line item. Only works in `draft` status; validates the
@@ -339,8 +340,10 @@ impl ContractService {
         contract_id: i64,
         dto: &CreatePaymentRequest,
     ) -> Result<ContractPayment, AppError> {
-        if dto.amount <= 0.0 {
-            return Err(AppError::Validation("Payment amount must be positive".into()));
+        if dto.amount <= Decimal::ZERO {
+            return Err(AppError::Validation(
+                "Payment amount must be positive".into(),
+            ));
         }
 
         if !Self::valid_payment_type(&dto.payment_type) {
@@ -398,8 +401,10 @@ impl ContractService {
         }
 
         if let Some(amt) = dto.amount {
-            if amt <= 0.0 {
-                return Err(AppError::Validation("Payment amount must be positive".into()));
+            if amt <= Decimal::ZERO {
+                return Err(AppError::Validation(
+                    "Payment amount must be positive".into(),
+                ));
             }
         }
 

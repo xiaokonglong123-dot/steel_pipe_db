@@ -38,7 +38,6 @@ impl FromStr for PipeType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_pipe_type_str(s)
-            .ok_or_else(|| format!("Unknown pipe_type: {}", s))
+        Self::from_pipe_type_str(s).ok_or_else(|| format!("Unknown pipe_type: {}", s))
     }
 }

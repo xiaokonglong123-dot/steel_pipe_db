@@ -89,9 +89,7 @@ impl CheckService {
         pool: &SqlitePool,
         params: &PaginationParams,
     ) -> Result<(Vec<InventoryCheckRecord>, u64), AppError> {
-        CheckRepo::list(pool, params)
-            .await
-            .map_err(AppError::from)
+        CheckRepo::list(pool, params).await.map_err(AppError::from)
     }
 
     /// Submitts the actual result for a check item (`found_status` + `notes`). Only works on `in_progress` checks.

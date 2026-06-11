@@ -10,10 +10,9 @@ use validator::Validate;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::purchase_dto::{
-    ApproveOrderRequest, CreatePurchaseOrderRequest, LinkInboundRequest,
-    PurchaseOrderDetailResponse, PurchaseOrderFilterParams,
-    PurchaseOrderStatusTransitionRequest, RejectOrderRequest, UpdatePurchaseItemRequest,
-    UpdatePurchaseOrderRequest,
+    ApproveOrderRequest, CreatePurchaseOrderRequest, PurchaseOrderDetailResponse,
+    PurchaseOrderFilterParams, PurchaseOrderStatusTransitionRequest, RejectOrderRequest,
+    UpdatePurchaseItemRequest, UpdatePurchaseOrderRequest,
 };
 use crate::error::AppError;
 use crate::models::purchase_order::PurchaseOrder;
@@ -50,7 +49,8 @@ pub async fn create_purchase_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreatePurchaseOrderRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let order = PurchaseSalesService::create_purchase_order(&pool, &req).await?;
     Ok(ApiResponse::created(order))
 }
@@ -64,7 +64,10 @@ pub async fn get_purchase_order_handler(
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PurchaseOrderDetailResponse>>, AppError> {
     let (order, items) = PurchaseSalesService::get_purchase_order(&pool, id).await?;
-    Ok(ApiResponse::ok(PurchaseOrderDetailResponse { order, items }))
+    Ok(ApiResponse::ok(PurchaseOrderDetailResponse {
+        order,
+        items,
+    }))
 }
 
 /// PUT `/api/v1/purchase-orders/{id}` — Update a purchase order
@@ -76,7 +79,8 @@ pub async fn update_purchase_order_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdatePurchaseOrderRequest>,
 ) -> Result<Json<ApiResponse<PurchaseOrder>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let order = PurchaseSalesService::update_purchase_order(&pool, id, &req).await?;
     Ok(ApiResponse::ok(order))
 }
@@ -101,7 +105,8 @@ pub async fn transition_purchase_order_status_handler(
     Path(id): Path<i64>,
     Json(req): Json<PurchaseOrderStatusTransitionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     PurchaseSalesService::transition_purchase_status(&pool, id, &req).await?;
     Ok(ApiResponse::ok(format!(
         "Purchase order status changed to '{}'",
@@ -118,7 +123,8 @@ pub async fn update_purchase_item_handler(
     Path((order_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<UpdatePurchaseItemRequest>,
 ) -> Result<Json<ApiResponse<PurchaseOrder>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let (order, _item) =
         PurchaseSalesService::update_purchase_item(&pool, order_id, item_id, &req).await?;
     Ok(ApiResponse::ok(order))

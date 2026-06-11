@@ -7,9 +7,7 @@ use crate::dto::quality_dto::{
 };
 use crate::error::AppError;
 use crate::models::quality::{Api5ctGradeRef, PipeAttachment, QualityCert};
-use crate::repositories::quality_repo::{
-    Api5ctGradeRefRepo, PipeAttachmentRepo, QualityCertRepo,
-};
+use crate::repositories::quality_repo::{Api5ctGradeRefRepo, PipeAttachmentRepo, QualityCertRepo};
 
 fn validate_result(result: &str) -> Result<(), AppError> {
     match result {
@@ -85,7 +83,9 @@ impl QualityService {
     ) -> Result<QualityCert, AppError> {
         QualityCertRepo::find_by_id(pool, id)
             .await?
-            .ok_or_else(|| AppError::QualityCertNotFound(format!("Quality cert id={} not found", id)))?;
+            .ok_or_else(|| {
+                AppError::QualityCertNotFound(format!("Quality cert id={} not found", id))
+            })?;
 
         if let Some(ref result) = dto.result {
             validate_result(result)?;
@@ -103,7 +103,9 @@ impl QualityService {
     pub async fn delete_cert(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let existing = QualityCertRepo::find_by_id(pool, id)
             .await?
-            .ok_or_else(|| AppError::QualityCertNotFound(format!("Quality cert id={} not found", id)))?;
+            .ok_or_else(|| {
+                AppError::QualityCertNotFound(format!("Quality cert id={} not found", id))
+            })?;
 
         if existing.deleted_at.is_some() {
             return Err(AppError::QualityCertNotFound(format!(
@@ -112,7 +114,9 @@ impl QualityService {
             )));
         }
 
-        QualityCertRepo::delete(pool, id).await.map_err(AppError::from)
+        QualityCertRepo::delete(pool, id)
+            .await
+            .map_err(AppError::from)
     }
 
     /// Get a QC cert by ID.
@@ -120,9 +124,9 @@ impl QualityService {
     /// # Errors
     /// - `AppError::QualityCertNotFound` — ID not found or deleted
     pub async fn get_cert(pool: &SqlitePool, id: i64) -> Result<QualityCert, AppError> {
-        QualityCertRepo::find_by_id(pool, id)
-            .await?
-            .ok_or_else(|| AppError::QualityCertNotFound(format!("Quality cert id={} not found", id)))
+        QualityCertRepo::find_by_id(pool, id).await?.ok_or_else(|| {
+            AppError::QualityCertNotFound(format!("Quality cert id={} not found", id))
+        })
     }
 
     /// Paginated QC cert listing with filters for pipe type, result, date range, etc.
@@ -142,19 +146,14 @@ impl QualityService {
     ///
     /// # Errors
     /// - `AppError::NotFound` — grade not found
-    pub async fn get_grade(
-        pool: &SqlitePool,
-        grade: &str,
-    ) -> Result<Api5ctGradeRef, AppError> {
+    pub async fn get_grade(pool: &SqlitePool, grade: &str) -> Result<Api5ctGradeRef, AppError> {
         Api5ctGradeRefRepo::find_by_grade(pool, grade)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Grade '{}' not found", grade)))
     }
 
     /// List all API 5CT grade reference data (read-only).
-    pub async fn list_grades(
-        pool: &SqlitePool,
-    ) -> Result<Vec<Api5ctGradeRef>, AppError> {
+    pub async fn list_grades(pool: &SqlitePool) -> Result<Vec<Api5ctGradeRef>, AppError> {
         Api5ctGradeRefRepo::list_all(pool)
             .await
             .map_err(AppError::from)
@@ -179,9 +178,13 @@ impl QualityService {
     pub async fn delete_attachment(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         PipeAttachmentRepo::find_by_id(pool, id)
             .await?
-            .ok_or_else(|| AppError::AttachmentNotFound(format!("Attachment id={} not found", id)))?;
+            .ok_or_else(|| {
+                AppError::AttachmentNotFound(format!("Attachment id={} not found", id))
+            })?;
 
-        PipeAttachmentRepo::delete(pool, id).await.map_err(AppError::from)
+        PipeAttachmentRepo::delete(pool, id)
+            .await
+            .map_err(AppError::from)
     }
 
     /// List all attachments for a pipe by type and ID.

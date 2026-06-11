@@ -1,5 +1,6 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Sqlite, SqlitePool, Transaction};
 
+use crate::domain::money::from_decimal_opt;
 use crate::dto::common::PaginationParams;
 use crate::dto::sales_dto::{
     CreateSalesItemRequest, CreateSalesOrderRequest, SalesOrderFilterParams,
@@ -18,6 +19,8 @@ impl SalesOrderRepo {
         dto: &CreateSalesOrderRequest,
         order_no: &str,
     ) -> Result<SalesOrder, sqlx::Error> {
+        let mut tx = pool.begin().await?;
+
         let order = sqlx::query_as::<_, SalesOrder>(
             "INSERT INTO sales_orders (order_no, customer_id, order_date, status, \
              total_amount, notes) \
@@ -29,13 +32,16 @@ impl SalesOrderRepo {
         .bind(dto.customer_id)
         .bind(&dto.order_date)
         .bind(&dto.notes)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await?;
 
         for item in &dto.items {
-            Self::create_item(pool, order.id, item).await?;
+            Self::create_item(&mut tx, order.id, item).await?;
         }
 
+        tx.commit().await?;
+
+        // Recompute total_amount after commit
         let total: f64 = Self::sum_item_totals(pool, order.id).await?;
         if total > 0.0 {
             sqlx::query("UPDATE sales_orders SET total_amount = ? WHERE id = ?")
@@ -52,7 +58,7 @@ impl SalesOrderRepo {
     }
 
     async fn create_item(
-        pool: &SqlitePool,
+        tx: &mut Transaction<'_, Sqlite>,
         order_id: i64,
         dto: &CreateSalesItemRequest,
     ) -> Result<SalesOrderItem, sqlx::Error> {
@@ -69,10 +75,10 @@ impl SalesOrderRepo {
         .bind(dto.od)
         .bind(dto.wt)
         .bind(dto.quantity)
-        .bind(dto.unit_price)
-        .bind(dto.total_price)
+        .bind(from_decimal_opt(dto.unit_price))
+        .bind(from_decimal_opt(dto.total_price))
         .bind(&dto.notes)
-        .fetch_one(pool)
+        .fetch_one(&mut **tx)
         .await
     }
 
@@ -116,10 +122,7 @@ impl SalesOrderRepo {
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
-    pub async fn find_by_id(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<Option<SalesOrder>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<SalesOrder>, sqlx::Error> {
         sqlx::query_as::<_, SalesOrder>(
             "SELECT id, order_no, customer_id, order_date, status, total_amount, notes, \
              created_by, created_at, updated_at, deleted_at \
@@ -291,8 +294,7 @@ impl SalesOrderRepo {
         item_id: i64,
         dto: &UpdateSalesItemRequest,
     ) -> Result<SalesOrderItem, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("UPDATE sales_order_items SET");
+        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE sales_order_items SET");
 
         let mut first = true;
         macro_rules! set_field {
@@ -325,7 +327,7 @@ impl SalesOrderRepo {
         set_field_opt!(dto.od, "od");
         set_field_opt!(dto.wt, "wt");
         set_field_opt!(dto.quantity, "quantity");
-        set_field_opt!(dto.unit_price, "unit_price");
+        set_field_opt!(from_decimal_opt(dto.unit_price), "unit_price");
         // total_price is NOT set from client — recomputed below after UPDATE
         set_field!(dto.notes, "notes");
 
@@ -340,7 +342,10 @@ impl SalesOrderRepo {
              unit_price, total_price, notes, created_at",
         );
 
-        let item = builder.build_query_as::<SalesOrderItem>().fetch_one(pool).await?;
+        let item = builder
+            .build_query_as::<SalesOrderItem>()
+            .fetch_one(pool)
+            .await?;
 
         // Recompute total_price server-side: quantity * unit_price
         if dto.quantity.is_some() || dto.unit_price.is_some() {

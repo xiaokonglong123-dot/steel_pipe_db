@@ -127,9 +127,7 @@ impl OperationLogRepo {
         for v in &bind_values {
             list_query = list_query.bind(v);
         }
-        list_query = list_query
-            .bind(page_size as i64)
-            .bind(offset as i64);
+        list_query = list_query.bind(page_size as i64).bind(offset as i64);
 
         let items = list_query.fetch_all(pool).await?;
         Ok((items, total.0 as u64))

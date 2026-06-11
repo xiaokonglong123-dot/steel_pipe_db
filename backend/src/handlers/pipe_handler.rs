@@ -11,8 +11,8 @@ use validator::Validate;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::{
-    CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams,
-    PipeSearchResult, UpdateScreenPipeRequest, UpdateSeamlessPipeRequest,
+    CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams, PipeSearchResult,
+    UpdateScreenPipeRequest, UpdateSeamlessPipeRequest,
 };
 use crate::error::AppError;
 use crate::models::screen_pipe::ScreenPipe;
@@ -44,8 +44,7 @@ pub async fn list_seamless_pipes_handler(
     let page = pagination.page();
     let page_size = pagination.page_size();
 
-    let (items, total) =
-        PipeService::list_seamless_pipes(&pool, &filter, &pagination).await?;
+    let (items, total) = PipeService::list_seamless_pipes(&pool, &filter, &pagination).await?;
 
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
@@ -59,7 +58,8 @@ pub async fn create_seamless_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSeamlessPipeRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let pipe = PipeService::create_seamless_pipe(&pool, &req).await?;
     Ok(ApiResponse::created(pipe))
 }
@@ -85,7 +85,8 @@ pub async fn update_seamless_pipe_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateSeamlessPipeRequest>,
 ) -> Result<Json<ApiResponse<SeamlessPipe>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let pipe = PipeService::update_seamless_pipe(&pool, id, &req).await?;
     Ok(ApiResponse::ok(pipe))
 }
@@ -133,7 +134,8 @@ pub async fn create_screen_pipe_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateScreenPipeRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let pipe = PipeService::create_screen_pipe(&pool, &req).await?;
     Ok(ApiResponse::created(pipe))
 }
@@ -157,7 +159,8 @@ pub async fn update_screen_pipe_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdateScreenPipeRequest>,
 ) -> Result<Json<ApiResponse<ScreenPipe>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let pipe = PipeService::update_screen_pipe(&pool, id, &req).await?;
     Ok(ApiResponse::ok(pipe))
 }

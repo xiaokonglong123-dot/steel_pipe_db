@@ -45,7 +45,8 @@ pub async fn import_handler(
         }
     }
 
-    let data = file_data.ok_or_else(|| AppError::ImportError("No file field found in upload".into()))?;
+    let data =
+        file_data.ok_or_else(|| AppError::ImportError("No file field found in upload".into()))?;
     let fname = file_name.unwrap_or_else(|| "import.xlsx".to_string());
 
     let result = DataIOService::import_entity(&pool, &entity_type, &data, &fname).await?;
@@ -57,11 +58,14 @@ pub async fn import_handler(
         "import",
         &entity_type,
         None,
-        Some(serde_json::json!({
-            "imported": result.imported_count,
-            "failed": result.failed_count,
-            "file": fname,
-        }).to_string()),
+        Some(
+            serde_json::json!({
+                "imported": result.imported_count,
+                "failed": result.failed_count,
+                "file": fname,
+            })
+            .to_string(),
+        ),
         None,
     )
     .await?;
@@ -78,7 +82,9 @@ pub async fn export_handler(
     Path(entity_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    query.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    query
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let entity_type = entity_type.to_lowercase();
     let format = query.format.unwrap_or_else(|| "xlsx".into());
 
@@ -117,7 +123,9 @@ pub async fn template_handler(
     Path(entity_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    query.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    query
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let entity_type = entity_type.to_lowercase();
     let format = query.format.unwrap_or_else(|| "xlsx".into());
 
@@ -125,7 +133,10 @@ pub async fn template_handler(
 
     let content_type = DataIOService::content_type(&format);
     let ext = DataIOService::file_extension(&format);
-    let disposition = format!("attachment; filename=\"{}.{}_template.{}\"", entity_type, entity_type, ext);
+    let disposition = format!(
+        "attachment; filename=\"{}.{}_template.{}\"",
+        entity_type, entity_type, ext
+    );
 
     let headers = [
         (header::CONTENT_TYPE, content_type),
@@ -154,7 +165,9 @@ pub async fn list_operation_logs_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<OperationLogQuery>,
 ) -> Result<Json<PaginatedResponse<OperationLog>>, AppError> {
-    query.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    query
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let page = query.page.unwrap_or(1).max(1);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 

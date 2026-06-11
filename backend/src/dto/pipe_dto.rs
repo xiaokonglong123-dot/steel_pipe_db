@@ -161,11 +161,16 @@ pub struct PipeFilterParams {
     pub sort_order: Option<String>,
 }
 
-/// Pipe search result DTO (unified wrapper for seamless and screen types).
+/// Pipe search result DTO flattened for modal selection in the frontend.
 #[derive(Debug, Serialize)]
 pub struct PipeSearchResult {
+    pub id: i64,
     /// Pipe type: seamless or screen.
     pub pipe_type: String,
-    /// Pipe data (JSON object, shape depends on pipe_type).
-    pub pipe: serde_json::Value,
+    pub pipe_number: String,
+    pub grade: String,
+    pub od: f64,
+    pub wt: f64,
+    pub status: String,
+    pub location_id: Option<i64>,
 }

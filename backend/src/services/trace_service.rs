@@ -282,24 +282,20 @@ impl TraceService {
         pipe_id: i64,
     ) -> Result<String, AppError> {
         let status: Option<(String,)> = match pipe_type {
-            "seamless" | "casing" | "tubing" => {
-                sqlx::query_as(
-                    "SELECT status FROM seamless_pipes WHERE id = ? AND deleted_at IS NULL",
-                )
-                .bind(pipe_id)
-                .fetch_optional(pool)
-                .await
-                .map_err(AppError::from)?
-            }
-            "screen" | "screened" => {
-                sqlx::query_as(
-                    "SELECT status FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
-                )
-                .bind(pipe_id)
-                .fetch_optional(pool)
-                .await
-                .map_err(AppError::from)?
-            }
+            "seamless" | "casing" | "tubing" => sqlx::query_as(
+                "SELECT status FROM seamless_pipes WHERE id = ? AND deleted_at IS NULL",
+            )
+            .bind(pipe_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(AppError::from)?,
+            "screen" | "screened" => sqlx::query_as(
+                "SELECT status FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
+            )
+            .bind(pipe_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(AppError::from)?,
             _ => None,
         };
         Ok(status.map(|s| s.0).unwrap_or_else(|| "deleted".into()))

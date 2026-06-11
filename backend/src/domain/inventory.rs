@@ -45,7 +45,8 @@ impl ApprovalStatus {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Self::from_str(&s).map_err(|()| serde::de::Error::custom(format!("Invalid ApprovalStatus: {}", s)))
+        Self::from_str(&s)
+            .map_err(|()| serde::de::Error::custom(format!("Invalid ApprovalStatus: {}", s)))
     }
 }
 

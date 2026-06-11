@@ -1,10 +1,10 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{Executor, QueryBuilder, Sqlite, SqlitePool};
 
 use crate::domain::pipe::PipeType;
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{
     CreateCheckRequest, CreateLocationRequest, InboundFilter, InventoryFilter, OutboundFilter,
-    UpdateLocationRequest,
+    UpdateInboundRecordRequest, UpdateLocationRequest, UpdateOutboundRecordRequest,
 };
 use crate::models::inventory::{
     InboundItem, InboundRecord, InventoryCheckItem, InventoryCheckRecord, InventoryLog, Location,
@@ -55,8 +55,11 @@ pub struct InventoryRepo;
 impl InventoryRepo {
     /// UNION query across both `seamless_pipes` and `screen_pipes` to compute available-to-promise
     /// stock grouped by `pipe_type`, `grade`, and `location_id`. Supports optional filters.
-    pub async fn find_atp(
-        pool: &SqlitePool,
+    ///
+    /// Accepts any SQLx executor (`&SqlitePool`, `&mut Transaction`, `&mut Connection`), making it
+    /// safe to use inside an `IMMEDIATE` transaction for TOCTOU-free ATP checks.
+    pub async fn find_atp<'e, E: Executor<'e, Database = Sqlite>>(
+        executor: E,
         pipe_type: &Option<String>,
         grade: &Option<String>,
         location_id: &Option<i64>,
@@ -107,8 +110,8 @@ impl InventoryRepo {
 
         builder
             .build_query_as::<(String, String, i64, Option<i64>)>()
-.fetch_all(pool)
-        .await
+            .fetch_all(executor)
+            .await
     }
 
     /// Sums `COUNT(*)` of `in_stock` pipes from both `seamless_pipes` and `screen_pipes`.
@@ -146,16 +149,26 @@ impl InventoryRepo {
 
         let mut result = Vec::new();
         for (grade, count) in seamless {
-            result.push(GradeCount { grade, count, pipe_type: "seamless".to_string() });
+            result.push(GradeCount {
+                grade,
+                count,
+                pipe_type: "seamless".to_string(),
+            });
         }
         for (grade, count) in screen {
-            result.push(GradeCount { grade, count, pipe_type: "screen".to_string() });
+            result.push(GradeCount {
+                grade,
+                count,
+                pipe_type: "screen".to_string(),
+            });
         }
         Ok(result)
     }
 
     /// GROUP BY `location_id` across both pipe tables. Returns typed structs.
-    pub async fn get_count_by_location(pool: &SqlitePool) -> Result<Vec<LocationCount>, sqlx::Error> {
+    pub async fn get_count_by_location(
+        pool: &SqlitePool,
+    ) -> Result<Vec<LocationCount>, sqlx::Error> {
         let seamless: Vec<(Option<i64>, i64)> = sqlx::query_as(
             "SELECT location_id, COUNT(*) as cnt FROM seamless_pipes \
              WHERE status = 'in_stock' AND deleted_at IS NULL GROUP BY location_id",
@@ -172,10 +185,18 @@ impl InventoryRepo {
 
         let mut result = Vec::new();
         for (location_id, count) in seamless {
-            result.push(LocationCount { location_id, count, pipe_type: "seamless".to_string() });
+            result.push(LocationCount {
+                location_id,
+                count,
+                pipe_type: "seamless".to_string(),
+            });
         }
         for (location_id, count) in screen {
-            result.push(LocationCount { location_id, count, pipe_type: "screen".to_string() });
+            result.push(LocationCount {
+                location_id,
+                count,
+                pipe_type: "screen".to_string(),
+            });
         }
         Ok(result)
     }
@@ -248,6 +269,28 @@ impl InventoryRepo {
 pub struct LocationRepo;
 
 impl LocationRepo {
+    pub async fn refresh_used_count(
+        pool: &SqlitePool,
+        location_id: i64,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE locations SET used_count = (
+                 SELECT COUNT(*) FROM seamless_pipes
+                 WHERE location_id = ? AND status = 'in_stock' AND deleted_at IS NULL
+             ) + (
+                 SELECT COUNT(*) FROM screen_pipes
+                 WHERE location_id = ? AND status = 'in_stock' AND deleted_at IS NULL
+             ), updated_at = datetime('now')
+             WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(location_id)
+        .bind(location_id)
+        .bind(location_id)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
     /// INSERT into `locations`. Returns the newly created row with generated `id`.
     pub async fn create(
         pool: &SqlitePool,
@@ -359,7 +402,10 @@ impl LocationRepo {
         }
         let where_clause = conditions.join(" AND ");
 
-        let count_sql = format!("SELECT COUNT(*) as cnt FROM locations WHERE {}", where_clause);
+        let count_sql = format!(
+            "SELECT COUNT(*) as cnt FROM locations WHERE {}",
+            where_clause
+        );
         let total: (i64,) = sqlx::query_as(&count_sql).fetch_one(pool).await?;
 
         let list_sql = format!(
@@ -378,7 +424,6 @@ impl LocationRepo {
 
         Ok((items, total.0 as u64))
     }
-
 }
 
 /// CRUD for `inbound_records` and `inbound_items`. All queries filter `deleted_at IS NULL`.
@@ -593,6 +638,45 @@ impl InboundRepo {
         .execute(pool)
         .await?;
         Ok(())
+    }
+
+    /// UPDATE editable fields (notes, order_id, supplier_id) on an inbound record.
+    /// Only records with `auto_approved` or `rejected` status can be updated.
+    /// Returns the updated record.
+    pub async fn update(
+        pool: &SqlitePool,
+        id: i64,
+        dto: &UpdateInboundRecordRequest,
+    ) -> Result<InboundRecord, sqlx::Error> {
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE inbound_records SET updated_at = datetime('now')");
+
+        if let Some(ref val) = dto.notes {
+            builder.push(", notes = ");
+            builder.push_bind(val);
+        }
+        if let Some(val) = dto.order_id {
+            builder.push(", order_id = ");
+            builder.push_bind(val);
+        }
+        if let Some(val) = dto.supplier_id {
+            builder.push(", supplier_id = ");
+            builder.push_bind(val);
+        }
+
+        builder.push(" WHERE id = ");
+        builder.push_bind(id);
+        builder.push(" AND deleted_at IS NULL");
+        builder.push(" AND (approval_status = 'auto_approved' OR approval_status = 'rejected')");
+        builder.push(
+            " RETURNING id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
+             rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
+        );
+
+        builder
+            .build_query_as::<InboundRecord>()
+            .fetch_one(pool)
+            .await
     }
 }
 
@@ -809,6 +893,45 @@ impl OutboundRepo {
         .await?;
         Ok(())
     }
+
+    /// UPDATE editable fields (notes, order_id, customer_id) on an outbound record.
+    /// Only records with `auto_approved` or `rejected` status can be updated.
+    /// Returns the updated record.
+    pub async fn update(
+        pool: &SqlitePool,
+        id: i64,
+        dto: &UpdateOutboundRecordRequest,
+    ) -> Result<OutboundRecord, sqlx::Error> {
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE outbound_records SET updated_at = datetime('now')");
+
+        if let Some(ref val) = dto.notes {
+            builder.push(", notes = ");
+            builder.push_bind(val);
+        }
+        if let Some(val) = dto.order_id {
+            builder.push(", order_id = ");
+            builder.push_bind(val);
+        }
+        if let Some(val) = dto.customer_id {
+            builder.push(", customer_id = ");
+            builder.push_bind(val);
+        }
+
+        builder.push(" WHERE id = ");
+        builder.push_bind(id);
+        builder.push(" AND deleted_at IS NULL");
+        builder.push(" AND (approval_status = 'auto_approved' OR approval_status = 'rejected')");
+        builder.push(
+            " RETURNING id, outbound_no, outbound_type, order_id, customer_id, notes, approval_status, \
+             rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
+        );
+
+        builder
+            .build_query_as::<OutboundRecord>()
+            .fetch_one(pool)
+            .await
+    }
 }
 
 /// INSERT + paginated SELECT for `inventory_logs` (pipe movement audit trail).
@@ -903,7 +1026,6 @@ impl InventoryLogRepo {
 
         Ok((items, total.0 as u64))
     }
-
 }
 
 /// CRUD for inventory check records and items (`inventory_check_records` + `inventory_check_items`).
@@ -988,7 +1110,8 @@ impl CheckRepo {
         let page_size = params.page_size();
         let offset = params.offset();
 
-        let count_sql = "SELECT COUNT(*) as cnt FROM inventory_check_records WHERE deleted_at IS NULL";
+        let count_sql =
+            "SELECT COUNT(*) as cnt FROM inventory_check_records WHERE deleted_at IS NULL";
         let total: (i64,) = sqlx::query_as(count_sql).fetch_one(pool).await?;
 
         let items = sqlx::query_as::<_, InventoryCheckRecord>(
@@ -1023,10 +1146,7 @@ impl CheckRepo {
     }
 
     /// COUNT of check items that are mismatched (`is_match` IS NULL or 0).
-    pub async fn get_mismatch_count(
-        pool: &SqlitePool,
-        check_id: i64,
-    ) -> Result<i64, sqlx::Error> {
+    pub async fn get_mismatch_count(pool: &SqlitePool, check_id: i64) -> Result<i64, sqlx::Error> {
         let (cnt,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM inventory_check_items \
              WHERE check_id = ? AND (is_match IS NULL OR is_match = 0)",
@@ -1045,7 +1165,15 @@ impl CheckRepo {
         found_status: &str,
         notes: &Option<String>,
     ) -> Result<InventoryCheckItem, sqlx::Error> {
-        let is_match = (found_status == "in_stock") as i64;
+        // Fetch expected_status to compute is_match correctly
+        let existing: (String,) = sqlx::query_as(
+            "SELECT expected_status FROM inventory_check_items WHERE id = ? AND check_id = ?",
+        )
+        .bind(item_id)
+        .bind(check_id)
+        .fetch_one(pool)
+        .await?;
+        let is_match = (found_status == existing.0.as_str()) as i64;
         sqlx::query_as::<_, InventoryCheckItem>(
             "UPDATE inventory_check_items SET found_status = ?, is_match = ?, notes = ? \
              WHERE id = ? AND check_id = ? \
@@ -1060,5 +1188,4 @@ impl CheckRepo {
         .fetch_one(pool)
         .await
     }
-
 }

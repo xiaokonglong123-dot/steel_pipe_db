@@ -41,7 +41,7 @@ pub struct SeamlessPipe {
     pub cert_number: Option<String>,
     /// Current warehouse location ID.
     pub location_id: Option<i64>,
-    /// Stock status: in_stock / outbound / scrapped / in_transit / reserved.
+    /// Stock status: in_stock / outbound / scrapped.
     pub status: String,
     /// Free-form notes.
     pub notes: Option<String>,

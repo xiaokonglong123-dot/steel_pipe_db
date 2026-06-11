@@ -108,10 +108,7 @@ impl PipeService {
     /// # Errors
     /// - `AppError::PipeNotFound` — ID doesn't exist
     /// - `AppError::PipeStatusConflict` — current status says nope
-    pub async fn delete_seamless_pipe(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<(), AppError> {
+    pub async fn delete_seamless_pipe(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let existing = SeamlessPipeRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -133,10 +130,7 @@ impl PipeService {
     ///
     /// # Errors
     /// - `AppError::PipeNotFound` — pipe with the given ID not found
-    pub async fn get_seamless_pipe(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<SeamlessPipe, AppError> {
+    pub async fn get_seamless_pipe(pool: &SqlitePool, id: i64) -> Result<SeamlessPipe, AppError> {
         SeamlessPipeRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -238,10 +232,7 @@ impl PipeService {
     /// # Errors
     /// - `AppError::PipeNotFound` — ID doesn't exist
     /// - `AppError::PipeStatusConflict` — status won't allow it
-    pub async fn delete_screen_pipe(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<(), AppError> {
+    pub async fn delete_screen_pipe(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let existing = ScreenPipeRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -263,10 +254,7 @@ impl PipeService {
     ///
     /// # Errors
     /// - `AppError::PipeNotFound` — ID doesn't exist
-    pub async fn get_screen_pipe(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<ScreenPipe, AppError> {
+    pub async fn get_screen_pipe(pool: &SqlitePool, id: i64) -> Result<ScreenPipe, AppError> {
         ScreenPipeRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -290,8 +278,6 @@ impl PipeService {
     /// Searches across both pipe types and smashes the results together.
     /// Each hit is tagged `pipe_type: "seamless"` or `"screen"`.
     ///
-    /// # Errors
-    /// - `AppError::Internal` — JSON serialization failure for a matched pipe
     pub async fn search_pipes(
         pool: &SqlitePool,
         query: &str,
@@ -308,17 +294,27 @@ impl PipeService {
 
         for pipe in seamless {
             results.push(PipeSearchResult {
+                id: pipe.id,
                 pipe_type: "seamless".into(),
-                pipe: serde_json::to_value(pipe)
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
+                pipe_number: pipe.pipe_number,
+                grade: pipe.grade,
+                od: pipe.od,
+                wt: pipe.wt,
+                status: pipe.status,
+                location_id: pipe.location_id,
             });
         }
 
         for pipe in screen {
             results.push(PipeSearchResult {
+                id: pipe.id,
                 pipe_type: "screen".into(),
-                pipe: serde_json::to_value(pipe)
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
+                pipe_number: pipe.pipe_number,
+                grade: pipe.base_grade,
+                od: pipe.base_od,
+                wt: pipe.base_wt,
+                status: pipe.status,
+                location_id: pipe.location_id,
             });
         }
 

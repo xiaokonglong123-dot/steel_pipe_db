@@ -19,7 +19,9 @@ pub async fn check_atp_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<AtpQuery>,
 ) -> Result<Json<ApiResponse<Vec<AtpItem>>>, AppError> {
-    query.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    query
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let items = InventoryQueryService::check_atp(&pool, &query).await?;
     Ok(ApiResponse::ok(items))
 }

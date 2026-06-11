@@ -19,6 +19,28 @@ pub struct OutboundRecordDetail {
     pub items: Vec<crate::models::inventory::OutboundItem>,
 }
 
+/// Update inbound record request DTO — only editable fields.
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateInboundRecordRequest {
+    /// Free-form notes.
+    pub notes: Option<String>,
+    /// Related order ID.
+    pub order_id: Option<i64>,
+    /// Supplier ID.
+    pub supplier_id: Option<i64>,
+}
+
+/// Update outbound record request DTO — only editable fields.
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateOutboundRecordRequest {
+    /// Free-form notes.
+    pub notes: Option<String>,
+    /// Related order ID.
+    pub order_id: Option<i64>,
+    /// Customer ID.
+    pub customer_id: Option<i64>,
+}
+
 /// Create inbound record request DTO.
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateInboundRecordRequest {

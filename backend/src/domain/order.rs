@@ -57,7 +57,8 @@ impl OrderStatus {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Self::from_str(&s).map_err(|()| serde::de::Error::custom(format!("Invalid OrderStatus: {}", s)))
+        Self::from_str(&s)
+            .map_err(|()| serde::de::Error::custom(format!("Invalid OrderStatus: {}", s)))
     }
 }
 
@@ -68,7 +69,6 @@ impl std::fmt::Display for OrderStatus {
 }
 
 impl OrderStatus {
-
     /// Check whether transitioning from the current status to the target is valid.
     /// Valid transition matrix:
     /// - Draft → Pending | Cancelled

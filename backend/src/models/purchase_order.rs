@@ -1,6 +1,8 @@
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+use crate::domain::money::to_decimal_opt;
 use crate::domain::order::OrderStatus;
 use std::str::FromStr;
 
@@ -32,6 +34,23 @@ impl PurchaseOrder {
     /// Returns `None` if the stored string is not a valid status value.
     pub fn order_status(&self) -> Option<OrderStatus> {
         FromStr::from_str(&self.status).ok()
+    }
+
+    /// Returns `total_amount` as a `Decimal` for precise arithmetic.
+    pub fn total_amount_decimal(&self) -> Option<Decimal> {
+        to_decimal_opt(self.total_amount)
+    }
+}
+
+impl PurchaseOrderItem {
+    /// Returns `unit_price` as a `Decimal` for precise arithmetic.
+    pub fn unit_price_decimal(&self) -> Option<Decimal> {
+        to_decimal_opt(self.unit_price)
+    }
+
+    /// Returns `total_price` as a `Decimal` for precise arithmetic.
+    pub fn total_price_decimal(&self) -> Option<Decimal> {
+        to_decimal_opt(self.total_price)
     }
 }
 
