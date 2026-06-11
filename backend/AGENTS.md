@@ -85,10 +85,15 @@ src/
 │   ├── contract.rs
 │   ├── customer.rs
 │   └── supplier.rs
-├── repositories/        ← 13 files, pure SQL, soft-delete aware
+├── repositories/        ← 20 files, pure SQL, soft-delete aware
 │   ├── mod.rs
 │   ├── pipe_repo.rs
-│   ├── inventory_repo.rs
+│   ├── inventory_repo.rs          ← ATP queries, stock counting
+│   ├── location_repo.rs           ← warehouse location CRUD
+│   ├── inbound_repo.rs            ← inbound record CRUD
+│   ├── outbound_repo.rs           ← outbound record CRUD
+│   ├── inventory_log_repo.rs      ← pipe movement audit trail
+│   ├── check_repo.rs              ← inventory check records and items
 │   ├── purchase_order_repo.rs
 │   ├── sales_order_repo.rs
 │   ├── quality_repo.rs
@@ -99,8 +104,9 @@ src/
 │   ├── report_repo.rs
 │   ├── data_io_repo.rs
 │   ├── user_repo.rs
-│   └── operation_log_repo.rs
-├── services/            ← 16 files, business logic (unit structs, static methods)
+│   ├── operation_log_repo.rs
+│   └── refresh_token_repo.rs
+├── services/            ← 19 files, business logic (unit structs, static methods)
 │   ├── mod.rs
 │   ├── auth_service.rs
 │   ├── pipe_service.rs
@@ -109,7 +115,8 @@ src/
 │   ├── check_service.rs         ← Inventory checks (create/submit/complete)
 │   ├── inventory_query_service.rs ← Read-only inventory queries (list/stats)
 │   ├── location_service.rs      ← Warehouse locations (CRUD/assign/transfer)
-│   ├── purchase_sales_service.rs ← Purchase & sales orders (shared logic)
+│   ├── purchase_service.rs      ← Purchase order lifecycle
+│   ├── sales_service.rs         ← Sales order lifecycle + ATP validation
 │   ├── quality_service.rs
 │   ├── contract_service.rs
 │   ├── customer_service.rs
@@ -163,7 +170,10 @@ src/
   - `check_service.rs` — inventory check (盘点) creation, item submission, completion
   - `inventory_query_service.rs` — read-only queries (list, statistics)
   - `location_service.rs` — warehouse location CRUD, assign, transfer
-  - ATP calculation lives in `purchase_sales_service.rs` and `atp_handler.rs`
+- `purchase_sales_service.rs` has been split into:
+  - `purchase_service.rs` — purchase order lifecycle, approval, rejection
+  - `sales_service.rs` — sales order lifecycle, ATP validation, approval
+- ATP calculation lives in `sales_service.rs` and `atp_handler.rs`
 
 ## DI Pattern: Extension layers, NOT State<Arc<AppState>>
 

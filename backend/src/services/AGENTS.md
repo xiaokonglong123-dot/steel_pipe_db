@@ -1,4 +1,4 @@
-# `services/` — Business Logic Layer (16 files)
+# `services/` — Business Logic Layer (19 files)
 
 This is where the real work happens — business rules, cross-entity orchestration, transaction management. Services get called by handlers and in turn call repositories.
 
@@ -32,7 +32,8 @@ impl PipeService {
 | `check_service.rs` | Inventory checks | inventory check (盘点) creation, item submission, completion |
 | `inventory_query_service.rs` | Inventory (read) | read-only inventory queries (list, statistics) |
 | `location_service.rs` | Locations | warehouse location CRUD, assign, transfer |
-| `purchase_sales_service.rs` | Purchase + Sales | PO/SO lifecycle, approval workflow, rejection reason, ATP validation |
+| `purchase_service.rs` | Purchase Orders | PO lifecycle, approval workflow, rejection reason |
+| `sales_service.rs` | Sales Orders | SO lifecycle, approval workflow, ATP validation |
 | `quality_service.rs` | Quality | cert creation, mechanical/NDT test entry |
 | `contract_service.rs` | Contracts | contract CRUD, milestone tracking |
 | `customer_service.rs` | Customers | customer CRUD, code uniqueness |
@@ -62,8 +63,7 @@ The old monolithic `inventory_service.rs` has been split into focused modules:
 - `inventory_query_service.rs` — read-only queries (list, statistics, filters)
 - `location_service.rs` — warehouse location CRUD, assign, transfer
 
-ATP (Available-to-Promise) calculation lives in `purchase_sales_service.rs` and
-`atp_handler.rs`. Sales-order fulfillment checks read ATP before approval.
+ATP (Available-to-Promise) calculation lives in `sales_service.rs` (ATP check before sales order approval) and `atp_handler.rs`. Sales-order fulfillment checks read ATP before approval.
 
 ## Adding a New Service
 

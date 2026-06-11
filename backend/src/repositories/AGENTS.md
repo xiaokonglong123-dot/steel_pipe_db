@@ -1,8 +1,6 @@
 # `repositories/` + `models/` — Data Access Layer
 
-## repositories/ (13 files, SQL layer)
-
-> **Note**: `user_repo.rs` got a bump recently (+32 lines) but we're still at 13 repo files.
+## repositories/ (20 files, SQL layer)
 
 ### Pattern
 
@@ -44,11 +42,16 @@ Key facts:
 - **No constructor**, **no DI pattern** — you won't find `pub fn new(db)` anywhere
 - Returns `Result<T, sqlx::Error>` — the caller converts to AppError
 
-### File List (13 files)
+### File List (20 files)
 
 | File | Entity | Description |
 |------|--------|-------------|
-| `inventory_repo.rs` | Inventory | dynamic queries, stock movements |
+| `inventory_repo.rs` | Inventory (ATP) | ATP queries, stock counting, pipe location |
+| `location_repo.rs` | Locations | warehouse location CRUD |
+| `inbound_repo.rs` | Inbound | inbound record CRUD |
+| `outbound_repo.rs` | Outbound | outbound record CRUD |
+| `inventory_log_repo.rs` | Inventory Logs | pipe movement audit trail |
+| `check_repo.rs` | Inventory Checks | inventory check records and items |
 | `report_repo.rs` | Reports | aggregation queries, date ranges |
 | `pipe_repo.rs` | Pipe specs | CRUD + filtered + paginated |
 | `purchase_order_repo.rs` | Purchase Orders | PO CRUD + status |
@@ -61,6 +64,7 @@ Key facts:
 | `data_io_repo.rs` | Data IO | bulk read/write |
 | `user_repo.rs` | Users | auth queries |
 | `operation_log_repo.rs` | Audit logs | insert + query |
+| `refresh_token_repo.rs` | Refresh Tokens | token management |
 
 ### Repository Conventions
 

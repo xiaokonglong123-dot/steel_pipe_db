@@ -1,4 +1,4 @@
-# `services/` — Business Logic Layer (16 files)
+# `services/` — Business Logic Layer (19 files)
 
 This is where the real work happens — business rules, cross-entity orchestration, transaction management. Services get called by handlers and in turn call repositories.
 
@@ -25,22 +25,23 @@ impl PipeService {
 
 | File | Entity | Description |
 |------|--------|-------------|
-| `auth_service.rs` | Auth | login, token refresh, password verify |
-| `pipe_service.rs` | Pipes | pipe CRUD, steel grade/heat treatment validation |
-| `inbound_service.rs` | Inbound | inbound record creation, approval, batch execution |
-| `outbound_service.rs` | Outbound | outbound record creation, approval, stock deduction |
-| `check_service.rs` | Inventory checks | inventory check (盘点) creation, item submission, completion |
-| `inventory_query_service.rs` | Inventory (read) | read-only inventory queries (list, statistics) |
-| `location_service.rs` | Locations | warehouse location CRUD, assign, transfer |
-| `purchase_sales_service.rs` | Purchase + Sales | PO/SO lifecycle, approval workflow, rejection reason, ATP validation |
-| `quality_service.rs` | Quality | cert creation, mechanical/NDT test entry |
-| `contract_service.rs` | Contracts | contract CRUD, milestone tracking |
-| `customer_service.rs` | Customers | customer CRUD, code uniqueness |
-| `supplier_service.rs` | Suppliers | supplier CRUD, qualification |
-| `label_service.rs` | Labels | label content generation |
-| `report_service.rs` | Reports | dashboard aggregation, statistical reports |
-| `data_io_service.rs` | Data IO | Excel/CSV import parsing, export formatting |
-| `trace_service.rs` | Trace | full-lifecycle pipe tracing / inventory movement audit trail |
+| `auth_service.rs` | Auth | 登录, 令牌刷新, 密码验证 |
+| `pipe_service.rs` | Pipes | 管道 CRUD, 钢级/热处理验证 |
+| `inbound_service.rs` | Inbound | 入库记录创建, 审批, 批量执行 |
+| `outbound_service.rs` | Outbound | 出库记录创建, 审批, 库存扣减 |
+| `check_service.rs` | Inventory checks | 盘点创建, 项目提交, 完成 |
+| `inventory_query_service.rs` | Inventory (read) | 只读库存查询 (列表, 统计) |
+| `location_service.rs` | Locations | 仓库位置 CRUD, 分配, 调拨 |
+| `purchase_service.rs` | Purchase Orders | 采购订单生命周期, 审批, 拒绝 |
+| `sales_service.rs` | Sales Orders | 销售订单生命周期, ATP 验证, 审批 |
+| `quality_service.rs` | Quality | 证书创建, 力学/NDT 测试录入 |
+| `contract_service.rs` | Contracts | 合同 CRUD, 里程碑跟踪 |
+| `customer_service.rs` | Customers | 客户 CRUD, 编码唯一性 |
+| `supplier_service.rs` | Suppliers | 供应商 CRUD, 资质管理 |
+| `label_service.rs` | Labels | 标签内容生成 |
+| `report_service.rs` | Reports | 仪表板聚合, 统计报表 |
+| `data_io_service.rs` | Data IO | Excel/CSV 导入解析, 导出格式化 |
+| `trace_service.rs` | Trace | 全生命周期管道追溯 / 库存变动审计 |
 
 ## Service Conventions
 
@@ -62,8 +63,7 @@ The old monolithic `inventory_service.rs` has been split into focused modules:
 - `inventory_query_service.rs` — read-only queries (list, statistics, filters)
 - `location_service.rs` — warehouse location CRUD, assign, transfer
 
-ATP (Available-to-Promise) calculation lives in `purchase_sales_service.rs` and
-`atp_handler.rs`. Sales-order fulfillment checks read ATP before approval.
+ATP (Available-to-Promise) 计算位于 `sales_service.rs` (销售订单审批前的 ATP 检查) 和 `atp_handler.rs`。销售订单履约检查在审批前读取 ATP。
 
 ## Adding a New Service
 

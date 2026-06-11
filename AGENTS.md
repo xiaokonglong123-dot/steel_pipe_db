@@ -40,13 +40,13 @@ steel-pipe-db/
 │       ├── main.rs         ← Entry: tracing, DB pool, migrate, start server
 │       ├── lib.rs          ← Module declarations re-exported
 │       ├── router.rs       ← ~70 endpoints, all routes assembled here
-│       ├── handlers/       ← 13 files, 1 per entity (thin: extract → call service → respond)
-│       ├── services/       ← 12 files, business logic (unit structs, static methods)
-│       ├── repositories/   ← 13 files, pure SQL, soft-delete aware
-│       ├── models/         ← 11 files, DB row structs (sqlx::FromRow)
+│       ├── handlers/       ← 16 files, 1 per entity (thin: extract → call service → respond)
+│       ├── services/       ← 19 files, business logic (unit structs, static methods)
+│       ├── repositories/   ← 20 files, pure SQL, soft-delete aware
+│       ├── models/         ← 12 files, DB row structs (sqlx::FromRow)
 │       ├── dto/            ← 14 files, request/response types
-│       ├── domain/         ← 4 files, enums/domain types
-│       ├── middleware/     ← auth.rs + rbac.rs (updated with success/request_id in error responses)
+│       ├── domain/         ← 5 files, enums/domain types
+│       ├── middleware/     ← 4 files, auth.rs + rbac.rs + rate_limit.rs
 │       ├── config.rs       ← Env-based config (DATABASE_URL, JWT_SECRET, etc.)
 │       ├── error.rs        ← AppError enum, numeric error codes; ApiErrorResponse with success+request_id
 │       └── response.rs     ← ApiResponse<T>, PaginatedResponse<T>, Meta struct, request_id (uuid v4), ::created(), no_content()
@@ -156,14 +156,14 @@ Same deal — static methods, `pool: &SqlitePool`. Soft-delete: `WHERE deleted_a
 | 180xx | Data IO (ImportError, ExportError) |
 | 50001 | Database |
 
-### Handler Files (13)
+### Handler Files (16)
 `auth_handler`, `pipe_handler`, `inventory_handler`, `purchase_handler`, `sales_handler`, `quality_handler`, `contract_handler`, `customer_handler`, `supplier_handler`, `report_handler`, `label_handler`, `data_io_handler`, `atp_handler`
 
-### Service Files (12)
-`auth_service`, `pipe_service`, `inventory_service`, `purchase_sales_service`, `quality_service`, `contract_service`, `customer_service`, `supplier_service`, `label_service`, `report_service`, `data_io_service`, `trace_service`
+### Service Files (19)
+`auth_service`, `pipe_service`, `inbound_service`, `outbound_service`, `check_service`, `inventory_query_service`, `location_service`, `purchase_service`, `sales_service`, `quality_service`, `contract_service`, `customer_service`, `supplier_service`, `label_service`, `report_service`, `data_io_service`, `trace_service`
 
-### Repository Files (13)
-`pipe_repo`, `inventory_repo`, `purchase_order_repo`, `sales_order_repo`, `quality_repo`, `contract_repo`, `customer_repo`, `supplier_repo`, `label_repo`, `report_repo`, `data_io_repo`, `user_repo`, `operation_log_repo`
+### Repository Files (20)
+`pipe_repo`, `inventory_repo`, `location_repo`, `inbound_repo`, `outbound_repo`, `inventory_log_repo`, `check_repo`, `purchase_order_repo`, `sales_order_repo`, `quality_repo`, `contract_repo`, `customer_repo`, `supplier_repo`, `label_repo`, `report_repo`, `data_io_repo`, `user_repo`, `operation_log_repo`, `refresh_token_repo`
 
 ### DB Migrations (11 files in `backend/migrations/`)
 `001_create_users` → `002_create_seamless_pipes` → `003_create_screen_pipes` → `004_create_locations` → `005_create_inventory` → `006_create_orders` → `007_create_quality` → `008_create_logs` → `009_create_ref_data` → `010_seed_api_5ct_data` → `011_add_rejection_reason`

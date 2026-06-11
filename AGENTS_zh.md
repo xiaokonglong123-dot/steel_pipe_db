@@ -10,13 +10,13 @@ Rust + React 19 monorepo for API 5CT steel pipe inventory management. Oil & gas 
 steel-pipe-db/
 ├── backend/          ← Rust Axum 0.8 REST API (SQLite, JWT/Argon2)
 │   └── src/
-│       ├── handlers/     ← 13 files, HTTP glue: validate → call service → respond
-│       ├── services/     ← 12 files, business logic (unit structs, static methods — no DI magic)
-│       ├── repositories/ ← 13 files, pure SQL queries via SQLx
-│       ├── models/       ← 11 files, DB row structs with sqlx::FromRow
+│       ├── handlers/     ← 16 files, HTTP glue: validate → call service → respond
+│       ├── services/     ← 19 files, business logic (unit structs, static methods — no DI magic)
+│       ├── repositories/ ← 20 files, pure SQL queries via SQLx
+│       ├── models/       ← 12 files, DB row structs with sqlx::FromRow
 │       ├── dto/          ← 14 files, request/response types with serde + validator
-│       ├── domain/       ← 4 files, enums and domain types
-│       ├── middleware/   ← auth.rs + rbac.rs (includes success/request_id in error responses)
+│       ├── domain/       ← 5 files, enums and domain types
+│       ├── middleware/   ← 4 files, auth.rs + rbac.rs + rate_limit.rs
 │       ├── router.rs     ← ~70 endpoints wired up
 │       ├── config.rs     ← env-based config (DATABASE_URL, JWT_SECRET, etc.)
 │       ├── error.rs      ← AppError enum with numeric codes; ApiErrorResponse includes success + request_id

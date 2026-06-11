@@ -85,10 +85,15 @@ src/
 │   ├── contract.rs
 │   ├── customer.rs
 │   └── supplier.rs
-├── repositories/        ← 13 files, pure SQL, soft-delete aware
+├── repositories/        ← 20 files, pure SQL, soft-delete aware
 │   ├── mod.rs
 │   ├── pipe_repo.rs
-│   ├── inventory_repo.rs
+│   ├── inventory_repo.rs          ← ATP查询, 库存统计
+│   ├── location_repo.rs           ← 仓库位置 CRUD
+│   ├── inbound_repo.rs            ← 入库记录 CRUD
+│   ├── outbound_repo.rs           ← 出库记录 CRUD
+│   ├── inventory_log_repo.rs      ← 管道移动审计日志
+│   ├── check_repo.rs              ← 盘点记录和盘点项
 │   ├── purchase_order_repo.rs
 │   ├── sales_order_repo.rs
 │   ├── quality_repo.rs
@@ -99,17 +104,19 @@ src/
 │   ├── report_repo.rs
 │   ├── data_io_repo.rs
 │   ├── user_repo.rs
-│   └── operation_log_repo.rs
-├── services/            ← 16 files, business logic (unit structs, static methods)
+│   ├── operation_log_repo.rs
+│   └── refresh_token_repo.rs
+├── services/            ← 19 files, business logic (unit structs, static methods)
 │   ├── mod.rs
 │   ├── auth_service.rs
 │   ├── pipe_service.rs
-│   ├── inbound_service.rs       ← Inbound (create/approve/execute/query)
-│   ├── outbound_service.rs      ← Outbound (create/approve/execute/query)
-│   ├── check_service.rs         ← Inventory checks (create/submit/complete)
-│   ├── inventory_query_service.rs ← Read-only inventory queries (list/stats)
-│   ├── location_service.rs      ← Warehouse locations (CRUD/assign/transfer)
-│   ├── purchase_sales_service.rs ← Purchase & sales orders (shared logic)
+│   ├── inbound_service.rs       ← 入库 (创建/审批/执行/查询)
+│   ├── outbound_service.rs      ← 出库 (创建/审批/执行/查询)
+│   ├── check_service.rs         ← 盘点 (创建/提交/完成)
+│   ├── inventory_query_service.rs ← 只读库存查询 (列表/统计)
+│   ├── location_service.rs      ← 仓库位置 (CRUD/分配/调拨)
+│   ├── purchase_service.rs      ← 采购订单生命周期
+│   ├── sales_service.rs         ← 销售订单生命周期 + ATP 验证
 │   ├── quality_service.rs
 │   ├── contract_service.rs
 │   ├── customer_service.rs
@@ -117,7 +124,7 @@ src/
 │   ├── label_service.rs
 │   ├── report_service.rs
 │   ├── data_io_service.rs
-│   └── trace_service.rs         ← Full-lifecycle pipe tracing
+│   └── trace_service.rs         ← 全生命周期管道追溯
 ├── handlers/            ← 13 files, thin handlers (extract → call service → respond)
 │   ├── mod.rs
 │   ├── auth_handler.rs
@@ -157,7 +164,16 @@ src/
 - Services are **unit structs with static methods** (no constructor DI): `PipeService::list(...)`
 - Services return `Result<T, AppError>`
   - Repositories accept `&SqlitePool` and return `Result<Vec<T>, sqlx::Error>`
-- `inventory_service.rs` is the beefy one — ATP calculation, rejection reason handling, and all the inventory management magic lives there.
+- `inventory_service.rs` 已拆分为专注的模块:
+  - `inbound_service.rs` — 入库记录创建, 审批, 批量执行
+  - `outbound_service.rs` — 出库记录创建, 审批, 库存扣减
+  - `check_service.rs` — 盘点创建, 项目提交, 完成
+  - `inventory_query_service.rs` — 只读查询 (列表, 统计)
+  - `location_service.rs` — 仓库位置 CRUD, 分配, 调拨
+- `purchase_sales_service.rs` 已拆分为:
+  - `purchase_service.rs` — 采购订单生命周期, 审批, 拒绝
+  - `sales_service.rs` — 销售订单生命周期, ATP 验证, 审批
+- ATP 计算位于 `sales_service.rs` 和 `atp_handler.rs`
 
 ## DI Pattern: Extension layers, NOT State<Arc<AppState>>
 
