@@ -15,8 +15,10 @@ pub struct LoginRequest {
 /// Login success response DTO.
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
-    /// JWT token (Bearer format).
+    /// JWT access token (Bearer format).
     pub token: String,
+    /// Opaque refresh token for obtaining new access tokens.
+    pub refresh_token: String,
     /// Currently logged-in user info.
     pub user: super::super::models::user::UserInfo,
 }
@@ -24,16 +26,18 @@ pub struct LoginResponse {
 /// Token refresh request DTO.
 #[derive(Debug, Deserialize, Validate)]
 pub struct RefreshTokenRequest {
-    /// The JWT token to refresh.
+    /// The opaque refresh token (not a JWT).
     #[validate(length(min = 1))]
-    pub token: String,
+    pub refresh_token: String,
 }
 
 /// Token response DTO.
 #[derive(Debug, Serialize)]
 pub struct TokenResponse {
-    /// The refreshed JWT token.
+    /// The refreshed JWT access token.
     pub token: String,
+    /// New opaque refresh token (rotation).
+    pub refresh_token: String,
 }
 
 /// Create user request DTO.

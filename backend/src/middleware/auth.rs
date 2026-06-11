@@ -57,18 +57,18 @@ pub struct AuthContext {
 /// On success, inserts an [`AuthContext`] into request extensions for downstream use.
 /// On failure, returns 401 with an `ApiErrorResponse` (code 11001 for invalid/missing
 /// token, 11002 for expired signature).
-pub async fn auth_middleware(
-    mut req: Request,
-    next: Next,
-) -> Response {
+pub async fn auth_middleware(mut req: Request, next: Next) -> Response {
     let Some(jwt_secret) = req.extensions().get::<JwtSecret>() else {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiErrorResponse {
-            success: false,
-            code: 50001,
-            request_id: format!("req_{}", Uuid::new_v4()),
-            message: "Authentication is not configured".to_string(),
-            details: None,
-        }))
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiErrorResponse {
+                success: false,
+                code: 50001,
+                request_id: format!("req_{}", Uuid::new_v4()),
+                message: "Authentication is not configured".to_string(),
+                details: None,
+            }),
+        )
             .into_response();
     };
 
@@ -81,13 +81,17 @@ pub async fn auth_middleware(
     let token = match auth_header {
         Some(t) => t,
         None => {
-            return (StatusCode::UNAUTHORIZED, Json(ApiErrorResponse {
-                success: false,
-                code: 11001,
-                request_id: format!("req_{}", Uuid::new_v4()),
-                message: "Missing authorization token".to_string(),
-                details: None,
-            })).into_response()
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(ApiErrorResponse {
+                    success: false,
+                    code: 11001,
+                    request_id: format!("req_{}", Uuid::new_v4()),
+                    message: "Missing authorization token".to_string(),
+                    details: None,
+                }),
+            )
+                .into_response()
         }
     };
 
@@ -112,13 +116,17 @@ pub async fn auth_middleware(
                 }
                 _ => (11001, "Invalid token".to_string()),
             };
-            (StatusCode::UNAUTHORIZED, Json(ApiErrorResponse {
-                success: false,
-                code,
-                request_id: format!("req_{}", Uuid::new_v4()),
-                message: msg,
-                details: None,
-            })).into_response()
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(ApiErrorResponse {
+                    success: false,
+                    code,
+                    request_id: format!("req_{}", Uuid::new_v4()),
+                    message: msg,
+                    details: None,
+                }),
+            )
+                .into_response()
         }
     }
 }

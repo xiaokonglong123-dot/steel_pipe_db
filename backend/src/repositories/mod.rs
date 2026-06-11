@@ -7,6 +7,7 @@ pub mod operation_log_repo;
 pub mod pipe_repo;
 pub mod purchase_order_repo;
 pub mod quality_repo;
+pub mod refresh_token_repo;
 pub mod report_repo;
 pub mod sales_order_repo;
 pub mod supplier_repo;

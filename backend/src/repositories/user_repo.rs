@@ -24,10 +24,7 @@ impl UserRepo {
     }
 
     /// SELECT user by primary key. Returns `None` if soft-deleted or missing.
-    pub async fn find_by_id(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<Option<User>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<User>, sqlx::Error> {
         sqlx::query_as::<_, User>(
             "SELECT id, username, password_hash, display_name, role, email, phone,
                     is_active, created_at, updated_at, deleted_at
@@ -145,11 +142,10 @@ impl UserRepo {
 
             Ok((items, total.0 as u64))
         } else {
-            let total: (i64,) = sqlx::query_as(
-                "SELECT COUNT(*) as cnt FROM users WHERE deleted_at IS NULL",
-            )
-            .fetch_one(pool)
-            .await?;
+            let total: (i64,) =
+                sqlx::query_as("SELECT COUNT(*) as cnt FROM users WHERE deleted_at IS NULL")
+                    .fetch_one(pool)
+                    .await?;
 
             let items = sqlx::query_as::<_, User>(
                 "SELECT id, username, password_hash, display_name, role, email, phone,
@@ -184,10 +180,7 @@ impl UserRepo {
     }
 
     /// Touch `updated_at` on login (tracks last login time).
-    pub async fn update_last_login(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn update_last_login(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE users SET updated_at = datetime('now')
              WHERE id = ? AND deleted_at IS NULL",
@@ -217,10 +210,7 @@ impl UserRepo {
     }
 
     /// Soft-delete a user: sets `deleted_at`. Returns the deleted `User` or `None` if already gone.
-    pub async fn delete_soft(
-        pool: &SqlitePool,
-        user_id: i64,
-    ) -> Result<Option<User>, sqlx::Error> {
+    pub async fn delete_soft(pool: &SqlitePool, user_id: i64) -> Result<Option<User>, sqlx::Error> {
         sqlx::query_as::<_, User>(
             "UPDATE users SET deleted_at = datetime('now')
              WHERE id = ? AND deleted_at IS NULL
