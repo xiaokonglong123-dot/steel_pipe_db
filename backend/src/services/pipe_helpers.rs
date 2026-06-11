@@ -4,6 +4,7 @@ use sqlx::{SqlitePool, Transaction};
 
 use crate::domain::pipe::PipeType;
 use crate::error::AppError;
+use crate::repositories::pipe_repo::{ScreenPipeRepo, SeamlessPipeRepo};
 
 /// Common pipe operations — deduplicated helper functions for pipe status updates and validations.
 pub struct PipeHelpers;
@@ -41,8 +42,6 @@ impl PipeHelpers {
         }
     }
 
-    /// Updates pipe status to the target status within a transaction.
-    /// Returns the number of rows affected.
     pub async fn update_pipe_status(
         tx: &mut Transaction<'_, Sqlite>,
         pipe_type: &PipeType,
@@ -77,6 +76,62 @@ impl PipeHelpers {
         }
 
         Ok(result.rows_affected())
+    }
+
+    pub async fn validate_pipes_for_inbound(
+        pool: &SqlitePool,
+        pipe_type: &PipeType,
+        pipe_ids: &[i64],
+    ) -> Result<(), AppError> {
+        match pipe_type {
+            PipeType::Seamless => {
+                let pipes = SeamlessPipeRepo::find_by_ids(pool, pipe_ids)
+                    .await
+                    .map_err(AppError::from)?;
+                let found_ids: std::collections::HashSet<i64> =
+                    pipes.iter().map(|p| p.id).collect();
+                for id in pipe_ids {
+                    if !found_ids.contains(id) {
+                        return Err(AppError::NotFound(format!(
+                            "Seamless pipe id={} not found or has been deleted",
+                            id
+                        )));
+                    }
+                }
+                for pipe in &pipes {
+                    if pipe.status == "in_stock" {
+                        return Err(AppError::Validation(format!(
+                            "Seamless pipe id={} (pipe_number={}) is already in_stock, cannot inbound again",
+                            pipe.id, pipe.pipe_number
+                        )));
+                    }
+                }
+            }
+            PipeType::Screen => {
+                let pipes = ScreenPipeRepo::find_by_ids(pool, pipe_ids)
+                    .await
+                    .map_err(AppError::from)?;
+                let found_ids: std::collections::HashSet<i64> =
+                    pipes.iter().map(|p| p.id).collect();
+                for id in pipe_ids {
+                    if !found_ids.contains(id) {
+                        return Err(AppError::NotFound(format!(
+                            "Screen pipe id={} not found or has been deleted",
+                            id
+                        )));
+                    }
+                }
+                for pipe in &pipes {
+                    if pipe.status == "in_stock" {
+                        return Err(AppError::Validation(format!(
+                            "Screen pipe id={} (pipe_number={}) is already in_stock, cannot inbound again",
+                            pipe.id, pipe.pipe_number
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Creates an inventory log entry for a pipe status change.

@@ -12,6 +12,8 @@ use crate::repositories::inbound_repo::InboundRepo;
 use crate::services::pipe_helpers::PipeHelpers;
 use crate::services::utils;
 
+const VALID_INBOUND_PIPE_STATUSES: &[&str] = &["new", "outbound", "scrapped"];
+
 /// Inbound service — handles purchase, production, and return stock-in with create/approve/execute/query.
 /// Auto-approved inbound kicks off stock changes right away; pending ones need a separate `approve_inbound` call.
 pub struct InboundService;
@@ -23,6 +25,13 @@ impl InboundService {
     ) -> Result<InboundRecord, AppError> {
         if dto.pipes.is_empty() {
             return Err(AppError::Validation("At least one pipe is required".into()));
+        }
+
+        for item in &dto.pipes {
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+            })?;
+            PipeHelpers::validate_pipes_for_inbound(pool, &pipe_type, &[item.pipe_id]).await?;
         }
 
         let inbound_no = utils::generate_no("IN");
@@ -147,6 +156,13 @@ impl InboundService {
         let items = InboundRepo::find_items(pool, id)
             .await
             .map_err(AppError::from)?;
+
+        for item in &items {
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+            })?;
+            PipeHelpers::validate_pipes_for_inbound(pool, &pipe_type, &[item.pipe_id]).await?;
+        }
 
         let mut tx = pool.begin().await.map_err(AppError::from)?;
 
