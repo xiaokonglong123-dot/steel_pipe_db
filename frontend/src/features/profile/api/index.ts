@@ -29,8 +29,8 @@ export function useUpdateProfile() {
         phone: data.phone,
       }),
     onSuccess: (res) => {
-      if (res.data.success && res.data.data) {
-        setUser(res.data.data);
+      if (res.success && res.data) {
+        setUser(res.data);
       }
       qc.invalidateQueries({ queryKey: userQueryKeys.all });
     },

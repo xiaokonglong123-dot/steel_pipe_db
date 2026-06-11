@@ -15,25 +15,27 @@ export const purchaseApi = {
   list: async (params?: PurchaseOrderFilterParams) => {
     const res = await apiClient.get<PaginatedResponse<PurchaseOrder>>(
       '/purchase-orders',
-      { params },
+      params as Record<string, unknown>,
     );
-    return validateResponse(paginatedDataSchema(purchaseOrderSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(purchaseOrderSchema), res.data);
   },
 
   /** Get purchase order detail — returns { order, items } structure. */
   get: async (id: number) => {
-    const res = await apiClient.get(`/purchase-orders/${id}`);
-    return validateResponse(purchaseOrderDetailSchema, res.data.data) as { order: PurchaseOrder; items: PurchaseOrderItem[] };
+    const res = await apiClient.get<ApiResponse<{ order: PurchaseOrder; items: PurchaseOrderItem[] }>>(
+      `/purchase-orders/${id}`,
+    );
+    return validateResponse(purchaseOrderDetailSchema, res.data) as { order: PurchaseOrder; items: PurchaseOrderItem[] };
   },
 
   create: async (data: CreatePurchaseOrderData) => {
     const res = await apiClient.post<ApiResponse<PurchaseOrder>>('/purchase-orders', data);
-    return validateResponse(purchaseOrderSchema, res.data.data);
+    return validateResponse(purchaseOrderSchema, res.data);
   },
 
   update: async (id: number, data: Partial<CreatePurchaseOrderData>) => {
     const res = await apiClient.put<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`, data);
-    return validateResponse(purchaseOrderSchema, res.data.data);
+    return validateResponse(purchaseOrderSchema, res.data);
   },
 
   delete: async (id: number) => {
@@ -46,7 +48,7 @@ export const purchaseApi = {
       `/purchase-orders/${id}/transition`,
       data,
     );
-    return validateResponse(purchaseOrderSchema, res.data.data);
+    return validateResponse(purchaseOrderSchema, res.data);
   },
 
   // 修改订单行项（数量、单价等）
@@ -55,7 +57,7 @@ export const purchaseApi = {
       `/purchase-orders/${orderId}/items/${itemId}`,
       data,
     );
-    return validateResponse(purchaseOrderSchema, res.data.data);
+    return validateResponse(purchaseOrderSchema, res.data);
   },
 
   deleteItem: async (orderId: number, itemId: number) => {

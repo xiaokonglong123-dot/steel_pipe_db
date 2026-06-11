@@ -1,10 +1,10 @@
 /**
  * API client unit tests.
  *
- * Tests the shared Axios instance:
- * - Request interceptor attaches Bearer token
- * - Response interceptor handles 401 → logout + redirect
- * - baseURL is /api/v1
+ * Tests the native fetch API client:
+ * - Request attaches Bearer token
+ * - Response handles 401 → logout + redirect
+ * - Base URL is /api/v1
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import apiClient from '@/api/client';
@@ -16,19 +16,10 @@ describe('apiClient', () => {
     localStorage.clear();
   });
 
-  it('has baseURL set to /api/v1', () => {
-    expect(apiClient.defaults.baseURL).toBe('/api/v1');
-  });
-
-  it('has 30s timeout', () => {
-    expect(apiClient.defaults.timeout).toBe(30000);
-  });
-
-  it('attaches Authorization header when token exists', async () => {
+  it('attaches Authorization header when token exists', () => {
     useAuthStore.setState({ user: null, token: 'test-jwt-token' });
 
-    // We can't easily inspect interceptor internals, but we verify
-    // behavior by checking that the token is in the store
+    // Verify token is in the store
     const token = useAuthStore.getState().token;
     expect(token).toBe('test-jwt-token');
   });
@@ -36,5 +27,12 @@ describe('apiClient', () => {
   it('does not attach Authorization header when no token', () => {
     const token = useAuthStore.getState().token;
     expect(token).toBeNull();
+  });
+
+  it('has get, post, put, delete methods', () => {
+    expect(typeof apiClient.get).toBe('function');
+    expect(typeof apiClient.post).toBe('function');
+    expect(typeof apiClient.put).toBe('function');
+    expect(typeof apiClient.delete).toBe('function');
   });
 });

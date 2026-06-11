@@ -52,30 +52,21 @@ export const dataIoApi = {
   importData: async (entityType: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await apiClient.post<ApiResponse<ImportResult>>(
+    const res = await apiClient.postFormData<ApiResponse<ImportResult>>(
       `/data/${entityType}/import`,
       formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } },
     );
-    return res.data.data;
+    return res.data;
   },
 
   /** Export data for a given entity type. Returns a Blob for download. */
   exportData: async (entityType: string, format: string = 'xlsx') => {
-    const response = await apiClient.get(`/data/${entityType}/export`, {
-      params: { format },
-      responseType: 'blob',
-    });
-    return response.data as Blob;
+    return apiClient.getBlob(`/data/${entityType}/export`, { format });
   },
 
   /** Download a blank import template for a given entity type. */
   getTemplate: async (entityType: string, format: string = 'xlsx') => {
-    const response = await apiClient.get(`/data/${entityType}/template`, {
-      params: { format },
-      responseType: 'blob',
-    });
-    return response.data as Blob;
+    return apiClient.getBlob(`/data/${entityType}/template`, { format });
   },
 
   /** List operation logs (import/export audit trail). */
@@ -88,8 +79,8 @@ export const dataIoApi = {
   }) => {
     const res = await apiClient.get<PaginatedResponse<OperationLog>>(
       '/data/logs',
-      { params },
+      params,
     );
-    return res.data.data;
+    return res.data;
   },
 };

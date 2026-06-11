@@ -16,25 +16,27 @@ export const salesApi = {
   list: async (params?: SalesOrderFilterParams) => {
     const res = await apiClient.get<PaginatedResponse<SalesOrder>>(
       '/sales-orders',
-      { params },
+      params as Record<string, unknown>,
     );
-    return validateResponse(paginatedDataSchema(salesOrderSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(salesOrderSchema), res.data);
   },
 
   /** Get sales order detail — returns { order, items } structure. */
   get: async (id: number) => {
-    const res = await apiClient.get(`/sales-orders/${id}`);
-    return validateResponse(salesOrderDetailSchema, res.data.data) as { order: SalesOrder; items: SalesOrderItem[] };
+    const res = await apiClient.get<ApiResponse<{ order: SalesOrder; items: SalesOrderItem[] }>>(
+      `/sales-orders/${id}`,
+    );
+    return validateResponse(salesOrderDetailSchema, res.data) as { order: SalesOrder; items: SalesOrderItem[] };
   },
 
   create: async (data: CreateSalesOrderData) => {
     const res = await apiClient.post<ApiResponse<SalesOrder>>('/sales-orders', data);
-    return validateResponse(salesOrderSchema, res.data.data);
+    return validateResponse(salesOrderSchema, res.data);
   },
 
   update: async (id: number, data: Partial<CreateSalesOrderData>) => {
     const res = await apiClient.put<ApiResponse<SalesOrder>>(`/sales-orders/${id}`, data);
-    return validateResponse(salesOrderSchema, res.data.data);
+    return validateResponse(salesOrderSchema, res.data);
   },
 
   delete: async (id: number) => {
@@ -44,7 +46,7 @@ export const salesApi = {
   // 状态流转：pending → approved → delivered → invoiced
   transition: async (id: number, data: SalesOrderStatusTransitionRequest) => {
     const res = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/transition`, data);
-    return validateResponse(salesOrderSchema, res.data.data);
+    return validateResponse(salesOrderSchema, res.data);
   },
 
   updateItem: async (orderId: number, itemId: number, data: UpdateSalesOrderItemData) => {
@@ -52,7 +54,7 @@ export const salesApi = {
       `/sales-orders/${orderId}/items/${itemId}`,
       data,
     );
-    return validateResponse(salesOrderSchema, res.data.data);
+    return validateResponse(salesOrderSchema, res.data);
   },
 
   deleteItem: async (orderId: number, itemId: number) => {

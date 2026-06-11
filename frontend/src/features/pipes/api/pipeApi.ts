@@ -11,22 +11,22 @@ export const pipeApi = {
       '/seamless-pipes',
       { params },
     );
-    return validateResponse(paginatedDataSchema(seamlessPipeSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(seamlessPipeSchema), res.data);
   },
 
   getSeamlessPipe: async (id: number) => {
     const res = await apiClient.get<ApiResponse<SeamlessPipe>>(`/seamless-pipes/${id}`);
-    return validateResponse(seamlessPipeSchema, res.data.data);
+    return validateResponse(seamlessPipeSchema, res.data);
   },
 
   createSeamlessPipe: async (data: CreateSeamlessPipeData) => {
     const res = await apiClient.post<ApiResponse<SeamlessPipe>>('/seamless-pipes', data);
-    return validateResponse(seamlessPipeSchema, res.data.data);
+    return validateResponse(seamlessPipeSchema, res.data);
   },
 
   updateSeamlessPipe: async (id: number, data: Partial<CreateSeamlessPipeData>) => {
     const res = await apiClient.put<ApiResponse<SeamlessPipe>>(`/seamless-pipes/${id}`, data);
-    return validateResponse(seamlessPipeSchema, res.data.data);
+    return validateResponse(seamlessPipeSchema, res.data);
   },
 
   deleteSeamlessPipe: async (id: number) => {
@@ -35,22 +35,22 @@ export const pipeApi = {
 
   getScreenPipes: async (params?: PipeFilterParams) => {
     const res = await apiClient.get<PaginatedResponse<ScreenPipe>>('/screen-pipes', { params });
-    return validateResponse(paginatedDataSchema(screenPipeSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(screenPipeSchema), res.data);
   },
 
   getScreenPipe: async (id: number) => {
     const res = await apiClient.get<ApiResponse<ScreenPipe>>(`/screen-pipes/${id}`);
-    return validateResponse(screenPipeSchema, res.data.data);
+    return validateResponse(screenPipeSchema, res.data);
   },
 
   createScreenPipe: async (data: CreateScreenPipeData) => {
     const res = await apiClient.post<ApiResponse<ScreenPipe>>('/screen-pipes', data);
-    return validateResponse(screenPipeSchema, res.data.data);
+    return validateResponse(screenPipeSchema, res.data);
   },
 
   updateScreenPipe: async (id: number, data: Partial<CreateScreenPipeData>) => {
     const res = await apiClient.put<ApiResponse<ScreenPipe>>(`/screen-pipes/${id}`, data);
-    return validateResponse(screenPipeSchema, res.data.data);
+    return validateResponse(screenPipeSchema, res.data);
   },
 
   deleteScreenPipe: async (id: number) => {

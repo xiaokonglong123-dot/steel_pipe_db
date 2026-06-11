@@ -9,21 +9,21 @@ import { pipeLabelSchema, labelDataSchema } from '@/zod-schemas/labels';
 export const labelApi = {
   getPipeLabel: async (pipeType: string, pipeId: number) => {
     const res = await apiClient.get<ApiResponse<PipeLabel>>(`/labels/pipe/${pipeType}/${pipeId}`);
-    return validateResponse(pipeLabelSchema, res.data.data);
+    return validateResponse(pipeLabelSchema, res.data);
   },
 
   createBatchLabels: async (data: BatchLabelRequest) => {
     const res = await apiClient.post<ApiResponse<LabelData[]>>('/labels/batch', data);
-    return validateResponse(z.array(labelDataSchema), res.data.data);
+    return validateResponse(z.array(labelDataSchema), res.data);
   },
 
   getQualityLabel: async (certId: number) => {
     const res = await apiClient.get<ApiResponse<LabelData>>(`/labels/quality/${certId}`);
-    return validateResponse(labelDataSchema, res.data.data);
+    return validateResponse(labelDataSchema, res.data);
   },
 
   createShippingLabel: async (data: ShippingLabelRequest) => {
     const res = await apiClient.post<ApiResponse<LabelData>>('/labels/shipping', data);
-    return validateResponse(labelDataSchema, res.data.data);
+    return validateResponse(labelDataSchema, res.data);
   },
 };

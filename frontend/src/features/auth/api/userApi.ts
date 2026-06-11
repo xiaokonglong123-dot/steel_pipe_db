@@ -35,17 +35,17 @@ export interface UserFilterParams {
 export const userApi = {
   list: async (params?: UserFilterParams) => {
     const res = await apiClient.get<PaginatedResponse<UserInfo>>('/users', { params });
-    return validateResponse(paginatedDataSchema(userInfoSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(userInfoSchema), res.data);
   },
 
   create: async (data: CreateUserData) => {
     const res = await apiClient.post<ApiResponse<UserInfo>>('/users', data);
-    return validateResponse(userInfoSchema, res.data.data);
+    return validateResponse(userInfoSchema, res.data);
   },
 
   update: async (id: number, data: UpdateUserData) => {
     const res = await apiClient.put<ApiResponse<UserInfo>>(`/users/${id}`, data);
-    return validateResponse(userInfoSchema, res.data.data);
+    return validateResponse(userInfoSchema, res.data);
   },
 
   changePassword: async (id: number, data: ChangePasswordData) => {

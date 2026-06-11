@@ -17,22 +17,22 @@ import { contractSchema, contractItemSchema, contractPaymentSchema } from '@/zod
 export const contractApi = {
   list: async (params?: ContractFilterParams) => {
     const res = await apiClient.get<PaginatedResponse<Contract>>('/contracts', { params });
-    return validateResponse(paginatedDataSchema(contractSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(contractSchema), res.data);
   },
 
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<Contract>>(`/contracts/${id}`);
-    return validateResponse(contractSchema, res.data.data);
+    return validateResponse(contractSchema, res.data);
   },
 
   create: async (data: CreateContractData) => {
     const res = await apiClient.post<ApiResponse<Contract>>('/contracts', data);
-    return validateResponse(contractSchema, res.data.data);
+    return validateResponse(contractSchema, res.data);
   },
 
   update: async (id: number, data: Partial<CreateContractData>) => {
     const res = await apiClient.put<ApiResponse<Contract>>(`/contracts/${id}`, data);
-    return validateResponse(contractSchema, res.data.data);
+    return validateResponse(contractSchema, res.data);
   },
 
   delete: async (id: number) => {
@@ -42,13 +42,13 @@ export const contractApi = {
   // Contract status update (activate/complete/terminate, etc.)
   updateStatus: async (id: number, status: string) => {
     const res = await apiClient.post<ApiResponse<Contract>>(`/contracts/${id}/status`, { status });
-    return validateResponse(contractSchema, res.data.data);
+    return validateResponse(contractSchema, res.data);
   },
 
   // ━━ Contract items (product details) ━━
   addItem: async (contractId: number, data: CreateContractItemData) => {
     const res = await apiClient.post<ApiResponse<ContractItem>>(`/contracts/${contractId}/items`, data);
-    return validateResponse(contractItemSchema, res.data.data);
+    return validateResponse(contractItemSchema, res.data);
   },
 
   updateItem: async (contractId: number, itemId: number, data: Partial<CreateContractItemData>) => {
@@ -56,7 +56,7 @@ export const contractApi = {
       `/contracts/${contractId}/items/${itemId}`,
       data,
     );
-    return validateResponse(contractItemSchema, res.data.data);
+    return validateResponse(contractItemSchema, res.data);
   },
 
   deleteItem: async (contractId: number, itemId: number) => {
@@ -66,12 +66,12 @@ export const contractApi = {
   // ━━ Payment milestones ━━
   listPayments: async (contractId: number) => {
     const res = await apiClient.get<ApiResponse<ContractPayment[]>>(`/contracts/${contractId}/payments`);
-    return validateResponse(z.array(contractPaymentSchema), res.data.data);
+    return validateResponse(z.array(contractPaymentSchema), res.data);
   },
 
   addPayment: async (contractId: number, data: CreateContractPaymentData) => {
     const res = await apiClient.post<ApiResponse<ContractPayment>>(`/contracts/${contractId}/payments`, data);
-    return validateResponse(contractPaymentSchema, res.data.data);
+    return validateResponse(contractPaymentSchema, res.data);
   },
 
   updatePayment: async (contractId: number, paymentId: number, data: Partial<CreateContractPaymentData>) => {
@@ -79,7 +79,7 @@ export const contractApi = {
       `/contracts/${contractId}/payments/${paymentId}`,
       data,
     );
-    return validateResponse(contractPaymentSchema, res.data.data);
+    return validateResponse(contractPaymentSchema, res.data);
   },
 
   deletePayment: async (contractId: number, paymentId: number) => {

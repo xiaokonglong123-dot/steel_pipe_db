@@ -17,7 +17,7 @@ export const reportApi = {
       '/reports/inventory-summary',
       { params },
     );
-    return validateResponse(z.array(inventorySummarySchema), res.data.data);
+    return validateResponse(z.array(inventorySummarySchema), res.data);
   },
 
   getOrderReport: async (params?: { start_date?: string; end_date?: string; order_type?: string }) => {
@@ -25,7 +25,7 @@ export const reportApi = {
       '/reports/order-report',
       { params },
     );
-    return validateResponse(orderReportSchema, res.data.data);
+    return validateResponse(orderReportSchema, res.data);
   },
 
   getQualityReport: async (params?: { start_date?: string; end_date?: string; grade?: string }) => {
@@ -33,11 +33,11 @@ export const reportApi = {
       '/reports/quality-report',
       { params },
     );
-    return validateResponse(qualityReportSchema, res.data.data);
+    return validateResponse(qualityReportSchema, res.data);
   },
 
   getDashboard: async () => {
     const res = await apiClient.get<ApiResponse<DashboardData>>('/reports/dashboard');
-    return validateResponse(dashboardDataSchema, res.data.data);
+    return validateResponse(dashboardDataSchema, res.data);
   },
 };
