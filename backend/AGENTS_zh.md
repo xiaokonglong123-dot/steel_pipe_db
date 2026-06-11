@@ -100,12 +100,16 @@ src/
 │   ├── data_io_repo.rs
 │   ├── user_repo.rs
 │   └── operation_log_repo.rs
-├── services/            ← 12 files, business logic (unit structs, static methods)
+├── services/            ← 16 files, business logic (unit structs, static methods)
 │   ├── mod.rs
 │   ├── auth_service.rs
 │   ├── pipe_service.rs
-│   ├── inventory_service.rs
-│   ├── purchase_sales_service.rs
+│   ├── inbound_service.rs       ← Inbound (create/approve/execute/query)
+│   ├── outbound_service.rs      ← Outbound (create/approve/execute/query)
+│   ├── check_service.rs         ← Inventory checks (create/submit/complete)
+│   ├── inventory_query_service.rs ← Read-only inventory queries (list/stats)
+│   ├── location_service.rs      ← Warehouse locations (CRUD/assign/transfer)
+│   ├── purchase_sales_service.rs ← Purchase & sales orders (shared logic)
 │   ├── quality_service.rs
 │   ├── contract_service.rs
 │   ├── customer_service.rs
@@ -113,7 +117,7 @@ src/
 │   ├── label_service.rs
 │   ├── report_service.rs
 │   ├── data_io_service.rs
-│   └── trace_service.rs
+│   └── trace_service.rs         ← Full-lifecycle pipe tracing
 ├── handlers/            ← 13 files, thin handlers (extract → call service → respond)
 │   ├── mod.rs
 │   ├── auth_handler.rs
@@ -129,10 +133,11 @@ src/
 │   ├── label_handler.rs
 │   ├── data_io_handler.rs
 │   └── atp_handler.rs
-└── middleware/          ← 2 files, auth + RBAC
+└── middleware/          ← 4 files, auth + RBAC + rate limiting
     ├── mod.rs
     ├── auth.rs          ← JWT verification, Claims, AuthContext, auth_middleware
-    └── rbac.rs          ← Role-based access control helpers
+    ├── rbac.rs          ← Role-based access control helpers
+    └── rate_limit.rs    ← Per-IP rate limiting (e.g. 5 req/min on login/refresh)
 ```
 
 ## Key Files

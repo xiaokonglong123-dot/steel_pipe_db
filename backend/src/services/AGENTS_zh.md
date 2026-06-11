@@ -1,4 +1,4 @@
-# `services/` — Business Logic Layer (12 files)
+# `services/` — Business Logic Layer (16 files)
 
 This is where the real work happens — business rules, cross-entity orchestration, transaction management. Services get called by handlers and in turn call repositories.
 
@@ -27,7 +27,11 @@ impl PipeService {
 |------|--------|-------------|
 | `auth_service.rs` | Auth | login, token refresh, password verify |
 | `pipe_service.rs` | Pipes | pipe CRUD, steel grade/heat treatment validation |
-| `inventory_service.rs` | Inventory | inbound, outbound, ATP calculations, location management, inventory checks |
+| `inbound_service.rs` | Inbound | inbound record creation, approval, batch execution |
+| `outbound_service.rs` | Outbound | outbound record creation, approval, stock deduction |
+| `check_service.rs` | Inventory checks | inventory check (盘点) creation, item submission, completion |
+| `inventory_query_service.rs` | Inventory (read) | read-only inventory queries (list, statistics) |
+| `location_service.rs` | Locations | warehouse location CRUD, assign, transfer |
 | `purchase_sales_service.rs` | Purchase + Sales | PO/SO lifecycle, approval workflow, rejection reason, ATP validation |
 | `quality_service.rs` | Quality | cert creation, mechanical/NDT test entry |
 | `contract_service.rs` | Contracts | contract CRUD, milestone tracking |
@@ -36,7 +40,7 @@ impl PipeService {
 | `label_service.rs` | Labels | label content generation |
 | `report_service.rs` | Reports | dashboard aggregation, statistical reports |
 | `data_io_service.rs` | Data IO | Excel/CSV import parsing, export formatting |
-| `trace_service.rs` | Trace | inventory movement audit trail |
+| `trace_service.rs` | Trace | full-lifecycle pipe tracing / inventory movement audit trail |
 
 ## Service Conventions
 
@@ -48,17 +52,18 @@ impl PipeService {
 6. **Cross-entity ops**: Call multiple repositories directly — the pool gets passed around as a parameter
 7. **No HTTP logic**: Services don't know about StatusCodes, response formatting, or headers. That's the handler's job.
 
-## `inventory_service.rs` — the big one
+## Inventory services — split by responsibility
 
-This is the largest and most complex service. Here's what it handles:
+The old monolithic `inventory_service.rs` has been split into focused modules:
 
-- Stock-in / stock-out with quantity validation
-- Inventory movement tracking
-- ATP (Available-to-Promise) calculations
-- Dynamic query building with filters
-- Batch operations
-- Report calculations
-- Sales order fulfillment checks
+- `inbound_service.rs` — stock-in record creation, approval, batch execution
+- `outbound_service.rs` — stock-out record creation, approval, stock deduction
+- `check_service.rs` — inventory check (盘点) creation, item submission, completion
+- `inventory_query_service.rs` — read-only queries (list, statistics, filters)
+- `location_service.rs` — warehouse location CRUD, assign, transfer
+
+ATP (Available-to-Promise) calculation lives in `purchase_sales_service.rs` and
+`atp_handler.rs`. Sales-order fulfillment checks read ATP before approval.
 
 ## Adding a New Service
 

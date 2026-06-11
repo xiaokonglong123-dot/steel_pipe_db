@@ -133,10 +133,11 @@ src/
 │   ├── label_handler.rs
 │   ├── data_io_handler.rs
 │   └── atp_handler.rs
-└── middleware/          ← 2 files, auth + RBAC
+└── middleware/          ← 4 files, auth + RBAC + rate limiting
     ├── mod.rs
     ├── auth.rs          ← JWT verification, Claims, AuthContext, auth_middleware
-    └── rbac.rs          ← Role-based access control helpers
+    ├── rbac.rs          ← Role-based access control helpers
+    └── rate_limit.rs    ← Per-IP rate limiting (e.g. 5 req/min on login/refresh)
 ```
 
 ## Key Files
