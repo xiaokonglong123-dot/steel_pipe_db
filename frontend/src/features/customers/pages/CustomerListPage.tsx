@@ -6,14 +6,14 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PageLayout } from '@/shared/components/PageLayout';
 import { DataTable } from '@/shared/components/DataTable';
+import { usePagination } from '@/shared/hooks/usePagination';
 import { useCustomers, useDeleteCustomer } from '../hooks/useCustomers';
 import type { Customer } from '../types';
 
 export default function CustomerListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { page, pageSize, onPaginationChange, reset } = usePagination();
   const [searchText, setSearchText] = useState('');
 
   const { data, isLoading } = useCustomers({
@@ -96,7 +96,10 @@ export default function CustomerListPage() {
         placeholder={t('common.search')}
         prefix={<SearchOutlined />}
         value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
+        onChange={(e) => {
+          setSearchText(e.target.value);
+          reset();
+        }}
         style={{ width: 250, marginBottom: 16 }}
         allowClear
       />
@@ -107,10 +110,7 @@ export default function CustomerListPage() {
         page={page}
         pageSize={pageSize}
         loading={isLoading}
-        onPaginationChange={(p, ps) => {
-          setPage(p);
-          setPageSize(ps);
-        }}
+        onPaginationChange={onPaginationChange}
       />
     </PageLayout>
   );
