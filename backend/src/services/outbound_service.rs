@@ -9,20 +9,13 @@ use crate::error::AppError;
 use crate::models::inventory::{OutboundItem, OutboundRecord};
 use crate::repositories::outbound_repo::OutboundRepo;
 use crate::repositories::pipe_repo::{ScreenPipeRepo, SeamlessPipeRepo};
+use crate::services::utils;
 
 /// Outbound service — handles sales, scrapped, and transfer stock-out with create/approve/execute/query.
 /// Mirror of inbound: `auto_approved` executes immediately, `pending` needs approval later.
 pub struct OutboundService;
 
 impl OutboundService {
-    fn generate_no(prefix: &str) -> String {
-        let now = Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-        let serial = uuid::Uuid::new_v4().to_string();
-        let short_serial = &serial[..8];
-        format!("{}-{}-{}", prefix, date_str, short_serial)
-    }
-
     /// Creates an outbound record. Needs at least one pipe; auto-checks every pipe is `in_stock`.
     /// If `auto_approved`, it immediately applies the stock changes.
     ///
@@ -87,7 +80,7 @@ impl OutboundService {
             }
         }
 
-        let outbound_no = Self::generate_no("OUT");
+        let outbound_no = utils::generate_no("OUT");
 
         let record = OutboundRepo::create_with_items(pool, dto, &outbound_no)
             .await

@@ -10,20 +10,13 @@ use crate::dto::inventory_dto::{
 use crate::error::AppError;
 use crate::models::inventory::{InboundItem, InboundRecord};
 use crate::repositories::inbound_repo::InboundRepo;
+use crate::services::utils;
 
 /// Inbound service — handles purchase, production, and return stock-in with create/approve/execute/query.
 /// Auto-approved inbound kicks off stock changes right away; pending ones need a separate `approve_inbound` call.
 pub struct InboundService;
 
 impl InboundService {
-    fn generate_no(prefix: &str) -> String {
-        let now = Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-        let serial = uuid::Uuid::new_v4().to_string();
-        let short_serial = &serial[..8];
-        format!("{}-{}-{}", prefix, date_str, short_serial)
-    }
-
     /// Creates an inbound record. Needs at least one pipe item.
     /// If `auto_approved`, applies all stock changes in a single transaction
     /// (updates pipe status + writes logs) to ensure atomicity.
@@ -38,7 +31,7 @@ impl InboundService {
             return Err(AppError::Validation("At least one pipe is required".into()));
         }
 
-        let inbound_no = Self::generate_no("IN");
+        let inbound_no = utils::generate_no("IN");
 
         let record = InboundRepo::create_with_items(pool, dto, &inbound_no)
             .await
@@ -434,7 +427,7 @@ impl InboundService {
         let mut results = Vec::with_capacity(dto.records.len());
 
         for record_dto in &dto.records {
-            let inbound_no = Self::generate_no("IN");
+            let inbound_no = utils::generate_no("IN");
             let record = Self::create_inbound_inner(&mut tx, record_dto, &inbound_no).await?;
             if record.approval_status == "auto_approved" {
                 Self::execute_inbound_batch_inner(&mut tx, record.id, &record_dto.pipes).await?;

@@ -58,12 +58,16 @@ use crate::middleware::rate_limit::{
 
 use crate::handlers::atp_handler;
 use crate::handlers::auth_handler;
+use crate::handlers::check_handler;
 use crate::handlers::contract_handler;
 use crate::handlers::customer_handler;
 use crate::handlers::data_io_handler;
 use crate::handlers::health_handler;
+use crate::handlers::inbound_handler;
 use crate::handlers::inventory_handler;
 use crate::handlers::label_handler;
+use crate::handlers::location_handler;
+use crate::handlers::outbound_handler;
 use crate::handlers::pipe_handler;
 use crate::handlers::purchase_handler;
 use crate::handlers::quality_handler;
@@ -111,75 +115,75 @@ fn warehouse_write_routes() -> Router {
         // Inbound
         .route(
             "/api/v1/inbound-records",
-            axum::routing::post(inventory_handler::create_inbound_handler),
+            axum::routing::post(inbound_handler::create_inbound_handler),
         )
         .route(
             "/api/v1/inbound-records/{id}",
-            axum::routing::put(inventory_handler::update_inbound_handler)
-                .delete(inventory_handler::delete_inbound_handler),
+            axum::routing::put(inbound_handler::update_inbound_handler)
+                .delete(inbound_handler::delete_inbound_handler),
         )
         .route(
             "/api/v1/inbound-records/{id}/approve",
-            axum::routing::post(inventory_handler::approve_inbound_handler),
+            axum::routing::post(inbound_handler::approve_inbound_handler),
         )
         .route(
             "/api/v1/inbound-records/{id}/reject",
-            axum::routing::post(inventory_handler::reject_inbound_handler),
+            axum::routing::post(inbound_handler::reject_inbound_handler),
         )
         // Outbound
         .route(
             "/api/v1/outbound-records",
-            axum::routing::post(inventory_handler::create_outbound_handler),
+            axum::routing::post(outbound_handler::create_outbound_handler),
         )
         .route(
             "/api/v1/outbound-records/{id}",
-            axum::routing::put(inventory_handler::update_outbound_handler)
-                .delete(inventory_handler::delete_outbound_handler),
+            axum::routing::put(outbound_handler::update_outbound_handler)
+                .delete(outbound_handler::delete_outbound_handler),
         )
         .route(
             "/api/v1/outbound-records/{id}/approve",
-            axum::routing::post(inventory_handler::approve_outbound_handler),
+            axum::routing::post(outbound_handler::approve_outbound_handler),
         )
         .route(
             "/api/v1/outbound-records/{id}/reject",
-            axum::routing::post(inventory_handler::reject_outbound_handler),
+            axum::routing::post(outbound_handler::reject_outbound_handler),
         )
         // Locations
         .route(
             "/api/v1/locations",
-            axum::routing::post(inventory_handler::create_location_handler),
+            axum::routing::post(location_handler::create_location_handler),
         )
         .route(
             "/api/v1/locations/{id}",
-            axum::routing::put(inventory_handler::update_location_handler)
-                .delete(inventory_handler::delete_location_handler),
+            axum::routing::put(location_handler::update_location_handler)
+                .delete(location_handler::delete_location_handler),
         )
         // Inventory checks
         .route(
             "/api/v1/inventory/checks",
-            axum::routing::post(inventory_handler::create_check_handler),
+            axum::routing::post(check_handler::create_check_handler),
         )
         .route(
             "/api/v1/inventory/checks/{id}/complete",
-            axum::routing::post(inventory_handler::complete_check_handler),
+            axum::routing::post(check_handler::complete_check_handler),
         )
         .route(
             "/api/v1/inventory/checks/{check_id}/items/{item_id}",
-            axum::routing::put(inventory_handler::submit_check_item_handler),
+            axum::routing::put(check_handler::submit_check_item_handler),
         )
         // Location assign / transfer
         .route(
             "/api/v1/inventory/locations/{id}/assign",
-            axum::routing::post(inventory_handler::assign_location_handler),
+            axum::routing::post(location_handler::assign_location_handler),
         )
         .route(
             "/api/v1/inventory/pipes/{pipe_type}/{pipe_id}/transfer-location",
-            axum::routing::post(inventory_handler::transfer_location_handler),
+            axum::routing::post(location_handler::transfer_location_handler),
         )
         // Batch inbound
         .route(
             "/api/v1/inbound-records/batch",
-            axum::routing::post(inventory_handler::batch_create_inbound_handler),
+            axum::routing::post(inbound_handler::batch_create_inbound_handler),
         )
         // Labels (warehouse function)
         .route(
@@ -483,19 +487,19 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String, cors_origins: Vec<Header
     let inventory_read = Router::new()
         .route(
             "/api/v1/inbound-records",
-            axum::routing::get(inventory_handler::list_inbound_handler),
+            axum::routing::get(inbound_handler::list_inbound_handler),
         )
         .route(
             "/api/v1/inbound-records/{id}",
-            axum::routing::get(inventory_handler::get_inbound_handler),
+            axum::routing::get(inbound_handler::get_inbound_handler),
         )
         .route(
             "/api/v1/outbound-records",
-            axum::routing::get(inventory_handler::list_outbound_handler),
+            axum::routing::get(outbound_handler::list_outbound_handler),
         )
         .route(
             "/api/v1/outbound-records/{id}",
-            axum::routing::get(inventory_handler::get_outbound_handler),
+            axum::routing::get(outbound_handler::get_outbound_handler),
         )
         .route(
             "/api/v1/inventory",
@@ -507,19 +511,19 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String, cors_origins: Vec<Header
         )
         .route(
             "/api/v1/locations",
-            axum::routing::get(inventory_handler::list_locations_handler),
+            axum::routing::get(location_handler::list_locations_handler),
         )
         .route(
             "/api/v1/locations/{id}",
-            axum::routing::get(inventory_handler::get_location_handler),
+            axum::routing::get(location_handler::get_location_handler),
         )
         .route(
             "/api/v1/inventory/checks",
-            axum::routing::get(inventory_handler::list_checks_handler),
+            axum::routing::get(check_handler::list_checks_handler),
         )
         .route(
             "/api/v1/inventory/checks/{id}",
-            axum::routing::get(inventory_handler::get_check_handler),
+            axum::routing::get(check_handler::get_check_handler),
         )
         .route(
             "/api/v1/trace/pipe/{pipe_type}/{pipe_id}",
@@ -539,11 +543,11 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String, cors_origins: Vec<Header
         )
         .route(
             "/api/v1/inbound-records/{id}/items",
-            axum::routing::get(inventory_handler::list_inbound_items_handler),
+            axum::routing::get(inbound_handler::list_inbound_items_handler),
         )
         .route(
             "/api/v1/outbound-records/{id}/items",
-            axum::routing::get(inventory_handler::list_outbound_items_handler),
+            axum::routing::get(outbound_handler::list_outbound_items_handler),
         )
         .route(
             "/api/v1/atp",

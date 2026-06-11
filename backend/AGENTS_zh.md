@@ -125,10 +125,14 @@ src/
 │   ├── report_service.rs
 │   ├── data_io_service.rs
 │   └── trace_service.rs         ← 全生命周期管道追溯
-├── handlers/            ← 13 files, thin handlers (extract → call service → respond)
+├── handlers/            ← 16 files, thin handlers (extract → call service → respond)
 │   ├── mod.rs
 │   ├── auth_handler.rs
 │   ├── pipe_handler.rs
+│   ├── inbound_handler.rs
+│   ├── outbound_handler.rs
+│   ├── location_handler.rs
+│   ├── check_handler.rs
 │   ├── inventory_handler.rs
 │   ├── purchase_handler.rs
 │   ├── sales_handler.rs

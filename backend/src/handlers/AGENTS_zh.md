@@ -1,4 +1,4 @@
-# `handlers/` — HTTP Layer (13 files, ~55 handlers)
+# `handlers/` — HTTP Layer (16 files, ~70 handlers)
 
 ## Pattern
 
@@ -35,7 +35,11 @@ Key points:
 |------|--------|-------------|
 | `auth_handler.rs` | Auth | login, logout, refresh, profile |
 | `pipe_handler.rs` | Pipes | seamless + screen pipe CRUD, list, filter |
-| `inventory_handler.rs` | Inventory | inbound, outbound, stock query, locations, check |
+| `inbound_handler.rs` | Inbound | inbound record CRUD, approval, batch |
+| `outbound_handler.rs` | Outbound | outbound record CRUD, approval |
+| `location_handler.rs` | Locations | warehouse location CRUD, assign, transfer |
+| `check_handler.rs` | Checks | inventory check CRUD, submit, complete |
+| `inventory_handler.rs` | Inventory | stock query, logs, statistics, trace |
 | `purchase_handler.rs` | Purchase Orders | CRUD, status transitions, approval |
 | `sales_handler.rs` | Sales Orders | CRUD, status transitions, ATP check |
 | `quality_handler.rs` | Quality | certs CRUD, mechanical tests, NDT |

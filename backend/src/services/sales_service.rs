@@ -1,8 +1,5 @@
-use chrono::Utc;
 use sqlx::SqlitePool;
-use std::str::FromStr;
 
-use crate::domain::order::OrderStatus;
 use crate::dto::common::PaginationParams;
 use crate::dto::sales_dto::{
     ApproveOrderRequest, CreateSalesOrderRequest, RejectOrderRequest, SalesOrderFilterParams,
@@ -14,6 +11,7 @@ use crate::repositories::customer_repo::CustomerRepo;
 use crate::repositories::inventory_repo::InventoryRepo;
 use crate::repositories::outbound_repo::OutboundRepo;
 use crate::repositories::sales_order_repo::SalesOrderRepo;
+use crate::services::utils;
 
 /// Service handling the full lifecycle of Sales Orders (SO)
 /// — creation, updates, status transitions, approvals, rejections, and linking to
@@ -22,29 +20,6 @@ use crate::repositories::sales_order_repo::SalesOrderRepo;
 pub struct SalesService;
 
 impl SalesService {
-    fn generate_order_no(prefix: &str) -> String {
-        let now = Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-        let serial = uuid::Uuid::new_v4().to_string();
-        let short_serial = &serial[..8];
-        format!("{}-{}-{}", prefix, date_str, short_serial)
-    }
-
-    fn validate_status_transition(current: &str, target: &str) -> Result<(), AppError> {
-        let current_status = OrderStatus::from_str(current)
-            .map_err(|_| AppError::Validation(format!("Invalid current status: {}", current)))?;
-        let target_status = OrderStatus::from_str(target)
-            .map_err(|_| AppError::Validation(format!("Invalid target status: {}", target)))?;
-
-        if !current_status.valid_transition(&target_status) {
-            return Err(AppError::OrderCannotModify(format!(
-                "Cannot transition from '{}' to '{}'",
-                current, target
-            )));
-        }
-        Ok(())
-    }
-
     /// Kicks off a new sales order. Needs at least one line item; validates the
     /// customer is active and the order number is unique.
     ///
@@ -87,7 +62,7 @@ impl SalesService {
                 }
                 on.clone()
             }
-            _ => Self::generate_order_no("SO"),
+            _ => utils::generate_no("SO"),
         };
 
         SalesOrderRepo::create_with_items(pool, dto, &order_no)
@@ -153,7 +128,7 @@ impl SalesService {
             )));
         }
 
-        Self::validate_status_transition(&existing.status, &dto.status)?;
+        utils::validate_status_transition(&existing.status, &dto.status)?;
 
         SalesOrderRepo::update_status(pool, id, &dto.status)
             .await

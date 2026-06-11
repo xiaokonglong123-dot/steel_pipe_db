@@ -16,3 +16,4 @@ pub mod report_service;
 pub mod sales_service;
 pub mod supplier_service;
 pub mod trace_service;
+pub mod utils;

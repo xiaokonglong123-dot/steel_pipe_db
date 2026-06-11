@@ -1,8 +1,5 @@
-use chrono::Utc;
 use sqlx::SqlitePool;
-use std::str::FromStr;
 
-use crate::domain::order::OrderStatus;
 use crate::dto::common::PaginationParams;
 use crate::dto::purchase_dto::{
     ApproveOrderRequest, CreatePurchaseOrderRequest, PurchaseOrderFilterParams,
@@ -14,6 +11,7 @@ use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderItem};
 use crate::repositories::inbound_repo::InboundRepo;
 use crate::repositories::purchase_order_repo::PurchaseOrderRepo;
 use crate::repositories::supplier_repo::SupplierRepo;
+use crate::services::utils;
 
 /// Service handling the full lifecycle of Purchase Orders (PO)
 /// — creation, updates, status transitions, approvals, rejections, and linking to
@@ -22,29 +20,6 @@ use crate::repositories::supplier_repo::SupplierRepo;
 pub struct PurchaseService;
 
 impl PurchaseService {
-    fn generate_order_no(prefix: &str) -> String {
-        let now = Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-        let serial = uuid::Uuid::new_v4().to_string();
-        let short_serial = &serial[..8];
-        format!("{}-{}-{}", prefix, date_str, short_serial)
-    }
-
-    fn validate_status_transition(current: &str, target: &str) -> Result<(), AppError> {
-        let current_status = OrderStatus::from_str(current)
-            .map_err(|_| AppError::Validation(format!("Invalid current status: {}", current)))?;
-        let target_status = OrderStatus::from_str(target)
-            .map_err(|_| AppError::Validation(format!("Invalid target status: {}", target)))?;
-
-        if !current_status.valid_transition(&target_status) {
-            return Err(AppError::OrderCannotModify(format!(
-                "Cannot transition from '{}' to '{}'",
-                current, target
-            )));
-        }
-        Ok(())
-    }
-
     /// Kicks off a new purchase order. Needs at least one line item; validates the
     /// supplier is active and the order number is unique. Auto-generates a PO-prefixed
     /// number or accepts a custom one.
@@ -88,7 +63,7 @@ impl PurchaseService {
                 }
                 on.clone()
             }
-            _ => Self::generate_order_no("PO"),
+            _ => utils::generate_no("PO"),
         };
 
         PurchaseOrderRepo::create_with_items(pool, dto, &order_no)
@@ -158,7 +133,7 @@ impl PurchaseService {
             )));
         }
 
-        Self::validate_status_transition(&existing.status, &dto.status)?;
+        utils::validate_status_transition(&existing.status, &dto.status)?;
 
         PurchaseOrderRepo::update_status(pool, id, &dto.status)
             .await

@@ -1,4 +1,3 @@
-use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
@@ -7,26 +6,19 @@ use crate::error::AppError;
 use crate::models::inventory::{InventoryCheckItem, InventoryCheckRecord};
 use crate::repositories::check_repo::CheckRepo;
 use crate::repositories::inventory_repo::CheckInitItem;
+use crate::services::utils;
 
 /// Inventory check service — create check orders, submit results per item, complete the full workflow.
 /// On creation, it auto-initializes all `in_stock` pipes as pending check items.
 pub struct CheckService;
 
 impl CheckService {
-    fn generate_no(prefix: &str) -> String {
-        let now = Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-        let serial = uuid::Uuid::new_v4().to_string();
-        let short_serial = &serial[..8];
-        format!("{}-{}-{}", prefix, date_str, short_serial)
-    }
-
     /// Creates a check order. Auto-scans all `in_stock` pipes into check items and generates a CHK-prefixed number.
     pub async fn create_check(
         pool: &SqlitePool,
         dto: &CreateCheckRequest,
     ) -> Result<InventoryCheckRecord, AppError> {
-        let check_no = Self::generate_no("CHK");
+        let check_no = utils::generate_no("CHK");
 
         let mut items: Vec<CheckInitItem> = Vec::new();
 
