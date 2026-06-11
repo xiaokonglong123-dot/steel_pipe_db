@@ -1,8 +1,9 @@
-// Customer create/edit form — basic info (contact, tax ID, bank info, industry, etc.)
+// Customer create/edit form — 使用 PageLayout 共享组件
 import { useEffect } from 'react';
 import { Form, Input, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { useCustomer, useCreateCustomer, useUpdateCustomer } from '../hooks/useCustomers';
 import type { CreateCustomerData } from '../types';
 
@@ -52,10 +53,10 @@ export default function CustomerFormPage() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} {t('customers.name')}
-      </h2>
+    <PageLayout
+      title={`${isEdit ? t('common.edit') : t('common.create')} ${t('customers.name')}`}
+      onBack={() => navigate('/customers')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -113,6 +114,6 @@ export default function CustomerFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }

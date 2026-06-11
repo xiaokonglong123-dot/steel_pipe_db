@@ -1,8 +1,9 @@
-// Supplier create/edit form — qualification info (supply grades, contact, tax ID, etc.)
+// Supplier create/edit form — 使用 PageLayout 共享组件
 import { useEffect } from 'react';
 import { Form, Input, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { useSupplier, useCreateSupplier, useUpdateSupplier } from '../hooks/useSuppliers';
 import type { CreateSupplierData } from '../types';
 
@@ -52,10 +53,10 @@ export default function SupplierFormPage() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} {t('suppliers.name')}
-      </h2>
+    <PageLayout
+      title={`${isEdit ? t('common.edit') : t('common.create')} ${t('suppliers.name')}`}
+      onBack={() => navigate('/suppliers')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -113,6 +114,6 @@ export default function SupplierFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }

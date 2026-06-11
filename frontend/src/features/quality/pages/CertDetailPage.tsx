@@ -1,8 +1,9 @@
-// 质检证书详情页 — 完整检测数据展示 + 附件上传/下载/删除
-import { Button, Descriptions, Space, Tag, Card, Table, Upload, Popconfirm, message } from 'antd';
-import { EditOutlined, ArrowLeftOutlined, UploadOutlined, LinkOutlined } from '@ant-design/icons';
+// 质检证书详情页 — 使用 PageLayout 共享组件
+import { Button, Descriptions, Tag, Card, Table, Upload, Popconfirm, message } from 'antd';
+import { EditOutlined, UploadOutlined, LinkOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { useCert, useAttachments, useCreateAttachment, useDeleteAttachment } from '../hooks/useQuality';
 import type { PipeAttachment } from '../types';
 
@@ -80,33 +81,19 @@ export default function CertDetailPage() {
   }
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ margin: 0 }}>{t('quality.certificate')} — {cert.cert_number}</h2>
-        <Space>
-          <Button
-            type="primary"
-            icon={<EditOutlined />}
-            onClick={() => navigate(`/quality/certs/${cert.id}/edit`)}
-          >
-            {t('common.edit')}
-          </Button>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/quality/certs')}
-          >
-            {t('common.back')}
-          </Button>
-        </Space>
-      </div>
-
+    <PageLayout
+      title={`${t('quality.certificate')} — ${cert.cert_number}`}
+      onBack={() => navigate('/quality/certs')}
+      extra={
+        <Button
+          type="primary"
+          icon={<EditOutlined />}
+          onClick={() => navigate(`/quality/certs/${cert.id}/edit`)}
+        >
+          {t('common.edit')}
+        </Button>
+      }
+    >
       <Card title={t('quality.basic_info')} style={{ marginBottom: 24 }}>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label={t('quality.cert_number')}>{cert.cert_number}</Descriptions.Item>
@@ -145,6 +132,6 @@ export default function CertDetailPage() {
           locale={{ emptyText: t('common.no_data') }}
         />
       </Card>
-    </div>
+    </PageLayout>
   );
 }

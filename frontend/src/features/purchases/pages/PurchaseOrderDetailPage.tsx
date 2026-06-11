@@ -1,9 +1,10 @@
-// 采购订单详情页 — 完整订单信息 + 行项表格 + 审核状态流转操作
+// 采购订单详情页 — 使用 PageLayout 共享组件
 import { useState } from 'react';
-import { Button, Descriptions, Space, Tag, Card, Table, Select, message, Modal, Input } from 'antd';
-import { EditOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+import { Button, Descriptions, Tag, Card, Table, Select, message, Modal, Input } from 'antd';
+import { EditOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { usePurchase, useTransitionPurchaseOrder } from '../hooks/usePurchases';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -113,17 +114,11 @@ export default function PurchaseOrderDetailPage() {
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ margin: 0 }}>{t('purchases.purchase_order')} — {order.order_no}</h2>
-        <Space>
+    <PageLayout
+      title={`${t('purchases.purchase_order')} — ${order.order_no}`}
+      onBack={() => navigate('/purchases')}
+      extra={
+        <>
           {showTransitionBtn && (
             <Button
               type="primary"
@@ -138,15 +133,9 @@ export default function PurchaseOrderDetailPage() {
           >
             {t('common.edit')}
           </Button>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/purchases')}
-          >
-            {t('common.back')}
-          </Button>
-        </Space>
-      </div>
-
+        </>
+      }
+    >
       <Card title={t('purchases.order_info')} style={{ marginBottom: 24 }}>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label={t('purchases.order_number')}>{order.order_no}</Descriptions.Item>
@@ -194,7 +183,7 @@ export default function PurchaseOrderDetailPage() {
         onCancel={() => setTransitionModalOpen(false)}
         confirmLoading={transitionMutation.isPending}
       >
-        <Space direction="vertical" style={{ width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
           <div>
             <div style={{ marginBottom: 4 }}>{t('purchases.target_status')}</div>
             <Select
@@ -218,8 +207,8 @@ export default function PurchaseOrderDetailPage() {
               rows={3}
             />
           </div>
-        </Space>
+        </div>
       </Modal>
-    </div>
+    </PageLayout>
   );
 }

@@ -1,9 +1,10 @@
-// 销售订单详情页 — 完整订单信息 + 行项表格 + 状态流转操作
-import { Button, Descriptions, Space, Tag, Card, Table, Select, Input, message } from 'antd';
-import { EditOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+// 销售订单详情页 — 使用 PageLayout 共享组件
+import { Button, Descriptions, Tag, Card, Table, Select, Input, message } from 'antd';
+import { EditOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { useSalesOrder, useTransitionSalesOrder } from '../hooks/useSales';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -71,33 +72,19 @@ export default function SalesOrderDetailPage() {
   const nextStatuses = NEXT_STATUSES[order.status] ?? [];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ margin: 0 }}>{t('sales.sales_order')} — {order.order_no}</h2>
-        <Space>
-          <Button
-            type="primary"
-            icon={<EditOutlined />}
-            onClick={() => navigate(`/sales/${order.id}/edit`)}
-          >
-            {t('common.edit')}
-          </Button>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/sales')}
-          >
-            {t('common.back')}
-          </Button>
-        </Space>
-      </div>
-
+    <PageLayout
+      title={`${t('sales.sales_order')} — ${order.order_no}`}
+      onBack={() => navigate('/sales')}
+      extra={
+        <Button
+          type="primary"
+          icon={<EditOutlined />}
+          onClick={() => navigate(`/sales/${order.id}/edit`)}
+        >
+          {t('common.edit')}
+        </Button>
+      }
+    >
       <Card>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label={t('sales.order_number')}>{order.order_no}</Descriptions.Item>
@@ -121,38 +108,36 @@ export default function SalesOrderDetailPage() {
 
       {nextStatuses.length > 0 && (
         <Card title={t('sales.status_transition')} style={{ marginTop: 24 }}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Space>
-              <Select
-                placeholder={t('sales.target_status')}
-                value={targetStatus}
-                onChange={setTargetStatus}
-                style={{ width: 200 }}
-              >
-                {nextStatuses.map((s) => (
-                  <Select.Option key={s} value={s}>
-                    {t('sales.status.' + s)}
-                  </Select.Option>
-                ))}
-              </Select>
-              <Input
-                placeholder={t('common.notes')}
-                value={transitionNotes}
-                onChange={(e) => setTransitionNotes(e.target.value)}
-                style={{ width: 300 }}
-              />
-              <Button
-                type="primary"
-                onClick={handleTransition}
-                loading={transitionMutation.isPending}
-                disabled={!targetStatus}
-              >
-                {t('sales.submit')}
-              </Button>
-            </Space>
-          </Space>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <Select
+              placeholder={t('sales.target_status')}
+              value={targetStatus}
+              onChange={setTargetStatus}
+              style={{ width: 200 }}
+            >
+              {nextStatuses.map((s) => (
+                <Select.Option key={s} value={s}>
+                  {t('sales.status.' + s)}
+                </Select.Option>
+              ))}
+            </Select>
+            <Input
+              placeholder={t('common.notes')}
+              value={transitionNotes}
+              onChange={(e) => setTransitionNotes(e.target.value)}
+              style={{ width: 300 }}
+            />
+            <Button
+              type="primary"
+              onClick={handleTransition}
+              loading={transitionMutation.isPending}
+              disabled={!targetStatus}
+            >
+              {t('sales.submit')}
+            </Button>
+          </div>
         </Card>
       )}
-    </div>
+    </PageLayout>
   );
 }

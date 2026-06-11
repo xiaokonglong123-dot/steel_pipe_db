@@ -1,8 +1,9 @@
-// 无缝钢管详情页 — Descriptions 展示所有 API 5CT 规格参数，状态彩色标签
-import { Button, Descriptions, Space, Tag, Card } from 'antd';
-import { EditOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+// 无缝钢管详情页 — 使用 PageLayout 共享组件
+import { Button, Descriptions, Tag, Card } from 'antd';
+import { EditOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { useSeamlessPipe } from '../hooks/useSeamlessPipes';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -28,33 +29,19 @@ export default function SeamlessPipeDetailPage() {
   }
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ margin: 0 }}>{t('nav.seamless_pipes')} — {pipe.pipe_number}</h2>
-        <Space>
-          <Button
-            type="primary"
-            icon={<EditOutlined />}
-            onClick={() => navigate(`/pipes/seamless/${pipe.id}/edit`)}
-          >
-            {t('common.edit')}
-          </Button>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/pipes/seamless')}
-          >
-            {t('common.back')}
-          </Button>
-        </Space>
-      </div>
-
+    <PageLayout
+      title={`${t('nav.seamless_pipes')} — ${pipe.pipe_number}`}
+      onBack={() => navigate('/pipes/seamless')}
+      extra={
+        <Button
+          type="primary"
+          icon={<EditOutlined />}
+          onClick={() => navigate(`/pipes/seamless/${pipe.id}/edit`)}
+        >
+          {t('common.edit')}
+        </Button>
+      }
+    >
       <Card>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label={t('pipes.pipe_number')}>{pipe.pipe_number}</Descriptions.Item>
@@ -82,6 +69,6 @@ export default function SeamlessPipeDetailPage() {
           <Descriptions.Item label={t('pipes.notes')} span={3}>{pipe.notes ?? '-'}</Descriptions.Item>
         </Descriptions>
       </Card>
-    </div>
+    </PageLayout>
   );
 }

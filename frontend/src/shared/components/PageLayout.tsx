@@ -7,7 +7,8 @@
  * - Optional footer with actions
  * - Loading overlay
  */
-import { Card, Space, Typography, Breadcrumb, Skeleton } from 'antd';
+import { Button, Card, Space, Typography, Breadcrumb, Skeleton } from 'antd';
+import { ArrowLeftOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
@@ -28,6 +29,8 @@ export interface PageLayoutProps {
   loading?: boolean;
   /** Extra content in header */
   extra?: React.ReactNode;
+  /** Back button click handler — shows ArrowLeft button when provided */
+  onBack?: () => void;
 }
 
 export function PageLayout({
@@ -39,6 +42,7 @@ export function PageLayout({
   footer,
   loading = false,
   extra,
+  onBack,
 }: PageLayoutProps) {
   return (
     <div style={{ padding: '24px' }}>
@@ -65,15 +69,25 @@ export function PageLayout({
           marginBottom: 24,
         }}
       >
-        <div>
-          <Title level={4} style={{ margin: 0 }}>
-            {title}
-          </Title>
-          {subtitle && (
-            <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
-              {subtitle}
-            </Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {onBack && (
+            <Button
+              type="text"
+              icon={<ArrowLeftOutlined />}
+              onClick={onBack}
+              style={{ fontSize: 16 }}
+            />
           )}
+          <div>
+            <Title level={4} style={{ margin: 0 }}>
+              {title}
+            </Title>
+            {subtitle && (
+              <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
+                {subtitle}
+              </Text>
+            )}
+          </div>
         </div>
         <Space>
           {extra}
