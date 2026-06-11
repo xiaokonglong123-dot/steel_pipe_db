@@ -1,19 +1,18 @@
 /**
- * @module Frontend route configuration
+ * Route configuration with per-route Suspense + ErrorBoundary.
  *
- * Defines the route structure using createBrowserRouter:
- * - Public routes: /login (no auth needed)
- * - Protected routes: all biz pages under ProtectedRoute + MainLayout, auto sidebar + header
- *   Default home redirects to /pipes/seamless
- *
- * All page components are lazy-loaded (React.lazy) so Vite code-splits them into
- * separate chunks — roughly one chunk per page. This keeps the initial vendor-antd
- * bundle from containing every antd component in the app.
+ * Each page is lazy-loaded via React.lazy. The RouteBoundary wrapper
+ * provides isolated error handling and loading states per route.
  */
 import { lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import MainLayout from '@/layouts/MainLayout';
 import ProtectedRoute from './ProtectedRoute';
+import { RouteBoundary } from '@/shared/components/RouteBoundary';
+
+function route(element: React.ReactNode) {
+  return <RouteBoundary>{element}</RouteBoundary>;
+}
 
 const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
 const SeamlessPipeListPage = lazy(() => import('@/features/pipes/pages/SeamlessPipeListPage'));
@@ -71,94 +70,69 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      // Home defaults to seamless pipe list
       { index: true, element: <Navigate to="/pipes/seamless" replace /> },
       // Pipe management
-      {
-        path: 'pipes/seamless',
-        element: <SeamlessPipeListPage />,
-      },
-      {
-        path: 'pipes/seamless/new',
-        element: <SeamlessPipeFormPage />,
-      },
-      {
-        path: 'pipes/seamless/:id',
-        element: <SeamlessPipeDetailPage />,
-      },
-      {
-        path: 'pipes/seamless/:id/edit',
-        element: <SeamlessPipeFormPage />,
-      },
-      {
-        path: 'pipes/screen',
-        element: <ScreenPipeListPage />,
-      },
-      {
-        path: 'pipes/screen/new',
-        element: <ScreenPipeFormPage />,
-      },
-      {
-        path: 'pipes/screen/:id',
-        element: <ScreenPipeDetailPage />,
-      },
-      {
-        path: 'pipes/screen/:id/edit',
-        element: <ScreenPipeFormPage />,
-      },
-      // Inventory: inbound/outbound/stock query/locations/stocktake
-      { path: 'inventory/inbound', element: <InboundListPage /> },
-      { path: 'inventory/inbound/new', element: <InboundFormPage key="new" /> },
-      { path: 'inventory/inbound/:id/edit', element: <InboundFormPage key="edit" /> },
-      { path: 'inventory/outbound', element: <OutboundListPage /> },
-      { path: 'inventory/outbound/new', element: <OutboundFormPage key="new" /> },
-      { path: 'inventory/outbound/:id/edit', element: <OutboundFormPage key="edit" /> },
-      { path: 'inventory/stock', element: <StockQueryPage /> },
-      { path: 'inventory/locations', element: <LocationListPage /> },
-      { path: 'inventory/check', element: <InventoryCheckListPage /> },
-      // Supplier & customer management
-      { path: 'suppliers', element: <SupplierListPage /> },
-      { path: 'suppliers/new', element: <SupplierFormPage key="new" /> },
-      { path: 'suppliers/:id/edit', element: <SupplierFormPage key="edit" /> },
-      { path: 'customers', element: <CustomerListPage /> },
-      { path: 'customers/new', element: <CustomerFormPage key="new" /> },
-      { path: 'customers/:id/edit', element: <CustomerFormPage key="edit" /> },
+      { path: 'pipes/seamless', element: route(<SeamlessPipeListPage />) },
+      { path: 'pipes/seamless/new', element: route(<SeamlessPipeFormPage />) },
+      { path: 'pipes/seamless/:id', element: route(<SeamlessPipeDetailPage />) },
+      { path: 'pipes/seamless/:id/edit', element: route(<SeamlessPipeFormPage />) },
+      { path: 'pipes/screen', element: route(<ScreenPipeListPage />) },
+      { path: 'pipes/screen/new', element: route(<ScreenPipeFormPage />) },
+      { path: 'pipes/screen/:id', element: route(<ScreenPipeDetailPage />) },
+      { path: 'pipes/screen/:id/edit', element: route(<ScreenPipeFormPage />) },
+      // Inventory
+      { path: 'inventory/inbound', element: route(<InboundListPage />) },
+      { path: 'inventory/inbound/new', element: route(<InboundFormPage key="new" />) },
+      { path: 'inventory/inbound/:id/edit', element: route(<InboundFormPage key="edit" />) },
+      { path: 'inventory/outbound', element: route(<OutboundListPage />) },
+      { path: 'inventory/outbound/new', element: route(<OutboundFormPage key="new" />) },
+      { path: 'inventory/outbound/:id/edit', element: route(<OutboundFormPage key="edit" />) },
+      { path: 'inventory/stock', element: route(<StockQueryPage />) },
+      { path: 'inventory/locations', element: route(<LocationListPage />) },
+      { path: 'inventory/check', element: route(<InventoryCheckListPage />) },
+      // Supplier & customer
+      { path: 'suppliers', element: route(<SupplierListPage />) },
+      { path: 'suppliers/new', element: route(<SupplierFormPage key="new" />) },
+      { path: 'suppliers/:id/edit', element: route(<SupplierFormPage key="edit" />) },
+      { path: 'customers', element: route(<CustomerListPage />) },
+      { path: 'customers/new', element: route(<CustomerFormPage key="new" />) },
+      { path: 'customers/:id/edit', element: route(<CustomerFormPage key="edit" />) },
       // Purchase orders
-      { path: 'purchases', element: <PurchaseOrderListPage /> },
-      { path: 'purchases/new', element: <PurchaseOrderFormPage key="new" /> },
-      { path: 'purchases/:id', element: <PurchaseOrderDetailPage /> },
-      { path: 'purchases/:id/edit', element: <PurchaseOrderFormPage key="edit" /> },
+      { path: 'purchases', element: route(<PurchaseOrderListPage />) },
+      { path: 'purchases/new', element: route(<PurchaseOrderFormPage key="new" />) },
+      { path: 'purchases/:id', element: route(<PurchaseOrderDetailPage />) },
+      { path: 'purchases/:id/edit', element: route(<PurchaseOrderFormPage key="edit" />) },
       // Sales orders
-      { path: 'sales', element: <SalesOrderListPage /> },
-      { path: 'sales/new', element: <SalesOrderFormPage key="new" /> },
-      { path: 'sales/:id', element: <SalesOrderDetailPage /> },
-      { path: 'sales/:id/edit', element: <SalesOrderFormPage key="edit" /> },
+      { path: 'sales', element: route(<SalesOrderListPage />) },
+      { path: 'sales/new', element: route(<SalesOrderFormPage key="new" />) },
+      { path: 'sales/:id', element: route(<SalesOrderDetailPage />) },
+      { path: 'sales/:id/edit', element: route(<SalesOrderFormPage key="edit" />) },
       // Quality certs
-      { path: 'quality/certs', element: <CertListPage /> },
-      { path: 'quality/certs/new', element: <CertFormPage key="new" /> },
-      { path: 'quality/certs/:id', element: <CertDetailPage /> },
-      { path: 'quality/certs/:id/edit', element: <CertFormPage key="edit" /> },
+      { path: 'quality/certs', element: route(<CertListPage />) },
+      { path: 'quality/certs/new', element: route(<CertFormPage key="new" />) },
+      { path: 'quality/certs/:id', element: route(<CertDetailPage />) },
+      { path: 'quality/certs/:id/edit', element: route(<CertFormPage key="edit" />) },
       // Contracts
-      { path: 'contracts', element: <ContractListPage /> },
-      { path: 'contracts/new', element: <ContractFormPage key="new" /> },
-      { path: 'contracts/:id', element: <ContractDetailPage /> },
-      { path: 'contracts/:id/edit', element: <ContractFormPage key="edit" /> },
-      // Reports & label printing
-      { path: 'reports', element: <ReportListPage /> },
-      { path: 'reports/dashboard', element: <DashboardPage /> },
-      { path: 'reports/inventory', element: <InventoryReportPage /> },
-      { path: 'reports/orders', element: <OrderReportPage /> },
-      { path: 'reports/quality', element: <QualityReportPage /> },
-      { path: 'labels', element: <LabelPrintPage /> },
-      // Data IO: import/export/logs
-      { path: 'data-io/import', element: <DataImportPage /> },
-      { path: 'data-io/export', element: <DataExportPage /> },
-      { path: 'data-io/logs', element: <OperationLogPage /> },
-      // System management
-      { path: 'system/users', element: <UserManagementPage /> },
-      // Global search & profile settings
-      { path: 'search', element: <SearchPage /> },
-      { path: 'profile/settings', element: <ProfileSettingsPage /> },
+      { path: 'contracts', element: route(<ContractListPage />) },
+      { path: 'contracts/new', element: route(<ContractFormPage key="new" />) },
+      { path: 'contracts/:id', element: route(<ContractDetailPage />) },
+      { path: 'contracts/:id/edit', element: route(<ContractFormPage key="edit" />) },
+      // Reports & labels
+      { path: 'reports', element: route(<ReportListPage />) },
+      { path: 'reports/dashboard', element: route(<DashboardPage />) },
+      { path: 'reports/inventory', element: route(<InventoryReportPage />) },
+      { path: 'reports/orders', element: route(<OrderReportPage />) },
+      { path: 'reports/quality', element: route(<QualityReportPage />) },
+      { path: 'labels', element: route(<LabelPrintPage />) },
+      // Data IO
+      { path: 'data-io/import', element: route(<DataImportPage />) },
+      { path: 'data-io/export', element: route(<DataExportPage />) },
+      { path: 'data-io/logs', element: route(<OperationLogPage />) },
+      // System
+      { path: 'system/users', element: route(<UserManagementPage />) },
+      // Search & profile
+      { path: 'search', element: route(<SearchPage />) },
+      { path: 'profile/settings', element: route(<ProfileSettingsPage />) },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

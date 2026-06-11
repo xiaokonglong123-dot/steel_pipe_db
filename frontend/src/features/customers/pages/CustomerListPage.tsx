@@ -1,9 +1,11 @@
-// Customer list page — paginated query, search, status tags, CRUD
+// Customer list page — uses DataTable + PageLayout shared components
 import { useState } from 'react';
-import { Table, Button, Space, Tag, Input, Popconfirm } from 'antd';
+import { Button, Tag, Input, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DataTable } from '@/shared/components/DataTable';
 import { useCustomers, useDeleteCustomer } from '../hooks/useCustomers';
 import type { Customer } from '../types';
 
@@ -25,8 +27,8 @@ export default function CustomerListPage() {
   const columns = [
     {
       title: t('customers.code'),
-      dataIndex: 'code',
-      key: 'code',
+      dataIndex: 'customer_code',
+      key: 'customer_code',
       sorter: true,
     },
     {
@@ -38,33 +40,32 @@ export default function CustomerListPage() {
       title: t('customers.contact_person'),
       dataIndex: 'contact_person',
       key: 'contact_person',
+      render: (val: string) => val || '-',
     },
     {
       title: t('customers.phone'),
       dataIndex: 'phone',
       key: 'phone',
-    },
-    {
-      title: t('customers.industry'),
-      dataIndex: 'industry',
-      key: 'industry',
+      render: (val: string) => val || '-',
     },
     {
       title: t('customers.status'),
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => {
-        const color = status === 'active' ? 'green' : 'red';
-        return <Tag color={color}>{status}</Tag>;
-      },
+      dataIndex: 'is_active',
+      key: 'is_active',
+      render: (isActive: boolean) => (
+        <Tag color={isActive ? 'green' : 'red'}>
+          {isActive ? t('common.active') : t('common.inactive')}
+        </Tag>
+      ),
     },
     {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: Customer) => (
-        <Space>
+        <>
           <Button
             type="link"
+            size="small"
             onClick={() => navigate(`/customers/${record.id}/edit`)}
           >
             {t('common.edit')}
@@ -73,58 +74,44 @@ export default function CustomerListPage() {
             title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger loading={deleteMutation.isPending}>
+            <Button type="link" danger size="small" loading={deleteMutation.isPending}>
               {t('common.delete')}
             </Button>
           </Popconfirm>
-        </Space>
+        </>
       ),
     },
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <Space>
-          <Input
-            placeholder={t('common.search')}
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 250 }}
-          />
-        </Space>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/customers/new')}
-        >
+    <PageLayout
+      title={t('customers.title')}
+      extra={
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/customers/new')}>
           {t('common.create')}
         </Button>
-      </div>
-      <Table
+      }
+    >
+      <Input
+        placeholder={t('common.search')}
+        prefix={<SearchOutlined />}
+        value={searchText}
+        onChange={(e) => setSearchText(e.target.value)}
+        style={{ width: 250, marginBottom: 16 }}
+        allowClear
+      />
+      <DataTable<Customer>
         columns={columns}
-        dataSource={data?.items}
-        rowKey="id"
+        items={data?.items}
+        total={data?.total}
+        page={page}
+        pageSize={pageSize}
         loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-          showTotal: (total) => t('common.total_items', { total }),
+        onPaginationChange={(p, ps) => {
+          setPage(p);
+          setPageSize(ps);
         }}
       />
-    </div>
+    </PageLayout>
   );
 }

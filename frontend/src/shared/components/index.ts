@@ -19,3 +19,4 @@ export { StatusBadge } from './StatusBadge';
 export type { StatusBadgeProps, StatusType, StatusConfig } from './StatusBadge';
 
 export { default as ErrorBoundary } from './ErrorBoundary';
+export { RouteBoundary } from './RouteBoundary';
