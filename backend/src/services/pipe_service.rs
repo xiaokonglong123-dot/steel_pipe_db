@@ -10,6 +10,7 @@ use crate::error::AppError;
 use crate::models::screen_pipe::ScreenPipe;
 use crate::models::seamless_pipe::SeamlessPipe;
 use crate::repositories::pipe_repo::{ScreenPipeRepo, SeamlessPipeRepo};
+use crate::services::pipe_helpers::PipeHelpers;
 
 /// Pipe master-data service — CRUD and search for seamless and screen pipes.
 /// Kicks off with pipe-number uniqueness checks and enforces soft-delete / status gates on mutations.
@@ -22,32 +23,35 @@ impl PipeService {
         format!("{}-{}-{}x{}-{}", prefix, grade, od, wt, short_serial)
     }
 
-    // ━━━ Seamless Pipe ━━━
+    async fn validate_pipe_number_unique(
+        pool: &SqlitePool,
+        pipe_number: &str,
+    ) -> Result<(), AppError> {
+        if !PipeHelpers::check_pipe_number_unique(pool, pipe_number).await? {
+            return Err(AppError::PipeNumberDuplicate(format!(
+                "Pipe number '{}' already exists",
+                pipe_number
+            )));
+        }
+        Ok(())
+    }
 
-    /// Creates a seamless pipe record.
-    /// Auto-generates a pipe number if none is given; tells you to fuck off if the number's taken.
-    ///
-    /// # Errors
-    /// - `AppError::PipeNumberDuplicate` — the submitted pipe number already exists
     pub async fn create_seamless_pipe(
         pool: &SqlitePool,
         dto: &CreateSeamlessPipeRequest,
     ) -> Result<SeamlessPipe, AppError> {
         let pipe_number = match &dto.pipe_number {
             Some(pn) if !pn.is_empty() => {
-                if SeamlessPipeRepo::find_by_pipe_number(pool, pn)
-                    .await
-                    .map_err(AppError::from)?
-                    .is_some()
-                {
-                    return Err(AppError::PipeNumberDuplicate(format!(
-                        "Pipe number '{}' already exists",
-                        pn
-                    )));
-                }
+                Self::validate_pipe_number_unique(pool, pn).await?;
                 pn.clone()
             }
-            _ => Self::generate_pipe_number("SP", &dto.grade, dto.od, dto.wt),
+            _ => {
+                let mut pn = Self::generate_pipe_number("SP", &dto.grade, dto.od, dto.wt);
+                while !PipeHelpers::check_pipe_number_unique(pool, &pn).await? {
+                    pn = Self::generate_pipe_number("SP", &dto.grade, dto.od, dto.wt);
+                }
+                pn
+            }
         };
 
         let adjusted = CreateSeamlessPipeRequest {
@@ -151,29 +155,22 @@ impl PipeService {
 
     // ━━━ Screen Pipe ━━━
 
-    /// Creates a screen pipe. Auto-generates the pipe number or checks the submitted one is unique.
-    ///
-    /// # Errors
-    /// - `AppError::PipeNumberDuplicate` — pipe number's already taken
     pub async fn create_screen_pipe(
         pool: &SqlitePool,
         dto: &CreateScreenPipeRequest,
     ) -> Result<ScreenPipe, AppError> {
         let pipe_number = match &dto.pipe_number {
             Some(pn) if !pn.is_empty() => {
-                if ScreenPipeRepo::find_by_pipe_number(pool, pn)
-                    .await
-                    .map_err(AppError::from)?
-                    .is_some()
-                {
-                    return Err(AppError::PipeNumberDuplicate(format!(
-                        "Pipe number '{}' already exists",
-                        pn
-                    )));
-                }
+                Self::validate_pipe_number_unique(pool, pn).await?;
                 pn.clone()
             }
-            _ => Self::generate_pipe_number("SCP", &dto.base_grade, dto.base_od, dto.base_wt),
+            _ => {
+                let mut pn = Self::generate_pipe_number("SCP", &dto.base_grade, dto.base_od, dto.base_wt);
+                while !PipeHelpers::check_pipe_number_unique(pool, &pn).await? {
+                    pn = Self::generate_pipe_number("SCP", &dto.base_grade, dto.base_od, dto.base_wt);
+                }
+                pn
+            }
         };
 
         let adjusted = CreateScreenPipeRequest {

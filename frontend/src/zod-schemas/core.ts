@@ -103,9 +103,11 @@ export const userInfoSchema = z.object({
 
 export const loginResponseSchema = z.object({
   token: z.string(),
+  refresh_token: z.string().optional(),
   user: userInfoSchema,
 }).strict();
 
 export const tokenResponseSchema = z.object({
   token: z.string(),
+  refresh_token: z.string().optional(),
 }).strict();

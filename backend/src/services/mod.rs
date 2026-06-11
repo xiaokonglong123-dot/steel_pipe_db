@@ -9,6 +9,7 @@ pub mod label_service;
 pub mod location_service;
 mod macros;
 pub mod outbound_service;
+pub mod pipe_helpers;
 pub mod pipe_service;
 pub mod purchase_service;
 pub mod quality_service;
