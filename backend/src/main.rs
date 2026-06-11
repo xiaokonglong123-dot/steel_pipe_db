@@ -9,6 +9,7 @@ use crate::dto::auth_dto::CreateUserRequest;
 use crate::repositories::user_repo::UserRepo;
 use crate::services::auth_service::AuthService;
 
+mod cache;
 mod config;
 mod domain;
 mod dto;
@@ -55,10 +56,14 @@ async fn main() {
     // This replaces the old migration-seeded hardcoded admin credential.
     bootstrap_admin(&pool, &cfg.admin_username, &cfg.admin_password).await;
 
+    // Create the cache manager — holds typed caches for grades, locations, dashboard
+    let cache_manager = crate::cache::CacheManager::new();
+    tracing::info!("Cache manager initialized (grades=5min, locations=2min, dashboard=30s)");
+
     // Assemble the full router tree — all middleware and route groups merge here
     let cors_origins = cfg.parse_cors_origins();
     tracing::info!("CORS origins: {:?}", cors_origins);
-    let app = router::create_app(pool, cfg.jwt_secret.clone(), cors_origins);
+    let app = router::create_app(pool, cfg.jwt_secret.clone(), cors_origins, cache_manager);
 
     // Bind and serve — axum::serve is the outermost layer that drives the async event loop
     let addr: SocketAddr = cfg.server_addr().parse().expect("Invalid server address");

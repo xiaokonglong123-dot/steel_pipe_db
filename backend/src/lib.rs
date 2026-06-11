@@ -6,6 +6,7 @@
 //! request/response structs in `dto/`, and DB row mappings in `models/`.
 //! Dependency injection is via Axum [`Extension`] layers — no global state struct.
 
+pub mod cache;
 pub mod config;
 pub mod domain;
 pub mod dto;

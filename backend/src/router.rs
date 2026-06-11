@@ -51,10 +51,12 @@ use sqlx::SqlitePool;
 use tower::ServiceBuilder;
 use tower_http::{request_id::MakeRequestUuid, ServiceBuilderExt};
 
+use crate::cache::CacheManager;
 use crate::middleware::auth::JwtSecret;
 use crate::middleware::rate_limit::{
     rate_limit_import, rate_limit_login, rate_limit_password_change, RateLimiter,
 };
+use crate::middleware::security_headers::security_headers;
 
 use crate::handlers::atp_handler;
 use crate::handlers::auth_handler;
@@ -380,12 +382,22 @@ fn contract_write_routes() -> Router {
 
 // Main app builder — assembles all route groups, middleware, and shared layers
 
-pub fn create_app(pool: SqlitePool, jwt_secret: String, cors_origins: Vec<HeaderValue>) -> Router {
+pub fn create_app(
+    pool: SqlitePool,
+    jwt_secret: String,
+    cors_origins: Vec<HeaderValue>,
+    cache_manager: CacheManager,
+) -> Router {
     // Public: no auth required
-    let public = Router::new().route(
-        "/api/v1/health",
-        axum::routing::get(health_handler::health_handler),
-    );
+    let public = Router::new()
+        .route(
+            "/api/v1/health",
+            axum::routing::get(health_handler::health_handler),
+        )
+        .route(
+            "/api/v1/health/ready",
+            axum::routing::get(health_handler::readiness_handler),
+        );
 
     let public_auth = Router::new()
         .route(
@@ -773,6 +785,7 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String, cors_origins: Vec<Header
         .merge(supplier_customer_write_routes())
         .merge(contract_write_routes())
         // Shared layers — outermost (applied first)
+        .layer(axum::middleware::from_fn(security_headers))
         .layer(
             tower_http::cors::CorsLayer::new()
                 .allow_origin(cors_origins)
@@ -797,11 +810,12 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String, cors_origins: Vec<Header
         )
         .layer(
             ServiceBuilder::new()
-                .set_x_request_id(MakeRequestUuid::default())
+                .set_x_request_id(MakeRequestUuid)
                 .layer(tower_http::trace::TraceLayer::new_for_http())
                 .propagate_x_request_id(),
         )
         .layer(axum::Extension(pool))
         .layer(axum::Extension(JwtSecret(jwt_secret)))
         .layer(axum::Extension(RateLimiter::new()))
+        .layer(axum::Extension(cache_manager))
 }

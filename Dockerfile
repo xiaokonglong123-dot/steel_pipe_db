@@ -21,10 +21,10 @@ RUN npm ci
 COPY frontend/ .
 RUN npm run build
 
-# ── Stage 3: Runtime ──
+# ── Stage 3: Runtime (combined backend + frontend) ──
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends     ca-certificates     libssl3     curl     && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends     ca-certificates     libssl3     curl     sqlite3     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -35,11 +35,16 @@ COPY backend/migrations/ /app/migrations/
 # Frontend dist (serve via Nginx or other reverse proxy)
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
+# Backup/restore scripts
+COPY scripts/ /app/scripts/
+RUN chmod +x /app/scripts/*.sh
+
 # Data directory for SQLite
 RUN mkdir -p /app/data
 
 # Default env (override via docker-compose or -e flags)
 ENV DATABASE_URL=sqlite://./data/steel_pipe.db?mode=rwc
+ENV APP_ENV=development
 ENV JWT_SECRET=change-this-to-a-long-random-secret
 ENV JWT_EXPIRY_HOURS=24
 ENV SERVER_HOST=0.0.0.0
