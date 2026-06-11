@@ -1,19 +1,20 @@
 export interface Contract {
   id: number;
-  contract_number: string;
-  contract_name: string;
+  contract_no: string;
   contract_type: 'purchase' | 'sales';
+  title: string;
   party_a: string;
   party_b: string;
   sign_date?: string;
   start_date?: string;
   end_date?: string;
-  total_amount: number;
-  paid_amount: number;
-  status: 'draft' | 'active' | 'completed' | 'terminated';
+  total_amount?: number;
+  status: 'draft' | 'active' | 'completed' | 'terminated' | 'cancelled';
   notes?: string;
+  created_by?: number;
   created_at: string;
   updated_at: string;
+  deleted_at?: string;
   items?: ContractItem[];
   payments?: ContractPayment[];
 }
@@ -25,37 +26,37 @@ export interface ContractItem {
   grade: string;
   od: number;
   wt: number;
-  length?: number;
   quantity: number;
-  unit_price: number;
-  total_price: number;
-  delivery_date?: string;
+  unit_price?: number;
+  total_price?: number;
   notes?: string;
+  created_at: string;
 }
 
 export interface ContractPayment {
   id: number;
   contract_id: number;
-  payment_date: string;
+  due_date: string;
   amount: number;
-  payment_method?: string;
-  reference_number?: string;
+  payment_type: string;
+  is_paid: boolean;
+  paid_date?: string;
   notes?: string;
+  created_at: string;
 }
 
 export interface CreateContractData {
-  contract_number?: string;
-  contract_name: string;
+  contract_no?: string;
   contract_type: 'purchase' | 'sales';
+  title: string;
   party_a: string;
   party_b: string;
   sign_date?: string;
   start_date?: string;
   end_date?: string;
-  total_amount: number;
-  paid_amount?: number;
+  total_amount?: number;
   notes?: string;
-  items?: Omit<ContractItem, 'id' | 'contract_id'>[];
+  items?: Omit<ContractItem, 'id' | 'contract_id' | 'created_at'>[];
 }
 
 export interface CreateContractItemData {
@@ -63,19 +64,15 @@ export interface CreateContractItemData {
   grade: string;
   od: number;
   wt: number;
-  length?: number;
   quantity: number;
-  unit_price: number;
-  total_price: number;
-  delivery_date?: string;
+  unit_price?: number;
   notes?: string;
 }
 
 export interface CreateContractPaymentData {
-  payment_date: string;
+  due_date: string;
   amount: number;
-  payment_method?: string;
-  reference_number?: string;
+  payment_type: string;
   notes?: string;
 }
 

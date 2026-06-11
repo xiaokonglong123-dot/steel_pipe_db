@@ -5,16 +5,16 @@ use std::str::FromStr;
 use crate::domain::order::OrderStatus;
 use crate::dto::common::PaginationParams;
 use crate::dto::purchase_dto::{
+    ApproveOrderRequest as PurchaseApproveReq, RejectOrderRequest as PurchaseRejectReq,
+};
+use crate::dto::purchase_dto::{
     CreatePurchaseOrderRequest, PurchaseOrderFilterParams, PurchaseOrderStatusTransitionRequest,
     UpdatePurchaseItemRequest, UpdatePurchaseOrderRequest,
 };
-use crate::dto::purchase_dto::{
-    ApproveOrderRequest as PurchaseApproveReq, RejectOrderRequest as PurchaseRejectReq,
-};
 use crate::dto::sales_dto::{
     ApproveOrderRequest as SalesApproveReq, CreateSalesOrderRequest,
-    RejectOrderRequest as SalesRejectReq, SalesOrderFilterParams, SalesOrderStatusTransitionRequest,
-    UpdateSalesItemRequest, UpdateSalesOrderRequest,
+    RejectOrderRequest as SalesRejectReq, SalesOrderFilterParams,
+    SalesOrderStatusTransitionRequest, UpdateSalesItemRequest, UpdateSalesOrderRequest,
 };
 use crate::error::AppError;
 use crate::models::purchase_order::{PurchaseOrder, PurchaseOrderItem};
@@ -40,16 +40,11 @@ impl PurchaseSalesService {
         format!("{}-{}-{}", prefix, date_str, short_serial)
     }
 
-    fn validate_status_transition(
-        current: &str,
-        target: &str,
-    ) -> Result<(), AppError> {
-        let current_status = OrderStatus::from_str(current).map_err(|_| {
-            AppError::Validation(format!("Invalid current status: {}", current))
-        })?;
-        let target_status = OrderStatus::from_str(target).map_err(|_| {
-            AppError::Validation(format!("Invalid target status: {}", target))
-        })?;
+    fn validate_status_transition(current: &str, target: &str) -> Result<(), AppError> {
+        let current_status = OrderStatus::from_str(current)
+            .map_err(|_| AppError::Validation(format!("Invalid current status: {}", current)))?;
+        let target_status = OrderStatus::from_str(target)
+            .map_err(|_| AppError::Validation(format!("Invalid target status: {}", target)))?;
 
         if !current_status.valid_transition(&target_status) {
             return Err(AppError::OrderCannotModify(format!(
@@ -74,9 +69,7 @@ impl PurchaseSalesService {
         dto: &CreatePurchaseOrderRequest,
     ) -> Result<PurchaseOrder, AppError> {
         if dto.items.is_empty() {
-            return Err(AppError::Validation(
-                "At least one item is required".into(),
-            ));
+            return Err(AppError::Validation("At least one item is required".into()));
         }
 
         let supplier = SupplierRepo::find_by_id(pool, dto.supplier_id)
@@ -129,7 +122,9 @@ impl PurchaseSalesService {
         let existing = PurchaseOrderRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Purchase order id={} not found", id))
+            })?;
 
         if existing.deleted_at.is_some() {
             return Err(AppError::OrderNotFound(format!(
@@ -164,7 +159,9 @@ impl PurchaseSalesService {
         let existing = PurchaseOrderRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Purchase order id={} not found", id))
+            })?;
 
         if existing.deleted_at.is_some() {
             return Err(AppError::OrderNotFound(format!(
@@ -191,7 +188,9 @@ impl PurchaseSalesService {
         let order = PurchaseOrderRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Purchase order id={} not found", id))
+            })?;
 
         let items = PurchaseOrderRepo::find_items(pool, id)
             .await
@@ -217,14 +216,13 @@ impl PurchaseSalesService {
     /// # Errors
     /// - `AppError::OrderNotFound` — ID doesn't exist
     /// - `AppError::OrderCannotModify` — current status doesn't allow deletion
-    pub async fn delete_purchase_order(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<(), AppError> {
+    pub async fn delete_purchase_order(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let existing = PurchaseOrderRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Purchase order id={} not found", id))
+            })?;
 
         if existing.status != "draft" && existing.status != "cancelled" {
             return Err(AppError::OrderCannotModify(format!(
@@ -253,7 +251,9 @@ impl PurchaseSalesService {
         let order = PurchaseOrderRepo::find_by_id(pool, order_id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", order_id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Purchase order id={} not found", order_id))
+            })?;
 
         if order.status != "draft" {
             return Err(AppError::OrderCannotModify(format!(
@@ -283,7 +283,9 @@ impl PurchaseSalesService {
         let order = PurchaseOrderRepo::find_by_id(pool, order_id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", order_id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Purchase order id={} not found", order_id))
+            })?;
 
         if order.status != "draft" {
             return Err(AppError::OrderCannotModify(format!(
@@ -310,9 +312,7 @@ impl PurchaseSalesService {
         dto: &CreateSalesOrderRequest,
     ) -> Result<SalesOrder, AppError> {
         if dto.items.is_empty() {
-            return Err(AppError::Validation(
-                "At least one item is required".into(),
-            ));
+            return Err(AppError::Validation("At least one item is required".into()));
         }
 
         let customer = CustomerRepo::find_by_id(pool, dto.customer_id)
@@ -453,10 +453,7 @@ impl PurchaseSalesService {
     /// # Errors
     /// - `AppError::OrderNotFound` — ID doesn't exist
     /// - `AppError::OrderCannotModify` — current status doesn't allow deletion
-    pub async fn delete_sales_order(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<(), AppError> {
+    pub async fn delete_sales_order(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let existing = SalesOrderRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -489,7 +486,9 @@ impl PurchaseSalesService {
         let order = SalesOrderRepo::find_by_id(pool, order_id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Sales order id={} not found", order_id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Sales order id={} not found", order_id))
+            })?;
 
         if order.status != "draft" {
             return Err(AppError::OrderCannotModify(format!(
@@ -519,7 +518,9 @@ impl PurchaseSalesService {
         let order = SalesOrderRepo::find_by_id(pool, order_id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Sales order id={} not found", order_id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Sales order id={} not found", order_id))
+            })?;
 
         if order.status != "draft" {
             return Err(AppError::OrderCannotModify(format!(
@@ -550,7 +551,9 @@ impl PurchaseSalesService {
         let existing = PurchaseOrderRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Purchase order id={} not found", id))
+            })?;
 
         if existing.deleted_at.is_some() {
             return Err(AppError::OrderNotFound(format!(
@@ -585,7 +588,9 @@ impl PurchaseSalesService {
         let existing = PurchaseOrderRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Purchase order id={} not found", id))
+            })?;
 
         if existing.deleted_at.is_some() {
             return Err(AppError::OrderNotFound(format!(
@@ -620,7 +625,9 @@ impl PurchaseSalesService {
         let existing = PurchaseOrderRepo::find_by_id(pool, order_id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Purchase order id={} not found", order_id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Purchase order id={} not found", order_id))
+            })?;
 
         if existing.deleted_at.is_some() {
             return Err(AppError::OrderNotFound(format!(
@@ -638,6 +645,19 @@ impl PurchaseSalesService {
 
     /// Approves a sales order — checks the info and amount, then bumps it to
     /// `approved` status. Also verifies there's enough ATP stock for each item.
+    ///
+    /// # Errors
+    /// - `AppError::OrderNotFound` — ID doesn't exist
+    /// - `AppError::OrderCannotModify` — current status won't allow approval
+    /// - `AppError::Validation` — approval info is incomplete
+    /// - `AppError::InsufficientStock` — not enough inventory to fulfill
+    /// Approves a sales order — checks the info and amount, then bumps it to
+    /// `approved` status. Also verifies there's enough ATP stock for each item.
+    ///
+    /// Uses `BEGIN IMMEDIATE` to serialize concurrent approvals and prevent TOCTOU
+    /// races on ATP (Available-to-Promise) inventory checks. The ATP query and the
+    /// status update share a single serialised transaction, so two concurrent
+    /// approvals for the same order cannot both pass the ATP check.
     ///
     /// # Errors
     /// - `AppError::OrderNotFound` — ID doesn't exist
@@ -672,43 +692,65 @@ impl PurchaseSalesService {
             .await
             .map_err(AppError::from)?;
 
+        // Acquire a connection and start an IMMEDIATE transaction — this prevents two
+        // concurrent requests from both reading stale ATP data (C1: TOCTOU fix).
+        let mut conn = pool.acquire().await.map_err(AppError::from)?;
+        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+            return Err(AppError::from(e));
+        }
+
+        // ATP check inside the serialised transaction so no concurrent writer can
+        // modify stock between our read and the status update.
         for item in &items {
-            let atp_rows = InventoryRepo::find_atp(
-                pool,
+            let atp_rows = match InventoryRepo::find_atp(
+                &mut *conn,
                 &Some(item.pipe_type.clone()),
                 &Some(item.grade.clone()),
                 &None,
             )
             .await
-            .map_err(AppError::from)?;
+            {
+                Ok(rows) => rows,
+                Err(e) => {
+                    sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                    return Err(AppError::from(e));
+                }
+            };
 
             let available: i64 = atp_rows.iter().map(|(_, _, cnt, _)| cnt).sum();
-
             if available < item.quantity {
-                return Err(AppError::InsufficientStock);
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::InsufficientStock("Insufficient stock".into()));
             }
         }
 
-        let mut tx = pool.begin().await.map_err(AppError::from)?;
-
-        let rows_affected = sqlx::query(
+        let rows_affected = match sqlx::query(
             "UPDATE sales_orders SET status = 'approved', updated_at = datetime('now') \
              WHERE id = ? AND status = 'pending' AND deleted_at IS NULL",
         )
         .bind(id)
-        .execute(&mut *tx)
+        .execute(&mut *conn)
         .await
-        .map_err(AppError::from)?
-        .rows_affected();
+        {
+            Ok(result) => result.rows_affected(),
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        };
 
         if rows_affected == 0 {
-            tx.rollback().await.map_err(AppError::from)?;
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
             return Err(AppError::OrderCannotModify(
                 "Order status changed or already processed".into(),
             ));
         }
 
-        tx.commit().await.map_err(AppError::from)
+        sqlx::query("COMMIT")
+            .execute(&mut *conn)
+            .await
+            .map_err(AppError::from)
+            .map(|_| ())
     }
 
     /// Rejects a sales order. Requires a rejection reason and rolls the status
@@ -760,7 +802,9 @@ impl PurchaseSalesService {
         let existing = SalesOrderRepo::find_by_id(pool, order_id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::OrderNotFound(format!("Sales order id={} not found", order_id)))?;
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Sales order id={} not found", order_id))
+            })?;
 
         if existing.deleted_at.is_some() {
             return Err(AppError::OrderNotFound(format!(

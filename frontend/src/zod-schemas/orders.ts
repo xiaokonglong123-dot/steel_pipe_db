@@ -8,31 +8,32 @@ import { z } from 'zod';
 
 export const purchaseOrderItemSchema = z.object({
   id: z.number(),
-  purchase_order_id: z.number(),
+  order_id: z.number(),
   pipe_type: z.string(),
   grade: z.string(),
   od: z.number(),
   wt: z.number(),
-  length: z.number().optional(),
   quantity: z.number(),
-  unit_price: z.number(),
-  total_price: z.number(),
+  received_quantity: z.number(),
+  unit_price: z.number().optional(),
+  total_price: z.number().optional(),
   notes: z.string().optional(),
-}).strict();
+  created_at: z.string(),
+});
 
 export const purchaseOrderSchema = z.object({
   id: z.number(),
-  order_number: z.string(),
+  order_no: z.string(),
   supplier_id: z.number(),
-  supplier_name: z.string(),
   order_date: z.string(),
-  expected_date: z.string().optional(),
   status: z.string(),
-  total_amount: z.number(),
+  total_amount: z.number().optional(),
   notes: z.string().optional(),
+  created_by: z.number().optional(),
   created_at: z.string(),
   updated_at: z.string(),
-}).strict();
+  deleted_at: z.string().optional(),
+});
 
 /** Purchase order detail response — matches backend PurchaseOrderDetailResponse. */
 export const purchaseOrderDetailSchema = z.object({
@@ -42,33 +43,32 @@ export const purchaseOrderDetailSchema = z.object({
 
 export const salesOrderItemSchema = z.object({
   id: z.number(),
-  sales_order_id: z.number(),
-  pipe_id: z.number(),
-  pipe_number: z.string().optional(),
-  pipe_type: z.string().optional(),
-  grade: z.string().optional(),
-  od: z.number().optional(),
-  wt: z.number().optional(),
-  length: z.number().optional(),
+  order_id: z.number(),
+  pipe_type: z.string(),
+  grade: z.string(),
+  od: z.number(),
+  wt: z.number(),
   quantity: z.number(),
-  unit_price: z.number(),
-  total_price: z.number(),
+  delivered_quantity: z.number(),
+  unit_price: z.number().optional(),
+  total_price: z.number().optional(),
   notes: z.string().optional(),
-}).strict();
+  created_at: z.string(),
+});
 
 export const salesOrderSchema = z.object({
   id: z.number(),
-  order_number: z.string(),
+  order_no: z.string(),
   customer_id: z.number(),
-  customer_name: z.string().optional(),
   order_date: z.string(),
-  expected_delivery: z.string().optional(),
   status: z.string(),
-  total_amount: z.number(),
+  total_amount: z.number().optional(),
   notes: z.string().optional(),
+  created_by: z.number().optional(),
   created_at: z.string(),
   updated_at: z.string(),
-}).strict();
+  deleted_at: z.string().optional(),
+});
 
 /** Sales order detail response — matches backend SalesOrderDetailResponse. */
 export const salesOrderDetailSchema = z.object({
@@ -83,40 +83,42 @@ export const contractItemSchema = z.object({
   grade: z.string(),
   od: z.number(),
   wt: z.number(),
-  length: z.number().optional(),
   quantity: z.number(),
-  unit_price: z.number(),
-  total_price: z.number(),
-  delivery_date: z.string().optional(),
+  unit_price: z.number().optional(),
+  total_price: z.number().optional(),
   notes: z.string().optional(),
-}).strict();
+  created_at: z.string(),
+});
 
 export const contractPaymentSchema = z.object({
   id: z.number(),
   contract_id: z.number(),
-  payment_date: z.string(),
+  due_date: z.string(),
   amount: z.number(),
-  payment_method: z.string().optional(),
-  reference_number: z.string().optional(),
+  payment_type: z.string(),
+  is_paid: z.boolean(),
+  paid_date: z.string().optional(),
   notes: z.string().optional(),
-}).strict();
+  created_at: z.string(),
+});
 
 export const contractSchema = z.object({
   id: z.number(),
-  contract_number: z.string(),
-  contract_name: z.string(),
+  contract_no: z.string(),
   contract_type: z.enum(['purchase', 'sales']),
+  title: z.string(),
   party_a: z.string(),
   party_b: z.string(),
   sign_date: z.string().optional(),
   start_date: z.string().optional(),
   end_date: z.string().optional(),
-  total_amount: z.number(),
-  paid_amount: z.number(),
-  status: z.enum(['draft', 'active', 'completed', 'terminated']),
+  total_amount: z.number().optional(),
+  status: z.enum(['draft', 'active', 'completed', 'terminated', 'cancelled']),
   notes: z.string().optional(),
+  created_by: z.number().optional(),
   created_at: z.string(),
   updated_at: z.string(),
+  deleted_at: z.string().optional(),
   items: z.array(contractItemSchema).optional(),
   payments: z.array(contractPaymentSchema).optional(),
-}).strict();
+});

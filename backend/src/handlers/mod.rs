@@ -1,11 +1,12 @@
 pub mod atp_handler;
 pub mod auth_handler;
-pub mod health_handler;
 pub mod contract_handler;
 pub mod customer_handler;
 pub mod data_io_handler;
+pub mod health_handler;
 pub mod inventory_handler;
 pub mod label_handler;
+mod macros;
 pub mod pipe_handler;
 pub mod purchase_handler;
 pub mod quality_handler;

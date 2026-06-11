@@ -2,11 +2,13 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::domain::pipe::PipeType;
-use crate::dto::inventory_dto::{CreateOutboundRecordRequest, OutboundFilter};
+use crate::dto::inventory_dto::{
+    CreateOutboundRecordRequest, OutboundFilter, UpdateOutboundRecordRequest,
+};
 use crate::error::AppError;
 use crate::models::inventory::{OutboundItem, OutboundRecord};
 use crate::repositories::inventory_repo::OutboundRepo;
-use crate::repositories::pipe_repo::{SeamlessPipeRepo, ScreenPipeRepo};
+use crate::repositories::pipe_repo::{ScreenPipeRepo, SeamlessPipeRepo};
 
 /// Outbound service — handles sales, scrapped, and transfer stock-out with create/approve/execute/query.
 /// Mirror of inbound: `auto_approved` executes immediately, `pending` needs approval later.
@@ -37,11 +39,17 @@ impl OutboundService {
         }
 
         // Batch query all pipes to fix N+1 problem
-        let seamless_ids: Vec<i64> = dto.pipes.iter()
-            .filter(|item| PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Seamless))
+        let seamless_ids: Vec<i64> = dto
+            .pipes
+            .iter()
+            .filter(|item| {
+                PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Seamless)
+            })
             .map(|item| item.pipe_id)
             .collect();
-        let screen_ids: Vec<i64> = dto.pipes.iter()
+        let screen_ids: Vec<i64> = dto
+            .pipes
+            .iter()
             .filter(|item| PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Screen))
             .map(|item| item.pipe_id)
             .collect();
@@ -49,34 +57,31 @@ impl OutboundService {
         let seamless_pipes = SeamlessPipeRepo::find_by_ids(pool, &seamless_ids).await?;
         let screen_pipes = ScreenPipeRepo::find_by_ids(pool, &screen_ids).await?;
 
-        let seamless_map: std::collections::HashMap<i64, _> = seamless_pipes.iter()
-            .map(|p| (p.id, &p.status))
-            .collect();
-        let screen_map: std::collections::HashMap<i64, _> = screen_pipes.iter()
-            .map(|p| (p.id, &p.status))
-            .collect();
+        let seamless_map: std::collections::HashMap<i64, _> =
+            seamless_pipes.iter().map(|p| (p.id, &p.status)).collect();
+        let screen_map: std::collections::HashMap<i64, _> =
+            screen_pipes.iter().map(|p| (p.id, &p.status)).collect();
 
         for item in &dto.pipes {
-            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
-                .ok_or_else(|| AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type)))?;
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+            })?;
 
             match pipe_type {
                 PipeType::Seamless => {
-                    let status = seamless_map.get(&item.pipe_id)
-                        .ok_or_else(|| AppError::NotFound(format!(
-                            "Seamless pipe id={} not found", item.pipe_id
-                        )))?;
+                    let status = seamless_map.get(&item.pipe_id).ok_or_else(|| {
+                        AppError::NotFound(format!("Seamless pipe id={} not found", item.pipe_id))
+                    })?;
                     if status.as_str() != "in_stock" {
-                        return Err(AppError::InsufficientStock);
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
                 }
                 PipeType::Screen => {
-                    let status = screen_map.get(&item.pipe_id)
-                        .ok_or_else(|| AppError::NotFound(format!(
-                            "Screen pipe id={} not found", item.pipe_id
-                        )))?;
+                    let status = screen_map.get(&item.pipe_id).ok_or_else(|| {
+                        AppError::NotFound(format!("Screen pipe id={} not found", item.pipe_id))
+                    })?;
                     if status.as_str() != "in_stock" {
-                        return Err(AppError::InsufficientStock);
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
                 }
             }
@@ -89,7 +94,8 @@ impl OutboundService {
             .map_err(AppError::from)?;
 
         if record.approval_status == "auto_approved" {
-            Self::execute_outbound_batch(pool, record.id, &dto.pipes).await?;
+            Self::execute_outbound_batch(pool, record.id, &record.outbound_type, None, &dto.pipes)
+                .await?;
         }
 
         Ok(record)
@@ -100,42 +106,52 @@ impl OutboundService {
     async fn execute_outbound_batch(
         pool: &SqlitePool,
         record_id: i64,
+        outbound_type: &str,
+        created_by: Option<i64>,
         items: &[crate::dto::inventory_dto::OutboundPipeItem],
     ) -> Result<(), AppError> {
         let mut tx = pool.begin().await.map_err(AppError::from)?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let next_status = if outbound_type == "scrapped" {
+            "scrapped"
+        } else {
+            "outbound"
+        };
 
         for item in items {
-            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
-                .ok_or_else(|| AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type)))?;
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+            })?;
 
             match pipe_type {
                 PipeType::Seamless => {
                     let result = sqlx::query(
-                        "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? \
+                        "UPDATE seamless_pipes SET status = ?, updated_at = ? \
                          WHERE id = ? AND deleted_at IS NULL AND status = 'in_stock'",
                     )
+                    .bind(next_status)
                     .bind(&now)
                     .bind(item.pipe_id)
                     .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
                     if result.rows_affected() == 0 {
-                        return Err(AppError::InsufficientStock);
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
                 }
                 PipeType::Screen => {
                     let result = sqlx::query(
-                        "UPDATE screen_pipes SET status = 'outbound', updated_at = ? \
+                        "UPDATE screen_pipes SET status = ?, updated_at = ? \
                          WHERE id = ? AND deleted_at IS NULL AND status = 'in_stock'",
                     )
+                    .bind(next_status)
                     .bind(&now)
                     .bind(item.pipe_id)
                     .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
                     if result.rows_affected() == 0 {
-                        return Err(AppError::InsufficientStock);
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
                 }
             }
@@ -150,7 +166,7 @@ impl OutboundService {
             .bind("outbound")
             .bind(Some("outbound"))
             .bind(Some(record_id))
-            .bind(None::<i64>)
+            .bind(created_by)
             .bind(None::<i64>)
             .bind(None::<String>)
             .bind(None::<i64>)
@@ -173,6 +189,7 @@ impl OutboundService {
         pool: &SqlitePool,
         id: i64,
         approval_reason: Option<&str>,
+        handled_by: Option<i64>,
     ) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
@@ -203,52 +220,64 @@ impl OutboundService {
         let result = sqlx::query(
             "UPDATE outbound_records SET approval_status = 'approved', \
              rejection_reason = NULL, approval_reason = ?, handled_by = ?, handled_at = datetime('now'), updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
+             WHERE id = ? AND deleted_at IS NULL AND approval_status = 'pending'",
         )
         .bind(approval_reason)
-        .bind(Option::<i64>::None)
+        .bind(handled_by)
         .bind(id)
         .execute(&mut *tx)
         .await
         .map_err(AppError::from)?;
 
         if result.rows_affected() == 0 {
-            return Err(AppError::NotFound(format!(
-                "Outbound record id={} not found or was deleted during approval", id
+            return Err(AppError::Validation(format!(
+                "Outbound record id={} was already processed or deleted during approval",
+                id
             )));
         }
 
         for item in &items {
-            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type)
-                .ok_or_else(|| AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type)))?;
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+            })?;
 
             match pipe_type {
                 PipeType::Seamless => {
                     let result = sqlx::query(
-                        "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? \
+                        "UPDATE seamless_pipes SET status = ?, updated_at = ? \
                          WHERE id = ? AND deleted_at IS NULL AND status = 'in_stock'",
                     )
+                    .bind(if record.outbound_type == "scrapped" {
+                        "scrapped"
+                    } else {
+                        "outbound"
+                    })
                     .bind(&now)
                     .bind(item.pipe_id)
                     .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
                     if result.rows_affected() == 0 {
-                        return Err(AppError::InsufficientStock);
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
                 }
                 PipeType::Screen => {
                     let result = sqlx::query(
-                        "UPDATE screen_pipes SET status = 'outbound', updated_at = ? \
+                        "UPDATE screen_pipes SET status = ?, updated_at = ? \
                          WHERE id = ? AND deleted_at IS NULL AND status = 'in_stock'",
                     )
+                    .bind(if record.outbound_type == "scrapped" {
+                        "scrapped"
+                    } else {
+                        "outbound"
+                    })
                     .bind(&now)
                     .bind(item.pipe_id)
                     .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
                     if result.rows_affected() == 0 {
-                        return Err(AppError::InsufficientStock);
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
                 }
             }
@@ -263,7 +292,7 @@ impl OutboundService {
             .bind("outbound")
             .bind(Some("outbound"))
             .bind(Some(id))
-            .bind(Option::<i64>::None)
+            .bind(handled_by)
             .bind(Option::<i64>::None)
             .bind(Option::<String>::None)
             .bind(Option::<i64>::None)
@@ -281,11 +310,7 @@ impl OutboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     /// - `AppError::Validation` — can't reject in this state
-    pub async fn reject_outbound(
-        pool: &SqlitePool,
-        id: i64,
-        reason: &str,
-    ) -> Result<(), AppError> {
+    pub async fn reject_outbound(pool: &SqlitePool, id: i64, reason: &str) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -354,7 +379,40 @@ impl OutboundService {
             )));
         }
 
-        OutboundRepo::delete(pool, id)
+        OutboundRepo::delete(pool, id).await.map_err(AppError::from)
+    }
+
+    /// Updates editable fields on an outbound record.
+    /// Only records with `auto_approved` or `rejected` status can be updated.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record not found or was deleted
+    /// - `AppError::Validation` — current status doesn't allow updates
+    pub async fn update_outbound(
+        pool: &SqlitePool,
+        id: i64,
+        dto: &UpdateOutboundRecordRequest,
+    ) -> Result<OutboundRecord, AppError> {
+        let record = OutboundRepo::find_by_id(pool, id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::NotFound(format!("Outbound record id={} not found", id)))?;
+
+        if record.deleted_at.is_some() {
+            return Err(AppError::NotFound(format!(
+                "Outbound record id={} has been deleted",
+                id
+            )));
+        }
+
+        if record.approval_status != "auto_approved" && record.approval_status != "rejected" {
+            return Err(AppError::Validation(format!(
+                "Cannot update outbound with status '{}'. Only auto-approved or rejected records can be updated.",
+                record.approval_status
+            )));
+        }
+
+        OutboundRepo::update(pool, id, dto)
             .await
             .map_err(AppError::from)
     }
