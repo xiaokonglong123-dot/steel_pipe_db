@@ -2,6 +2,7 @@ pub mod check_repo;
 pub mod contract_repo;
 pub mod customer_repo;
 pub mod data_io_repo;
+pub mod generic_pipe_repo;
 pub mod inbound_repo;
 pub mod inventory_log_repo;
 pub mod inventory_repo;
