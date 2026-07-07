@@ -124,7 +124,7 @@ export default function SalesOrderFormPage() {
           <Input />
         </Form.Item>
 
-        <Form.Item label={t('sales.order_date')} name="order_date">
+        <Form.Item label={t('sales.order_date')} name="order_date" rules={[{ required: true, message: t('common.required') }]}>
           <DatePicker style={{ width: '100%' }} />
         </Form.Item>
 

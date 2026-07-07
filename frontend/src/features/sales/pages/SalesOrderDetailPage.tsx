@@ -1,27 +1,25 @@
 // 销售订单详情页 — 使用 PageLayout 共享组件
-import { Button, Descriptions, Tag, Card, Table, Select, Input, message } from 'antd';
+import { Button, Descriptions, Tag, Card, Table, Select, Input, InputNumber, message, Modal } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { PageLayout } from '@/shared/components/PageLayout';
-import { useSalesOrder, useTransitionSalesOrder } from '../hooks/useSales';
+import { useSalesOrder, useTransitionSalesOrder, useApproveSalesOrder, useRejectSalesOrder, useLinkOutbound } from '../hooks/useSales';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'default',
   pending: 'blue',
   approved: 'cyan',
-  delivered: 'green',
-  invoiced: 'purple',
+  rejected: 'red',
+  completed: 'green',
   cancelled: 'red',
 };
 
 const NEXT_STATUSES: Record<string, string[]> = {
   draft: ['pending', 'cancelled'],
   pending: ['approved', 'cancelled'],
-  approved: ['delivered', 'cancelled'],
-  delivered: ['invoiced'],
-  invoiced: [],
+  approved: ['completed', 'cancelled'],
   cancelled: [],
 };
 
@@ -37,6 +35,46 @@ export default function SalesOrderDetailPage() {
   const order = detail?.order;
   const items = detail?.items ?? [];
   const transitionMutation = useTransitionSalesOrder(orderId);
+  const approveMutation = useApproveSalesOrder(orderId);
+  const rejectMutation = useRejectSalesOrder(orderId);
+  const linkMutation = useLinkOutbound(orderId);
+
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [outboundRecordId, setOutboundRecordId] = useState<number | undefined>();
+
+  const handleApprove = async () => {
+    try {
+      await approveMutation.mutateAsync({});
+      message.success(t('common.operate_success'));
+    } catch {
+      message.error(t('common.operate_failed'));
+    }
+  };
+
+  const handleReject = async () => {
+    try {
+      await rejectMutation.mutateAsync({ reason: rejectReason });
+      message.success(t('common.operate_success'));
+      setRejectModalOpen(false);
+      setRejectReason('');
+    } catch {
+      message.error(t('common.operate_failed'));
+    }
+  };
+
+  const handleLink = async () => {
+    if (!outboundRecordId) return;
+    try {
+      await linkMutation.mutateAsync(outboundRecordId);
+      message.success(t('common.operate_success'));
+      setLinkModalOpen(false);
+      setOutboundRecordId(undefined);
+    } catch {
+      message.error(t('common.operate_failed'));
+    }
+  };
 
   const handleTransition = async () => {
     if (!targetStatus) return;
@@ -76,13 +114,26 @@ export default function SalesOrderDetailPage() {
       title={`${t('sales.sales_order')} — ${order.order_no}`}
       onBack={() => navigate('/sales')}
       extra={
-        <Button
-          type="primary"
-          icon={<EditOutlined />}
-          onClick={() => navigate(`/sales/${order.id}/edit`)}
-        >
-          {t('common.edit')}
-        </Button>
+        <>
+          {order.status === 'pending' && (
+            <>
+              <Button type="primary" onClick={handleApprove} loading={approveMutation.isPending}>
+                {t('sales.approve')}
+              </Button>
+              <Button danger onClick={() => setRejectModalOpen(true)}>
+                {t('sales.reject')}
+              </Button>
+            </>
+          )}
+          {(order.status === 'approved' || order.status === 'completed') && (
+            <Button onClick={() => setLinkModalOpen(true)}>
+              {t('sales.link_outbound')}
+            </Button>
+          )}
+          <Button icon={<EditOutlined />} onClick={() => navigate(`/sales/${order.id}/edit`)}>
+            {t('common.edit')}
+          </Button>
+        </>
       }
     >
       <Card>
@@ -138,6 +189,37 @@ export default function SalesOrderDetailPage() {
           </div>
         </Card>
       )}
+
+      <Modal
+        title={t('sales.reject')}
+        open={rejectModalOpen}
+        onOk={handleReject}
+        onCancel={() => { setRejectModalOpen(false); setRejectReason(''); }}
+        confirmLoading={rejectMutation.isPending}
+      >
+        <Input.TextArea
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          placeholder={t('sales.reject_reason')}
+          rows={3}
+        />
+      </Modal>
+
+      <Modal
+        title={t('sales.link_outbound')}
+        open={linkModalOpen}
+        onOk={handleLink}
+        onCancel={() => { setLinkModalOpen(false); setOutboundRecordId(undefined); }}
+        confirmLoading={linkMutation.isPending}
+      >
+        <InputNumber
+          style={{ width: '100%' }}
+          value={outboundRecordId}
+          onChange={(val) => setOutboundRecordId(val ?? undefined)}
+          placeholder={t('sales.outbound_record_id') || 'Outbound Record ID'}
+          min={1}
+        />
+      </Modal>
     </PageLayout>
   );
 }

@@ -63,3 +63,36 @@ export function useTransitionPurchaseOrder(id: number) {
     },
   });
 }
+
+export function useApprovePurchaseOrder(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body?: { notes?: string }) => purchaseApi.approve(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: purchaseQueryKeys.all });
+      qc.invalidateQueries({ queryKey: purchaseQueryKeys.detail(id) });
+    },
+  });
+}
+
+export function useRejectPurchaseOrder(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { reason: string }) => purchaseApi.reject(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: purchaseQueryKeys.all });
+      qc.invalidateQueries({ queryKey: purchaseQueryKeys.detail(id) });
+    },
+  });
+}
+
+export function useLinkInbound(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (inboundRecordId: number) => purchaseApi.linkInbound(id, inboundRecordId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: purchaseQueryKeys.all });
+      qc.invalidateQueries({ queryKey: purchaseQueryKeys.detail(id) });
+    },
+  });
+}

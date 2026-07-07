@@ -43,7 +43,21 @@ export const salesApi = {
     await apiClient.delete(`/sales-orders/${id}`);
   },
 
-  // 状态流转：pending → approved → delivered → invoiced
+  approve: async (id: number, body?: { notes?: string }) => {
+    const res = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/approve`, body ?? {});
+    return validateResponse(salesOrderSchema, res.data);
+  },
+
+  reject: async (id: number, body: { reason: string }) => {
+    const res = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/reject`, body);
+    return validateResponse(salesOrderSchema, res.data);
+  },
+
+  linkOutbound: async (id: number, outboundRecordId: number) => {
+    const res = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/link-outbound`, { outbound_record_id: outboundRecordId });
+    return validateResponse(salesOrderSchema, res.data);
+  },
+
   transition: async (id: number, data: SalesOrderStatusTransitionRequest) => {
     const res = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/transition`, data);
     return validateResponse(salesOrderSchema, res.data);

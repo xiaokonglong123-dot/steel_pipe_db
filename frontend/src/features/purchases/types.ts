@@ -58,3 +58,15 @@ export interface PurchaseOrderFilterParams {
 export interface PurchaseOrderStatusTransitionRequest {
   status: string;
 }
+
+export interface ApproveOrderRequest {
+  notes?: string;
+}
+
+export interface RejectOrderRequest {
+  reason: string;
+}
+
+export interface LinkInboundRequest {
+  inbound_record_id: number;
+}
