@@ -38,7 +38,7 @@ export interface StatusBadgeProps {
   label?: string;
 }
 
-export function StatusBadge({ status, dot = false, label }: StatusBadgeProps) {
+export const StatusBadge = React.memo(function StatusBadge({ status, dot = false, label }: StatusBadgeProps) {
   const { t } = useTranslation('common');
   const config = STATUS_ICON_MAP[status] || {
     color: 'default',
@@ -62,6 +62,6 @@ export function StatusBadge({ status, dot = false, label }: StatusBadgeProps) {
       {displayLabel}
     </Tag>
   );
-}
+});
 
 export default StatusBadge;

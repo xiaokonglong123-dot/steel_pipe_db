@@ -7,6 +7,7 @@
  * - Optional footer with actions
  * - Loading overlay
  */
+import React from 'react';
 import { Button, Card, Space, Typography, Breadcrumb, Skeleton } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 
@@ -33,7 +34,7 @@ export interface PageLayoutProps {
   onBack?: () => void;
 }
 
-export function PageLayout({
+function PageLayoutInner({
   title,
   subtitle,
   breadcrumbs,
@@ -123,5 +124,7 @@ export function PageLayout({
     </div>
   );
 }
+
+export const PageLayout = React.memo(PageLayoutInner);
 
 export default PageLayout;

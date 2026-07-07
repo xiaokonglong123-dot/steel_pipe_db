@@ -18,5 +18,11 @@ export type { ActionButtonProps } from './ActionButton';
 export { StatusBadge } from './StatusBadge';
 export type { StatusBadgeProps, StatusType, StatusConfig } from './StatusBadge';
 
+export { StatusTag } from './StatusTag';
+export type { StatusTagProps } from './StatusTag';
+
+export { ListPageTemplate } from './ListPageTemplate';
+export type { ListPageTemplateProps } from './ListPageTemplate';
+
 export { default as ErrorBoundary } from './ErrorBoundary';
 export { RouteBoundary } from './RouteBoundary';
