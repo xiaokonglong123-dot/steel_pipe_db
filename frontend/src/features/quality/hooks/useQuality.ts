@@ -67,7 +67,7 @@ export function useAttachments(certId: number) {
 export function useCreateAttachment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: FormData) => qualityApi.createAttachment(data),
+    mutationFn: (data: { pipe_type: string; pipe_id: number; file_name: string; file_path: string; file_size?: number; content_type?: string }) => qualityApi.createAttachment(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qualityQueryKeys.attachments.all });
     },

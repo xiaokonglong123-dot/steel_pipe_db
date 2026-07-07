@@ -4,7 +4,7 @@ import { Form, Input, Select, DatePicker, InputNumber, Button, Space, message } 
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PageLayout } from '@/shared/components/PageLayout';
-import { DETAILED_PIPE_TYPES, API_5CT_GRADES, CERT_STATUSES } from '@/shared/constants';
+import { DETAILED_PIPE_TYPES, API_5CT_GRADES } from '@/shared/constants';
 import { useCert, useCreateCert, useUpdateCert } from '../hooks/useQuality';
 import type { CreateQualityCertData } from '../types';
 
@@ -167,10 +167,13 @@ export default function CertFormPage() {
 
         <Form.Item
           label={t('quality.status')}
-          name="status"
+          name="result"
           rules={[{ required: true, message: t('common.required') }]}
         >
-          <Select options={CERT_STATUSES.map((s) => ({ label: t('quality.cert_status_' + s), value: s }))} />
+          <Select>
+            <Select.Option key="pass" value="pass">Pass</Select.Option>
+            <Select.Option key="fail" value="fail">Fail</Select.Option>
+          </Select>
         </Form.Item>
 
         <Form.Item label={t('quality.notes')} name="notes">
