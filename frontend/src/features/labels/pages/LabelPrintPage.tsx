@@ -1,7 +1,6 @@
-// 标签打印页 — 钢管标签/质检标签/发货标签/批量标签生成与打印
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, Form, Input, InputNumber, Select, Button, Row, Col, Typography, Divider, message } from 'antd';
-import { PrinterOutlined, BarcodeOutlined, FileTextOutlined } from '@ant-design/icons';
+import { PrinterOutlined, BarcodeOutlined, FileTextOutlined, ZoomInOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { usePipeLabel, useCreateBatchLabels, useQualityLabel, useCreateShippingLabel } from '../hooks/useLabels';
 
@@ -17,11 +16,42 @@ export default function LabelPrintPage() {
   const [batchPipeType, setBatchPipeType] = useState<string>('seamless');
   const [orderType, setOrderType] = useState<string>('purchase');
   const [orderId, setOrderId] = useState<number | undefined>();
+  const [labelHtml, setLabelHtml] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const { data: pipeLabel, isLoading: pipeLabelLoading } = usePipeLabel(pipeType, pipeId ?? 0);
   const batchMutation = useCreateBatchLabels();
   const { data: qualityLabel, isLoading: qualityLabelLoading } = useQualityLabel(certId ?? 0);
   const shippingMutation = useCreateShippingLabel();
+
+  useEffect(() => {
+    if (pipeLabel) setLabelHtml(pipeLabel);
+  }, [pipeLabel]);
+
+  useEffect(() => {
+    if (qualityLabel) setLabelHtml(qualityLabel);
+  }, [qualityLabel]);
+
+  useEffect(() => {
+    if (batchMutation.data) setLabelHtml(batchMutation.data);
+  }, [batchMutation.data]);
+
+  useEffect(() => {
+    if (shippingMutation.data) setLabelHtml(shippingMutation.data);
+  }, [shippingMutation.data]);
+
+  const handlePrint = () => {
+    iframeRef.current?.contentWindow?.print();
+  };
+
+  const handleOpenInNewWindow = () => {
+    if (!labelHtml) return;
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(labelHtml);
+      win.document.close();
+    }
+  };
 
   const handlePrintPipeLabel = () => {
     if (!pipeLabel) return;
@@ -40,7 +70,7 @@ export default function LabelPrintPage() {
     }
     batchMutation.mutate(
       { pipe_ids: ids.map((id) => ({ pipe_type: batchPipeType, pipe_id: id })) },
-      { onSuccess: () => message.success(t('labels.batch_labels_created')) },
+      { onSuccess: (data) => { setLabelHtml(data); message.success(t('labels.batch_labels_created')); } },
     );
   };
 
@@ -56,7 +86,7 @@ export default function LabelPrintPage() {
     }
     shippingMutation.mutate(
       { pipe_type: orderType, pipe_id: orderId },
-      { onSuccess: () => message.success(t('labels.shipping_label_created')) },
+      { onSuccess: (data) => { setLabelHtml(data); message.success(t('labels.shipping_label_created')); } },
     );
   };
 
@@ -178,6 +208,31 @@ export default function LabelPrintPage() {
           </Card>
         </Col>
       </Row>
+      {labelHtml && (
+        <>
+          <Divider />
+          <Card
+            title={t('labels.label_preview')}
+            extra={
+              <>
+                <Button type="primary" icon={<PrinterOutlined />} onClick={handlePrint} style={{ marginRight: 8 }}>
+                  {t('labels.print')}
+                </Button>
+                <Button icon={<ZoomInOutlined />} onClick={handleOpenInNewWindow}>
+                  {t('labels.open_in_new_window')}
+                </Button>
+              </>
+            }
+          >
+            <iframe
+              ref={iframeRef}
+              srcDoc={labelHtml}
+              style={{ width: '100%', height: 600, border: '1px solid #d9d9d9' }}
+              title="label-preview"
+            />
+          </Card>
+        </>
+      )}
     </div>
   );
 }
