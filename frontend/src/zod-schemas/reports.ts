@@ -11,14 +11,14 @@ export const inventorySummarySchema = z.object({
   grade: z.string(),
   total_quantity: z.number(),
   location: z.string(),
-}).strict();
+}).passthrough();
 
 export const orderReportSchema = z.object({
   period: z.string(),
   order_count: z.number(),
   total_amount: z.number(),
   by_status: z.record(z.string(), z.number()),
-}).strict();
+}).passthrough();
 
 export const qualityReportSchema = z.object({
   period: z.string(),
@@ -31,9 +31,9 @@ export const qualityReportSchema = z.object({
       total: z.number(),
       passed: z.number(),
       failed: z.number(),
-    }).strict(),
+    }).passthrough(),
   ),
-}).strict();
+}).passthrough();
 
 export const dashboardDataSchema = z.object({
   total_pipes: z.number(),
@@ -44,13 +44,13 @@ export const dashboardDataSchema = z.object({
     z.object({
       pipe_type: z.string(),
       quantity: z.number(),
-    }).strict(),
+    }).passthrough(),
   ),
   orders_by_status: z.array(
     z.object({
       status: z.string(),
       count: z.number(),
-    }).strict(),
+    }).passthrough(),
   ),
   recent_activities: z.array(
     z.object({
@@ -58,13 +58,13 @@ export const dashboardDataSchema = z.object({
       action: z.string(),
       timestamp: z.string(),
       detail: z.string(),
-    }).strict(),
+    }).passthrough(),
   ),
-}).strict();
+}).passthrough();
 
 export const dashboardStatsSchema = z.object({
   total_pipes: z.number(),
   total_inventory: z.number(),
   pending_orders: z.number(),
   recent_quality_certs: z.number(),
-}).strict();
+}).passthrough();

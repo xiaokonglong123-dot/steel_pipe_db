@@ -12,6 +12,7 @@
 /** Standard API response envelope — matches backend `ApiResponse<T>`. */
 export interface ApiResponse<T> {
   success: boolean;
+  request_id: string;
   data: T;
 }
 
@@ -24,10 +25,20 @@ export interface PaginatedData<T> {
   total_pages: number;
 }
 
+/** Pagination metadata — matches backend `Meta` struct. */
+export interface Meta {
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 /** Paginated API response envelope — matches backend `PaginatedResponse<T>`. */
 export interface PaginatedResponse<T> {
   success: boolean;
+  request_id: string;
   data: PaginatedData<T>;
+  meta: Meta;
 }
 
 /** Authenticated user info — from `/api/v1/auth/me` and stored in authStore. */

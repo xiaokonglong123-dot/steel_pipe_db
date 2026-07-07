@@ -24,7 +24,7 @@ export const inboundRecordSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: nullableString,
-}).strict();
+}).passthrough();
 
 export const inboundItemSchema = z.object({
   id: z.number(),
@@ -32,12 +32,12 @@ export const inboundItemSchema = z.object({
   pipe_type: z.string(),
   pipe_id: z.number(),
   created_at: z.string(),
-}).strict();
+}).passthrough();
 
 export const inboundDetailSchema = z.object({
   record: inboundRecordSchema,
   items: z.array(inboundItemSchema),
-}).strict();
+}).passthrough();
 
 export const outboundRecordSchema = z.object({
   id: z.number(),
@@ -54,7 +54,7 @@ export const outboundRecordSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: nullableString,
-}).strict();
+}).passthrough();
 
 export const outboundItemSchema = z.object({
   id: z.number(),
@@ -62,12 +62,12 @@ export const outboundItemSchema = z.object({
   pipe_type: z.string(),
   pipe_id: z.number(),
   created_at: z.string(),
-}).strict();
+}).passthrough();
 
 export const outboundDetailSchema = z.object({
   record: outboundRecordSchema,
   items: z.array(outboundItemSchema),
-}).strict();
+}).passthrough();
 
 export const locationSchema = z.object({
   id: z.number(),
@@ -82,7 +82,7 @@ export const locationSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: nullableString,
-}).strict();
+}).passthrough();
 
 export const inventoryLogSchema = z.object({
   id: z.number(),
@@ -96,7 +96,7 @@ export const inventoryLogSchema = z.object({
   notes: nullableString,
   created_by: nullableNumber,
   created_at: z.string(),
-}).strict();
+}).passthrough();
 
 export const inventoryCheckRecordSchema = z.object({
   id: z.number(),
@@ -108,7 +108,7 @@ export const inventoryCheckRecordSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: nullableString,
-}).strict();
+}).passthrough();
 
 export const inventoryCheckItemSchema = z.object({
   id: z.number(),
@@ -120,12 +120,12 @@ export const inventoryCheckItemSchema = z.object({
   is_match: z.boolean().nullable().optional(),
   notes: nullableString,
   created_at: z.string(),
-}).strict();
+}).passthrough();
 
 export const checkDetailSchema = z.object({
   record: inventoryCheckRecordSchema,
   items: z.array(inventoryCheckItemSchema),
-}).strict();
+}).passthrough();
 
 export const pipeSearchResultSchema = z.object({
   id: z.number(),
@@ -136,7 +136,7 @@ export const pipeSearchResultSchema = z.object({
   wt: z.number(),
   status: z.string(),
   location_id: nullableNumber,
-}).strict();
+}).passthrough();
 
 // Stock query result (dynamically built from seamless/screen pipes with location join)
 export const stockItemSchema = z.object({

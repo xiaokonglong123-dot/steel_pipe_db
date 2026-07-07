@@ -13,7 +13,7 @@ export interface UpdateProfileData {
 }
 
 export interface ChangePasswordData {
-  current_password: string;
+  old_password: string;
   new_password: string;
 }
 
@@ -39,7 +39,9 @@ export function useUpdateProfile() {
 
 export function useChangePassword() {
   return useMutation({
-    mutationFn: (data: ChangePasswordData) =>
-      apiClient.put<ApiResponse<string>>('/auth/me/change-password', data),
+    mutationFn: (data: ChangePasswordData) => {
+      const userId = useAuthStore.getState().user?.id;
+      return apiClient.post<ApiResponse<string>>(`/users/${userId}/change-password`, data);
+    },
   });
 }

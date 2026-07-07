@@ -39,7 +39,7 @@ export default function LabelPrintPage() {
       return;
     }
     batchMutation.mutate(
-      { pipe_ids: ids, pipe_type: batchPipeType },
+      { pipe_ids: ids.map((id) => ({ pipe_type: batchPipeType, pipe_id: id })) },
       { onSuccess: () => message.success(t('labels.batch_labels_created')) },
     );
   };
@@ -55,7 +55,7 @@ export default function LabelPrintPage() {
       return;
     }
     shippingMutation.mutate(
-      { order_type: orderType, order_id: orderId },
+      { pipe_type: orderType, pipe_id: orderId },
       { onSuccess: () => message.success(t('labels.shipping_label_created')) },
     );
   };
