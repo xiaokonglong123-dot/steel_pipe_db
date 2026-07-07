@@ -4,6 +4,7 @@ import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
 import type {
   Contract,
+  ContractDetail,
   ContractItem,
   ContractPayment,
   CreateContractData,
@@ -12,17 +13,22 @@ import type {
   ContractFilterParams,
 } from '../types';
 import { validateResponse, paginatedDataSchema } from '@/lib/validateResponse';
-import { contractSchema, contractItemSchema, contractPaymentSchema } from '@/zod-schemas/orders';
+import { contractSchema, contractDetailSchema, contractItemSchema, contractPaymentSchema } from '@/zod-schemas/orders';
 
 export const contractApi = {
   list: async (params?: ContractFilterParams) => {
-    const res = await apiClient.get<PaginatedResponse<Contract>>('/contracts', { params });
+    const res = await apiClient.get<PaginatedResponse<Contract>>('/contracts', params as Record<string, unknown>);
     return validateResponse(paginatedDataSchema(contractSchema), res.data);
   },
 
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<Contract>>(`/contracts/${id}`);
     return validateResponse(contractSchema, res.data);
+  },
+
+  getDetail: async (id: number) => {
+    const res = await apiClient.get<ApiResponse<ContractDetail>>(`/contracts/${id}`);
+    return validateResponse(contractDetailSchema, res.data);
   },
 
   create: async (data: CreateContractData) => {

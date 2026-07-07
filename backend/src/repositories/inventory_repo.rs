@@ -1,3 +1,4 @@
+use chrono::Utc;
 use sqlx::{Executor, QueryBuilder, Sqlite, SqlitePool};
 
 use crate::domain::pipe::PipeType;
@@ -221,12 +222,171 @@ impl InventoryRepo {
                 .execute(pool)
                 .await?;
             }
+            Some(PipeType::Welded) => {
+                sqlx::query(
+                    "UPDATE welded_pipes SET location_id = ?, updated_at = datetime('now') \
+                     WHERE id = ? AND deleted_at IS NULL",
+                )
+                .bind(location_id)
+                .bind(pipe_id)
+                .execute(pool)
+                .await?;
+            }
             None => {}
         }
         Ok(())
     }
 
-    /// Returns `location_id` for a given pipe (seamless or screen). Returns `None` if not found.
+    /// Updates pipe status with a stock guard (`AND status = 'in_stock'`).
+    /// Used by outbound operations to prevent double-deduction.
+    /// Returns rows affected (0 means pipe was not in_stock).
+    /// Accepts any SQLx executor, safe to use inside transactions.
+    pub async fn update_pipe_status_with_stock_check<'e, E: Executor<'e, Database = Sqlite>>(
+        executor: E,
+        pipe_type: &str,
+        pipe_id: i64,
+        new_status: &str,
+    ) -> Result<u64, sqlx::Error> {
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let (table, _) = match PipeType::from_pipe_type_str(pipe_type) {
+            Some(PipeType::Seamless) => ("seamless_pipes", "status"),
+            Some(PipeType::Screen) => ("screen_pipes", "status"),
+            Some(PipeType::Welded) => ("welded_pipes", "status"),
+            None => return Ok(0),
+        };
+        // Safety: table name is validated above via PipeType enum
+        let query = format!(
+            "UPDATE {} SET status = ?, updated_at = ? \
+             WHERE id = ? AND deleted_at IS NULL AND status = 'in_stock'",
+            table
+        );
+        let result = sqlx::query(&query)
+            .bind(new_status)
+            .bind(&now)
+            .bind(pipe_id)
+            .execute(executor)
+            .await?;
+        Ok(result.rows_affected())
+    }
+
+    /// Returns `status` for a given pipe (seamless, screen, or welded). Returns `None` if not found.
+    pub async fn get_pipe_status<'e, E: Executor<'e, Database = Sqlite>>(
+        executor: E,
+        pipe_type: &str,
+        pipe_id: i64,
+    ) -> Result<Option<String>, sqlx::Error> {
+        match PipeType::from_pipe_type_str(pipe_type) {
+            Some(PipeType::Seamless) => {
+                let row: Option<(String,)> = sqlx::query_as(
+                    "SELECT status FROM seamless_pipes WHERE id = ? AND deleted_at IS NULL",
+                )
+                .bind(pipe_id)
+                .fetch_optional(executor)
+                .await?;
+                Ok(row.map(|r| r.0))
+            }
+            Some(PipeType::Screen) => {
+                let row: Option<(String,)> = sqlx::query_as(
+                    "SELECT status FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
+                )
+                .bind(pipe_id)
+                .fetch_optional(executor)
+                .await?;
+                Ok(row.map(|r| r.0))
+            }
+            Some(PipeType::Welded) => {
+                let row: Option<(String,)> = sqlx::query_as(
+                    "SELECT status FROM welded_pipes WHERE id = ? AND deleted_at IS NULL",
+                )
+                .bind(pipe_id)
+                .fetch_optional(executor)
+                .await?;
+                Ok(row.map(|r| r.0))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Returns IDs of all `in_stock` pipes (both seamless and screen).
+    /// Returns a tuple `(seamless_ids, screen_ids)`.
+    pub async fn find_in_stock_pipe_ids(pool: &SqlitePool) -> Result<(Vec<i64>, Vec<i64>), sqlx::Error> {
+        let seamless: Vec<(i64,)> = sqlx::query_as(
+            "SELECT id FROM seamless_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let screen: Vec<(i64,)> = sqlx::query_as(
+            "SELECT id FROM screen_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let seamless_ids: Vec<i64> = seamless.into_iter().map(|(id,)| id).collect();
+        let screen_ids: Vec<i64> = screen.into_iter().map(|(id,)| id).collect();
+        Ok((seamless_ids, screen_ids))
+    }
+
+    /// Updates pipe status WITHOUT a stock guard.
+    /// Used by inbound operations where pipes can be in any valid pre-inbound status.
+    /// Returns rows affected (0 means pipe was not found or was deleted).
+    /// Accepts any SQLx executor, safe to use inside transactions.
+    pub async fn update_pipe_status<'e, E: Executor<'e, Database = Sqlite>>(
+        executor: E,
+        pipe_type: &str,
+        pipe_id: i64,
+        new_status: &str,
+    ) -> Result<u64, sqlx::Error> {
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let table = match PipeType::from_pipe_type_str(pipe_type) {
+            Some(PipeType::Seamless) => "seamless_pipes",
+            Some(PipeType::Screen) => "screen_pipes",
+            Some(PipeType::Welded) => "welded_pipes",
+            None => return Ok(0),
+        };
+        // Safety: table name is validated above via PipeType enum
+        let query = format!(
+            "UPDATE {} SET status = ?, updated_at = ? \
+             WHERE id = ? AND deleted_at IS NULL",
+            table
+        );
+        let result = sqlx::query(&query)
+            .bind(new_status)
+            .bind(&now)
+            .bind(pipe_id)
+            .execute(executor)
+            .await?;
+        Ok(result.rows_affected())
+    }
+
+    /// Checks whether a pipe number is unique across both seamless and screen pipes.
+    /// Returns `true` if the pipe number does NOT exist in either table (i.e., it's unique).
+    pub async fn check_pipe_number_unique(
+        pool: &SqlitePool,
+        pipe_number: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let seamless_exists: Option<(i64,)> = sqlx::query_as(
+            "SELECT id FROM seamless_pipes WHERE pipe_number = ? AND deleted_at IS NULL",
+        )
+        .bind(pipe_number)
+        .fetch_optional(pool)
+        .await?;
+
+        if seamless_exists.is_some() {
+            return Ok(false);
+        }
+
+        let screen_exists: Option<(i64,)> = sqlx::query_as(
+            "SELECT id FROM screen_pipes WHERE pipe_number = ? AND deleted_at IS NULL",
+        )
+        .bind(pipe_number)
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(screen_exists.is_none())
+    }
+
+    /// Returns `location_id` for a given pipe (seamless, screen, or welded). Returns `None` if not found.
     pub async fn get_pipe_location_id(
         pool: &SqlitePool,
         pipe_type: &str,
@@ -245,6 +405,15 @@ impl InventoryRepo {
             Some(PipeType::Screen) => {
                 let row: Option<(Option<i64>,)> = sqlx::query_as(
                     "SELECT location_id FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
+                )
+                .bind(pipe_id)
+                .fetch_optional(pool)
+                .await?;
+                Ok(row.and_then(|r| r.0))
+            }
+            Some(PipeType::Welded) => {
+                let row: Option<(Option<i64>,)> = sqlx::query_as(
+                    "SELECT location_id FROM welded_pipes WHERE id = ? AND deleted_at IS NULL",
                 )
                 .bind(pipe_id)
                 .fetch_optional(pool)

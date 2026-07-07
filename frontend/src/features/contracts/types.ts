@@ -76,6 +76,13 @@ export interface CreateContractPaymentData {
   notes?: string;
 }
 
+/** Wrapped contract detail — matches backend ContractDetailResponse. */
+export interface ContractDetail {
+  contract: Contract;
+  items?: ContractItem[];
+  payments?: ContractPayment[];
+}
+
 export interface ContractFilterParams {
   page?: number;
   page_size?: number;

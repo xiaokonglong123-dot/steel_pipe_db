@@ -52,6 +52,10 @@ pub struct UpdateContractRequest {
     pub end_date: Option<String>,
     /// Notes.
     pub notes: Option<String>,
+    /// Optional replacement items. When `Some`, all items are replaced
+    /// (insert/update/delete) and `total_amount` is recomputed.
+    /// When `None`, items are left untouched (backward compatible).
+    pub items: Option<Vec<UpdateContractItemRequest>>,
 }
 
 /// Contract list filter params.
@@ -110,8 +114,12 @@ pub struct CreateContractItemRequest {
 }
 
 /// Update contract item request DTO.
+/// When `id` is `Some`, the item already exists and will be updated.
+/// When `id` is `None`, the item is new and will be inserted (all fields required).
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateContractItemRequest {
+    /// Existing item ID for updates. `None` for new items.
+    pub id: Option<i64>,
     pub pipe_type: Option<String>,
     pub grade: Option<String>,
     pub od: Option<f64>,

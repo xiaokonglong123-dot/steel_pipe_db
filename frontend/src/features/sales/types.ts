@@ -58,6 +58,18 @@ export interface SalesOrderStatusTransitionRequest {
   status: string;
 }
 
+export interface ApproveSalesOrderRequest {
+  notes?: string;
+}
+
+export interface RejectSalesOrderRequest {
+  reason: string;
+}
+
+export interface LinkOutboundRequest {
+  outbound_record_id: number;
+}
+
 export interface UpdateSalesOrderItemData {
   quantity?: number;
   unit_price?: number;

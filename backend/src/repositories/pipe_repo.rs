@@ -327,6 +327,23 @@ impl SeamlessPipeRepo {
         Ok((items, total.0 as u64))
     }
 
+    /// SELECT seamless pipes by heat number. Returns only non-deleted rows.
+    pub async fn find_by_heat_number(
+        pool: &SqlitePool,
+        heat_number: &str,
+    ) -> Result<Vec<SeamlessPipe>, sqlx::Error> {
+        sqlx::query_as::<_, SeamlessPipe>(
+            "SELECT id, pipe_number, batch_number, pipe_type, grade, od, wt, length, \
+             weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
+             heat_number, serial_number, manufacturer, production_date, cert_number, \
+             location_id, status, notes, created_at, updated_at, deleted_at \
+             FROM seamless_pipes WHERE heat_number = ? AND deleted_at IS NULL",
+        )
+        .bind(heat_number)
+        .fetch_all(pool)
+        .await
+    }
+
     /// Full-text LIKE search across `pipe_number` and `batch_number`. Returns up to 50 results.
     pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<SeamlessPipe>, sqlx::Error> {
         let like = format!("%{}%", query);
@@ -652,6 +669,23 @@ impl ScreenPipeRepo {
             .await?;
 
         Ok((items, total.0 as u64))
+    }
+
+    /// SELECT screen pipes by heat number. Returns only non-deleted rows.
+    pub async fn find_by_heat_number(
+        pool: &SqlitePool,
+        heat_number: &str,
+    ) -> Result<Vec<ScreenPipe>, sqlx::Error> {
+        sqlx::query_as::<_, ScreenPipe>(
+            "SELECT id, pipe_number, batch_number, screen_type, slot_size, \
+             filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
+             weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
+             cert_number, location_id, status, notes, created_at, updated_at, deleted_at \
+             FROM screen_pipes WHERE heat_number = ? AND deleted_at IS NULL",
+        )
+        .bind(heat_number)
+        .fetch_all(pool)
+        .await
     }
 
     /// Full-text LIKE search across `pipe_number` and `batch_number`. Returns up to 50 results.

@@ -4,6 +4,9 @@ use axum::Json;
 use serde::Serialize;
 use uuid::Uuid;
 
+// Re-export external error types for From impls
+use argon2::password_hash::Error as PasswordHashError;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiErrorResponse {
     pub success: bool,
@@ -125,5 +128,23 @@ impl IntoResponse for AppError {
 impl From<sqlx::Error> for AppError {
     fn from(err: sqlx::Error) -> Self {
         Self::Database(err.to_string())
+    }
+}
+
+impl From<serde_json::Error> for AppError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::Internal(format!("JSON serialization error: {}", err))
+    }
+}
+
+impl From<PasswordHashError> for AppError {
+    fn from(err: PasswordHashError) -> Self {
+        Self::Internal(format!("Password hash error: {}", err))
+    }
+}
+
+impl From<jsonwebtoken::errors::Error> for AppError {
+    fn from(err: jsonwebtoken::errors::Error) -> Self {
+        Self::Internal(format!("JWT error: {}", err))
     }
 }

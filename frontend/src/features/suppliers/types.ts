@@ -23,7 +23,9 @@ export interface CreateSupplierData {
   notes?: string;
 }
 
-export interface SupplierFilterParams {
+export type UpdateSupplierData = Partial<CreateSupplierData> & { is_active?: boolean };
+
+export interface SupplierFilterParams extends Record<string, unknown> {
   q?: string;
   is_active?: boolean;
   page?: number;

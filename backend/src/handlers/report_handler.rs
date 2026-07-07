@@ -13,9 +13,9 @@ use crate::services::report_service::ReportService;
 /// Returns aggregated inventory data by pipe type, grade, and location.
 pub async fn inventory_summary_handler(
     Extension(pool): Extension<SqlitePool>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data = ReportService::inventory_summary(&pool).await?;
-    Ok(Json(serde_json::json!({ "success": true, "data": data })))
+    Ok(ApiResponse::ok(data))
 }
 
 /// GET `/api/v1/reports/orders` — Order report (purchase/sales)
@@ -25,7 +25,7 @@ pub async fn inventory_summary_handler(
 pub async fn order_report_handler(
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<OrderReportQuery>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     query
         .validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
@@ -44,7 +44,7 @@ pub async fn order_report_handler(
     }
 
     let data = ReportService::order_report(&pool, order_type, period).await?;
-    Ok(Json(serde_json::json!({ "success": true, "data": data })))
+    Ok(ApiResponse::ok(data))
 }
 
 /// GET `/api/v1/reports/quality` — Quality inspection report
@@ -52,9 +52,9 @@ pub async fn order_report_handler(
 /// Returns aggregated quality inspection pass/fail statistics.
 pub async fn quality_report_handler(
     Extension(pool): Extension<SqlitePool>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data = ReportService::quality_report(&pool).await?;
-    Ok(Json(serde_json::json!({ "success": true, "data": data })))
+    Ok(ApiResponse::ok(data))
 }
 
 /// GET `/api/v1/reports/dashboard` — Dashboard key metrics

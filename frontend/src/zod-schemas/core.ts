@@ -34,7 +34,7 @@ export const seamlessPipeSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: nullableString,
-}).strict();
+}).passthrough();
 
 export const screenPipeSchema = z.object({
   id: z.number(),
@@ -60,7 +60,7 @@ export const screenPipeSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: nullableString,
-}).strict();
+}).passthrough();
 
 export const customerSchema = z.object({
   id: z.number(),
@@ -75,7 +75,7 @@ export const customerSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: nullableString,
-});
+}).passthrough();
 
 export const supplierSchema = z.object({
   id: z.number(),
@@ -90,7 +90,7 @@ export const supplierSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: nullableString,
-});
+}).passthrough();
 
 export const userInfoSchema = z.object({
   id: z.number(),
@@ -99,15 +99,15 @@ export const userInfoSchema = z.object({
   role: z.string(),
   email: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
-}).strict();
+}).passthrough();
 
 export const loginResponseSchema = z.object({
   token: z.string(),
   refresh_token: z.string().optional(),
   user: userInfoSchema,
-}).strict();
+}).passthrough();
 
 export const tokenResponseSchema = z.object({
   token: z.string(),
   refresh_token: z.string().optional(),
-}).strict();
+}).passthrough();

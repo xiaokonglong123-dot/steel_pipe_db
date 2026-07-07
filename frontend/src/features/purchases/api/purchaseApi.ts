@@ -42,6 +42,21 @@ export const purchaseApi = {
     await apiClient.delete(`/purchase-orders/${id}`);
   },
 
+  approve: async (id: number, body?: { notes?: string }) => {
+    const res = await apiClient.post<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/approve`, body ?? {});
+    return validateResponse(purchaseOrderSchema, res.data);
+  },
+
+  reject: async (id: number, body: { reason: string }) => {
+    const res = await apiClient.post<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/reject`, body);
+    return validateResponse(purchaseOrderSchema, res.data);
+  },
+
+  linkInbound: async (id: number, inboundRecordId: number) => {
+    const res = await apiClient.post<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/link-inbound`, { inbound_record_id: inboundRecordId });
+    return validateResponse(purchaseOrderSchema, res.data);
+  },
+
   // 状态流转：pending → approved → received 等，具体流转由后端校验
   transition: async (id: number, data: PurchaseOrderStatusTransitionRequest) => {
     const res = await apiClient.post<ApiResponse<PurchaseOrder>>(

@@ -44,7 +44,7 @@ export default function ProfileSettingsPage() {
       }
       setPasswordLoading(true);
       await changePassword.mutateAsync({
-        current_password: values.current_password,
+        old_password: values.current_password,
         new_password: values.new_password,
       });
       message.success(t('profile.passwordChanged'));

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Input, Tabs, Table, Empty, Card, Tag } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -10,49 +10,51 @@ import { useSearchPipes, useSearchInbound, useSearchOutbound, useSearchPurchaseO
 export default function SearchPage() {
   const { t } = useTranslation('search');
 
-  const pipeColumns = [
+  const pipeColumns = useMemo(() => [
     { title: t('search.columns.pipe_number', '编号'), dataIndex: 'pipe_number', key: 'pipe_number', width: 180 },
     { title: t('search.columns.grade', '钢级'), dataIndex: 'grade', key: 'grade', width: 100 },
     { title: t('search.columns.od', '外径'), dataIndex: 'od', key: 'od', width: 80, render: (v: number) => `${v}mm` },
     { title: t('search.columns.wt', '壁厚'), dataIndex: 'wt', key: 'wt', width: 80, render: (v: number) => `${v}mm` },
     { title: t('search.columns.status', '状态'), dataIndex: 'status', key: 'status', width: 100, render: (v: string) => <Tag>{v}</Tag> },
-  ];
+  ], [t]);
 
-  const inboundColumns = [
+  const [query, setQuery] = useState('');
+  const inboundColumns = useMemo(() => [
     { title: t('search.columns.inbound_no', '入库单号'), dataIndex: 'inbound_no', key: 'inbound_no', width: 180 },
     { title: t('search.columns.type', '类型'), dataIndex: 'inbound_type', key: 'inbound_type', width: 120 },
     { title: t('search.columns.approval_status', '审批状态'), dataIndex: 'approval_status', key: 'approval_status', width: 120 },
     { title: t('search.columns.date', '日期'), dataIndex: 'created_at', key: 'created_at', width: 180 },
-  ];
+  ], [t]);
 
-  const outboundColumns = [
+  const outboundColumns = useMemo(() => [
     { title: t('search.columns.outbound_no', '出库单号'), dataIndex: 'outbound_no', key: 'outbound_no', width: 180 },
     { title: t('search.columns.type', '类型'), dataIndex: 'outbound_type', key: 'outbound_type', width: 120 },
     { title: t('search.columns.approval_status', '审批状态'), dataIndex: 'approval_status', key: 'approval_status', width: 120 },
     { title: t('search.columns.date', '日期'), dataIndex: 'created_at', key: 'created_at', width: 180 },
-  ];
+  ], [t]);
 
-  const purchaseColumns = [
+  const purchaseColumns = useMemo(() => [
     { title: t('search.columns.order_number', '采购单号'), dataIndex: 'order_number', key: 'order_number', width: 180 },
     { title: t('search.columns.supplier', '供应商'), dataIndex: 'supplier_name', key: 'supplier_name', width: 150 },
     { title: t('search.columns.status', '状态'), dataIndex: 'status', key: 'status', width: 100 },
     { title: t('search.columns.date', '日期'), dataIndex: 'order_date', key: 'order_date', width: 180 },
-  ];
+  ], [t]);
 
-  const salesColumns = [
+  const salesColumns = useMemo(() => [
     { title: t('search.columns.order_number', '销售单号'), dataIndex: 'order_number', key: 'order_number', width: 180 },
     { title: t('search.columns.customer', '客户'), dataIndex: 'customer_name', key: 'customer_name', width: 150 },
     { title: t('search.columns.status', '状态'), dataIndex: 'status', key: 'status', width: 100 },
     { title: t('search.columns.date', '日期'), dataIndex: 'order_date', key: 'order_date', width: 180 },
-  ];
-  const [query, setQuery] = useState('');
+  ], [t]);
   const debouncedQuery = useDebounce(query, 300);
 
-  const { data: pipes, isFetching: pipesLoading } = useSearchPipes(debouncedQuery);
-  const { data: inbound, isFetching: inboundLoading } = useSearchInbound(debouncedQuery);
-  const { data: outbound, isFetching: outboundLoading } = useSearchOutbound(debouncedQuery);
-  const { data: purchases, isFetching: purchasesLoading } = useSearchPurchaseOrders(debouncedQuery);
-  const { data: sales, isFetching: salesLoading } = useSearchSalesOrders(debouncedQuery);
+  const [activeTab, setActiveTab] = useState('pipes');
+
+  const { data: pipes, isFetching: pipesLoading } = useSearchPipes(debouncedQuery, activeTab === 'pipes');
+  const { data: inbound, isFetching: inboundLoading } = useSearchInbound(debouncedQuery, activeTab === 'inbound');
+  const { data: outbound, isFetching: outboundLoading } = useSearchOutbound(debouncedQuery, activeTab === 'outbound');
+  const { data: purchases, isFetching: purchasesLoading } = useSearchPurchaseOrders(debouncedQuery, activeTab === 'purchases');
+  const { data: sales, isFetching: salesLoading } = useSearchSalesOrders(debouncedQuery, activeTab === 'sales');
 
   const handleSearch = useCallback((value: string) => {
     setQuery(value.trim());
@@ -146,7 +148,7 @@ export default function SearchPage() {
           size="large"
           onSearch={handleSearch}
           onChange={(e) => {
-            if (!e.target.value) setQuery('');
+            setQuery(e.target.value.trim());
           }}
           style={{ maxWidth: 600 }}
         />
@@ -154,7 +156,7 @@ export default function SearchPage() {
 
       {debouncedQuery ? (
         <Card>
-          <Tabs items={tabItems} />
+          <Tabs items={tabItems} activeKey={activeTab} onChange={setActiveTab} />
         </Card>
       ) : (
         <Card>

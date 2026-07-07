@@ -1,3 +1,4 @@
+import React from 'react';
 import { Form, Input, Select, DatePicker, InputNumber, Switch } from 'antd';
 import type { FormItemProps } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -29,7 +30,7 @@ export interface FormFieldProps extends Omit<FormItemProps, 'children'> {
   readOnly?: boolean;
 }
 
-export function FormField({
+export const FormField = React.memo(function FormField({
   type = 'text',
   placeholder,
   options,
@@ -117,6 +118,6 @@ export function FormField({
       {renderField()}
     </Form.Item>
   );
-}
+});
 
 export default FormField;

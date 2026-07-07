@@ -65,6 +65,39 @@ export function useTransitionSalesOrder(id: number) {
   });
 }
 
+export function useApproveSalesOrder(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body?: { notes?: string }) => salesApi.approve(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: salesQueryKeys.all });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.detail(id) });
+    },
+  });
+}
+
+export function useRejectSalesOrder(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { reason: string }) => salesApi.reject(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: salesQueryKeys.all });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.detail(id) });
+    },
+  });
+}
+
+export function useLinkOutbound(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (outboundRecordId: number) => salesApi.linkOutbound(id, outboundRecordId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: salesQueryKeys.all });
+      qc.invalidateQueries({ queryKey: salesQueryKeys.detail(id) });
+    },
+  });
+}
+
 export function useUpdateSalesOrderItem(orderId: number) {
   const qc = useQueryClient();
   return useMutation({

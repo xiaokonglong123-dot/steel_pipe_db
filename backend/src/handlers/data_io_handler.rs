@@ -13,7 +13,7 @@ use crate::repositories::operation_log_repo::OperationLog;
 use crate::response::{ApiResponse, PaginatedResponse};
 use crate::services::data_io_service::DataIOService;
 
-/// POST `/api/v1/data/{entity_type}/import` — Import data (Excel/CSV)
+/// POST `/api/v1/data-io/{entity_type}/import` — Import data (Excel/CSV)
 ///
 /// Accepts a multipart file upload for a given entity type.
 /// Logs the import operation. Returns import stats (imported/failed counts).
@@ -51,7 +51,7 @@ pub async fn import_handler(
 
     let result = DataIOService::import_entity(&pool, &entity_type, &data, &fname).await?;
 
-    DataIOService::log_operation(
+    let _ = DataIOService::log_operation(
         &pool,
         None,
         None,
@@ -68,12 +68,12 @@ pub async fn import_handler(
         ),
         None,
     )
-    .await?;
+    .await;
 
     Ok(ApiResponse::ok(result))
 }
 
-/// GET `/api/v1/data/{entity_type}/export` — Export data (Excel/CSV)
+/// GET `/api/v1/data-io/{entity_type}/export` — Export data (Excel/CSV)
 ///
 /// Exports all records for a given entity type in the requested format.
 /// Logs the export operation. Returns the file as a download.
@@ -99,7 +99,7 @@ pub async fn export_handler(
         (header::CONTENT_DISPOSITION, &disposition),
     ];
 
-    DataIOService::log_operation(
+    let _ = DataIOService::log_operation(
         &pool,
         None,
         None,
@@ -109,12 +109,12 @@ pub async fn export_handler(
         Some(serde_json::json!({"format": format}).to_string()),
         None,
     )
-    .await?;
+    .await;
 
     Ok((headers, data).into_response())
 }
 
-/// GET `/api/v1/data/{entity_type}/template` — Download import template
+/// GET `/api/v1/data-io/{entity_type}/template` — Download import template
 ///
 /// Downloads a blank import template for a given entity type.
 /// Logs the download operation.
@@ -158,7 +158,7 @@ pub async fn template_handler(
     Ok((headers, data).into_response())
 }
 
-/// GET `/api/v1/data/logs` — Paginated operation logs
+/// GET `/api/v1/data-io/logs` — Paginated operation logs
 ///
 /// Returns paginated import/export operation logs for auditing.
 pub async fn list_operation_logs_handler(

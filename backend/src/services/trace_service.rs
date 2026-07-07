@@ -1,7 +1,12 @@
 use sqlx::SqlitePool;
 
 use crate::error::AppError;
-use crate::models::inventory::InventoryLog;
+use crate::repositories::inbound_repo::InboundRepo;
+use crate::repositories::inventory_log_repo::InventoryLogRepo;
+use crate::repositories::inventory_repo::InventoryRepo;
+use crate::repositories::outbound_repo::OutboundRepo;
+use crate::repositories::pipe_repo::ScreenPipeRepo;
+use crate::repositories::pipe_repo::SeamlessPipeRepo;
 
 /// Trace service — full lifecycle tracking for pipes: inbound/outbound events by pipe ID,
 /// pipe distribution by heat number, and related inventory records by order number.
@@ -19,18 +24,14 @@ impl TraceService {
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<serde_json::Value, AppError> {
-        let logs: Vec<InventoryLog> = sqlx::query_as::<_, InventoryLog>(
-            "SELECT id, pipe_type, pipe_id, change_type, ref_type, ref_id, \
-             from_location_id, to_location_id, notes, created_by, created_at \
-             FROM inventory_logs WHERE pipe_type = ? AND pipe_id = ? \
-             ORDER BY created_at ASC",
-        )
-        .bind(pipe_type)
-        .bind(pipe_id)
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
+        let logs = InventoryLogRepo::find_by_pipe(pool, pipe_type, pipe_id)
+            .await
+            .map_err(AppError::from)?;
 
+        // Cross-table pipe info query: assembles trace data from seamless_pipes or screen_pipes
+        // with different column names (grade vs base_grade, od vs base_od) depending on pipe type.
+        // Stays in service because it's a traceability concern combining two table schemas into one
+        // JSON response structure — not a reusable CRUD operation.
         let pipe_info = match pipe_type {
             "seamless" | "casing" | "tubing" => {
                 let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
@@ -125,43 +126,33 @@ impl TraceService {
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let mut results: Vec<serde_json::Value> = Vec::new();
 
-        let seamless: Vec<(i64, String, String, String, Option<i64>)> = sqlx::query_as(
-            "SELECT id, pipe_number, grade, status, location_id \
-             FROM seamless_pipes WHERE heat_number = ? AND deleted_at IS NULL",
-        )
-        .bind(heat_number)
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
+        let seamless = SeamlessPipeRepo::find_by_heat_number(pool, heat_number)
+            .await
+            .map_err(AppError::from)?;
 
-        for (id, pn, grade, status, loc) in seamless {
+        for p in &seamless {
             results.push(serde_json::json!({
                 "pipe_type": "seamless",
-                "pipe_id": id,
-                "pipe_number": pn,
-                "grade": grade,
-                "status": status,
-                "location_id": loc,
+                "pipe_id": p.id,
+                "pipe_number": p.pipe_number,
+                "grade": p.grade,
+                "status": p.status,
+                "location_id": p.location_id,
             }));
         }
 
-        let screen: Vec<(i64, String, String, String, Option<i64>)> = sqlx::query_as(
-            "SELECT id, pipe_number, base_grade, status, location_id \
-             FROM screen_pipes WHERE heat_number = ? AND deleted_at IS NULL",
-        )
-        .bind(heat_number)
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
+        let screen = ScreenPipeRepo::find_by_heat_number(pool, heat_number)
+            .await
+            .map_err(AppError::from)?;
 
-        for (id, pn, grade, status, loc) in screen {
+        for p in &screen {
             results.push(serde_json::json!({
                 "pipe_type": "screen",
-                "pipe_id": id,
-                "pipe_number": pn,
-                "grade": grade,
-                "status": status,
-                "location_id": loc,
+                "pipe_id": p.id,
+                "pipe_number": p.pipe_number,
+                "grade": p.base_grade,
+                "status": p.status,
+                "location_id": p.location_id,
             }));
         }
 
@@ -178,76 +169,80 @@ impl TraceService {
         order_type: &str,
         order_id: i64,
     ) -> Result<serde_json::Value, AppError> {
-        let (records, items, field_name) = match order_type {
+        let (records_json, items) = match order_type {
             "inbound" => {
-                let records: Vec<(i64, String, String)> = sqlx::query_as(
-                    "SELECT id, inbound_no, approval_status \
-                     FROM inbound_records WHERE order_id = ? AND deleted_at IS NULL",
-                )
-                .bind(order_id)
-                .fetch_all(pool)
-                .await
-                .map_err(AppError::from)?;
-
-                let mut pipes: Vec<serde_json::Value> = Vec::new();
-                for (rec_id, _no, _status) in &records {
-                    let items: Vec<(i64, String, i64)> = sqlx::query_as(
-                        "SELECT id, pipe_type, pipe_id FROM inbound_items WHERE inbound_id = ?",
-                    )
-                    .bind(rec_id)
-                    .fetch_all(pool)
+                let records = InboundRepo::find_by_order_id(pool, order_id)
                     .await
                     .map_err(AppError::from)?;
 
-                    for (_item_id, pt, pipe_id) in items {
-                        let status = match Self::get_pipe_current_status(pool, &pt, pipe_id).await {
+                let records_json: Vec<serde_json::Value> = records
+                    .iter()
+                    .map(|rec| {
+                        serde_json::json!({
+                            "id": rec.id,
+                            "inbound_no": rec.inbound_no,
+                            "approval_status": rec.approval_status,
+                        })
+                    })
+                    .collect();
+
+                let mut pipes: Vec<serde_json::Value> = Vec::new();
+                for rec in &records {
+                    let record_items = InboundRepo::find_items(pool, rec.id)
+                        .await
+                        .map_err(AppError::from)?;
+
+                    for item in &record_items {
+                        let status = match Self::get_pipe_current_status(pool, &item.pipe_type, item.pipe_id).await {
                             Ok(s) => s,
                             Err(_) => "unknown".into(),
                         };
                         pipes.push(serde_json::json!({
-                            "pipe_type": pt,
-                            "pipe_id": pipe_id,
+                            "pipe_type": item.pipe_type,
+                            "pipe_id": item.pipe_id,
                             "current_status": status,
                         }));
                     }
                 }
 
-                (records, pipes, "inbound_no")
+                (records_json, pipes)
             }
             "outbound" => {
-                let records: Vec<(i64, String, String)> = sqlx::query_as(
-                    "SELECT id, outbound_no, approval_status \
-                     FROM outbound_records WHERE order_id = ? AND deleted_at IS NULL",
-                )
-                .bind(order_id)
-                .fetch_all(pool)
-                .await
-                .map_err(AppError::from)?;
-
-                let mut pipes: Vec<serde_json::Value> = Vec::new();
-                for (rec_id, _no, _status) in &records {
-                    let items: Vec<(i64, String, i64)> = sqlx::query_as(
-                        "SELECT id, pipe_type, pipe_id FROM outbound_items WHERE outbound_id = ?",
-                    )
-                    .bind(rec_id)
-                    .fetch_all(pool)
+                let records = OutboundRepo::find_by_order_id(pool, order_id)
                     .await
                     .map_err(AppError::from)?;
 
-                    for (_item_id, pt, pipe_id) in items {
-                        let status = match Self::get_pipe_current_status(pool, &pt, pipe_id).await {
+                let records_json: Vec<serde_json::Value> = records
+                    .iter()
+                    .map(|rec| {
+                        serde_json::json!({
+                            "id": rec.id,
+                            "outbound_no": rec.outbound_no,
+                            "approval_status": rec.approval_status,
+                        })
+                    })
+                    .collect();
+
+                let mut pipes: Vec<serde_json::Value> = Vec::new();
+                for rec in &records {
+                    let record_items = OutboundRepo::find_items(pool, rec.id)
+                        .await
+                        .map_err(AppError::from)?;
+
+                    for item in &record_items {
+                        let status = match Self::get_pipe_current_status(pool, &item.pipe_type, item.pipe_id).await {
                             Ok(s) => s,
                             Err(_) => "unknown".into(),
                         };
                         pipes.push(serde_json::json!({
-                            "pipe_type": pt,
-                            "pipe_id": pipe_id,
+                            "pipe_type": item.pipe_type,
+                            "pipe_id": item.pipe_id,
                             "current_status": status,
                         }));
                     }
                 }
 
-                (records, pipes, "outbound_no")
+                (records_json, pipes)
             }
             _ => {
                 return Err(AppError::Validation(format!(
@@ -256,17 +251,6 @@ impl TraceService {
                 )))
             }
         };
-
-        let records_json: Vec<serde_json::Value> = records
-            .into_iter()
-            .map(|(id, record_no, approval_status)| {
-                serde_json::json!({
-                    "id": id,
-                    field_name: record_no,
-                    "approval_status": approval_status,
-                })
-            })
-            .collect();
 
         Ok(serde_json::json!({
             "order_type": order_type,
@@ -281,23 +265,14 @@ impl TraceService {
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<String, AppError> {
-        let status: Option<(String,)> = match pipe_type {
-            "seamless" | "casing" | "tubing" => sqlx::query_as(
-                "SELECT status FROM seamless_pipes WHERE id = ? AND deleted_at IS NULL",
-            )
-            .bind(pipe_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(AppError::from)?,
-            "screen" | "screened" => sqlx::query_as(
-                "SELECT status FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
-            )
-            .bind(pipe_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(AppError::from)?,
-            _ => None,
-        };
-        Ok(status.map(|s| s.0).unwrap_or_else(|| "deleted".into()))
+        Ok(
+            match InventoryRepo::get_pipe_status(pool, pipe_type, pipe_id)
+                .await
+                .map_err(AppError::from)?
+            {
+                Some(s) => s,
+                None => "deleted".into(),
+            },
+        )
     }
 }

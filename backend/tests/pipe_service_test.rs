@@ -15,7 +15,15 @@ use steel_pipe_db::dto::pipe_dto::{
     CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams, UpdateScreenPipeRequest,
     UpdateSeamlessPipeRequest,
 };
+use steel_pipe_db::cache::CacheManager;
+use steel_pipe_db::cache_invalidator::CacheInvalidator;
 use steel_pipe_db::services::pipe_service::PipeService;
+
+/// Create a cache invalidator for tests. Invalidation is a no-op in tests.
+fn test_cache() -> CacheInvalidator {
+    let cache_manager = CacheManager::new();
+    CacheInvalidator::new(cache_manager)
+}
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 /// Seamless Pipes — Create
@@ -24,6 +32,7 @@ use steel_pipe_db::services::pipe_service::PipeService;
 #[tokio::test]
 async fn create_seamless_pipe_with_auto_number() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let dto = CreateSeamlessPipeRequest {
         pipe_number: None,
@@ -46,14 +55,14 @@ async fn create_seamless_pipe_with_auto_number() {
         notes: Some("auto-number test".into()),
     };
 
-    let pipe = PipeService::create_seamless_pipe(&pool, &dto)
+    let pipe = PipeService::create_seamless_pipe(&pool, &cache, &dto)
         .await
         .expect("create_seamless_pipe with auto number must succeed");
 
     assert_eq!(pipe.grade, "J55");
     assert_eq!(pipe.od, 177.8);
     assert_eq!(pipe.wt, 9.19);
-    assert_eq!(pipe.status, "in_stock");
+    assert_eq!(pipe.status, "new");
     assert!(
         pipe.pipe_number.starts_with("SP-"),
         "Auto-generated pipe number should start with SP-, got: {}",
@@ -67,6 +76,7 @@ async fn create_seamless_pipe_with_auto_number() {
 #[tokio::test]
 async fn create_seamless_pipe_with_explicit_number() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let dto = CreateSeamlessPipeRequest {
         pipe_number: Some("PN-MANUAL-001".into()),
@@ -89,7 +99,7 @@ async fn create_seamless_pipe_with_explicit_number() {
         notes: None,
     };
 
-    let pipe = PipeService::create_seamless_pipe(&pool, &dto)
+    let pipe = PipeService::create_seamless_pipe(&pool, &cache, &dto)
         .await
         .expect("create_seamless_pipe with explicit number must succeed");
 
@@ -103,6 +113,7 @@ async fn create_seamless_pipe_with_explicit_number() {
 #[tokio::test]
 async fn create_seamless_pipe_duplicate_number_fails() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     // Create a pipe with a known pipe number
     let dto = CreateSeamlessPipeRequest {
@@ -126,12 +137,12 @@ async fn create_seamless_pipe_duplicate_number_fails() {
         notes: None,
     };
 
-    PipeService::create_seamless_pipe(&pool, &dto)
+    PipeService::create_seamless_pipe(&pool, &cache, &dto)
         .await
         .expect("first create must succeed");
 
     // Second create with the same pipe number must fail
-    let err = PipeService::create_seamless_pipe(&pool, &dto)
+    let err = PipeService::create_seamless_pipe(&pool, &cache, &dto)
         .await
         .expect_err("duplicate pipe number must fail");
 
@@ -149,6 +160,7 @@ async fn create_seamless_pipe_duplicate_number_fails() {
 #[tokio::test]
 async fn update_seamless_pipe_updates_fields() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     // Seed a pipe via the service first
     let dto = CreateSeamlessPipeRequest {
@@ -171,7 +183,7 @@ async fn update_seamless_pipe_updates_fields() {
         cert_number: None,
         notes: Some("original".into()),
     };
-    let pipe = PipeService::create_seamless_pipe(&pool, &dto)
+    let pipe = PipeService::create_seamless_pipe(&pool, &cache, &dto)
         .await
         .unwrap();
 
@@ -198,7 +210,7 @@ async fn update_seamless_pipe_updates_fields() {
         status: None,
     };
 
-    let updated = PipeService::update_seamless_pipe(&pool, pipe.id, &update)
+    let updated = PipeService::update_seamless_pipe(&pool, &cache, pipe.id, &update)
         .await
         .expect("update must succeed");
 
@@ -217,6 +229,7 @@ async fn update_seamless_pipe_updates_fields() {
 #[tokio::test]
 async fn update_seamless_pipe_nonexistent_fails() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let update = UpdateSeamlessPipeRequest {
         batch_number: None,
@@ -240,7 +253,7 @@ async fn update_seamless_pipe_nonexistent_fails() {
         status: None,
     };
 
-    let err = PipeService::update_seamless_pipe(&pool, 99999, &update)
+    let err = PipeService::update_seamless_pipe(&pool, &cache, 99999, &update)
         .await
         .expect_err("update for nonexistent pipe must fail");
 
@@ -258,13 +271,14 @@ async fn update_seamless_pipe_nonexistent_fails() {
 #[tokio::test]
 async fn delete_seamless_pipe_soft_deletes() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     // Seed an in_stock pipe (only in_stock can be deleted)
     let pipe_id = common::seed_seamless_pipe(&pool, "PN-DEL-001", "in_stock", "J55")
         .await
         .unwrap();
 
-    PipeService::delete_seamless_pipe(&pool, pipe_id)
+    PipeService::delete_seamless_pipe(&pool, &cache, pipe_id)
         .await
         .expect("delete in_stock pipe must succeed");
 
@@ -294,12 +308,13 @@ async fn delete_seamless_pipe_soft_deletes() {
 #[tokio::test]
 async fn delete_seamless_pipe_not_in_stock_fails() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let pipe_id = common::seed_seamless_pipe(&pool, "PN-DEL-002", "scrapped", "J55")
         .await
         .unwrap();
 
-    let err = PipeService::delete_seamless_pipe(&pool, pipe_id)
+    let err = PipeService::delete_seamless_pipe(&pool, &cache, pipe_id)
         .await
         .expect_err("delete scrapped pipe must fail");
 
@@ -313,8 +328,9 @@ async fn delete_seamless_pipe_not_in_stock_fails() {
 #[tokio::test]
 async fn delete_seamless_pipe_nonexistent_fails() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
-    let err = PipeService::delete_seamless_pipe(&pool, 99999)
+    let err = PipeService::delete_seamless_pipe(&pool, &cache, 99999)
         .await
         .expect_err("delete nonexistent pipe must fail");
 
@@ -332,6 +348,7 @@ async fn delete_seamless_pipe_nonexistent_fails() {
 #[tokio::test]
 async fn get_seamless_pipe_found() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let pipe_id = common::seed_seamless_pipe(&pool, "PN-GET-001", "in_stock", "L80")
         .await
@@ -349,6 +366,7 @@ async fn get_seamless_pipe_found() {
 #[tokio::test]
 async fn get_seamless_pipe_not_found() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let err = PipeService::get_seamless_pipe(&pool, 99999)
         .await
@@ -368,6 +386,7 @@ async fn get_seamless_pipe_not_found() {
 #[tokio::test]
 async fn list_seamless_pipes_pagination() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     // Seed 5 pipes
     for i in 1..=5 {
@@ -427,6 +446,7 @@ async fn list_seamless_pipes_pagination() {
 #[tokio::test]
 async fn list_seamless_pipes_filters_by_status_and_grade() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     common::seed_seamless_pipe(&pool, "PN-FILTER-001", "in_stock", "J55")
         .await
@@ -525,6 +545,7 @@ async fn list_seamless_pipes_filters_by_status_and_grade() {
 #[tokio::test]
 async fn list_seamless_pipes_sorts_by_column() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     common::seed_seamless_pipe(&pool, "PN-SORT-B", "in_stock", "N80")
         .await
@@ -591,6 +612,7 @@ async fn list_seamless_pipes_sorts_by_column() {
 #[tokio::test]
 async fn create_screen_pipe_with_all_attributes() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let dto = CreateScreenPipeRequest {
         pipe_number: Some("SC-FULL-001".into()),
@@ -612,7 +634,7 @@ async fn create_screen_pipe_with_all_attributes() {
         notes: Some("full spec screen pipe".into()),
     };
 
-    let pipe = PipeService::create_screen_pipe(&pool, &dto)
+    let pipe = PipeService::create_screen_pipe(&pool, &cache, &dto)
         .await
         .expect("create_screen_pipe must succeed");
 
@@ -624,12 +646,13 @@ async fn create_screen_pipe_with_all_attributes() {
     assert_eq!(pipe.base_wt, 9.19);
     assert_eq!(pipe.manufacturer.as_deref(), Some("Screen Factory"));
     assert_eq!(pipe.heat_number.as_deref(), Some("HN-SC-001"));
-    assert_eq!(pipe.status, "in_stock");
+    assert_eq!(pipe.status, "new");
 }
 
 #[tokio::test]
 async fn create_screen_pipe_with_auto_number() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let dto = CreateScreenPipeRequest {
         pipe_number: None,
@@ -651,7 +674,7 @@ async fn create_screen_pipe_with_auto_number() {
         notes: None,
     };
 
-    let pipe = PipeService::create_screen_pipe(&pool, &dto)
+    let pipe = PipeService::create_screen_pipe(&pool, &cache, &dto)
         .await
         .expect("create_screen_pipe with auto number must succeed");
 
@@ -667,6 +690,7 @@ async fn create_screen_pipe_with_auto_number() {
 #[tokio::test]
 async fn create_screen_pipe_duplicate_number_fails() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let dto = CreateScreenPipeRequest {
         pipe_number: Some("SC-DUP-001".into()),
@@ -688,11 +712,11 @@ async fn create_screen_pipe_duplicate_number_fails() {
         notes: None,
     };
 
-    PipeService::create_screen_pipe(&pool, &dto)
+    PipeService::create_screen_pipe(&pool, &cache, &dto)
         .await
         .expect("first create must succeed");
 
-    let err = PipeService::create_screen_pipe(&pool, &dto)
+    let err = PipeService::create_screen_pipe(&pool, &cache, &dto)
         .await
         .expect_err("duplicate screen pipe number must fail");
 
@@ -710,6 +734,7 @@ async fn create_screen_pipe_duplicate_number_fails() {
 #[tokio::test]
 async fn update_screen_pipe_updates_fields() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let pipe_id = common::seed_screen_pipe(&pool, "SC-UPD-001", "in_stock", "J55")
         .await
@@ -736,7 +761,7 @@ async fn update_screen_pipe_updates_fields() {
         status: None,
     };
 
-    let updated = PipeService::update_screen_pipe(&pool, pipe_id, &update)
+    let updated = PipeService::update_screen_pipe(&pool, &cache, pipe_id, &update)
         .await
         .expect("update screen pipe must succeed");
 
@@ -755,6 +780,7 @@ async fn update_screen_pipe_updates_fields() {
 #[tokio::test]
 async fn update_screen_pipe_nonexistent_fails() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let update = UpdateScreenPipeRequest {
         batch_number: None,
@@ -777,7 +803,7 @@ async fn update_screen_pipe_nonexistent_fails() {
         status: None,
     };
 
-    let err = PipeService::update_screen_pipe(&pool, 99999, &update)
+    let err = PipeService::update_screen_pipe(&pool, &cache, 99999, &update)
         .await
         .expect_err("update nonexistent screen pipe must fail");
 
@@ -795,12 +821,13 @@ async fn update_screen_pipe_nonexistent_fails() {
 #[tokio::test]
 async fn delete_screen_pipe_soft_deletes() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let pipe_id = common::seed_screen_pipe(&pool, "SC-DEL-001", "in_stock", "L80")
         .await
         .unwrap();
 
-    PipeService::delete_screen_pipe(&pool, pipe_id)
+    PipeService::delete_screen_pipe(&pool, &cache, pipe_id)
         .await
         .expect("delete in_stock screen pipe must succeed");
 
@@ -830,12 +857,13 @@ async fn delete_screen_pipe_soft_deletes() {
 #[tokio::test]
 async fn delete_screen_pipe_not_in_stock_fails() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let pipe_id = common::seed_screen_pipe(&pool, "SC-DEL-002", "scrapped", "J55")
         .await
         .unwrap();
 
-    let err = PipeService::delete_screen_pipe(&pool, pipe_id)
+    let err = PipeService::delete_screen_pipe(&pool, &cache, pipe_id)
         .await
         .expect_err("delete scrapped screen pipe must fail");
 
@@ -853,6 +881,7 @@ async fn delete_screen_pipe_not_in_stock_fails() {
 #[tokio::test]
 async fn get_screen_pipe_found() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let pipe_id = common::seed_screen_pipe(&pool, "SC-GET-001", "in_stock", "N80")
         .await
@@ -871,6 +900,7 @@ async fn get_screen_pipe_found() {
 #[tokio::test]
 async fn get_screen_pipe_not_found() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let err = PipeService::get_screen_pipe(&pool, 99999)
         .await
@@ -890,6 +920,7 @@ async fn get_screen_pipe_not_found() {
 #[tokio::test]
 async fn list_screen_pipes_pagination() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     for i in 1..=4 {
         common::seed_screen_pipe(&pool, &format!("SC-LIST-{:03}", i), "in_stock", "J55")
@@ -932,6 +963,7 @@ async fn list_screen_pipes_pagination() {
 #[tokio::test]
 async fn list_screen_pipes_filters_by_grade_and_status() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     common::seed_screen_pipe(&pool, "SC-FILT-001", "in_stock", "J55")
         .await
@@ -1008,6 +1040,7 @@ async fn list_screen_pipes_filters_by_grade_and_status() {
 #[tokio::test]
 async fn search_pipes_finds_by_pipe_number() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     let _seamless_id = common::seed_seamless_pipe(&pool, "PN-SRCH-001", "in_stock", "J55")
         .await
@@ -1040,6 +1073,7 @@ async fn search_pipes_finds_by_pipe_number() {
 #[tokio::test]
 async fn search_pipes_finds_both_types() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     // Seed pipes that share a common batch number pattern
     common::seed_seamless_pipe(&pool, "PN-BOTH-001", "in_stock", "J55")
@@ -1076,6 +1110,7 @@ async fn search_pipes_finds_both_types() {
 #[tokio::test]
 async fn search_pipes_no_results() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     // Seed some pipes so the table isn't empty
     common::seed_seamless_pipe(&pool, "PN-NIL-001", "in_stock", "J55")
@@ -1100,6 +1135,7 @@ async fn search_pipes_no_results() {
 #[tokio::test]
 async fn search_pipes_empty_query_returns_all() {
     let pool = common::test_pool().await;
+    let cache = test_cache();
 
     common::seed_seamless_pipe(&pool, "PN-EMPTYQ-001", "in_stock", "J55")
         .await

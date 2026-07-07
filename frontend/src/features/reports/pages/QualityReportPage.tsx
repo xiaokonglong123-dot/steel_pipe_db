@@ -1,7 +1,9 @@
 /**
- * QualityReportPage — Quality inspection pass/fail statistics by grade.
+ * QualityReportPage — Quality inspection pass/fail statistics by grade and by month.
+ *
+ * Backend returns: { by_grade, by_month }
+ * See backend/src/services/report_service.rs → quality_report()
  */
-import { useState, useEffect } from 'react';
 import {
   Card,
   Table,
@@ -11,32 +13,50 @@ import {
   Row,
   Col,
   Progress,
+  Space,
+  Tabs,
 } from 'antd';
 import { SafetyCertificateOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { reportApi } from '../api/reportApi';
+import { useQualityReport } from '../hooks/useReports';
+import type { QualityByGrade, QualityByMonth } from '../types';
 
 const { Title } = Typography;
 
-interface QualityReportRow {
-  period: string;
-  total_certificates: number;
-  passed: number;
-  failed: number;
-  by_grade: Record<
-    string,
-    { total: number; passed: number; failed: number }
-  >;
-}
-
-const columns: ColumnsType<QualityReportRow> = [
-  { title: '期间', dataIndex: 'period', key: 'period', width: 140 },
+const byGradeColumns: ColumnsType<QualityByGrade> = [
+  { title: '钢级', dataIndex: 'grade', key: 'grade', width: 120 },
+  { title: '管材类型', dataIndex: 'pipe_type', key: 'pipe_type', width: 100 },
   {
-    title: '证书总数',
-    dataIndex: 'total_certificates',
-    key: 'total_certificates',
+    title: '通过',
+    dataIndex: 'pass_count',
+    key: 'pass_count',
+    width: 80,
+    render: (v: number) => <Tag color="green">{v}</Tag>,
+  },
+  {
+    title: '不合格',
+    dataIndex: 'fail_count',
+    key: 'fail_count',
+    width: 80,
+    render: (v: number) => <Tag color="red">{v}</Tag>,
+  },
+  {
+    title: '总数',
+    dataIndex: 'total',
+    key: 'total',
+    width: 80,
+  },
+  {
+    title: '合格率',
+    dataIndex: 'pass_rate',
+    key: 'pass_rate',
     width: 100,
   },
+];
+
+const byMonthColumns: ColumnsType<QualityByMonth> = [
+  { title: '月份', dataIndex: 'month', key: 'month', width: 120 },
+  { title: '总数', dataIndex: 'total', key: 'total', width: 80 },
   {
     title: '通过',
     dataIndex: 'passed',
@@ -54,51 +74,58 @@ const columns: ColumnsType<QualityReportRow> = [
   {
     title: '合格率',
     key: 'pass_rate',
-    width: 120,
-    render: (_: unknown, r: QualityReportRow) => {
-      const rate =
-        r.total_certificates > 0
-          ? Math.round((r.passed / r.total_certificates) * 100)
-          : 0;
-      return <Progress percent={rate} size="small" />;
+    width: 160,
+    render: (_: unknown, r: QualityByMonth) => {
+      const rateNum = parseFloat(r.pass_rate);
+      return (
+        <Space>
+          <Progress percent={isNaN(rateNum) ? 0 : rateNum} size="small" />
+          <span>{r.pass_rate}</span>
+        </Space>
+      );
     },
-  },
-  {
-    title: '按钢级',
-    dataIndex: 'by_grade',
-    key: 'by_grade',
-    render: (by_grade: Record<string, { total: number; passed: number; failed: number }>) => (
-      <span>
-        {Object.entries(by_grade).map(([grade, info]) => (
-          <Tag key={grade}>
-            {grade}: {info.passed}/{info.total}
-          </Tag>
-        ))}
-      </span>
-    ),
   },
 ];
 
 export default function QualityReportPage() {
-  const [data, setData] = useState<QualityReportRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { data, isLoading } = useQualityReport();
 
-  useEffect(() => {
-    setLoading(true);
-    reportApi
-      .getQualityReport()
-      .then((res) => {
-        setData(Array.isArray(res) ? res : res ? [res] : []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  const totalCerts = data.reduce((sum, r) => sum + r.total_certificates, 0);
-  const totalPassed = data.reduce((sum, r) => sum + r.passed, 0);
-  const totalFailed = data.reduce((sum, r) => sum + r.failed, 0);
+  const totalCerts = data?.by_month?.reduce((sum, r) => sum + r.total, 0) ?? 0;
+  const totalPassed = data?.by_month?.reduce((sum, r) => sum + r.passed, 0) ?? 0;
+  const totalFailed = data?.by_month?.reduce((sum, r) => sum + r.failed, 0) ?? 0;
   const passRate =
     totalCerts > 0 ? Math.round((totalPassed / totalCerts) * 100) : 0;
+
+  const tabItems = [
+    {
+      key: 'by_grade',
+      label: '按钢级',
+      children: (
+        <Table<QualityByGrade>
+          columns={byGradeColumns}
+          dataSource={data?.by_grade}
+          rowKey={(r) => `${r.grade}-${r.pipe_type}`}
+          loading={isLoading}
+          pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
+          scroll={{ x: 600 }}
+        />
+      ),
+    },
+    {
+      key: 'by_month',
+      label: '按月份',
+      children: (
+        <Table<QualityByMonth>
+          columns={byMonthColumns}
+          dataSource={data?.by_month}
+          rowKey="month"
+          loading={isLoading}
+          pagination={false}
+          scroll={{ x: 600 }}
+        />
+      ),
+    },
+  ];
 
   return (
     <div style={{ padding: 24 }}>
@@ -131,15 +158,9 @@ export default function QualityReportPage() {
       </Row>
 
       <Card>
-        <Table<QualityReportRow>
-          columns={columns}
-          dataSource={data}
-          rowKey="period"
-          loading={loading}
-          pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
-          scroll={{ x: 700 }}
-        />
+        <Tabs items={tabItems} />
       </Card>
     </div>
   );
 }
+

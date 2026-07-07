@@ -221,14 +221,17 @@ async fn quality_report_empty() {
 async fn quality_report_with_certs_shows_aggregates() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-QR-001", "in_stock", "L80")
+    let pipe_id_pass = common::seed_seamless_pipe(&pool, "PN-QR-001P", "in_stock", "L80")
+        .await
+        .unwrap();
+    let pipe_id_fail = common::seed_seamless_pipe(&pool, "PN-QR-001F", "in_stock", "L80")
         .await
         .unwrap();
 
-    common::seed_quality_cert(&pool, "QC-QR-001", "seamless", pipe_id, "pass")
+    common::seed_quality_cert(&pool, "QC-QR-001", "seamless", pipe_id_pass, "pass")
         .await
         .unwrap();
-    common::seed_quality_cert(&pool, "QC-QR-002", "seamless", pipe_id, "fail")
+    common::seed_quality_cert(&pool, "QC-QR-002", "seamless", pipe_id_fail, "fail")
         .await
         .unwrap();
 

@@ -24,5 +24,8 @@
   "order_type.return": "退货单",
   "order_type.transfer": "调拨单",
   "please_enter_order_id": "请输入订单号",
-  "certificate_id": "证书编号"
+  "certificate_id": "证书编号",
+  "label_preview": "标签预览",
+  "print": "打印",
+  "open_in_new_window": "在新窗口打开"
 }

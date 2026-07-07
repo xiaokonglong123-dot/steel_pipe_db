@@ -226,6 +226,7 @@ async fn update_purchase_order_updates_header() {
     let update = UpdatePurchaseOrderRequest {
         order_date: Some("2025-07-01".into()),
         notes: Some("updated notes".into()),
+        items: None,
     };
 
     let updated = PurchaseService::update_purchase_order(&pool, order.id, &update)
@@ -276,6 +277,7 @@ async fn update_purchase_order_fails_non_draft() {
     let update = UpdatePurchaseOrderRequest {
         order_date: None,
         notes: Some("should fail".into()),
+        items: None,
     };
     let err = PurchaseService::update_purchase_order(&pool, order.id, &update)
         .await
@@ -679,6 +681,7 @@ async fn update_purchase_item_changes_qty() {
     let item_id = items[0].id;
 
     let update = UpdatePurchaseItemRequest {
+        id: None,
         pipe_type: None,
         grade: None,
         od: None,
@@ -715,6 +718,7 @@ async fn update_purchase_item_fails_non_draft() {
         .unwrap();
 
     let update = UpdatePurchaseItemRequest {
+        id: None,
         pipe_type: None,
         grade: None,
         od: None,
@@ -1007,6 +1011,7 @@ async fn full_purchase_order_lifecycle() {
     let update = UpdatePurchaseOrderRequest {
         order_date: None,
         notes: Some("updated notes".into()),
+        items: None,
     };
     let updated = PurchaseService::update_purchase_order(&pool, order.id, &update)
         .await

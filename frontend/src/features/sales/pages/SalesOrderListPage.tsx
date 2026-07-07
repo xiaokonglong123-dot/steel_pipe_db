@@ -1,5 +1,5 @@
 // 销售订单列表页 — 使用 DataTable + PageLayout 共享组件
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button, Tag, Input, Popconfirm, Select } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -15,8 +15,8 @@ const STATUS_COLORS: Record<string, string> = {
   draft: 'default',
   pending: 'blue',
   approved: 'cyan',
-  delivered: 'green',
-  invoiced: 'purple',
+  rejected: 'red',
+  completed: 'green',
   cancelled: 'red',
 };
 
@@ -36,7 +36,7 @@ export default function SalesOrderListPage() {
 
   const deleteMutation = useDeleteSalesOrder();
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       title: t('sales.order_number'),
       dataIndex: 'order_no',
@@ -70,7 +70,7 @@ export default function SalesOrderListPage() {
           <Button
             type="link"
             size="small"
-            onClick={() => navigate(`/sales/${record.id}`)}
+            onClick={() => navigate(`/sales/${record.id}/edit`)}
           >
             {t('common.edit')}
           </Button>
@@ -85,7 +85,7 @@ export default function SalesOrderListPage() {
         </>
       ),
     },
-  ];
+  ], [t, navigate, deleteMutation]);
 
   return (
     <PageLayout

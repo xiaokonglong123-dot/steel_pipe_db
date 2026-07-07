@@ -1,3 +1,4 @@
+import React from 'react';
 import { Table, Empty, Spin } from 'antd';
 import type { TableProps, TablePaginationConfig } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -15,7 +16,7 @@ export interface DataTableProps<T> extends Omit<TableProps<T>, 'pagination'> {
   onSelectionChange?: (selectedRowKeys: React.Key[], selectedRows: T[]) => void;
 }
 
-export function DataTable<T extends object>({
+function DataTableInner<T extends object>({
   items = [],
   total = 0,
   page = 1,
@@ -64,5 +65,7 @@ export function DataTable<T extends object>({
     />
   );
 }
+
+export const DataTable = React.memo(DataTableInner) as typeof DataTableInner;
 
 export default DataTable;

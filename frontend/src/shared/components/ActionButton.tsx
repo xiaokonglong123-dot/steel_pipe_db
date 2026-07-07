@@ -1,3 +1,4 @@
+import React from 'react';
 import { Button, Tooltip, Popconfirm } from 'antd';
 import type { ButtonProps } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +12,7 @@ export interface ActionButtonProps extends Omit<ButtonProps, 'onClick'> {
   text?: boolean;
 }
 
-export function ActionButton({
+export const ActionButton = React.memo(function ActionButton({
   tooltip,
   confirmTitle,
   confirmMessage,
@@ -55,6 +56,6 @@ export function ActionButton({
   }
 
   return withTooltip;
-}
+});
 
 export default ActionButton;

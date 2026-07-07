@@ -6,6 +6,7 @@ use axum::{
 
 /// Middleware that adds common security headers to every response.
 ///
+/// - Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
 /// - X-Content-Type-Options: nosniff
 /// - X-Frame-Options: DENY
 /// - X-XSS-Protection: 1; mode=block
@@ -18,6 +19,13 @@ pub async fn security_headers(
     let mut response = next.run(req).await;
     let headers: &mut HeaderMap = response.headers_mut();
 
+    // CSP for pure JSON API — prevents any resource loading or framing from the API domain
+    headers.insert(
+        header::HeaderName::from_static("content-security-policy"),
+        header::HeaderValue::from_static(
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+        ),
+    );
     headers.insert(
         header::HeaderName::from_static("x-content-type-options"),
         header::HeaderValue::from_static("nosniff"),

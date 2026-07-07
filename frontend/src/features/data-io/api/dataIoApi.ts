@@ -2,10 +2,10 @@
  * Data IO API — Excel/CSV import, export, template download, and operation logs.
  *
  * Backend endpoints:
- * - POST   /api/v1/data/{entity_type}/import       — upload file for import
- * - GET    /api/v1/data/{entity_type}/export         — download exported data
- * - GET    /api/v1/data/{entity_type}/template       — download blank import template
- * - GET    /api/v1/data/logs                         — paginated operation logs
+ * - POST   /api/v1/data-io/import/{entity_type}      — upload file for import
+ * - GET    /api/v1/data-io/export/{entity_type}       — download exported data
+ * - GET    /api/v1/data-io/templates/{entity_type}    — download blank import template
+ * - GET    /api/v1/data-io/operation-logs             — paginated operation logs
  */
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
@@ -53,7 +53,7 @@ export const dataIoApi = {
     const formData = new FormData();
     formData.append('file', file);
     const res = await apiClient.postFormData<ApiResponse<ImportResult>>(
-      `/data/${entityType}/import`,
+      `/data-io/import/${entityType}`,
       formData,
     );
     return res.data;
@@ -61,12 +61,12 @@ export const dataIoApi = {
 
   /** Export data for a given entity type. Returns a Blob for download. */
   exportData: async (entityType: string, format: string = 'xlsx') => {
-    return apiClient.getBlob(`/data/${entityType}/export`, { format });
+    return apiClient.getBlob(`/data-io/export/${entityType}`, { format });
   },
 
   /** Download a blank import template for a given entity type. */
   getTemplate: async (entityType: string, format: string = 'xlsx') => {
-    return apiClient.getBlob(`/data/${entityType}/template`, { format });
+    return apiClient.getBlob(`/data-io/templates/${entityType}`, { format });
   },
 
   /** List operation logs (import/export audit trail). */
@@ -78,7 +78,7 @@ export const dataIoApi = {
     entity_type?: string;
   }) => {
     const res = await apiClient.get<PaginatedResponse<OperationLog>>(
-      '/data/logs',
+      '/data-io/operation-logs',
       params,
     );
     return res.data;

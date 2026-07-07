@@ -1,24 +1,25 @@
 // 采购订单详情页 — 使用 PageLayout 共享组件
 import { useState } from 'react';
-import { Button, Descriptions, Tag, Card, Table, Select, message, Modal, Input } from 'antd';
+import { Button, Descriptions, Tag, Card, Table, Select, message, Modal, Input, InputNumber } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PageLayout } from '@/shared/components/PageLayout';
-import { usePurchase, useTransitionPurchaseOrder } from '../hooks/usePurchases';
+import { usePurchase, useTransitionPurchaseOrder, useApprovePurchaseOrder, useRejectPurchaseOrder, useLinkInbound } from '../hooks/usePurchases';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'default',
   pending: 'orange',
   approved: 'blue',
-  received: 'green',
+  rejected: 'red',
+  completed: 'green',
   cancelled: 'red',
 };
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   draft: ['pending', 'cancelled'],
   pending: ['approved', 'cancelled'],
-  approved: ['received'],
+  approved: ['completed', 'cancelled'],
 };
 
 export default function PurchaseOrderDetailPage() {
@@ -31,10 +32,50 @@ export default function PurchaseOrderDetailPage() {
   const order = detail?.order;
   const items = detail?.items ?? [];
   const transitionMutation = useTransitionPurchaseOrder(orderId);
+  const approveMutation = useApprovePurchaseOrder(orderId);
+  const rejectMutation = useRejectPurchaseOrder(orderId);
+  const linkMutation = useLinkInbound(orderId);
 
   const [transitionModalOpen, setTransitionModalOpen] = useState(false);
   const [targetStatus, setTargetStatus] = useState<string>('');
   const [transitionNotes, setTransitionNotes] = useState('');
+
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [inboundRecordId, setInboundRecordId] = useState<number | undefined>();
+
+  const handleApprove = async () => {
+    try {
+      await approveMutation.mutateAsync({});
+      message.success(t('common.operate_success'));
+    } catch {
+      message.error(t('common.operate_failed'));
+    }
+  };
+
+  const handleReject = async () => {
+    try {
+      await rejectMutation.mutateAsync({ reason: rejectReason });
+      message.success(t('common.operate_success'));
+      setRejectModalOpen(false);
+      setRejectReason('');
+    } catch {
+      message.error(t('common.operate_failed'));
+    }
+  };
+
+  const handleLink = async () => {
+    if (!inboundRecordId) return;
+    try {
+      await linkMutation.mutateAsync(inboundRecordId);
+      message.success(t('common.operate_success'));
+      setLinkModalOpen(false);
+      setInboundRecordId(undefined);
+    } catch {
+      message.error(t('common.operate_failed'));
+    }
+  };
 
   const handleTransition = async () => {
     try {
@@ -119,11 +160,23 @@ export default function PurchaseOrderDetailPage() {
       onBack={() => navigate('/purchases')}
       extra={
         <>
+          {order.status === 'pending' && (
+            <>
+              <Button type="primary" onClick={handleApprove} loading={approveMutation.isPending}>
+                {t('purchases.approve')}
+              </Button>
+              <Button danger onClick={() => setRejectModalOpen(true)}>
+                {t('purchases.reject')}
+              </Button>
+            </>
+          )}
+          {(order.status === 'approved' || order.status === 'completed') && (
+            <Button onClick={() => setLinkModalOpen(true)}>
+              {t('purchases.link_inbound')}
+            </Button>
+          )}
           {showTransitionBtn && (
-            <Button
-              type="primary"
-              onClick={() => setTransitionModalOpen(true)}
-            >
+            <Button type="primary" onClick={() => setTransitionModalOpen(true)}>
               {t('purchases.update_status')}
             </Button>
           )}
@@ -175,6 +228,37 @@ export default function PurchaseOrderDetailPage() {
           }}
         />
       </Card>
+
+      <Modal
+        title={t('purchases.reject')}
+        open={rejectModalOpen}
+        onOk={handleReject}
+        onCancel={() => { setRejectModalOpen(false); setRejectReason(''); }}
+        confirmLoading={rejectMutation.isPending}
+      >
+        <Input.TextArea
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          placeholder={t('purchases.reject_reason')}
+          rows={3}
+        />
+      </Modal>
+
+      <Modal
+        title={t('purchases.link_inbound')}
+        open={linkModalOpen}
+        onOk={handleLink}
+        onCancel={() => { setLinkModalOpen(false); setInboundRecordId(undefined); }}
+        confirmLoading={linkMutation.isPending}
+      >
+        <InputNumber
+          style={{ width: '100%' }}
+          value={inboundRecordId}
+          onChange={(val) => setInboundRecordId(val ?? undefined)}
+          placeholder={t('purchases.inbound_record_id') || 'Inbound Record ID'}
+          min={1}
+        />
+      </Modal>
 
       <Modal
         title={t('purchases.update_status')}

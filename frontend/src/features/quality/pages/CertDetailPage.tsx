@@ -24,10 +24,14 @@ export default function CertDetailPage() {
   const deleteAttachmentMutation = useDeleteAttachment();
 
   const handleUpload = (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('cert_id', String(certId));
-    createAttachmentMutation.mutate(formData, {
+    createAttachmentMutation.mutate({
+      pipe_type: cert!.pipe_type,
+      pipe_id: cert!.pipe_id,
+      file_name: file.name,
+      file_path: `uploads/${file.name}`,
+      file_size: file.size,
+      content_type: file.type,
+    }, {
       onSuccess: () => message.success(t('common.operate_success')),
       onError: () => message.error(t('common.operate_failed')),
     });

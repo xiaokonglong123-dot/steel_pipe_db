@@ -23,7 +23,9 @@ export interface CreateCustomerData {
   notes?: string;
 }
 
-export interface CustomerFilterParams {
+export type UpdateCustomerData = Partial<CreateCustomerData> & { is_active?: boolean };
+
+export interface CustomerFilterParams extends Record<string, unknown> {
   q?: string;
   is_active?: boolean;
   page?: number;

@@ -1,5 +1,5 @@
 type InventorySummaryParams = { location_id?: number; grade?: string };
-type OrderReportParams = { start_date?: string; end_date?: string; order_type?: string };
+type OrderReportParams = { type?: string; period?: string };
 type QualityReportParams = { start_date?: string; end_date?: string; grade?: string };
 
 export const reportQueryKeys = {

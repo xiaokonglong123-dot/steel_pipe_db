@@ -1,14 +1,14 @@
 // Customer API — CRUD + search + active customer list
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
-import type { Customer, CreateCustomerData, CustomerFilterParams } from '../types';
+import type { Customer, CreateCustomerData, UpdateCustomerData, CustomerFilterParams } from '../types';
 import { validateResponse, paginatedDataSchema } from '@/lib/validateResponse';
 import { z } from 'zod';
 import { customerSchema } from '@/zod-schemas/core';
 
 export const customerApi = {
   list: async (params?: CustomerFilterParams) => {
-    const res = await apiClient.get<PaginatedResponse<Customer>>('/customers', { params });
+    const res = await apiClient.get<PaginatedResponse<Customer>>('/customers', params);
     return validateResponse(paginatedDataSchema(customerSchema), res.data);
   },
 
@@ -22,7 +22,7 @@ export const customerApi = {
     return validateResponse(customerSchema, res.data);
   },
 
-  update: async (id: number, data: Partial<CreateCustomerData>) => {
+  update: async (id: number, data: UpdateCustomerData) => {
     const res = await apiClient.put<ApiResponse<Customer>>(`/customers/${id}`, data);
     return validateResponse(customerSchema, res.data);
   },

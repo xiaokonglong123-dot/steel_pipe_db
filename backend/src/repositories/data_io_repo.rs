@@ -283,6 +283,10 @@ impl DataIORepo {
         pool: &SqlitePool,
         rows: &[serde_json::Value],
     ) -> Result<(u64, Vec<String>), AppError> {
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| AppError::Database(e.to_string()))?;
         let mut imported = 0u64;
         let mut errors = Vec::new();
 
@@ -294,19 +298,6 @@ impl DataIORepo {
                     continue;
                 }
             };
-
-            let exists: Option<(i64,)> = sqlx::query_as(
-                "SELECT id FROM seamless_pipes WHERE pipe_number = ? AND deleted_at IS NULL",
-            )
-            .bind(&pipe_number)
-            .fetch_optional(pool)
-            .await
-            .map_err(AppError::from)?;
-
-            if exists.is_some() {
-                errors.push(format!("Pipe number {} already exists", pipe_number));
-                continue;
-            }
 
             let pipe_type = row
                 .get("pipe_type")
@@ -320,11 +311,12 @@ impl DataIORepo {
                 .and_then(|v| v.as_str())
                 .unwrap_or("in_stock");
 
-            sqlx::query(
-                "INSERT INTO seamless_pipes (pipe_number, batch_number, pipe_type, grade, od, wt, \
+            let result: Option<(i64,)> = sqlx::query_as(
+                "INSERT OR IGNORE INTO seamless_pipes (pipe_number, batch_number, pipe_type, grade, od, wt, \
                  length, weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
                  heat_number, serial_number, manufacturer, production_date, cert_number, status, notes) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+                 RETURNING id",
             )
             .bind(&pipe_number)
             .bind(row.get("batch_number").and_then(|v| v.as_str()))
@@ -345,13 +337,21 @@ impl DataIORepo {
             .bind(row.get("cert_number").and_then(|v| v.as_str()))
             .bind(status)
             .bind(row.get("notes").and_then(|v| v.as_str()))
-            .execute(pool)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(|e| AppError::ImportError(format!("Failed to insert {}: {}", pipe_number, e)))?;
 
-            imported += 1;
+            if result.is_some() {
+                imported += 1;
+            } else {
+                errors.push(format!(
+                    "Pipe number {} already exists, skipped",
+                    pipe_number
+                ));
+            }
         }
 
+        tx.commit().await?;
         Ok((imported, errors))
     }
 
@@ -360,6 +360,10 @@ impl DataIORepo {
         pool: &SqlitePool,
         rows: &[serde_json::Value],
     ) -> Result<(u64, Vec<String>), AppError> {
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| AppError::Database(e.to_string()))?;
         let mut imported = 0u64;
         let mut errors = Vec::new();
 
@@ -371,19 +375,6 @@ impl DataIORepo {
                     continue;
                 }
             };
-
-            let exists: Option<(i64,)> = sqlx::query_as(
-                "SELECT id FROM screen_pipes WHERE pipe_number = ? AND deleted_at IS NULL",
-            )
-            .bind(&pipe_number)
-            .fetch_optional(pool)
-            .await
-            .map_err(AppError::from)?;
-
-            if exists.is_some() {
-                errors.push(format!("Pipe number {} already exists", pipe_number));
-                continue;
-            }
 
             let base_od = row.get("base_od").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let base_wt = row.get("base_wt").and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -400,12 +391,13 @@ impl DataIORepo {
                 .and_then(|v| v.as_str())
                 .unwrap_or("in_stock");
 
-            sqlx::query(
-                "INSERT INTO screen_pipes (pipe_number, batch_number, screen_type, slot_size, \
+            let result: Option<(i64,)> = sqlx::query_as(
+                "INSERT OR IGNORE INTO screen_pipes (pipe_number, batch_number, screen_type, slot_size, \
                  filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
                  weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
                  cert_number, status, notes) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+                 RETURNING id",
             )
             .bind(&pipe_number)
             .bind(row.get("batch_number").and_then(|v| v.as_str()))
@@ -425,15 +417,23 @@ impl DataIORepo {
             .bind(row.get("cert_number").and_then(|v| v.as_str()))
             .bind(status)
             .bind(row.get("notes").and_then(|v| v.as_str()))
-            .execute(pool)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(|e| {
                 AppError::ImportError(format!("Failed to insert {}: {}", pipe_number, e))
             })?;
 
-            imported += 1;
+            if result.is_some() {
+                imported += 1;
+            } else {
+                errors.push(format!(
+                    "Pipe number {} already exists, skipped",
+                    pipe_number
+                ));
+            }
         }
 
+        tx.commit().await?;
         Ok((imported, errors))
     }
 }

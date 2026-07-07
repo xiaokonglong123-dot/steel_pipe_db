@@ -95,7 +95,51 @@ pub struct UpdateScreenPipeRequest {
     pub status: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate)]
+pub struct CreateWeldedPipeRequest {
+    pub pipe_number: Option<String>,
+    pub batch_number: Option<String>,
+    pub pipe_type: Option<String>,
+    #[validate(length(min = 1, message = "grade is required"))]
+    pub grade: String,
+    #[validate(range(min = 0.1, message = "od must be positive"))]
+    pub od: f64,
+    #[validate(range(min = 0.01, message = "wt must be positive"))]
+    pub wt: f64,
+    pub length: Option<f64>,
+    pub weight_per_unit: Option<f64>,
+    pub end_type: Option<String>,
+    pub seam_type: Option<String>,
+    pub heat_number: Option<String>,
+    pub serial_number: Option<String>,
+    pub manufacturer: Option<String>,
+    pub production_date: Option<String>,
+    pub cert_number: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct UpdateWeldedPipeRequest {
+    pub batch_number: Option<String>,
+    pub pipe_type: Option<String>,
+    pub grade: Option<String>,
+    pub od: Option<f64>,
+    pub wt: Option<f64>,
+    pub length: Option<f64>,
+    pub weight_per_unit: Option<f64>,
+    pub end_type: Option<String>,
+    pub seam_type: Option<String>,
+    pub heat_number: Option<String>,
+    pub serial_number: Option<String>,
+    pub manufacturer: Option<String>,
+    pub production_date: Option<String>,
+    pub cert_number: Option<String>,
+    pub notes: Option<String>,
+    pub location_id: Option<i64>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct PipeFilterParams {
     pub q: Option<String>,
     pub grade: Option<String>,

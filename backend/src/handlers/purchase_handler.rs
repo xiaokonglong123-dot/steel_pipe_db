@@ -10,9 +10,10 @@ use validator::Validate;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::purchase_dto::{
-    ApproveOrderRequest, CreatePurchaseOrderRequest, PurchaseOrderDetailResponse,
-    PurchaseOrderFilterParams, PurchaseOrderStatusTransitionRequest, RejectOrderRequest,
-    UpdatePurchaseItemRequest, UpdatePurchaseOrderRequest,
+    ApproveOrderRequest, CreatePurchaseOrderRequest, LinkInboundRequest,
+    PurchaseOrderDetailResponse, PurchaseOrderFilterParams,
+    PurchaseOrderStatusTransitionRequest, RejectOrderRequest, UpdatePurchaseItemRequest,
+    UpdatePurchaseOrderRequest,
 };
 use crate::error::AppError;
 use crate::models::purchase_order::PurchaseOrder;
@@ -172,8 +173,9 @@ pub async fn reject_purchase_order_handler(
 /// Returns 404 if order or inbound record not found.
 pub async fn link_inbound_to_order_handler(
     Extension(pool): Extension<SqlitePool>,
-    Path((order_id, inbound_id)): Path<(i64, i64)>,
+    Path(order_id): Path<i64>,
+    Json(req): Json<LinkInboundRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    PurchaseService::link_inbound_to_order(&pool, order_id, inbound_id).await?;
+    PurchaseService::link_inbound_to_order(&pool, order_id, req.inbound_record_id).await?;
     Ok((StatusCode::NO_CONTENT, ()).into_response())
 }

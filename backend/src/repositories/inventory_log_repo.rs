@@ -1,4 +1,5 @@
-use sqlx::SqlitePool;
+use sqlx::sqlite::Sqlite;
+use sqlx::{SqlitePool, Transaction};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::InventoryFilter;
@@ -6,10 +7,35 @@ use crate::models::inventory::InventoryLog;
 
 use super::inventory_repo::CreateInventoryLog;
 
-/// INSERT + paginated SELECT for `inventory_logs` (pipe movement audit trail).
+/// INSERT + paginated SELECT + by-pipe query for `inventory_logs` (pipe movement audit trail).
 pub struct InventoryLogRepo;
 
 impl InventoryLogRepo {
+    /// INSERT a row into `inventory_logs` using a transaction. Returns the newly created log entry with generated `id`.
+    pub async fn create_in_transaction(
+        tx: &mut Transaction<'_, Sqlite>,
+        log: &CreateInventoryLog,
+    ) -> Result<InventoryLog, sqlx::Error> {
+        sqlx::query_as::<_, InventoryLog>(
+            "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
+             from_location_id, to_location_id, notes, created_by) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
+             RETURNING id, pipe_type, pipe_id, change_type, ref_type, ref_id, \
+               from_location_id, to_location_id, notes, created_by, created_at",
+        )
+        .bind(&log.pipe_type)
+        .bind(log.pipe_id)
+        .bind(&log.change_type)
+        .bind(&log.ref_type)
+        .bind(log.ref_id)
+        .bind(log.from_location_id)
+        .bind(log.to_location_id)
+        .bind(&log.notes)
+        .bind(log.created_by)
+        .fetch_one(&mut **tx)
+        .await
+    }
+
     /// INSERT a row into `inventory_logs`. Returns the newly created log entry with generated `id`.
     pub async fn create(
         pool: &SqlitePool,
@@ -32,6 +58,25 @@ impl InventoryLogRepo {
         .bind(&log.notes)
         .bind(log.created_by)
         .fetch_one(pool)
+        .await
+    }
+
+    /// SELECT inventory logs for a specific pipe, ordered by time ascending.
+    /// Used by trace service for full lifecycle audit trail.
+    pub async fn find_by_pipe(
+        pool: &SqlitePool,
+        pipe_type: &str,
+        pipe_id: i64,
+    ) -> Result<Vec<InventoryLog>, sqlx::Error> {
+        sqlx::query_as::<_, InventoryLog>(
+            "SELECT id, pipe_type, pipe_id, change_type, ref_type, ref_id, \
+             from_location_id, to_location_id, notes, created_by, created_at \
+             FROM inventory_logs WHERE pipe_type = ? AND pipe_id = ? \
+             ORDER BY created_at ASC",
+        )
+        .bind(pipe_type)
+        .bind(pipe_id)
+        .fetch_all(pool)
         .await
     }
 

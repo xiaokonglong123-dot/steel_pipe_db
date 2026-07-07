@@ -52,6 +52,7 @@ use tower::ServiceBuilder;
 use tower_http::{request_id::MakeRequestUuid, ServiceBuilderExt};
 
 use crate::cache::CacheManager;
+use crate::cache_invalidator::CacheInvalidator;
 use crate::middleware::auth::JwtSecret;
 use crate::middleware::rate_limit::{
     rate_limit_import, rate_limit_login, rate_limit_password_change, RateLimiter,
@@ -372,12 +373,12 @@ fn contract_write_routes() -> Router {
             axum::routing::put(contract_handler::update_contract_payment_handler)
                 .delete(contract_handler::delete_contract_payment_handler),
         )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ))
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse", "sales"])
         }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ))
 }
 
 // Main app builder — assembles all route groups, middleware, and shared layers
@@ -387,6 +388,7 @@ pub fn create_app(
     jwt_secret: String,
     cors_origins: Vec<HeaderValue>,
     cache_manager: CacheManager,
+    cache_invalidator: CacheInvalidator,
 ) -> Router {
     // Public: no auth required
     let public = Router::new()
@@ -418,7 +420,8 @@ pub fn create_app(
         )
         .route(
             "/api/v1/auth/me",
-            axum::routing::get(auth_handler::me_handler),
+            axum::routing::get(auth_handler::me_handler)
+                .put(auth_handler::update_own_profile_handler),
         )
         .route(
             "/api/v1/users/{id}/change-password",
@@ -569,6 +572,14 @@ pub fn create_app(
             "/api/v1/atp",
             axum::routing::get(atp_handler::check_atp_handler),
         )
+        .route(
+            "/api/v1/inventory/inbound/search",
+            axum::routing::get(inbound_handler::list_inbound_handler),
+        )
+        .route(
+            "/api/v1/inventory/outbound/search",
+            axum::routing::get(outbound_handler::list_outbound_handler),
+        )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
         ));
@@ -659,6 +670,10 @@ pub fn create_app(
             "/api/v1/purchase-orders/{id}",
             axum::routing::get(purchase_handler::get_purchase_order_handler),
         )
+        .route(
+            "/api/v1/purchase-orders/search",
+            axum::routing::get(purchase_handler::list_purchase_orders_handler),
+        )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
         ));
@@ -672,6 +687,10 @@ pub fn create_app(
         .route(
             "/api/v1/sales-orders/{id}",
             axum::routing::get(sales_handler::get_sales_order_handler),
+        )
+        .route(
+            "/api/v1/sales-orders/search",
+            axum::routing::get(sales_handler::list_sales_orders_handler),
         )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
@@ -822,4 +841,5 @@ pub fn create_app(
         .layer(axum::Extension(JwtSecret(jwt_secret)))
         .layer(axum::Extension(RateLimiter::new()))
         .layer(axum::Extension(cache_manager))
+        .layer(axum::Extension(cache_invalidator))
 }

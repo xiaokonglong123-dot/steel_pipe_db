@@ -218,6 +218,7 @@ async fn update_contract_title_and_status() {
         start_date: None,
         end_date: None,
         notes: Some("updated notes".into()),
+        items: None,
     };
 
     let updated = ContractService::update_contract(&pool, contract_id, &update)
@@ -242,6 +243,7 @@ async fn update_contract_nonexistent_fails() {
         start_date: None,
         end_date: None,
         notes: None,
+        items: None,
     };
 
     let err = ContractService::update_contract(&pool, 99999, &update)
@@ -267,6 +269,7 @@ async fn update_contract_active_status_rejected() {
         start_date: None,
         end_date: None,
         notes: None,
+        items: None,
     };
 
     let err = ContractService::update_contract(&pool, contract_id, &update)
@@ -653,6 +656,7 @@ async fn update_status_draft_to_terminated() {
         start_date: None,
         end_date: None,
         notes: None,
+        items: None,
     };
     ContractService::update_contract(&pool, contract_id, &update)
         .await
@@ -878,6 +882,7 @@ async fn update_item_in_draft_contract() {
     let item_id = detail.items[0].id;
 
     let update = UpdateContractItemRequest {
+        id: None,
         pipe_type: None,
         grade: Some("N80".into()),
         od: None,
@@ -906,6 +911,7 @@ async fn update_item_nonexistent_fails() {
         .unwrap();
 
     let update = UpdateContractItemRequest {
+        id: None,
         pipe_type: None,
         grade: None,
         od: None,
@@ -937,6 +943,7 @@ async fn update_item_wrong_contract_rejected() {
         .unwrap();
 
     let update = UpdateContractItemRequest {
+        id: None,
         pipe_type: None,
         grade: None,
         od: None,

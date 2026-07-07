@@ -39,7 +39,7 @@ export const purchaseOrderSchema = z.object({
 export const purchaseOrderDetailSchema = z.object({
   order: purchaseOrderSchema,
   items: z.array(purchaseOrderItemSchema),
-}).strict();
+}).passthrough();
 
 export const salesOrderItemSchema = z.object({
   id: z.number(),
@@ -74,7 +74,7 @@ export const salesOrderSchema = z.object({
 export const salesOrderDetailSchema = z.object({
   order: salesOrderSchema,
   items: z.array(salesOrderItemSchema),
-}).strict();
+}).passthrough();
 
 export const contractItemSchema = z.object({
   id: z.number(),
@@ -122,3 +122,10 @@ export const contractSchema = z.object({
   items: z.array(contractItemSchema).optional(),
   payments: z.array(contractPaymentSchema).optional(),
 });
+
+/** Contract detail response — matches backend ContractDetailResponse. */
+export const contractDetailSchema = z.object({
+  contract: contractSchema,
+  items: z.array(contractItemSchema).optional(),
+  payments: z.array(contractPaymentSchema).optional(),
+}).passthrough();

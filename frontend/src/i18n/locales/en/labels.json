@@ -24,5 +24,8 @@
   "order_type.return": "Return",
   "order_type.transfer": "Transfer",
   "please_enter_order_id": "Please enter order ID",
-  "certificate_id": "Certificate ID"
+  "certificate_id": "Certificate ID",
+  "label_preview": "Label Preview",
+  "print": "Print",
+  "open_in_new_window": "Open in New Window"
 }

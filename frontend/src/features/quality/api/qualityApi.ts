@@ -48,19 +48,15 @@ export const qualityApi = {
     return validateResponse(gradeRefSchema, res.data);
   },
 
-  // 上传证书附件（PDF/图片），使用 FormData + multipart
-  createAttachment: async (data: FormData) => {
-    const res = await apiClient.postFormData<ApiResponse<PipeAttachment>>(
-      '/quality/attachments',
-      data,
-    );
+  createAttachment: async (data: { pipe_type: string; pipe_id: number; file_name: string; file_path: string; file_size?: number; content_type?: string }) => {
+    const res = await apiClient.post<ApiResponse<PipeAttachment>>('/quality/attachments', data);
     return validateResponse(pipeAttachmentSchema, res.data);
   },
 
-  getAttachments: async (pipe_id: number) => {
+  getAttachments: async (certId: number) => {
     const res = await apiClient.get<ApiResponse<PipeAttachment[]>>(
       '/quality/attachments',
-      { pipe_id },
+      { cert_id: certId } as Record<string, unknown>,
     );
     return validateResponse(z.array(pipeAttachmentSchema), res.data);
   },

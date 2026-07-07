@@ -44,7 +44,7 @@ impl AuthService {
         }
 
         let parsed_hash = PasswordHash::new(&user.password_hash)
-            .map_err(|_| AppError::Internal("Invalid stored password hash".into()))?;
+            .map_err(AppError::from)?;
 
         Argon2::default()
             .verify_password(req.password.as_bytes(), &parsed_hash)
@@ -216,7 +216,7 @@ impl AuthService {
 
         if current_user_role != "admin" {
             let parsed_hash = PasswordHash::new(&user.password_hash)
-                .map_err(|_| AppError::Internal("Invalid stored password hash".into()))?;
+                .map_err(AppError::from)?;
 
             Argon2::default()
                 .verify_password(req.old_password.as_bytes(), &parsed_hash)
@@ -283,12 +283,12 @@ impl AuthService {
     pub(crate) fn hash_password(password: &str) -> Result<String, AppError> {
         let uuid = Uuid::new_v4();
         let salt = SaltString::encode_b64(uuid.as_bytes())
-            .map_err(|_| AppError::Internal("Failed to generate salt".into()))?;
+            .map_err(AppError::from)?;
         let argon2 = Argon2::default();
         argon2
             .hash_password(password.as_bytes(), &salt)
             .map(|h| h.to_string())
-            .map_err(|_| AppError::Internal("Failed to hash password".into()))
+            .map_err(AppError::from)
     }
 
     fn generate_token(
@@ -314,7 +314,7 @@ impl AuthService {
             &claims,
             &jsonwebtoken::EncodingKey::from_secret(jwt_secret.as_bytes()),
         )
-        .map_err(|_| AppError::Internal("Failed to generate token".into()))
+        .map_err(AppError::from)
     }
 
     /// Generate an opaque refresh token and its SHA-256 hash.

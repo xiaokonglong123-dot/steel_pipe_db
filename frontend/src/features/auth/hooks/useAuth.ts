@@ -49,6 +49,9 @@ export function useRestoreSession() {
         }
       })
       .catch(() => {
+        // Error is expected — token may be expired, user may not be logged in
+      })
+      .finally(() => {
         if (!cancelled) {
           setRestoring(false);
         }

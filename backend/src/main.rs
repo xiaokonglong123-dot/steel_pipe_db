@@ -10,6 +10,7 @@ use crate::repositories::user_repo::UserRepo;
 use crate::services::auth_service::AuthService;
 
 mod cache;
+mod cache_invalidator;
 mod config;
 mod domain;
 mod dto;
@@ -60,10 +61,18 @@ async fn main() {
     let cache_manager = crate::cache::CacheManager::new();
     tracing::info!("Cache manager initialized (grades=5min, locations=2min, dashboard=30s)");
 
+    // Create the cache invalidator for event-driven cache invalidation
+    let cache_invalidator = crate::cache_invalidator::CacheInvalidator::new(cache_manager.clone());
+    tracing::info!("Cache invalidator initialized (event-driven)");
+
+    // Initialize default invalidation rules
+    let registry = crate::cache_invalidator::CacheInvalidationRegistry::new();
+    crate::cache_invalidator::init_default_invalidation_rules(&registry);
+
     // Assemble the full router tree — all middleware and route groups merge here
     let cors_origins = cfg.parse_cors_origins();
     tracing::info!("CORS origins: {:?}", cors_origins);
-    let app = router::create_app(pool, cfg.jwt_secret.clone(), cors_origins, cache_manager);
+    let app = router::create_app(pool, cfg.jwt_secret.clone(), cors_origins, cache_manager, cache_invalidator);
 
     // Bind and serve — axum::serve is the outermost layer that drives the async event loop
     let addr: SocketAddr = cfg.server_addr().parse().expect("Invalid server address");

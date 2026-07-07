@@ -448,14 +448,17 @@ async fn list_certs_filter_by_pipe_id() {
 async fn list_certs_filter_by_result() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-LST-030", "in_stock", "L80")
+    let pipe_id_pass = common::seed_seamless_pipe(&pool, "PN-LST-030P", "in_stock", "L80")
+        .await
+        .unwrap();
+    let pipe_id_fail = common::seed_seamless_pipe(&pool, "PN-LST-030F", "in_stock", "L80")
         .await
         .unwrap();
 
-    common::seed_quality_cert(&pool, "QC-LST-030", "seamless", pipe_id, "pass")
+    common::seed_quality_cert(&pool, "QC-LST-030", "seamless", pipe_id_pass, "pass")
         .await
         .unwrap();
-    common::seed_quality_cert(&pool, "QC-LST-031", "seamless", pipe_id, "fail")
+    common::seed_quality_cert(&pool, "QC-LST-031", "seamless", pipe_id_fail, "fail")
         .await
         .unwrap();
 
@@ -513,17 +516,23 @@ async fn list_certs_empty_when_no_match() {
 async fn list_certs_pagination_page_size() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-LST-040", "in_stock", "L80")
+    let pipe_id_1 = common::seed_seamless_pipe(&pool, "PN-LST-040A", "in_stock", "L80")
+        .await
+        .unwrap();
+    let pipe_id_2 = common::seed_seamless_pipe(&pool, "PN-LST-040B", "in_stock", "L80")
+        .await
+        .unwrap();
+    let pipe_id_3 = common::seed_seamless_pipe(&pool, "PN-LST-040C", "in_stock", "L80")
         .await
         .unwrap();
 
-    common::seed_quality_cert(&pool, "QC-LST-040", "seamless", pipe_id, "pass")
+    common::seed_quality_cert(&pool, "QC-LST-040", "seamless", pipe_id_1, "pass")
         .await
         .unwrap();
-    common::seed_quality_cert(&pool, "QC-LST-041", "seamless", pipe_id, "pass")
+    common::seed_quality_cert(&pool, "QC-LST-041", "seamless", pipe_id_2, "pass")
         .await
         .unwrap();
-    common::seed_quality_cert(&pool, "QC-LST-042", "seamless", pipe_id, "pass")
+    common::seed_quality_cert(&pool, "QC-LST-042", "seamless", pipe_id_3, "pass")
         .await
         .unwrap();
 

@@ -12,6 +12,7 @@
 
 mod common;
 
+use steel_pipe_db::cache::CacheManager;
 use steel_pipe_db::dto::common::PaginationParams;
 use steel_pipe_db::dto::inventory_dto::{
     AtpQuery, CreateCheckRequest, CreateInboundRecordRequest, CreateLocationRequest,
@@ -415,6 +416,7 @@ async fn create_outbound_requires_at_least_one_pipe() {
 #[tokio::test]
 async fn create_and_list_locations() {
     let pool = common::test_pool().await;
+    let cache = CacheManager::new();
 
     let dto = CreateLocationRequest {
         zone_code: "A".into(),
@@ -424,7 +426,7 @@ async fn create_and_list_locations() {
         capacity: Some(50),
     };
 
-    let location = LocationService::create_location(&pool, &dto)
+    let location = LocationService::create_location(&pool, &cache, &dto)
         .await
         .expect("create_location must succeed");
 
