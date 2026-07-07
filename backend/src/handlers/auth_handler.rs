@@ -17,6 +17,7 @@ use crate::error::AppError;
 use crate::middleware::auth::{AuthContext, JwtSecret};
 use crate::models::user::UserInfo;
 use crate::repositories::operation_log_repo::{CreateOperationLog, OperationLogRepo};
+use crate::repositories::user_repo::UserRepo;
 use crate::response::ApiResponse;
 use crate::services::auth_service::AuthService;
 
@@ -79,7 +80,7 @@ pub async fn login_handler(
     );
     let mut resp = (StatusCode::OK, ApiResponse::ok(response)).into_response();
     resp.headers_mut()
-        .insert("set-cookie", cookie.to_string().parse().unwrap());
+        .insert("set-cookie", cookie.to_string().parse().map_err(|_| AppError::Internal("Failed to parse cookie".into()))?);
     Ok(resp)
 }
 
@@ -116,7 +117,7 @@ pub async fn refresh_handler(
     );
     let mut resp = (StatusCode::OK, ApiResponse::ok(response)).into_response();
     resp.headers_mut()
-        .insert("set-cookie", cookie.to_string().parse().unwrap());
+        .insert("set-cookie", cookie.to_string().parse().map_err(|_| AppError::Internal("Failed to parse cookie".into()))?);
     Ok(resp)
 }
 
@@ -149,7 +150,7 @@ pub async fn logout_handler(
         .max_age(time::Duration::seconds(0));
     let mut resp = (StatusCode::OK, ApiResponse::ok("Logged out".to_string())).into_response();
     resp.headers_mut()
-        .insert("set-cookie", cookie.to_string().parse().unwrap());
+        .insert("set-cookie", cookie.to_string().parse().map_err(|_| AppError::Internal("Failed to parse cookie".into()))?);
     Ok(resp)
 }
 
@@ -163,6 +164,45 @@ pub async fn me_handler(
 ) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
     let user = AuthService::get_me(&pool, auth.user_id).await?;
     Ok(ApiResponse::ok(user))
+}
+
+#[derive(serde::Deserialize)]
+pub struct UpdateOwnProfileRequest {
+    pub display_name: Option<String>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+}
+
+/// PUT `/api/v1/auth/me` — Update own profile (display_name, email, phone).
+///
+/// Allows any authenticated user to update their own profile fields.
+/// Role, is_active, and password changes are NOT permitted here —
+/// those require the admin-only `PUT /api/v1/users/{id}` endpoint.
+pub async fn update_own_profile_handler(
+    Extension(pool): Extension<SqlitePool>,
+    AuthenticatedUser(auth): AuthenticatedUser,
+    Json(req): Json<UpdateOwnProfileRequest>,
+) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
+    let dto = UpdateUserRequest {
+        display_name: req.display_name,
+        role: None,
+        email: req.email,
+        phone: req.phone,
+        is_active: None,
+    };
+    dto.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    let updated = UserRepo::update(&pool, auth.user_id, &dto)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::ok(UserInfo {
+        id: updated.id,
+        username: updated.username,
+        display_name: updated.display_name,
+        role: updated.role,
+        email: updated.email,
+        phone: updated.phone,
+    }))
 }
 
 /// GET `/api/v1/users` — Paginated list of all users
