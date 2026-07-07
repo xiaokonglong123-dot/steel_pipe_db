@@ -110,14 +110,18 @@ impl SupplierRepo {
     }
 
     /// Soft-delete: sets `deleted_at` and `updated_at`.
+    /// Returns `sqlx::Error::RowNotFound` when no row was updated (already deleted or missing).
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE suppliers SET deleted_at = datetime('now'), \
              updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
         .await?;
+        if result.rows_affected() == 0 {
+            return Err(sqlx::Error::RowNotFound);
+        }
         Ok(())
     }
 

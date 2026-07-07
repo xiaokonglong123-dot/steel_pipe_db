@@ -46,7 +46,18 @@ macro_rules! party_service {
 
                 $repo::create(pool, dto, &code)
                     .await
-                    .map_err(crate::error::AppError::from)
+                    .map_err(|e| {
+                        if let sqlx::Error::Database(ref db_err) = e {
+                            if db_err.message().contains("UNIQUE constraint failed") {
+                                return crate::error::AppError::$code_dup_error(format!(
+                                    "{} code '{}' already exists",
+                                    stringify!($model),
+                                    code
+                                ));
+                            }
+                        }
+                        crate::error::AppError::from(e)
+                    })
             }
 
             pub async fn update(
@@ -54,22 +65,18 @@ macro_rules! party_service {
                 id: i64,
                 dto: &$update_dto,
             ) -> Result<$model, crate::error::AppError> {
-                let existing = $repo::find_by_id(pool, id)
-                    .await
-                    .map_err(crate::error::AppError::from)?
-                    .ok_or_else(|| crate::error::AppError::$not_found_error(format!(
-                        "{} id={} not found", stringify!($model), id
-                    )))?;
-
-                if existing.deleted_at.is_some() {
-                    return Err(crate::error::AppError::$not_found_error(format!(
-                        "{} id={} has been deleted", stringify!($model), id
-                    )));
-                }
-
                 $repo::update(pool, id, dto)
                     .await
-                    .map_err(crate::error::AppError::from)
+                    .map_err(|e| match e {
+                        sqlx::Error::RowNotFound => {
+                            crate::error::AppError::$not_found_error(format!(
+                                "{} id={} not found",
+                                stringify!($model),
+                                id
+                            ))
+                        }
+                        other => crate::error::AppError::from(other),
+                    })
             }
 
             pub async fn delete(pool: &sqlx::SqlitePool, id: i64) -> Result<(), crate::error::AppError> {
