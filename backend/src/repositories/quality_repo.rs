@@ -95,6 +95,26 @@ impl QualityCertRepo {
         .await
     }
 
+    /// Find an active (non-deleted) cert by pipe type and ID.
+    /// Returns `Some(QualityCert)` if one exists, `None` otherwise.
+    pub async fn find_active_by_pipe(
+        pool: &SqlitePool,
+        pipe_type: &str,
+        pipe_id: i64,
+    ) -> Result<Option<QualityCert>, sqlx::Error> {
+        sqlx::query_as::<_, QualityCert>(
+            "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, \
+             inspection_body, notes, created_at, updated_at, deleted_at \
+             FROM quality_certs \
+             WHERE pipe_type = ? AND pipe_id = ? AND deleted_at IS NULL \
+             LIMIT 1",
+        )
+        .bind(pipe_type)
+        .bind(pipe_id)
+        .fetch_optional(pool)
+        .await
+    }
+
     /// Soft-delete: sets `deleted_at` and `updated_at`.
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
@@ -206,6 +226,24 @@ impl Api5ctGradeRefRepo {
         )
         .fetch_all(pool)
         .await
+    }
+}
+
+/// UPDATE `cert_number` on a quality certificate. Used after creation to set the final cert number.
+impl QualityCertRepo {
+    pub async fn update_cert_number(
+        pool: &SqlitePool,
+        id: i64,
+        cert_number: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE quality_certs SET cert_number = ? WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(cert_number)
+        .bind(id)
+        .execute(pool)
+        .await?;
+        Ok(())
     }
 }
 

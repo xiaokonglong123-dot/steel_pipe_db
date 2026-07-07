@@ -43,6 +43,17 @@ impl QualityService {
         let result = dto.result.as_deref().unwrap_or("pending");
         validate_result(result)?;
 
+        // Reject duplicate: one active cert per (pipe_type, pipe_id).
+        if QualityCertRepo::find_active_by_pipe(pool, &dto.pipe_type, dto.pipe_id)
+            .await?
+            .is_some()
+        {
+            return Err(AppError::BadRequest(format!(
+                "Quality cert already exists for pipe_type={} pipe_id={}",
+                dto.pipe_type, dto.pipe_id
+            )));
+        }
+
         let placeholder = format!("tmp-{}", uuid::Uuid::new_v4());
 
         let adjusted = CreateQualityCertRequest {
@@ -60,11 +71,9 @@ impl QualityService {
 
         let cert_number = Self::generate_cert_number(&cert.pipe_type, cert.id);
 
-        sqlx::query("UPDATE quality_certs SET cert_number = ? WHERE id = ?")
-            .bind(&cert_number)
-            .bind(cert.id)
-            .execute(pool)
-            .await?;
+        QualityCertRepo::update_cert_number(pool, cert.id, &cert_number)
+            .await
+            .map_err(AppError::from)?;
 
         QualityCertRepo::find_by_id(pool, cert.id)
             .await?

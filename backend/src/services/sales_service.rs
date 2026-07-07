@@ -9,7 +9,6 @@ use crate::error::AppError;
 use crate::models::sales_order::{SalesOrder, SalesOrderItem};
 use crate::repositories::customer_repo::CustomerRepo;
 use crate::repositories::inventory_repo::InventoryRepo;
-use crate::repositories::outbound_repo::OutboundRepo;
 use crate::repositories::sales_order_repo::SalesOrderRepo;
 use crate::services::utils;
 
@@ -108,9 +107,14 @@ impl SalesService {
     /// Transitions a sales order's status. Validates the current→target hop against
     /// `OrderStatus` domain rules — only valid transitions are allowed.
     ///
+    /// Uses `BEGIN IMMEDIATE` to serialize concurrent transitions and prevent TOCTOU
+    /// races — the status guard in the WHERE clause ensures that if another request
+    /// changed the order between our read and the update, the update hits zero rows
+    /// and we fail safe.
+    ///
     /// # Errors
     /// - `AppError::OrderNotFound` — ID doesn't exist or was deleted
-    /// - `AppError::OrderCannotModify` — status transition isn't valid
+    /// - `AppError::OrderCannotModify` — status transition isn't valid or race lost
     pub async fn transition_sales_status(
         pool: &SqlitePool,
         id: i64,
@@ -128,11 +132,48 @@ impl SalesService {
             )));
         }
 
-        utils::validate_status_transition(&existing.status, &dto.status)?;
+        // Acquire a connection and start an IMMEDIATE transaction to serialize
+        // concurrent status transitions.
+        let mut conn = pool.acquire().await.map_err(AppError::from)?;
+        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+            return Err(AppError::from(e));
+        }
 
-        SalesOrderRepo::update_status(pool, id, &dto.status)
+        // Validate transition inside the serialised transaction.
+        if let Err(e) = utils::validate_status_transition(&existing.status, &dto.status) {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(e);
+        }
+
+        let rows_affected = match sqlx::query(
+            "UPDATE sales_orders SET status = ?, updated_at = datetime('now') \
+             WHERE id = ? AND status = ? AND deleted_at IS NULL",
+        )
+        .bind(&dto.status)
+        .bind(id)
+        .bind(&existing.status)
+        .execute(&mut *conn)
+        .await
+        {
+            Ok(result) => result.rows_affected(),
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        };
+
+        if rows_affected == 0 {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(AppError::OrderCannotModify(
+                "Order status changed or already processed".into(),
+            ));
+        }
+
+        sqlx::query("COMMIT")
+            .execute(&mut *conn)
             .await
             .map_err(AppError::from)
+            .map(|_| ())
     }
 
     /// Fetches a sales order and its line items. Returns a `(order, items)` tuple.
@@ -220,6 +261,17 @@ impl SalesService {
             .await
             .map_err(AppError::from)?;
 
+        SalesOrderRepo::recalculate_total(pool, order_id)
+            .await
+            .map_err(AppError::from)?;
+
+        let order = SalesOrderRepo::find_by_id(pool, order_id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| {
+                AppError::OrderNotFound(format!("Sales order id={} not found", order_id))
+            })?;
+
         Ok((order, item))
     }
 
@@ -250,7 +302,13 @@ impl SalesService {
 
         SalesOrderRepo::delete_item(pool, item_id)
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?;
+
+        SalesOrderRepo::recalculate_total(pool, order_id)
+            .await
+            .map_err(AppError::from)?;
+
+        Ok(())
     }
 
     /// Approves a sales order — checks the info and amount, then bumps it to
@@ -358,9 +416,15 @@ impl SalesService {
     /// Rejects a sales order. Requires a rejection reason and rolls the status
     /// back to `draft`.
     ///
+    /// Uses `BEGIN IMMEDIATE` to serialize concurrent operations and prevent TOCTOU
+    /// races — the `AND status='pending'` guard in the WHERE clause means that a
+    /// concurrent approve wins and this reject safely fails instead of silently
+    /// overwriting.
+    ///
     /// # Errors
     /// - `AppError::OrderNotFound` — ID doesn't exist
-    /// - `AppError::OrderCannotModify` — current status won't allow rejection
+    /// - `AppError::OrderCannotModify` — current status won't allow rejection, or
+    ///   race lost to another concurrent status change
     pub async fn reject_sales_order(
         pool: &SqlitePool,
         id: i64,
@@ -385,13 +449,46 @@ impl SalesService {
             )));
         }
 
-        SalesOrderRepo::reject(pool, id, &dto.reason)
+        // Acquire a connection and start an IMMEDIATE transaction — this prevents two
+        // concurrent requests from both reading stale status data (TOCTOU fix).
+        let mut conn = pool.acquire().await.map_err(AppError::from)?;
+        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+            return Err(AppError::from(e));
+        }
+
+        let rows_affected = match sqlx::query(
+            "UPDATE sales_orders SET status = 'rejected', notes = ?, updated_at = datetime('now') \
+             WHERE id = ? AND status = 'pending' AND deleted_at IS NULL",
+        )
+        .bind(&dto.reason)
+        .bind(id)
+        .execute(&mut *conn)
+        .await
+        {
+            Ok(result) => result.rows_affected(),
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        };
+
+        if rows_affected == 0 {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(AppError::OrderCannotModify(
+                "Order status changed or already processed".into(),
+            ));
+        }
+
+        sqlx::query("COMMIT")
+            .execute(&mut *conn)
             .await
             .map_err(AppError::from)
+            .map(|_| ())
     }
 
-    /// Links an outbound order to a sales order. Records the outbound ID and
-    /// bumps the SO status to `shipped`.
+    /// Links an outbound order to a sales order. Records the outbound ID and,
+    /// if every item's `delivered_quantity >= quantity` (fully fulfilled), bumps
+    /// the SO status to `completed`.
     ///
     /// # Errors
     /// - `AppError::OrderNotFound` — sales order doesn't exist
@@ -415,8 +512,61 @@ impl SalesService {
             )));
         }
 
-        OutboundRepo::link_to_order(pool, outbound_id, order_id)
+        let mut conn = pool.acquire().await.map_err(AppError::from)?;
+        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+            return Err(AppError::from(e));
+        }
+
+        // Link the outbound record to this sales order
+        if let Err(e) = sqlx::query(
+            "UPDATE outbound_records SET order_id = ?, updated_at = datetime('now') \
+             WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(order_id)
+        .bind(outbound_id)
+        .execute(&mut *conn)
+        .await
+        {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(AppError::from(e));
+        }
+
+        // Check whether the sales order is fully delivered
+        let items = match sqlx::query_as::<_, SalesOrderItem>(
+            "SELECT id, order_id, pipe_type, grade, od, wt, quantity, delivered_quantity, \
+             unit_price, total_price, notes, created_at \
+             FROM sales_order_items WHERE order_id = ? ORDER BY id ASC",
+        )
+        .bind(order_id)
+        .fetch_all(&mut *conn)
+        .await
+        {
+            Ok(items) => items,
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        };
+
+        let all_delivered = items.iter().all(|item| item.delivered_quantity >= item.quantity);
+        if all_delivered {
+            if let Err(e) = sqlx::query(
+                "UPDATE sales_orders SET status = 'completed', updated_at = datetime('now') \
+                 WHERE id = ? AND deleted_at IS NULL",
+            )
+            .bind(order_id)
+            .execute(&mut *conn)
+            .await
+            {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        }
+
+        sqlx::query("COMMIT")
+            .execute(&mut *conn)
             .await
             .map_err(AppError::from)
+            .map(|_| ())
     }
 }

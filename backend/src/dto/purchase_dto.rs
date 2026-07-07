@@ -49,6 +49,8 @@ pub struct UpdatePurchaseOrderRequest {
     pub order_date: Option<String>,
     /// Notes.
     pub notes: Option<String>,
+    /// Optional: Replace all line items when present.
+    pub items: Option<Vec<UpdatePurchaseItemRequest>>,
 }
 
 /// Create purchase order item request DTO.
@@ -81,8 +83,13 @@ pub struct CreatePurchaseItemRequest {
 ///
 /// Note: `total_price` is NOT client-writable — the server always computes it
 /// as `quantity * unit_price` to prevent tampering.
+///
+/// `id` is used by the bulk-replace path on order update to match existing rows;
+/// it is ignored by the dedicated PUT `/items/{item_id}` endpoint.
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdatePurchaseItemRequest {
+    /// Existing item ID for matching during bulk-replace (ignored by dedicated item endpoints).
+    pub id: Option<i64>,
     pub pipe_type: Option<String>,
     pub grade: Option<String>,
     pub od: Option<f64>,

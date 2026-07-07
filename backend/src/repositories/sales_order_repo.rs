@@ -39,17 +39,17 @@ impl SalesOrderRepo {
             Self::create_item(&mut tx, order.id, item).await?;
         }
 
-        tx.commit().await?;
-
-        // Recompute total_amount after commit
-        let total: f64 = Self::sum_item_totals(pool, order.id).await?;
+        // Recompute total_amount INSIDE the transaction — no window where total = 0
+        let total: f64 = Self::sum_item_totals_in_tx(&mut tx, order.id).await?;
         if total > 0.0 {
             sqlx::query("UPDATE sales_orders SET total_amount = ? WHERE id = ?")
                 .bind(total)
                 .bind(order.id)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await?;
         }
+
+        tx.commit().await?;
 
         Ok(SalesOrder {
             total_amount: Some(if total > 0.0 { total } else { 0.0 }),
@@ -90,6 +90,30 @@ impl SalesOrderRepo {
         .fetch_one(pool)
         .await?;
         Ok(row.0.unwrap_or(0.0))
+    }
+
+    async fn sum_item_totals_in_tx(
+        tx: &mut Transaction<'_, Sqlite>,
+        order_id: i64,
+    ) -> Result<f64, sqlx::Error> {
+        let row: (Option<f64>,) = sqlx::query_as(
+            "SELECT COALESCE(SUM(total_price), 0) FROM sales_order_items WHERE order_id = ?",
+        )
+        .bind(order_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        Ok(row.0.unwrap_or(0.0))
+    }
+
+    /// Recalculate and update the total_amount for a sales order by summing its items.
+    pub async fn recalculate_total(pool: &SqlitePool, order_id: i64) -> Result<(), sqlx::Error> {
+        let total = Self::sum_item_totals(pool, order_id).await?;
+        sqlx::query("UPDATE sales_orders SET total_amount = ? WHERE id = ?")
+            .bind(total)
+            .bind(order_id)
+            .execute(pool)
+            .await?;
+        Ok(())
     }
 
     /// Dynamic UPDATE of order-level fields (`order_date`, `notes`). Only supplied fields change.
