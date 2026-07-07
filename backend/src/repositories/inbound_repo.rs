@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Sqlite, SqlitePool, Transaction};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateInboundRecordRequest, InboundFilter, UpdateInboundRecordRequest};
@@ -8,7 +8,69 @@ use crate::models::inventory::{InboundItem, InboundRecord};
 pub struct InboundRepo;
 
 impl InboundRepo {
-    /// INSERT into `inbound_records` + `inbound_items` in a single transaction.
+    /// INSERT into `inbound_records` + `inbound_items` inside an existing transaction.
+    /// Used by the service layer when composing multi-record operations.
+    /// Caller manages commit/rollback.
+    pub async fn create_inner(
+        tx: &mut Transaction<'_, Sqlite>,
+        dto: &CreateInboundRecordRequest,
+        inbound_no: &str,
+    ) -> Result<InboundRecord, sqlx::Error> {
+        let record = sqlx::query_as::<_, InboundRecord>(
+            "INSERT INTO inbound_records (inbound_no, inbound_type, order_id, supplier_id, notes, approval_status) \
+             VALUES (?, ?, ?, ?, ?, ?) \
+             RETURNING id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
+               rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
+        )
+        .bind(inbound_no)
+        .bind(&dto.inbound_type)
+        .bind(dto.order_id)
+        .bind(dto.supplier_id)
+        .bind(&dto.notes)
+        .bind(if dto.inbound_type == "purchase" {
+            "auto_approved"
+        } else {
+            "pending"
+        })
+        .fetch_one(&mut **tx)
+        .await?;
+
+        for item in &dto.pipes {
+            sqlx::query(
+                "INSERT INTO inbound_items (inbound_id, pipe_type, pipe_id) VALUES (?, ?, ?)",
+            )
+            .bind(record.id)
+            .bind(&item.pipe_type)
+            .bind(item.pipe_id)
+            .execute(&mut **tx)
+            .await?;
+        }
+
+        Ok(record)
+    }
+
+    /// UPDATE `inbound_records` status to `approved` inside an existing transaction.
+    /// Returns the number of rows affected (0 if record was already processed or deleted).
+    pub async fn approve(
+        tx: &mut Transaction<'_, Sqlite>,
+        id: i64,
+        approval_reason: Option<&str>,
+        handled_by: Option<i64>,
+    ) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE inbound_records SET approval_status = 'approved', \
+             rejection_reason = NULL, approval_reason = ?, handled_by = ?, handled_at = datetime('now'), updated_at = datetime('now') \
+             WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(approval_reason)
+        .bind(handled_by)
+        .bind(id)
+        .execute(&mut **tx)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
+    /// INSERT into `inbound_records` + `inbound_items` in a single self-contained transaction.
     /// Purchase-type records start as `auto_approved`; others as `pending`.
     /// Returns the created `InboundRecord`.
     pub async fn create_with_items(
@@ -204,6 +266,21 @@ impl InboundRepo {
         .execute(pool)
         .await?;
         Ok(())
+    }
+
+    /// SELECT inbound records by order_id. Returns only non-deleted records.
+    pub async fn find_by_order_id(
+        pool: &SqlitePool,
+        order_id: i64,
+    ) -> Result<Vec<InboundRecord>, sqlx::Error> {
+        sqlx::query_as::<_, InboundRecord>(
+            "SELECT id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
+             rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
+             FROM inbound_records WHERE order_id = ? AND deleted_at IS NULL",
+        )
+        .bind(order_id)
+        .fetch_all(pool)
+        .await
     }
 
     /// Soft-delete by setting `deleted_at` timestamp. No-op if already deleted.

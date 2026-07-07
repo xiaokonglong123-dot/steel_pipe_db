@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Sqlite, SqlitePool, Transaction};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateOutboundRecordRequest, OutboundFilter, UpdateOutboundRecordRequest};
@@ -189,6 +189,27 @@ impl OutboundRepo {
         Ok(())
     }
 
+    /// UPDATE outbound_records status to 'approved' inside an existing transaction.
+    /// Returns the number of rows affected (0 if record was already processed or deleted).
+    pub async fn approve(
+        tx: &mut Transaction<'_, Sqlite>,
+        id: i64,
+        approval_reason: Option<&str>,
+        handled_by: Option<i64>,
+    ) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE outbound_records SET approval_status = 'approved', \
+             rejection_reason = NULL, approval_reason = ?, handled_by = ?, handled_at = datetime('now'), updated_at = datetime('now') \
+             WHERE id = ? AND deleted_at IS NULL AND approval_status = 'pending'",
+        )
+        .bind(approval_reason)
+        .bind(handled_by)
+        .bind(id)
+        .execute(&mut **tx)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     /// Sets `order_id` on an outbound record to link it to a sales order.
     pub async fn link_to_order(
         pool: &SqlitePool,
@@ -204,6 +225,21 @@ impl OutboundRepo {
         .execute(pool)
         .await?;
         Ok(())
+    }
+
+    /// SELECT outbound records by order_id. Returns only non-deleted records.
+    pub async fn find_by_order_id(
+        pool: &SqlitePool,
+        order_id: i64,
+    ) -> Result<Vec<OutboundRecord>, sqlx::Error> {
+        sqlx::query_as::<_, OutboundRecord>(
+            "SELECT id, outbound_no, outbound_type, order_id, customer_id, notes, approval_status, \
+             rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
+             FROM outbound_records WHERE order_id = ? AND deleted_at IS NULL",
+        )
+        .bind(order_id)
+        .fetch_all(pool)
+        .await
     }
 
     /// Soft-delete by setting `deleted_at` timestamp. No-op if already deleted.

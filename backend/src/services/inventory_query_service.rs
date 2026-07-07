@@ -18,6 +18,10 @@ impl InventoryQueryService {
     /// Paginated stock listing across both `seamless_pipes` and `screen_pipes`.
     /// Filter by grade, location, fuzzy pipe-number, and pipe type. Results are tagged with pipe type.
     /// Returns `(items, total_count)`.
+    ///
+    /// NOTE: SQL stays in service because it's a cross-table reporting query with UNION ALL,
+    /// dynamic column mapping (grade vs base_grade, od vs base_od), and per-pipe-type bind
+    /// distribution — not a reusable CRUD operation.
     pub async fn list_inventory(
         pool: &SqlitePool,
         filter: &InventoryFilter,

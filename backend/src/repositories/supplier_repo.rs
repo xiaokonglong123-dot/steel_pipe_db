@@ -34,8 +34,7 @@ impl SupplierRepo {
         .await
     }
 
-    /// Dynamic UPDATE of supplier fields (name, contact_person, phone, email, is_active, etc.).
-    /// Only supplied fields change. Returns the updated `Supplier`.
+    /// Dynamic UPDATE of supplier fields. Only supplied fields change. Returns the updated `Supplier`.
     pub async fn update(
         pool: &SqlitePool,
         id: i64,

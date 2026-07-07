@@ -3,14 +3,47 @@ use sqlx::{SqlitePool, Transaction};
 
 use crate::domain::pipe::PipeType;
 use crate::dto::inventory_dto::{
-    BatchCreateInboundRequest, CreateInboundRecordRequest, InboundFilter,
+    BatchCreateInboundRequest, CreateInboundRecordRequest, InboundFilter, InboundPipeItem,
     UpdateInboundRecordRequest,
 };
 use crate::error::AppError;
 use crate::models::inventory::{InboundItem, InboundRecord};
+use crate::models::screen_pipe::ScreenPipe;
+use crate::models::seamless_pipe::SeamlessPipe;
 use crate::repositories::inbound_repo::InboundRepo;
+use crate::repositories::inventory_log_repo::InventoryLogRepo;
+use crate::repositories::inventory_repo::{CreateInventoryLog, InventoryRepo};
+use crate::repositories::location_repo::LocationRepo;
 use crate::services::pipe_helpers::PipeHelpers;
 use crate::services::utils;
+
+/// After inbound execution, refresh location used_counts for all affected pipes.
+/// This ensures the `used_count` column stays consistent with actual stock.
+async fn refresh_inbound_locations(
+    pool: &SqlitePool,
+    items: &[InboundPipeItem],
+) -> Result<(), AppError> {
+    let mut location_ids = std::collections::BTreeSet::new();
+    for item in items {
+        // Validate pipe type
+        PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+            AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+        })?;
+        if let Some(loc_id) =
+            InventoryRepo::get_pipe_location_id(pool, &item.pipe_type, item.pipe_id)
+                .await
+                .map_err(AppError::from)?
+        {
+            location_ids.insert(loc_id);
+        }
+    }
+    for loc_id in location_ids {
+        LocationRepo::refresh_used_count(pool, loc_id)
+            .await
+            .map_err(AppError::from)?;
+    }
+    Ok(())
+}
 
 const VALID_INBOUND_PIPE_STATUSES: &[&str] = &["new", "outbound", "scrapped"];
 
@@ -31,7 +64,11 @@ impl InboundService {
             let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
                 AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
             })?;
-            PipeHelpers::validate_pipes_for_inbound(pool, &pipe_type, &[item.pipe_id]).await?;
+            match pipe_type {
+                PipeType::Seamless => PipeHelpers::validate_pipes_for_inbound::<SeamlessPipe>(pool, &[item.pipe_id]).await?,
+                PipeType::Screen => PipeHelpers::validate_pipes_for_inbound::<ScreenPipe>(pool, &[item.pipe_id]).await?,
+                PipeType::Welded => PipeHelpers::validate_pipes_for_inbound::<crate::models::welded_pipe::WeldedPipe>(pool, &[item.pipe_id]).await?,
+            }
         }
 
         let inbound_no = utils::generate_no("IN");
@@ -53,25 +90,37 @@ impl InboundService {
         items: &[crate::dto::inventory_dto::InboundPipeItem],
     ) -> Result<(), AppError> {
         for item in items {
-            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
-                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
-            })?;
-
-            PipeHelpers::update_pipe_status(tx, &pipe_type, item.pipe_id, "in_stock").await?;
-
-            PipeHelpers::create_inventory_log(
-                tx,
+            let affected = InventoryRepo::update_pipe_status(
+                &mut **tx,
                 &item.pipe_type,
                 item.pipe_id,
-                "inbound",
-                Some("inbound"),
-                Some(record_id),
-                None,
-                None,
-                None,
-                None,
+                "in_stock",
             )
-            .await?;
+            .await
+            .map_err(AppError::from)?;
+            if affected == 0 {
+                return Err(AppError::NotFound(format!(
+                    "Pipe id={} (type={}) not found during status update",
+                    item.pipe_id, item.pipe_type
+                )));
+            }
+
+            InventoryLogRepo::create_in_transaction(
+                &mut *tx,
+                &CreateInventoryLog {
+                    pipe_type: item.pipe_type.clone(),
+                    pipe_id: item.pipe_id,
+                    change_type: "inbound".into(),
+                    ref_type: Some("inbound".into()),
+                    ref_id: Some(record_id),
+                    from_location_id: None,
+                    to_location_id: None,
+                    notes: None,
+                    created_by: None,
+                },
+            )
+            .await
+            .map_err(AppError::from)?;
         }
 
         Ok(())
@@ -80,11 +129,12 @@ impl InboundService {
     async fn execute_inbound_batch(
         pool: &SqlitePool,
         record_id: i64,
-        items: &[crate::dto::inventory_dto::InboundPipeItem],
+        items: &[InboundPipeItem],
     ) -> Result<(), AppError> {
         let mut tx = pool.begin().await.map_err(AppError::from)?;
         Self::execute_inbound_batch_inner(&mut tx, record_id, items).await?;
         tx.commit().await.map_err(AppError::from)?;
+        refresh_inbound_locations(pool, items).await?;
         Ok(())
     }
 
@@ -93,39 +143,9 @@ impl InboundService {
         dto: &CreateInboundRecordRequest,
         inbound_no: &str,
     ) -> Result<InboundRecord, AppError> {
-        let record = sqlx::query_as::<_, InboundRecord>(
-            "INSERT INTO inbound_records (inbound_no, inbound_type, order_id, supplier_id, notes, approval_status) \
-             VALUES (?, ?, ?, ?, ?, ?) \
-             RETURNING id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
-               rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
-        )
-        .bind(inbound_no)
-        .bind(&dto.inbound_type)
-        .bind(dto.order_id)
-        .bind(dto.supplier_id)
-        .bind(&dto.notes)
-        .bind(if dto.inbound_type == "purchase" {
-            "auto_approved"
-        } else {
-            "pending"
-        })
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(AppError::from)?;
-
-        for item in &dto.pipes {
-            sqlx::query(
-                "INSERT INTO inbound_items (inbound_id, pipe_type, pipe_id) VALUES (?, ?, ?)",
-            )
-            .bind(record.id)
-            .bind(&item.pipe_type)
-            .bind(item.pipe_id)
-            .execute(&mut **tx)
+        InboundRepo::create_inner(tx, dto, inbound_no)
             .await
-            .map_err(AppError::from)?;
-        }
-
-        Ok(record)
+            .map_err(AppError::from)
     }
 
     pub async fn approve_inbound(
@@ -161,24 +181,20 @@ impl InboundService {
             let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
                 AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
             })?;
-            PipeHelpers::validate_pipes_for_inbound(pool, &pipe_type, &[item.pipe_id]).await?;
+            match pipe_type {
+                PipeType::Seamless => PipeHelpers::validate_pipes_for_inbound::<SeamlessPipe>(pool, &[item.pipe_id]).await?,
+                PipeType::Screen => PipeHelpers::validate_pipes_for_inbound::<ScreenPipe>(pool, &[item.pipe_id]).await?,
+                PipeType::Welded => PipeHelpers::validate_pipes_for_inbound::<crate::models::welded_pipe::WeldedPipe>(pool, &[item.pipe_id]).await?,
+            }
         }
 
         let mut tx = pool.begin().await.map_err(AppError::from)?;
 
-        let result = sqlx::query(
-            "UPDATE inbound_records SET approval_status = 'approved', \
-             rejection_reason = NULL, approval_reason = ?, handled_by = ?, handled_at = datetime('now'), updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
-        )
-        .bind(approval_reason)
-        .bind(handled_by)
-        .bind(id)
-        .execute(&mut *tx)
-        .await
-        .map_err(AppError::from)?;
+        let affected = InboundRepo::approve(&mut tx, id, approval_reason, handled_by)
+            .await
+            .map_err(AppError::from)?;
 
-        if result.rows_affected() == 0 {
+        if affected == 0 {
             return Err(AppError::NotFound(format!(
                 "Inbound record id={} not found or was deleted during approval",
                 id
@@ -186,28 +202,79 @@ impl InboundService {
         }
 
         for item in &items {
-            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
-                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
-            })?;
+            let table = match PipeType::from_pipe_type_str(&item.pipe_type) {
+                Some(PipeType::Seamless) => "seamless_pipes",
+                Some(PipeType::Screen) => "screen_pipes",
+                Some(PipeType::Welded) => "welded_pipes",
+                None => {
+                    return Err(AppError::Validation(format!(
+                        "Unknown pipe_type: {}",
+                        item.pipe_type
+                    )));
+                }
+            };
+            let sql = format!(
+                "UPDATE {} SET status = 'in_stock', updated_at = datetime('now') \
+                 WHERE id = ? AND deleted_at IS NULL AND status != 'in_stock'",
+                table
+            );
+            let result = sqlx::query(&sql)
+                .bind(item.pipe_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(AppError::from)?;
+            if result.rows_affected() == 0 {
+                return Err(AppError::PipeStatusConflict(format!(
+                    "Pipe id={} (type={}) status changed concurrently, expected pre-status not matched",
+                    item.pipe_id, item.pipe_type
+                )));
+            }
 
-            PipeHelpers::update_pipe_status(&mut tx, &pipe_type, item.pipe_id, "in_stock").await?;
-
-            PipeHelpers::create_inventory_log(
+            InventoryLogRepo::create_in_transaction(
                 &mut tx,
-                &item.pipe_type,
-                item.pipe_id,
-                "inbound",
-                Some("inbound"),
-                Some(id),
-                None,
-                None,
-                None,
-                handled_by,
+                &CreateInventoryLog {
+                    pipe_type: item.pipe_type.clone(),
+                    pipe_id: item.pipe_id,
+                    change_type: "inbound".into(),
+                    ref_type: Some("inbound".into()),
+                    ref_id: Some(id),
+                    from_location_id: None,
+                    to_location_id: None,
+                    notes: None,
+                    created_by: handled_by,
+                },
             )
-            .await?;
+            .await
+            .map_err(AppError::from)?;
+        }
+
+        // FIX 3: Increment received_quantity on linked purchase order
+        if let Some(order_id) = record.order_id {
+            let mut count_by_type: std::collections::BTreeMap<String, i64> =
+                std::collections::BTreeMap::new();
+            for item in &items {
+                *count_by_type.entry(item.pipe_type.clone()).or_insert(0) += 1;
+            }
+            for (pipe_type, count) in count_by_type {
+                sqlx::query(
+                    "UPDATE purchase_order_items SET received_quantity = received_quantity + ? \
+                     WHERE id = (SELECT id FROM purchase_order_items \
+                      WHERE order_id = ? AND pipe_type = ? AND received_quantity < quantity LIMIT 1)",
+                )
+                .bind(count)
+                .bind(order_id)
+                .bind(&pipe_type)
+                .execute(&mut *tx)
+                .await
+                .map_err(AppError::from)?;
+            }
         }
 
         tx.commit().await.map_err(AppError::from)?;
+        refresh_inbound_locations(pool, &items.iter().map(|i| InboundPipeItem {
+            pipe_type: i.pipe_type.clone(),
+            pipe_id: i.pipe_id,
+        }).collect::<Vec<_>>()).await?;
         Ok(())
     }
 
@@ -351,6 +418,12 @@ impl InboundService {
         }
 
         tx.commit().await.map_err(AppError::from)?;
+
+        // Refresh location counts after batch inbound execution (all types)
+        for record_dto in &dto.records {
+            refresh_inbound_locations(pool, &record_dto.pipes).await?;
+        }
+
         Ok(results)
     }
 }

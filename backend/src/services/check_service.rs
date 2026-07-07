@@ -5,7 +5,7 @@ use crate::dto::inventory_dto::{CreateCheckRequest, SubmitCheckItemRequest};
 use crate::error::AppError;
 use crate::models::inventory::{InventoryCheckItem, InventoryCheckRecord};
 use crate::repositories::check_repo::CheckRepo;
-use crate::repositories::inventory_repo::CheckInitItem;
+use crate::repositories::inventory_repo::{CheckInitItem, InventoryRepo};
 use crate::services::utils;
 
 /// Inventory check service — create check orders, submit results per item, complete the full workflow.
@@ -22,14 +22,11 @@ impl CheckService {
 
         let mut items: Vec<CheckInitItem> = Vec::new();
 
-        let seamless_pipes: Vec<(i64,)> = sqlx::query_as(
-            "SELECT id FROM seamless_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
+        let (seamless_ids, screen_ids) = InventoryRepo::find_in_stock_pipe_ids(pool)
+            .await
+            .map_err(AppError::from)?;
 
-        for (id,) in seamless_pipes {
+        for id in seamless_ids {
             items.push(CheckInitItem {
                 pipe_type: "seamless".into(),
                 pipe_id: id,
@@ -37,14 +34,7 @@ impl CheckService {
             });
         }
 
-        let screen_pipes: Vec<(i64,)> = sqlx::query_as(
-            "SELECT id FROM screen_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        for (id,) in screen_pipes {
+        for id in screen_ids {
             items.push(CheckInitItem {
                 pipe_type: "screen".into(),
                 pipe_id: id,
