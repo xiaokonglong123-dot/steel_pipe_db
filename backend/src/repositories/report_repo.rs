@@ -112,7 +112,7 @@ impl ReportRepo {
              CASE WHEN l.capacity > 0 THEN \
              CAST(ROUND(l.used_count * 100.0 / l.capacity) AS INTEGER) \
              ELSE 0 END as occupancy_pct \
-             FROM locations l WHERE l.is_active = 1 ORDER BY l.full_code",
+             FROM locations l              WHERE l.is_active = 1 AND l.deleted_at IS NULL ORDER BY l.full_code",
         )
         .fetch_all(pool)
         .await
@@ -347,7 +347,7 @@ impl ReportRepo {
              COUNT(*) as total, \
              SUM(CASE WHEN result = 'pass' THEN 1 ELSE 0 END) as passed, \
              SUM(CASE WHEN result = 'fail' THEN 1 ELSE 0 END) as failed \
-             FROM quality_certs WHERE cert_date IS NOT NULL \
+             FROM quality_certs WHERE cert_date IS NOT NULL AND deleted_at IS NULL \
              GROUP BY month ORDER BY month DESC LIMIT 12",
         )
         .fetch_all(pool)
@@ -401,7 +401,7 @@ impl ReportRepo {
         let rows: Vec<(String, String, String, String)> = sqlx::query_as(
             "SELECT ir.inbound_no, ir.inbound_type, ir.approval_status, ir.created_at \
              FROM inbound_records ir \
-             WHERE ir.created_at >= datetime('now', ? || ' days') \
+             WHERE ir.created_at >= datetime('now', ? || ' days') AND ir.deleted_at IS NULL \
              ORDER BY ir.created_at DESC LIMIT ?",
         )
         .bind(format!("-{}", days))
@@ -432,7 +432,7 @@ impl ReportRepo {
         let rows: Vec<(String, String, String, String)> = sqlx::query_as(
             "SELECT orr.outbound_no, orr.outbound_type, orr.approval_status, orr.created_at \
              FROM outbound_records orr \
-             WHERE orr.created_at >= datetime('now', ? || ' days') \
+             WHERE orr.created_at >= datetime('now', ? || ' days') AND orr.deleted_at IS NULL \
              ORDER BY orr.created_at DESC LIMIT ?",
         )
         .bind(format!("-{}", days))
@@ -458,7 +458,7 @@ impl ReportRepo {
     pub async fn inbound_count_30d(pool: &SqlitePool) -> Result<i64, AppError> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM inbound_records \
-             WHERE created_at >= datetime('now', '-30 days')",
+             WHERE created_at >= datetime('now', '-30 days') AND deleted_at IS NULL",
         )
         .fetch_one(pool)
         .await
@@ -470,7 +470,7 @@ impl ReportRepo {
     pub async fn outbound_count_30d(pool: &SqlitePool) -> Result<i64, AppError> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM outbound_records \
-             WHERE created_at >= datetime('now', '-30 days')",
+             WHERE created_at >= datetime('now', '-30 days') AND deleted_at IS NULL",
         )
         .fetch_one(pool)
         .await
@@ -484,7 +484,7 @@ impl ReportRepo {
 
         let inbound: Vec<(i64, String, String)> = sqlx::query_as(
             "SELECT id, inbound_no, 'inbound' as ref_type FROM inbound_records \
-             WHERE approval_status = 'pending' ORDER BY created_at DESC LIMIT 20",
+             WHERE approval_status = 'pending' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20",
         )
         .fetch_all(pool)
         .await
@@ -500,7 +500,7 @@ impl ReportRepo {
 
         let outbound: Vec<(i64, String, String)> = sqlx::query_as(
             "SELECT id, outbound_no, 'outbound' as ref_type FROM outbound_records \
-             WHERE approval_status = 'pending' ORDER BY created_at DESC LIMIT 20",
+             WHERE approval_status = 'pending' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20",
         )
         .fetch_all(pool)
         .await
@@ -557,7 +557,7 @@ impl ReportRepo {
         let rows: Vec<(String, String, i64, String, String)> = sqlx::query_as(
             "SELECT qc.cert_number, qc.pipe_type, qc.pipe_id, qc.cert_date, qc.notes \
              FROM quality_certs qc \
-             WHERE qc.result = 'fail' \
+             WHERE qc.result = 'fail' AND qc.deleted_at IS NULL \
              ORDER BY qc.created_at DESC LIMIT ?",
         )
         .bind(limit)
@@ -582,14 +582,14 @@ impl ReportRepo {
     /// Sum of pending inbound + pending outbound records.
     pub async fn pending_approval_count(pool: &SqlitePool) -> Result<i64, AppError> {
         let ib: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM inbound_records WHERE approval_status = 'pending'",
+            "SELECT COUNT(*) FROM inbound_records WHERE approval_status = 'pending' AND deleted_at IS NULL",
         )
         .fetch_one(pool)
         .await
         .map_err(AppError::from)?;
 
         let ob: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM outbound_records WHERE approval_status = 'pending'",
+            "SELECT COUNT(*) FROM outbound_records WHERE approval_status = 'pending' AND deleted_at IS NULL",
         )
         .fetch_one(pool)
         .await
