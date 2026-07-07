@@ -10,9 +10,9 @@ use validator::Validate;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::sales_dto::{
-    ApproveOrderRequest, CreateSalesOrderRequest, RejectOrderRequest, SalesOrderDetailResponse,
-    SalesOrderFilterParams, SalesOrderStatusTransitionRequest, UpdateSalesItemRequest,
-    UpdateSalesOrderRequest,
+    ApproveOrderRequest, CreateSalesOrderRequest, LinkOutboundRequest, RejectOrderRequest,
+    SalesOrderDetailResponse, SalesOrderFilterParams, SalesOrderStatusTransitionRequest,
+    UpdateSalesItemRequest, UpdateSalesOrderRequest,
 };
 use crate::error::AppError;
 use crate::models::sales_order::SalesOrder;
@@ -170,8 +170,9 @@ pub async fn reject_sales_order_handler(
 /// Returns 404 if order or outbound record not found.
 pub async fn link_outbound_to_order_handler(
     Extension(pool): Extension<SqlitePool>,
-    Path((order_id, outbound_id)): Path<(i64, i64)>,
+    Path(order_id): Path<i64>,
+    Json(req): Json<LinkOutboundRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    SalesService::link_outbound_to_order(&pool, order_id, outbound_id).await?;
+    SalesService::link_outbound_to_order(&pool, order_id, req.outbound_record_id).await?;
     Ok((StatusCode::NO_CONTENT, ()).into_response())
 }

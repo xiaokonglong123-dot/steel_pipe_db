@@ -9,6 +9,7 @@ use sqlx::SqlitePool;
 
 use validator::Validate;
 
+use crate::cache::CacheManager;
 use crate::dto::common::PaginationParams;
 use crate::dto::quality_dto::{
     CreateAttachmentRequest, CreateQualityCertRequest, QualityCertFilterParams,
@@ -123,8 +124,16 @@ pub async fn get_grade_handler(
 /// Returns all available API 5CT steel grade reference data.
 pub async fn list_grades_handler(
     Extension(pool): Extension<SqlitePool>,
+    Extension(cache): Extension<CacheManager>,
 ) -> Result<Json<ApiResponse<Vec<Api5ctGradeRef>>>, AppError> {
+    let cache_key = "all_grades";
+    if let Some(cached_json) = cache.grades.get(cache_key).await {
+        if let Ok(cached) = serde_json::from_value::<Vec<Api5ctGradeRef>>(cached_json) {
+            return Ok(ApiResponse::ok(cached));
+        }
+    }
     let grades = QualityService::list_grades(&pool).await?;
+    cache.grades.insert(cache_key.to_string(), serde_json::to_value(&grades).map_err(AppError::from)?).await;
     Ok(ApiResponse::ok(grades))
 }
 
