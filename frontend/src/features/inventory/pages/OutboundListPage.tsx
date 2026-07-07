@@ -1,5 +1,5 @@
 // 出库管理页 — 使用 DataTable + PageLayout + usePagination
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   Button,
   Tag,
@@ -123,7 +123,7 @@ export default function OutboundListPage() {
     }
   };
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       title: t('outbound.outbound_no'),
       dataIndex: 'outbound_no',
@@ -192,7 +192,7 @@ export default function OutboundListPage() {
         </>
       ),
     },
-  ];
+  ], [t, handleApprove, approveMutation, openRejectModal, deleteMutation]);
 
   return (
     <PageLayout

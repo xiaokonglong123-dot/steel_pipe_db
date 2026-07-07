@@ -1,4 +1,5 @@
 // 仪表盘页 — 关键经营指标卡片（钢管总数/库存量/待处理订单/质检数）+ 按类型/状态分布图表
+import { useMemo } from 'react';
 import { Card, Row, Col, Statistic, Spin, Table, Typography } from 'antd';
 import {
   DatabaseOutlined,
@@ -17,21 +18,21 @@ export default function DashboardPage() {
 
   if (isLoading) return <Spin size="large" style={{ display: 'block', margin: '60px auto' }} />;
 
-  const inventoryColumns = [
+  const inventoryColumns = useMemo(() => [
     { title: t('reports.pipe_type'), dataIndex: 'pipe_type', key: 'pipe_type' },
     { title: t('reports.quantity'), dataIndex: 'quantity', key: 'quantity' },
-  ];
+  ], [t]);
 
-  const orderColumns = [
+  const orderColumns = useMemo(() => [
     { title: t('reports.status'), dataIndex: 'status', key: 'status' },
     { title: t('reports.count'), dataIndex: 'count', key: 'count' },
-  ];
+  ], [t]);
 
-  const activityColumns = [
+  const activityColumns = useMemo(() => [
     { title: t('reports.action'), dataIndex: 'action', key: 'action' },
     { title: t('reports.detail'), dataIndex: 'detail', key: 'detail' },
     { title: t('reports.time'), dataIndex: 'timestamp', key: 'timestamp' },
-  ];
+  ], [t]);
 
   return (
     <div>

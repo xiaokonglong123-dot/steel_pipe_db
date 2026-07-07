@@ -1,5 +1,5 @@
 // 无缝钢管列表页 — 使用 DataTable + PageLayout 共享组件
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button, Tag, Input, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -24,7 +24,7 @@ export default function SeamlessPipeListPage() {
 
   const deleteMutation = useDeleteSeamlessPipe();
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       title: t('pipes.pipe_number'),
       dataIndex: 'pipe_number',
@@ -80,7 +80,7 @@ export default function SeamlessPipeListPage() {
         </>
       ),
     },
-  ];
+  ], [t, navigate]);
 
   return (
     <PageLayout

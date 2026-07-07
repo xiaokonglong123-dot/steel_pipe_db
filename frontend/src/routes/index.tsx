@@ -73,13 +73,13 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/pipes/seamless" replace /> },
       // Pipe management
       { path: 'pipes/seamless', element: route(<SeamlessPipeListPage />) },
-      { path: 'pipes/seamless/new', element: route(<SeamlessPipeFormPage />) },
+      { path: 'pipes/seamless/new', element: route(<SeamlessPipeFormPage key="new" />) },
       { path: 'pipes/seamless/:id', element: route(<SeamlessPipeDetailPage />) },
-      { path: 'pipes/seamless/:id/edit', element: route(<SeamlessPipeFormPage />) },
+      { path: 'pipes/seamless/:id/edit', element: route(<SeamlessPipeFormPage key="edit" />) },
       { path: 'pipes/screen', element: route(<ScreenPipeListPage />) },
-      { path: 'pipes/screen/new', element: route(<ScreenPipeFormPage />) },
+      { path: 'pipes/screen/new', element: route(<ScreenPipeFormPage key="new" />) },
       { path: 'pipes/screen/:id', element: route(<ScreenPipeDetailPage />) },
-      { path: 'pipes/screen/:id/edit', element: route(<ScreenPipeFormPage />) },
+      { path: 'pipes/screen/:id/edit', element: route(<ScreenPipeFormPage key="edit" />) },
       // Inventory
       { path: 'inventory/inbound', element: route(<InboundListPage />) },
       { path: 'inventory/inbound/new', element: route(<InboundFormPage key="new" />) },

@@ -213,6 +213,7 @@ export function useLocations(params?: LocationFilter) {
   return useQuery({
     queryKey: inventoryQueryKeys.locations.list(params),
     queryFn: () => locationApi.list(params),
+    staleTime: 10 * 60 * 1000,
   });
 }
 

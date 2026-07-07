@@ -1,5 +1,5 @@
 // Supplier list page — uses DataTable + PageLayout shared components
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button, Tag, Input, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -24,7 +24,7 @@ export default function SupplierListPage() {
 
   const deleteMutation = useDeleteSupplier();
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       title: t('suppliers.code'),
       dataIndex: 'supplier_code',
@@ -81,7 +81,7 @@ export default function SupplierListPage() {
         </>
       ),
     },
-  ];
+  ], [t, navigate, deleteMutation]);
 
   return (
     <PageLayout

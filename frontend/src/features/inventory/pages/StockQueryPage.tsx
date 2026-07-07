@@ -1,5 +1,5 @@
 // 库存查询页 — 按钢管类型/钢级/库位多维度实时查询库存状态
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Table, Space, Tag, Input, Select } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -29,7 +29,7 @@ export default function StockQueryPage() {
 
   const { data: locations } = useLocations({ active_only: true, page_size: 1000 });
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       title: t('stock.pipe_type'),
       dataIndex: 'pipe_type',
@@ -63,7 +63,7 @@ export default function StockQueryPage() {
         return <Tag color={color}>{t('stock.status.' + v)}</Tag>;
       },
     },
-  ];
+  ], [t]);
 
   return (
     <div>
