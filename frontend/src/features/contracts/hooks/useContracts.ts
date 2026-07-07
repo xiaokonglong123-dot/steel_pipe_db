@@ -19,6 +19,13 @@ export function useContract(id: number) {
   return useQuery({
     queryKey: contractQueryKeys.detail(id),
     queryFn: () => contractApi.get(id),
+  });
+}
+
+export function useContractDetail(id: number) {
+  return useQuery({
+    queryKey: contractQueryKeys.detail(id),
+    queryFn: () => contractApi.getDetail(id),
     enabled: !!id,
   });
 }
