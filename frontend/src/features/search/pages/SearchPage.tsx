@@ -148,7 +148,7 @@ export default function SearchPage() {
           size="large"
           onSearch={handleSearch}
           onChange={(e) => {
-            if (!e.target.value) setQuery('');
+            setQuery(e.target.value.trim());
           }}
           style={{ maxWidth: 600 }}
         />

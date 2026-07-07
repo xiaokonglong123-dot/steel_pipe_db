@@ -10,7 +10,7 @@ import {
 } from '@/zod-schemas/search';
 import { searchQueryKeys } from '../queryKeys';
 import { z } from 'zod';
-import type { ApiResponse } from '@/types';
+import type { ApiResponse, PaginatedResponse } from '@/types';
 
 export function useSearchPipes(query: string, enabled = true) {
   return useQuery({
@@ -29,8 +29,8 @@ export function useSearchInbound(query: string, enabled = true) {
     queryKey: searchQueryKeys.inbound(query),
     queryFn: () =>
       apiClient
-        .get<ApiResponse<unknown[]>>('/inventory/inbound/search', { q: query })
-        .then((r) => validateResponse(z.array(searchInboundResultSchema), r.data)),
+        .get<PaginatedResponse<unknown>>('/inventory/inbound/search', { q: query })
+        .then((r) => validateResponse(z.array(searchInboundResultSchema), r.data.items)),
     enabled: query.length > 0 && enabled,
     staleTime: 0,
   });
@@ -41,8 +41,8 @@ export function useSearchOutbound(query: string, enabled = true) {
     queryKey: searchQueryKeys.outbound(query),
     queryFn: () =>
       apiClient
-        .get<ApiResponse<unknown[]>>('/inventory/outbound/search', { q: query })
-        .then((r) => validateResponse(z.array(searchOutboundResultSchema), r.data)),
+        .get<PaginatedResponse<unknown>>('/inventory/outbound/search', { q: query })
+        .then((r) => validateResponse(z.array(searchOutboundResultSchema), r.data.items)),
     enabled: query.length > 0 && enabled,
     staleTime: 0,
   });
@@ -53,8 +53,8 @@ export function useSearchPurchaseOrders(query: string, enabled = true) {
     queryKey: searchQueryKeys.purchases(query),
     queryFn: () =>
       apiClient
-        .get<ApiResponse<unknown[]>>('/purchase-orders/search', { q: query })
-        .then((r) => validateResponse(z.array(searchPurchaseOrderResultSchema), r.data)),
+        .get<PaginatedResponse<unknown>>('/purchase-orders/search', { q: query })
+        .then((r) => validateResponse(z.array(searchPurchaseOrderResultSchema), r.data.items)),
     enabled: query.length > 0 && enabled,
     staleTime: 0,
   });
@@ -65,8 +65,8 @@ export function useSearchSalesOrders(query: string, enabled = true) {
     queryKey: searchQueryKeys.sales(query),
     queryFn: () =>
       apiClient
-        .get<ApiResponse<unknown[]>>('/sales-orders/search', { q: query })
-        .then((r) => validateResponse(z.array(searchSalesOrderResultSchema), r.data)),
+        .get<PaginatedResponse<unknown>>('/sales-orders/search', { q: query })
+        .then((r) => validateResponse(z.array(searchSalesOrderResultSchema), r.data.items)),
     enabled: query.length > 0 && enabled,
     staleTime: 0,
   });
