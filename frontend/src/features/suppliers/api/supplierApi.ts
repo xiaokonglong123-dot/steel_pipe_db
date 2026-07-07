@@ -1,14 +1,14 @@
 // Supplier API — CRUD + search + active supplier list
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
-import type { Supplier, CreateSupplierData, SupplierFilterParams } from '../types';
+import type { Supplier, CreateSupplierData, UpdateSupplierData, SupplierFilterParams } from '../types';
 import { validateResponse, paginatedDataSchema } from '@/lib/validateResponse';
 import { z } from 'zod';
 import { supplierSchema } from '@/zod-schemas/core';
 
 export const supplierApi = {
   list: async (params?: SupplierFilterParams) => {
-    const res = await apiClient.get<PaginatedResponse<Supplier>>('/suppliers', { params });
+    const res = await apiClient.get<PaginatedResponse<Supplier>>('/suppliers', params);
     return validateResponse(paginatedDataSchema(supplierSchema), res.data);
   },
 
@@ -22,7 +22,7 @@ export const supplierApi = {
     return validateResponse(supplierSchema, res.data);
   },
 
-  update: async (id: number, data: Partial<CreateSupplierData>) => {
+  update: async (id: number, data: UpdateSupplierData) => {
     const res = await apiClient.put<ApiResponse<Supplier>>(`/suppliers/${id}`, data);
     return validateResponse(supplierSchema, res.data);
   },

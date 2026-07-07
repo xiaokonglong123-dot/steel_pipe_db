@@ -75,7 +75,7 @@ export const customerSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: nullableString,
-});
+}).passthrough();
 
 export const supplierSchema = z.object({
   id: z.number(),
@@ -90,7 +90,7 @@ export const supplierSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: nullableString,
-});
+}).passthrough();
 
 export const userInfoSchema = z.object({
   id: z.number(),
