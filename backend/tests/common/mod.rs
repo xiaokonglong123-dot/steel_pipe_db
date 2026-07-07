@@ -26,7 +26,7 @@ pub async fn test_pool() -> SqlitePool {
 /// Like `test_pool()` but accepts a custom migrations path.
 pub async fn test_pool_with_migrations(_migrations_path: &str) -> SqlitePool {
     let pool = SqlitePoolOptions::new()
-        .max_connections(1)
+        .max_connections(20)
         .min_connections(1)
         .connect("sqlite::memory:")
         .await
@@ -56,7 +56,7 @@ pub async fn temp_file_pool() -> (SqlitePool, tempfile::NamedTempFile) {
     let database_url = format!("sqlite://{path}?mode=rwc");
 
     let pool = SqlitePoolOptions::new()
-        .max_connections(1)
+        .max_connections(20)
         .min_connections(1)
         .connect(&database_url)
         .await
