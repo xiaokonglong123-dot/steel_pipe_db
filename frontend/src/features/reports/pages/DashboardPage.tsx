@@ -1,4 +1,4 @@
-// 仪表盘页 — 关键经营指标卡片（钢管总数/库存量/待处理订单/质检数）+ 按类型/状态分布图表
+// 仪表盘页 — 关键经营指标卡片（总库存/30天出入库/待审批数）+ 出入库及待审批明细表
 import { useMemo } from 'react';
 import { Card, Row, Col, Statistic, Spin, Table, Typography } from 'antd';
 import {
@@ -9,6 +9,12 @@ import {
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useDashboard } from '../hooks/useReports';
+import type {
+  DashboardRecentInbound,
+  DashboardRecentOutbound,
+  DashboardPendingApproval,
+  DashboardRecentQualityFailure,
+} from '../types';
 
 const { Title } = Typography;
 
@@ -18,21 +24,31 @@ export default function DashboardPage() {
 
   if (isLoading) return <Spin size="large" style={{ display: 'block', margin: '60px auto' }} />;
 
-  const inventoryColumns = useMemo(() => [
-    { title: t('reports.pipe_type'), dataIndex: 'pipe_type', key: 'pipe_type' },
-    { title: t('reports.quantity'), dataIndex: 'quantity', key: 'quantity' },
-  ], [t]);
+  const inboundColumns = useMemo(() => [
+    { title: '入库单号', dataIndex: 'record_no', key: 'record_no' },
+    { title: '类型', dataIndex: 'type', key: 'type' },
+    { title: '状态', dataIndex: 'approval_status', key: 'approval_status' },
+    { title: '时间', dataIndex: 'created_at', key: 'created_at' },
+  ], []);
 
-  const orderColumns = useMemo(() => [
-    { title: t('reports.status'), dataIndex: 'status', key: 'status' },
-    { title: t('reports.count'), dataIndex: 'count', key: 'count' },
-  ], [t]);
+  const outboundColumns = useMemo(() => [
+    { title: '出库单号', dataIndex: 'record_no', key: 'record_no' },
+    { title: '类型', dataIndex: 'type', key: 'type' },
+    { title: '状态', dataIndex: 'approval_status', key: 'approval_status' },
+    { title: '时间', dataIndex: 'created_at', key: 'created_at' },
+  ], []);
 
-  const activityColumns = useMemo(() => [
-    { title: t('reports.action'), dataIndex: 'action', key: 'action' },
-    { title: t('reports.detail'), dataIndex: 'detail', key: 'detail' },
-    { title: t('reports.time'), dataIndex: 'timestamp', key: 'timestamp' },
-  ], [t]);
+  const pendingColumns = useMemo(() => [
+    { title: '单据号', dataIndex: 'reference_no', key: 'reference_no' },
+    { title: '类型', dataIndex: 'reference_type', key: 'reference_type' },
+  ], []);
+
+  const failureColumns = useMemo(() => [
+    { title: '证书编号', dataIndex: 'cert_no', key: 'cert_no' },
+    { title: '管材类型', dataIndex: 'pipe_type', key: 'pipe_type' },
+    { title: '检验日期', dataIndex: 'inspect_date', key: 'inspect_date' },
+    { title: '备注', dataIndex: 'notes', key: 'notes' },
+  ], []);
 
   return (
     <div>
@@ -42,7 +58,7 @@ export default function DashboardPage() {
           <Card>
             <Statistic
               title={t('reports.total_pipes')}
-              value={data?.total_pipes ?? 0}
+              value={data?.total_stock ?? 0}
               prefix={<DatabaseOutlined />}
             />
           </Card>
@@ -50,8 +66,8 @@ export default function DashboardPage() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title={t('reports.total_inventory')}
-              value={data?.total_inventory ?? 0}
+              title="近30天入库"
+              value={data?.inbound_30d ?? 0}
               prefix={<InboxOutlined />}
             />
           </Card>
@@ -60,7 +76,7 @@ export default function DashboardPage() {
           <Card>
             <Statistic
               title={t('reports.pending_orders')}
-              value={data?.pending_orders ?? 0}
+              value={data?.pending_approvals ?? 0}
               prefix={<ClockCircleOutlined />}
             />
           </Card>
@@ -68,8 +84,8 @@ export default function DashboardPage() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title={t('reports.recent_quality_certs')}
-              value={data?.recent_quality_certs ?? 0}
+              title="近30天出库"
+              value={data?.outbound_30d ?? 0}
               prefix={<CheckCircleOutlined />}
             />
           </Card>
@@ -77,22 +93,22 @@ export default function DashboardPage() {
       </Row>
       <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
         <Col xs={24} lg={12}>
-          <Card title={t('reports.inventory_by_type')}>
-            <Table
-              columns={inventoryColumns}
-              dataSource={data?.inventory_by_type}
-              rowKey="pipe_type"
+          <Card title="最近入库记录">
+            <Table<DashboardRecentInbound>
+              columns={inboundColumns}
+              dataSource={data?.recent_inbound}
+              rowKey="record_no"
               pagination={false}
               size="small"
             />
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title={t('reports.orders_by_status')}>
-            <Table
-              columns={orderColumns}
-              dataSource={data?.orders_by_status}
-              rowKey="status"
+          <Card title="最近出库记录">
+            <Table<DashboardRecentOutbound>
+              columns={outboundColumns}
+              dataSource={data?.recent_outbound}
+              rowKey="record_no"
               pagination={false}
               size="small"
             />
@@ -100,12 +116,23 @@ export default function DashboardPage() {
         </Col>
       </Row>
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col span={24}>
-          <Card title={t('reports.recent_activities')}>
-            <Table
-              columns={activityColumns}
-              dataSource={data?.recent_activities}
+        <Col xs={24} lg={12}>
+          <Card title="待审批列表">
+            <Table<DashboardPendingApproval>
+              columns={pendingColumns}
+              dataSource={data?.pending_approval_list}
               rowKey="id"
+              pagination={false}
+              size="small"
+            />
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card title="最近质检不合格">
+            <Table<DashboardRecentQualityFailure>
+              columns={failureColumns}
+              dataSource={data?.recent_quality_failures}
+              rowKey="cert_no"
               pagination={false}
               size="small"
             />

@@ -9,7 +9,7 @@ export function useInventorySummary(params?: { location_id?: number; grade?: str
   });
 }
 
-export function useOrderReport(params?: { start_date?: string; end_date?: string; order_type?: string }) {
+export function useOrderReport(params?: { type?: string; period?: string }) {
   return useQuery({
     queryKey: reportQueryKeys.order(params),
     queryFn: () => reportApi.getOrderReport(params),

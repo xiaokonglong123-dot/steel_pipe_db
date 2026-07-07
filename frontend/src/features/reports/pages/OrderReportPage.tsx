@@ -2,8 +2,10 @@
  * OrderReportPage — Aggregated order statistics by period.
  *
  * Supports filtering by order type (purchase/sales) and period granularity.
+ * Backend returns: { type, period, orders, status_distribution, top_customers|top_suppliers }
+ * See backend/src/services/report_service.rs → order_report()
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card,
   Table,
@@ -17,18 +19,12 @@ import {
 } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { reportApi } from '../api/reportApi';
+import { useOrderReport } from '../hooks/useReports';
+import type { OrderReportOrder, StatusDistribution } from '../types';
 
 const { Title } = Typography;
 
-interface OrderReportRow {
-  period: string;
-  order_count: number;
-  total_amount: number;
-  by_status: Record<string, number>;
-}
-
-const columns: ColumnsType<OrderReportRow> = [
+const orderColumns: ColumnsType<OrderReportOrder> = [
   { title: '期间', dataIndex: 'period', key: 'period', width: 140 },
   { title: '订单数', dataIndex: 'order_count', key: 'order_count', width: 100 },
   {
@@ -38,40 +34,16 @@ const columns: ColumnsType<OrderReportRow> = [
     width: 140,
     render: (v: number) => `¥${v.toLocaleString()}`,
   },
-  {
-    title: '按状态',
-    dataIndex: 'by_status',
-    key: 'by_status',
-    render: (by_status: Record<string, number>) => (
-      <Space size={[4, 4]} wrap>
-        {Object.entries(by_status).map(([status, count]) => (
-          <Tag key={status}>
-            {status}: {count}
-          </Tag>
-        ))}
-      </Space>
-    ),
-  },
 ];
 
 export default function OrderReportPage() {
-  const [data, setData] = useState<OrderReportRow[]>([]);
-  const [loading, setLoading] = useState(false);
   const [orderType, setOrderType] = useState<string>('purchase');
 
-  useEffect(() => {
-    setLoading(true);
-    reportApi
-      .getOrderReport({ order_type: orderType })
-      .then((res) => {
-        setData(Array.isArray(res) ? res : res ? [res] : []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [orderType]);
+  // [#6] send `type` (not `order_type`) and `period` to match backend expectations
+  const { data, isLoading } = useOrderReport({ type: orderType, period: 'monthly' });
 
-  const totalOrders = data.reduce((sum, r) => sum + r.order_count, 0);
-  const totalAmount = data.reduce((sum, r) => sum + r.total_amount, 0);
+  const totalOrders = data?.orders?.reduce((sum, r) => sum + r.order_count, 0) ?? 0;
+  const totalAmount = data?.orders?.reduce((sum, r) => sum + r.total_amount, 0) ?? 0;
 
   return (
     <div style={{ padding: 24 }}>
@@ -92,6 +64,9 @@ export default function OrderReportPage() {
               { value: 'sales', label: '销售订单' },
             ]}
           />
+          <span style={{ marginLeft: 16, color: '#888' }}>
+            类型: {data?.type ?? '-'} / 周期: {data?.period ?? '-'}
+          </span>
         </Space>
       </Card>
 
@@ -108,14 +83,62 @@ export default function OrderReportPage() {
         </Col>
       </Row>
 
+      {/* Status Distribution */}
+      {data?.status_distribution && data.status_distribution.length > 0 && (
+        <Card title="状态分布" style={{ marginBottom: 16 }}>
+          <Space size={[8, 8]} wrap>
+            {data.status_distribution.map((s: StatusDistribution) => (
+              <Tag key={s.status} color="blue">
+                {s.status}: {s.count}
+              </Tag>
+            ))}
+          </Space>
+        </Card>
+      )}
+
+      {/* Top Customers (sales) */}
+      {orderType === 'sales' && data?.top_customers && data.top_customers.length > 0 && (
+        <Card title="Top 客户" style={{ marginBottom: 16 }}>
+          <Table
+            columns={[
+              { title: '客户', dataIndex: 'customer', key: 'customer', width: 200 },
+              { title: '订单数', dataIndex: 'order_count', key: 'order_count', width: 100 },
+              { title: '总金额', dataIndex: 'total_amount', key: 'total_amount', render: (v: number) => `¥${v.toLocaleString()}` },
+            ]}
+            dataSource={data.top_customers}
+            rowKey="customer"
+            pagination={false}
+            size="small"
+          />
+        </Card>
+      )}
+
+      {/* Top Suppliers (purchase) */}
+      {orderType === 'purchase' && data?.top_suppliers && data.top_suppliers.length > 0 && (
+        <Card title="Top 供应商" style={{ marginBottom: 16 }}>
+          <Table
+            columns={[
+              { title: '供应商', dataIndex: 'supplier', key: 'supplier', width: 200 },
+              { title: '订单数', dataIndex: 'order_count', key: 'order_count', width: 100 },
+              { title: '总金额', dataIndex: 'total_amount', key: 'total_amount', render: (v: number) => `¥${v.toLocaleString()}` },
+            ]}
+            dataSource={data.top_suppliers}
+            rowKey="supplier"
+            pagination={false}
+            size="small"
+          />
+        </Card>
+      )}
+
+      {/* Orders Table */}
       <Card>
-        <Table<OrderReportRow>
-          columns={columns}
-          dataSource={data}
+        <Table<OrderReportOrder>
+          columns={orderColumns}
+          dataSource={data?.orders}
           rowKey="period"
-          loading={loading}
+          loading={isLoading}
           pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
-          scroll={{ x: 600 }}
+          scroll={{ x: 400 }}
         />
       </Card>
     </div>
