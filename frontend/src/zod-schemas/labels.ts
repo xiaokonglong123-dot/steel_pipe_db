@@ -20,10 +20,10 @@ export const pipeLabelSchema = z.object({
   production_date: z.string().optional(),
   location: z.string().optional(),
   status: z.string(),
-}).strict();
+}).passthrough();
 
 export const labelDataSchema = z.object({
   label_id: z.string(),
   content: z.string(),
   format: z.string(),
-}).strict();
+}).passthrough();

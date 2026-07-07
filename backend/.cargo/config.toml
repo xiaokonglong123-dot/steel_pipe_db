@@ -1,5 +1,5 @@
 [http]
-cainfo = "/tmp/ca-bundle.crt"
+cainfo = "/etc/ssl/certs/ca-certificates.crt"
 check-revoke = false
 timeout = 120
 

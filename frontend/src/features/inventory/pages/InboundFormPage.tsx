@@ -1,5 +1,4 @@
-// 入库单新增/编辑表单页 — 表头信息 + 可动态增删的多行管材列表（管材类型 + 管材ID）
-// 支持从管材搜索弹窗选取已有管材加入入库列表
+// 入库单新增/编辑表单页 — 使用 PageLayout + 共享常量
 import { useEffect, useState } from 'react';
 import {
   Form,
@@ -16,12 +15,25 @@ import {
 import { PlusOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useCreateInbound, useInboundRecord } from '../hooks/useInventory';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { INBOUND_TYPES, DETAILED_PIPE_TYPES } from '@/shared/constants';
+import { parsePipeIds } from '@/shared/utils/pipeIds';
+import { useCreateInbound, useUpdateInbound, useInboundRecord } from '../hooks/useInventory';
 import { pipeSearchApi } from '../api/inventoryApi';
 import type { PipeSearchResult, CreateInboundData, InboundItem } from '../api/inventoryApi';
 
-const INBOUND_TYPES = ['purchase', 'production', 'return', 'transfer'];
-const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
+interface PipeFormRow {
+  pipe_type?: string;
+  pipe_id?: number;
+  pipe_number?: string;
+  grade?: string;
+  od?: number;
+  wt?: number;
+}
+
+function pipeRowKey(pipeType: string | undefined, pipeId: number | undefined): string | null {
+  return pipeType && typeof pipeId === 'number' ? `${pipeType}:${pipeId}` : null;
+}
 
 export default function InboundFormPage() {
   const { t } = useTranslation();
@@ -34,11 +46,15 @@ export default function InboundFormPage() {
 
   const { data: inboundRecord, isLoading: loadingRecord } = useInboundRecord(orderId);
   const createMutation = useCreateInbound();
+  const updateMutation = useUpdateInbound(orderId);
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [searchResults, setSearchResults] = useState<PipeSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchPipeType, setBatchPipeType] = useState('casing');
+  const [batchPipeIds, setBatchPipeIds] = useState('');
 
   useEffect(() => {
     if (isEdit && inboundRecord) {
@@ -69,10 +85,11 @@ export default function InboundFormPage() {
   };
 
   const handleSelectPipe = (pipe: PipeSearchResult) => {
-    const pipes = form.getFieldValue('pipes') || [];
-    const exists = pipes.some((p: { pipe_id: number }) => p.pipe_id === pipe.id);
+    const pipes = (form.getFieldValue('pipes') || []) as PipeFormRow[];
+    const nextKey = pipeRowKey(pipe.pipe_type, pipe.id);
+    const exists = pipes.some((p) => pipeRowKey(p.pipe_type, p.pipe_id) === nextKey);
     if (exists) {
-      message.warning(t('common.operate_failed'));
+      message.warning(t('inbound.pipe_already_added', 'This pipe has already been added to the list'));
       return;
     }
     form.setFieldsValue({
@@ -81,19 +98,65 @@ export default function InboundFormPage() {
     setSearchModalOpen(false);
   };
 
+  const handleBatchAddPipes = () => {
+    const ids = parsePipeIds(batchPipeIds);
+    if (ids.length === 0) {
+      message.error(t('common.required'));
+      return;
+    }
+
+    const currentPipes = (form.getFieldValue('pipes') || []) as PipeFormRow[];
+    const existingKeys = new Set(
+      currentPipes
+        .map((pipe) => pipeRowKey(pipe.pipe_type, pipe.pipe_id))
+        .filter((key): key is string => key !== null),
+    );
+    const rowsToAdd = ids
+      .filter((pipeId) => !existingKeys.has(pipeRowKey(batchPipeType, pipeId) ?? ''))
+      .map((pipeId) => ({ pipe_type: batchPipeType, pipe_id: pipeId }));
+
+    if (rowsToAdd.length === 0) {
+      message.warning(t('inbound.pipe_already_added', 'This pipe has already been added to the list'));
+      return;
+    }
+
+    form.setFieldsValue({ pipes: [...currentPipes, ...rowsToAdd] });
+    setBatchPipeIds('');
+    setBatchModalOpen(false);
+    message.success(t('common.operate_success'));
+  };
+
   const handleSubmit = async (values: Record<string, unknown>) => {
     try {
+      const pipes = Array.isArray(values.pipes)
+        ? values.pipes.map((p: unknown) => {
+            const item = p as Record<string, unknown>;
+            return { pipe_type: String(item.pipe_type ?? ''), pipe_id: Number(item.pipe_id) };
+          })
+        : [];
+
       const cleanValues: CreateInboundData = {
-        inbound_type: values.inbound_type as string,
-        order_id: values.order_id as number | undefined,
-        supplier_id: values.supplier_id as number | undefined,
-        notes: values.notes as string | undefined,
-        pipes: ((values.pipes as Array<Record<string, unknown>>) ?? []).map((p) => ({
-          pipe_type: p.pipe_type as string,
-          pipe_id: p.pipe_id as number,
-        })),
+        inbound_type: String(values.inbound_type ?? ''),
+        order_id: values.order_id != null ? Number(values.order_id) : undefined,
+        supplier_id: values.supplier_id != null ? Number(values.supplier_id) : undefined,
+        notes: values.notes != null ? String(values.notes) : undefined,
+        pipes,
       };
-      await createMutation.mutateAsync(cleanValues);
+
+      if (!cleanValues.inbound_type || cleanValues.pipes.length === 0) {
+        message.error(t('common.required'));
+        return;
+      }
+      if (cleanValues.pipes.some((p) => !p.pipe_type || !p.pipe_id)) {
+        message.error(t('common.required'));
+        return;
+      }
+
+      if (isEdit) {
+        await updateMutation.mutateAsync(cleanValues);
+      } else {
+        await createMutation.mutateAsync(cleanValues);
+      }
       message.success(t('common.operate_success'));
       navigate('/inventory/inbound');
     } catch (err) {
@@ -171,7 +234,7 @@ export default function InboundFormPage() {
           style={{ margin: 0 }}
         >
           <Select style={{ width: 120 }}>
-            {PIPE_TYPES.map((type) => (
+            {DETAILED_PIPE_TYPES.map((type) => (
               <Select.Option key={type} value={type}>
                 {t(`pipe_type.${type}`, type)}
               </Select.Option>
@@ -243,10 +306,10 @@ export default function InboundFormPage() {
   ];
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('inbound.create_inbound')}
-      </h2>
+    <PageLayout
+      title={isEdit ? t('common.edit') : t('inbound.create_inbound')}
+      onBack={() => navigate('/inventory/inbound')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -295,11 +358,23 @@ export default function InboundFormPage() {
             >
               {t('common.search')}
             </Button>
+            <Button
+              type="primary"
+              ghost
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setBatchPipeIds('');
+                setBatchModalOpen(true);
+              }}
+            >
+              {t('inbound.batch_add_pipes', '批量添加')}
+            </Button>
           </Space>
         </h3>
 
         <Form.List name="pipes" initialValue={[]}>
-          {(fields, { add, remove: _remove }) => (
+          {(fields, { add }) => (
             <>
               <Table
                 columns={itemColumns}
@@ -331,7 +406,7 @@ export default function InboundFormPage() {
             <Button
               type="primary"
               htmlType="submit"
-              loading={createMutation.isPending}
+              loading={isEdit ? updateMutation.isPending : createMutation.isPending}
             >
               {t('common.save')}
             </Button>
@@ -368,6 +443,29 @@ export default function InboundFormPage() {
           locale={{ emptyText: t('common.no_data') }}
         />
       </Modal>
-    </div>
+
+      <Modal
+        title={t('inbound.batch_add_pipes', '批量添加管材')}
+        open={batchModalOpen}
+        onOk={handleBatchAddPipes}
+        onCancel={() => setBatchModalOpen(false)}
+        destroyOnClose
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Select
+            value={batchPipeType}
+            onChange={setBatchPipeType}
+            style={{ width: 200 }}
+            options={DETAILED_PIPE_TYPES.map((pt) => ({ label: t(`pipe_type.${pt}`, pt), value: pt }))}
+          />
+          <Input.TextArea
+            rows={6}
+            value={batchPipeIds}
+            onChange={(event) => setBatchPipeIds(event.target.value)}
+            placeholder={t('inbound.batch_pipe_ids_placeholder', '例如：1001,1002,1003 或 1001-1010；支持空格、换行、逗号分隔')}
+          />
+        </Space>
+      </Modal>
+    </PageLayout>
   );
 }

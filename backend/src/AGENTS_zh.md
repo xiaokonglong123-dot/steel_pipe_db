@@ -30,11 +30,11 @@ This directory is where all the backend source modules get wired together. Don't
 .layer(CorsLayer::permissive())
 .layer(TraceLayer::new_for_http())
 .layer(Extension(pool))
-.layer(Extension(jwt_secret))
+.layer(Extension(JwtSecret(jwt_secret)))
 ```
 
 - `Extension(SqlitePool)` — raw pool, no wrapper struct
-- `Extension(String)` — JWT secret as a bare `String`, no newtype
+- `Extension(JwtSecret)` — JWT secret newtype with redacted `Debug`; missing extension fails closed instead of using an empty fallback
 - Handlers grab what they need via `Extension(pool): Extension<SqlitePool>`
 
 ## `router.rs` — Route Mounting
@@ -51,13 +51,14 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         // ...
         .layer(CorsLayer::permissive())
         .layer(Extension(pool))
-        .layer(Extension(jwt_secret))
+        .layer(Extension(JwtSecret(jwt_secret)))
 }
 ```
 
 - The router function **creates** routes fresh — doesn't accept pre-built services
-- Handlers get DI through `Extension<SqlitePool>` and `Extension<String>` extractors
+- Handlers get DI through `Extension<SqlitePool>` and auth handlers use `Extension<JwtSecret>`
 - Auth middleware wraps individual sub-routers, not the whole app
+- Request ID middleware sets/propagates `x-request-id`; CORS exposes that header to the browser
 
 ## `error.rs` — Error Handling (Numeric Error Codes)
 
@@ -96,6 +97,7 @@ Domain breakdown:
 - **`AuthContext`** extractor — pulled from a validated JWT token (contains `user_id`, `username`, `role`)
 - **`auth_middleware`** — Axum middleware layer that validates Bearer tokens from the `Authorization` header
   - Reads JWT secret from request extensions
+  - Missing `JwtSecret` returns 500 `Authentication is not configured` instead of silently using an empty secret
   - Decodes the token with HS256 via `jsonwebtoken`
   - On success: injects `AuthContext` into request extensions
   - On failure: returns 401 with `ApiErrorResponse` (includes `success: false`, `request_id`, numeric error code 11001/11002)

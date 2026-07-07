@@ -1,17 +1,19 @@
-// Supplier list page — paginated query, search, status tags, CRUD
-import { useState } from 'react';
-import { Table, Button, Space, Tag, Input, Popconfirm } from 'antd';
+// Supplier list page — uses DataTable + PageLayout shared components
+import { useState, useMemo } from 'react';
+import { Button, Tag, Input, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DataTable } from '@/shared/components/DataTable';
+import { usePagination } from '@/shared/hooks/usePagination';
 import { useSuppliers, useDeleteSupplier } from '../hooks/useSuppliers';
 import type { Supplier } from '../types';
 
 export default function SupplierListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { page, pageSize, onPaginationChange, reset } = usePagination();
   const [searchText, setSearchText] = useState('');
 
   const { data, isLoading } = useSuppliers({
@@ -22,11 +24,11 @@ export default function SupplierListPage() {
 
   const deleteMutation = useDeleteSupplier();
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       title: t('suppliers.code'),
-      dataIndex: 'code',
-      key: 'code',
+      dataIndex: 'supplier_code',
+      key: 'supplier_code',
       sorter: true,
     },
     {
@@ -38,42 +40,33 @@ export default function SupplierListPage() {
       title: t('suppliers.contact_person'),
       dataIndex: 'contact_person',
       key: 'contact_person',
+      render: (val: string) => val || '-',
     },
     {
       title: t('suppliers.phone'),
       dataIndex: 'phone',
       key: 'phone',
-    },
-    {
-      title: t('suppliers.grade_supply'),
-      dataIndex: 'grade_supply',
-      key: 'grade_supply',
-      render: (val: string) =>
-        val
-          ? val.split(',').map((g) => (
-              <Tag key={g.trim()} color="blue" style={{ marginBottom: 2 }}>
-                {g.trim()}
-              </Tag>
-            ))
-          : '-',
+      render: (val: string) => val || '-',
     },
     {
       title: t('suppliers.status'),
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => {
-        const color = status === 'active' ? 'green' : 'red';
-        return <Tag color={color}>{status}</Tag>;
-      },
+      dataIndex: 'is_active',
+      key: 'is_active',
+      render: (isActive: boolean) => (
+        <Tag color={isActive ? 'green' : 'red'}>
+          {isActive ? t('common.active') : t('common.inactive')}
+        </Tag>
+      ),
     },
     {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: Supplier) => (
-        <Space>
+        <>
           <Button
             type="link"
-            onClick={() => navigate(`/suppliers/${record.id}`)}
+            size="small"
+            onClick={() => navigate(`/suppliers/${record.id}/edit`)}
           >
             {t('common.edit')}
           </Button>
@@ -81,58 +74,44 @@ export default function SupplierListPage() {
             title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger loading={deleteMutation.isPending}>
+            <Button type="link" danger size="small" loading={deleteMutation.isPending}>
               {t('common.delete')}
             </Button>
           </Popconfirm>
-        </Space>
+        </>
       ),
     },
-  ];
+  ], [t, navigate, deleteMutation]);
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <Space>
-          <Input
-            placeholder={t('common.search')}
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 250 }}
-          />
-        </Space>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/suppliers/new')}
-        >
+    <PageLayout
+      title={t('suppliers.title')}
+      extra={
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/suppliers/new')}>
           {t('common.create')}
         </Button>
-      </div>
-      <Table
-        columns={columns}
-        dataSource={data?.items}
-        rowKey="id"
-        loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-          showTotal: (total) => t('common.total_items', { total }),
+      }
+    >
+      <Input
+        placeholder={t('common.search')}
+        prefix={<SearchOutlined />}
+        value={searchText}
+        onChange={(e) => {
+          setSearchText(e.target.value);
+          reset();
         }}
+        style={{ width: 250, marginBottom: 16 }}
+        allowClear
       />
-    </div>
+      <DataTable<Supplier>
+        columns={columns}
+        items={data?.items}
+        total={data?.total}
+        page={page}
+        pageSize={pageSize}
+        loading={isLoading}
+        onPaginationChange={onPaginationChange}
+      />
+    </PageLayout>
   );
 }

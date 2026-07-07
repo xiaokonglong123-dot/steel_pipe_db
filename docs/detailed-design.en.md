@@ -859,6 +859,44 @@ Symmetric to `purchase_order_items`.
 
 ---
 
+#### 5.3.13a contract_items — Contract Line Items
+
+**Table**: `contract_items`
+
+| Field | Type | Constraint | Description |
+|-------|------|------------|-------------|
+| `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
+| `contract_id` | INTEGER | NOT NULL | Parent contract ID |
+| `pipe_type` | TEXT | NOT NULL | seamless / screen |
+| `grade` | TEXT | NOT NULL | Steel grade |
+| `od` | REAL | NOT NULL | Outer diameter |
+| `wt` | REAL | NOT NULL | Wall thickness |
+| `quantity` | INTEGER | NOT NULL | Quantity |
+| `unit_price` | REAL | -- | Unit price |
+| `total_price` | REAL | -- | Line total |
+| `notes` | TEXT | -- | -- |
+| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
+
+---
+
+#### 5.3.13b contract_payments — Contract Payment Milestones
+
+**Table**: `contract_payments`
+
+| Field | Type | Constraint | Description |
+|-------|------|------------|-------------|
+| `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
+| `contract_id` | INTEGER | NOT NULL | Parent contract ID |
+| `due_date` | TEXT | NOT NULL | Payment due date |
+| `amount` | REAL | NOT NULL | Payment amount |
+| `payment_type` | TEXT | NOT NULL | deposit / milestone / final |
+| `is_paid` | INTEGER | NOT NULL, DEFAULT 0 | 0 = unpaid, 1 = paid |
+| `paid_date` | TEXT | -- | Actual payment date |
+| `notes` | TEXT | -- | -- |
+| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
+
+---
+
 #### 5.3.14 quality_certs — Quality Certificate Table
 
 **Table**: `quality_certs`
@@ -1084,7 +1122,13 @@ CREATE INDEX idx_check_items_status ON inventory_check_items(check_id, found);
 
 ┌──────────┐       ┌──────────────────┐       ┌─────────────────┐
 │   users   │──1:N──│  operation_logs   │       │     contracts    │
-└──────────┘       └──────────────────┘       └─────────────────┘
+└──────────┘       └──────────────────┘       └────────┬────────┘
+                                                        │ 1:N
+                                          ┌─────────────┴─────────────┐
+                                          ▼                           ▼
+                                ┌──────────────────┐      ┌──────────────────┐
+                                │  contract_items   │      │ contract_payments │
+                                └──────────────────┘      └──────────────────┘
 ```
 
 ---

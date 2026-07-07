@@ -1,7 +1,9 @@
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;
-use crate::dto::customer_dto::{CreateCustomerRequest, CustomerFilterParams, UpdateCustomerRequest};
+use crate::dto::customer_dto::{
+    CreateCustomerRequest, CustomerFilterParams, UpdateCustomerRequest,
+};
 use crate::models::customer::Customer;
 
 /// CRUD for `customers`. All queries filter `deleted_at IS NULL`.
@@ -82,10 +84,7 @@ impl CustomerRepo {
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
-    pub async fn find_by_id(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<Option<Customer>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Customer>, sqlx::Error> {
         sqlx::query_as::<_, Customer>(
             "SELECT id, customer_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
@@ -112,14 +111,18 @@ impl CustomerRepo {
     }
 
     /// Soft-delete: sets `deleted_at` and `updated_at`.
+    /// Returns `sqlx::Error::RowNotFound` when no row was updated (already deleted or missing).
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE customers SET deleted_at = datetime('now'), \
              updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
         .await?;
+        if result.rows_affected() == 0 {
+            return Err(sqlx::Error::RowNotFound);
+        }
         Ok(())
     }
 
@@ -138,7 +141,8 @@ impl CustomerRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push("(name LIKE ? OR customer_code LIKE ? OR contact_person LIKE ?)".into());
+                conditions
+                    .push("(name LIKE ? OR customer_code LIKE ? OR contact_person LIKE ?)".into());
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern.clone());
@@ -160,7 +164,10 @@ impl CustomerRepo {
         };
         let sort_order = params.sort_order_sql();
 
-        let count_sql = format!("SELECT COUNT(*) as cnt FROM customers WHERE {}", where_clause);
+        let count_sql = format!(
+            "SELECT COUNT(*) as cnt FROM customers WHERE {}",
+            where_clause
+        );
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         for val in &bind_values {
             count_q = count_q.bind(val.as_str());
@@ -187,10 +194,7 @@ impl CustomerRepo {
     }
 
     /// Quick name/code search (LIKE) with LIMIT 50 results.
-    pub async fn search(
-        pool: &SqlitePool,
-        query: &str,
-    ) -> Result<Vec<Customer>, sqlx::Error> {
+    pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<Customer>, sqlx::Error> {
         let like = format!("%{}%", query);
         sqlx::query_as::<_, Customer>(
             "SELECT id, customer_code, name, contact_person, phone, email, address, \
@@ -206,9 +210,7 @@ impl CustomerRepo {
     }
 
     /// SELECT all active customers, ordered by `name ASC`. Used for dropdowns.
-    pub async fn find_all_active(
-        pool: &SqlitePool,
-    ) -> Result<Vec<Customer>, sqlx::Error> {
+    pub async fn find_all_active(pool: &SqlitePool) -> Result<Vec<Customer>, sqlx::Error> {
         sqlx::query_as::<_, Customer>(
             "SELECT id, customer_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \

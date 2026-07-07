@@ -26,7 +26,9 @@ impl LabelService {
                 let pipe = LabelRepo::find_seamless_pipe(pool, pipe_id)
                     .await
                     .map_err(AppError::from)?
-                    .ok_or_else(|| AppError::PipeNotFound(format!("Seamless pipe id={}", pipe_id)))?;
+                    .ok_or_else(|| {
+                        AppError::PipeNotFound(format!("Seamless pipe id={}", pipe_id))
+                    })?;
                 Ok(Self::seamless_barcode_html(&pipe))
             }
             "screen" => {
@@ -62,10 +64,7 @@ impl LabelService {
                         .await
                         .map_err(AppError::from)?
                         .ok_or_else(|| {
-                            AppError::PipeNotFound(format!(
-                                "Seamless pipe id={}",
-                                pid.pipe_id
-                            ))
+                            AppError::PipeNotFound(format!("Seamless pipe id={}", pid.pipe_id))
                         })?;
                     Self::seamless_barcode_html(&pipe)
                 }
@@ -96,10 +95,7 @@ impl LabelService {
     /// # Errors
     /// - `AppError::QualityCertNotFound` — cert ID doesn't exist
     /// - `AppError::PipeNotFound` — linked pipe doesn't exist
-    pub async fn generate_quality_tag(
-        pool: &SqlitePool,
-        cert_id: i64,
-    ) -> Result<String, AppError> {
+    pub async fn generate_quality_tag(pool: &SqlitePool, cert_id: i64) -> Result<String, AppError> {
         let cert = LabelRepo::find_quality_cert(pool, cert_id)
             .await
             .map_err(AppError::from)?
@@ -291,7 +287,11 @@ impl LabelService {
             pn = pipe_number,
             grade = grade,
             result = cert.result,
-            color = if cert.result.to_lowercase() == "pass" { "#008000" } else { "#cc0000" },
+            color = if cert.result.to_lowercase() == "pass" {
+                "#008000"
+            } else {
+                "#cc0000"
+            },
             inspector = cert.inspector.as_deref().unwrap_or(""),
             date = cert.cert_date.as_deref().unwrap_or(""),
         )
@@ -353,14 +353,18 @@ impl LabelService {
     }
 
     fn batch_html(labels: &[String]) -> String {
-        let body: String = labels.iter().map(|l| {
-            let inner = l
-                .lines()
-                .skip_while(|line| !line.contains("<div class=\"label-page\""))
-                .collect::<Vec<_>>()
-                .join("\n");
-            inner
-        }).collect::<Vec<_>>().join("\n");
+        let body: String = labels
+            .iter()
+            .map(|l| {
+                let inner = l
+                    .lines()
+                    .skip_while(|line| !line.contains("<div class=\"label-page\""))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                inner
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
 
         format!(
             r#"<!DOCTYPE html><html><head><meta charset="utf-8">{style}</head><body>

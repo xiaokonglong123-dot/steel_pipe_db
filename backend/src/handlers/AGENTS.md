@@ -1,8 +1,8 @@
-# `handlers/` — HTTP Layer (13 files, ~55 handlers)
+# `handlers/` — HTTP Layer (16 files, ~70 handlers)
 
 ## Pattern
 
-Every handler follows the same damn pattern: **extract → call service → respond**
+Every handler follows the same pattern: **extract → call service → respond**
 
 ```rust
 pub async fn list_seamless_pipes_handler(
@@ -35,7 +35,11 @@ Key points:
 |------|--------|-------------|
 | `auth_handler.rs` | Auth | login, logout, refresh, profile |
 | `pipe_handler.rs` | Pipes | seamless + screen pipe CRUD, list, filter |
-| `inventory_handler.rs` | Inventory | inbound, outbound, stock query, locations, check |
+| `inbound_handler.rs` | Inbound | inbound record CRUD, approval, batch |
+| `outbound_handler.rs` | Outbound | outbound record CRUD, approval |
+| `location_handler.rs` | Locations | warehouse location CRUD, assign, transfer |
+| `check_handler.rs` | Checks | inventory check CRUD, submit, complete |
+| `inventory_handler.rs` | Inventory | stock query, logs, statistics, trace |
 | `purchase_handler.rs` | Purchase Orders | CRUD, status transitions, approval |
 | `sales_handler.rs` | Sales Orders | CRUD, status transitions, ATP check |
 | `quality_handler.rs` | Quality | certs CRUD, mechanical tests, NDT |
@@ -50,7 +54,7 @@ Key points:
 ## Common Extractor Patterns
 
 - `Extension(pool): Extension<SqlitePool>` — DB pool (every handler needs this)
-- `Extension(jwt_secret): Extension<String>` — JWT secret (auth handlers only)
+- `Extension(jwt_secret): Extension<JwtSecret>` — JWT secret newtype (auth handlers only)
 - `Query(params): Query<T>` — GET query params (T needs DeserializeOwned)
 - `Json(body): Json<T>` — POST/PUT body (T needs DeserializeOwned)
 - `Path(id): Path<i64>` — URL path parameter

@@ -71,6 +71,10 @@ frontend/tsconfig.tsbuildinfo
 .idea/
 .vscode/
 
+# ── Docker ──
+docker-data/
+backups/
+
 # ── Project specific ──
 pipes.db
 steel_pipe.ico

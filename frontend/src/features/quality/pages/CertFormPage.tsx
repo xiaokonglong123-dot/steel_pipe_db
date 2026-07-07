@@ -1,14 +1,12 @@
-// 质检证书新增/编辑表单 — 力学性能（屈服/抗拉/延伸率）、NDT（UT/MI/MPI）等检测数据录入
+// 质检证书新增/编辑表单 — 使用 PageLayout + 共享常量
 import { useEffect } from 'react';
 import { Form, Input, Select, DatePicker, InputNumber, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DETAILED_PIPE_TYPES, API_5CT_GRADES } from '@/shared/constants';
 import { useCert, useCreateCert, useUpdateCert } from '../hooks/useQuality';
 import type { CreateQualityCertData } from '../types';
-
-const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
-const API_5CT_GRADES = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
-const CERT_STATUSES = ['draft', 'active', 'void'];
 
 export default function CertFormPage() {
   const { t } = useTranslation();
@@ -27,26 +25,13 @@ export default function CertFormPage() {
     if (isEdit && cert) {
       form.setFieldsValue({
         cert_number: cert.cert_number,
-        batch_number: cert.batch_number,
         pipe_type: cert.pipe_type,
-        grade: cert.grade,
-        od: cert.od,
-        wt: cert.wt,
-        length: cert.length,
-        quantity: cert.quantity,
-        heat_number: cert.heat_number,
-        manufacturer: cert.manufacturer,
-        production_date: cert.production_date,
-        test_pressure: cert.test_pressure,
-        yield_strength: cert.yield_strength,
-        tensile_strength: cert.tensile_strength,
-        elongation: cert.elongation,
-        hardness: cert.hardness,
-        inspection_standard: cert.inspection_standard,
-        inspector: cert.inspector,
-        cert_date: cert.cert_date,
-        status: cert.status,
-        notes: cert.notes,
+        pipe_id: cert.pipe_id,
+        cert_date: cert.cert_date ?? undefined,
+        result: cert.result,
+        inspector: cert.inspector ?? undefined,
+        inspection_body: cert.inspection_body ?? undefined,
+        notes: cert.notes ?? undefined,
       });
     }
   }, [isEdit, cert, form]);
@@ -70,10 +55,10 @@ export default function CertFormPage() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('quality.edit_certificate') : t('quality.create_certificate')}
-      </h2>
+    <PageLayout
+      title={isEdit ? t('quality.edit_certificate') : t('quality.create_certificate')}
+      onBack={() => navigate('/quality/certs')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -97,13 +82,7 @@ export default function CertFormPage() {
           name="pipe_type"
           rules={[{ required: true, message: t('common.required') }]}
         >
-          <Select>
-            {PIPE_TYPES.map((type) => (
-              <Select.Option key={type} value={type}>
-                {t('pipe_type.' + type)}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select options={DETAILED_PIPE_TYPES.map((pt) => ({ label: t('pipe_type.' + pt), value: pt }))} />
         </Form.Item>
 
         <Form.Item
@@ -111,13 +90,7 @@ export default function CertFormPage() {
           name="grade"
           rules={[{ required: true, message: t('common.required') }]}
         >
-          <Select showSearch>
-            {API_5CT_GRADES.map((grade) => (
-              <Select.Option key={grade} value={grade}>
-                {grade}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select showSearch options={API_5CT_GRADES.map((g) => ({ label: g, value: g }))} />
         </Form.Item>
 
         <Form.Item
@@ -194,15 +167,12 @@ export default function CertFormPage() {
 
         <Form.Item
           label={t('quality.status')}
-          name="status"
+          name="result"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <Select>
-            {CERT_STATUSES.map((s) => (
-              <Select.Option key={s} value={s}>
-                {t('quality.cert_status_' + s)}
-              </Select.Option>
-            ))}
+            <Select.Option key="pass" value="pass">Pass</Select.Option>
+            <Select.Option key="fail" value="fail">Fail</Select.Option>
           </Select>
         </Form.Item>
 
@@ -225,6 +195,6 @@ export default function CertFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }

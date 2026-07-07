@@ -1,5 +1,6 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{sqlite::SqliteConnection, QueryBuilder, Sqlite, SqlitePool, Transaction};
 
+use crate::domain::money::from_decimal_opt;
 use crate::dto::common::PaginationParams;
 use crate::dto::purchase_dto::{
     CreatePurchaseItemRequest, CreatePurchaseOrderRequest, PurchaseOrderFilterParams,
@@ -19,6 +20,8 @@ impl PurchaseOrderRepo {
         dto: &CreatePurchaseOrderRequest,
         order_no: &str,
     ) -> Result<PurchaseOrder, sqlx::Error> {
+        let mut tx = pool.begin().await?;
+
         let order = sqlx::query_as::<_, PurchaseOrder>(
             "INSERT INTO purchase_orders (order_no, supplier_id, order_date, status, \
              total_amount, notes) \
@@ -30,21 +33,24 @@ impl PurchaseOrderRepo {
         .bind(dto.supplier_id)
         .bind(&dto.order_date)
         .bind(&dto.notes)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await?;
 
         for item in &dto.items {
-            Self::create_item(pool, order.id, item).await?;
+            Self::create_item(&mut tx, order.id, item).await?;
         }
 
-        let total: f64 = Self::sum_item_totals(pool, order.id).await?;
+        // Recompute total_amount INSIDE the transaction — no window where total = 0
+        let total: f64 = Self::sum_item_totals_in_tx(&mut tx, order.id).await?;
         if total > 0.0 {
             sqlx::query("UPDATE purchase_orders SET total_amount = ? WHERE id = ?")
                 .bind(total)
                 .bind(order.id)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await?;
         }
+
+        tx.commit().await?;
 
         Ok(PurchaseOrder {
             total_amount: Some(if total > 0.0 { total } else { 0.0 }),
@@ -52,8 +58,19 @@ impl PurchaseOrderRepo {
         })
     }
 
+    /// Recalculate and update the total_amount for a purchase order by summing its items.
+    pub async fn recalculate_total(pool: &SqlitePool, order_id: i64) -> Result<(), sqlx::Error> {
+        let total = Self::sum_item_totals(pool, order_id).await?;
+        sqlx::query("UPDATE purchase_orders SET total_amount = ? WHERE id = ?")
+            .bind(total)
+            .bind(order_id)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+
     async fn create_item(
-        pool: &SqlitePool,
+        tx: &mut Transaction<'_, Sqlite>,
         order_id: i64,
         dto: &CreatePurchaseItemRequest,
     ) -> Result<PurchaseOrderItem, sqlx::Error> {
@@ -70,10 +87,10 @@ impl PurchaseOrderRepo {
         .bind(dto.od)
         .bind(dto.wt)
         .bind(dto.quantity)
-        .bind(dto.unit_price)
-        .bind(dto.total_price)
+        .bind(from_decimal_opt(dto.unit_price))
+        .bind(from_decimal_opt(dto.total_price))
         .bind(&dto.notes)
-        .fetch_one(pool)
+        .fetch_one(&mut **tx)
         .await
     }
 
@@ -83,6 +100,19 @@ impl PurchaseOrderRepo {
         )
         .bind(order_id)
         .fetch_one(pool)
+        .await?;
+        Ok(row.0.unwrap_or(0.0))
+    }
+
+    async fn sum_item_totals_in_tx(
+        tx: &mut Transaction<'_, Sqlite>,
+        order_id: i64,
+    ) -> Result<f64, sqlx::Error> {
+        let row: (Option<f64>,) = sqlx::query_as(
+            "SELECT COALESCE(SUM(total_price), 0) FROM purchase_order_items WHERE order_id = ?",
+        )
+        .bind(order_id)
+        .fetch_one(&mut **tx)
         .await?;
         Ok(row.0.unwrap_or(0.0))
     }
@@ -113,7 +143,10 @@ impl PurchaseOrderRepo {
              total_amount, notes, created_by, created_at, updated_at, deleted_at",
         );
 
-        builder.build_query_as::<PurchaseOrder>().fetch_one(pool).await
+        builder
+            .build_query_as::<PurchaseOrder>()
+            .fetch_one(pool)
+            .await
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
@@ -326,8 +359,8 @@ impl PurchaseOrderRepo {
         set_field_opt!(dto.od, "od");
         set_field_opt!(dto.wt, "wt");
         set_field_opt!(dto.quantity, "quantity");
-        set_field_opt!(dto.unit_price, "unit_price");
-        set_field_opt!(dto.total_price, "total_price");
+        set_field_opt!(from_decimal_opt(dto.unit_price), "unit_price");
+        // total_price is NOT set from client — recomputed below after UPDATE
         set_field!(dto.notes, "notes");
 
         if first {
@@ -341,7 +374,30 @@ impl PurchaseOrderRepo {
              unit_price, total_price, notes, created_at",
         );
 
-        builder.build_query_as::<PurchaseOrderItem>().fetch_one(pool).await
+        let item = builder
+            .build_query_as::<PurchaseOrderItem>()
+            .fetch_one(pool)
+            .await?;
+
+        // Recompute total_price server-side: quantity * unit_price
+        // This runs after every update to ensure consistency even if only one field changed.
+        if dto.quantity.is_some() || dto.unit_price.is_some() {
+            let computed_total = item.quantity as f64 * item.unit_price.unwrap_or(0.0);
+            sqlx::query("UPDATE purchase_order_items SET total_price = ? WHERE id = ?")
+                .bind(computed_total)
+                .bind(item.id)
+                .execute(pool)
+                .await?;
+            // Re-fetch to get the updated total_price
+            return sqlx::query_as::<_, PurchaseOrderItem>(
+                "SELECT id, order_id, pipe_type, grade, od, wt, quantity, received_quantity,                  unit_price, total_price, notes, created_at                  FROM purchase_order_items WHERE id = ?"
+            )
+            .bind(item.id)
+            .fetch_one(pool)
+            .await;
+        }
+
+        Ok(item)
     }
 
     /// Hard DELETE from `purchase_order_items` (no soft-delete for items).
@@ -351,5 +407,203 @@ impl PurchaseOrderRepo {
             .execute(pool)
             .await?;
         Ok(())
+    }
+
+    // ━━━ Transaction-safe variants (used inside BEGIN IMMEDIATE / pool.acquire) ━━━
+
+    /// [`update_order`] variant that runs on an existing connection (inside a tx).
+    pub async fn update_order_conn(
+        executor: &mut SqliteConnection,
+        id: i64,
+        dto: &UpdatePurchaseOrderRequest,
+    ) -> Result<PurchaseOrder, sqlx::Error> {
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE purchase_orders SET updated_at = datetime('now')");
+
+        if let Some(ref val) = dto.order_date {
+            builder.push(", order_date = ");
+            builder.push_bind(val);
+        }
+        if let Some(ref val) = dto.notes {
+            builder.push(", notes = ");
+            builder.push_bind(val);
+        }
+
+        builder.push(" WHERE id = ");
+        builder.push_bind(id);
+        builder.push(
+            " AND deleted_at IS NULL RETURNING id, order_no, supplier_id, order_date, status, \
+             total_amount, notes, created_by, created_at, updated_at, deleted_at",
+        );
+
+        builder
+            .build_query_as::<PurchaseOrder>()
+            .fetch_one(&mut *executor)
+            .await
+    }
+
+    async fn sum_item_totals_conn(
+        executor: &mut SqliteConnection,
+        order_id: i64,
+    ) -> Result<f64, sqlx::Error> {
+        let row: (Option<f64>,) = sqlx::query_as(
+            "SELECT COALESCE(SUM(total_price), 0) FROM purchase_order_items WHERE order_id = ?",
+        )
+        .bind(order_id)
+        .fetch_one(&mut *executor)
+        .await?;
+        Ok(row.0.unwrap_or(0.0))
+    }
+
+    /// [`recalculate_total`] variant that runs on an existing connection (inside a tx).
+    pub async fn recalc_total_conn(
+        executor: &mut SqliteConnection,
+        order_id: i64,
+    ) -> Result<(), sqlx::Error> {
+        let total = Self::sum_item_totals_conn(executor, order_id).await?;
+        sqlx::query("UPDATE purchase_orders SET total_amount = ? WHERE id = ?")
+            .bind(total)
+            .bind(order_id)
+            .execute(&mut *executor)
+            .await?;
+        Ok(())
+    }
+
+    /// Replace all line items for a purchase order inside a transaction.
+    ///
+    /// * Items with an `id` are **updated** in-place (matching existing rows).
+    /// * Items without an `id` are **inserted** as new rows.
+    /// * Existing items whose `id` is NOT in the incoming set are **deleted**.
+    /// * Each item's `total_price` is recomputed as `quantity * unit_price`.
+    /// * The order's `total_amount` is recalculated from the new item set.
+    pub async fn replace_items_conn(
+        executor: &mut SqliteConnection,
+        order_id: i64,
+        items: &[UpdatePurchaseItemRequest],
+    ) -> Result<(), sqlx::Error> {
+        let mut kept_ids: Vec<i64> = Vec::with_capacity(items.len());
+
+        for item in items {
+            if let Some(item_id) = item.id {
+                // UPDATE an existing row
+                kept_ids.push(item_id);
+
+                let mut builder: QueryBuilder<Sqlite> =
+                    QueryBuilder::new("UPDATE purchase_order_items SET");
+                let mut first = true;
+
+                macro_rules! set_field {
+                    ($val:expr, $col:expr) => {
+                        if let Some(ref v) = $val {
+                            if !first {
+                                builder.push(",");
+                            }
+                            builder.push(format!(" {} = ", $col));
+                            builder.push_bind(v);
+                            first = false;
+                        }
+                    };
+                }
+                macro_rules! set_field_opt {
+                    ($val:expr, $col:expr) => {
+                        if let Some(v) = $val {
+                            if !first {
+                                builder.push(",");
+                            }
+                            builder.push(format!(" {} = ", $col));
+                            builder.push_bind(v);
+                            first = false;
+                        }
+                    };
+                }
+
+                set_field!(item.pipe_type, "pipe_type");
+                set_field!(item.grade, "grade");
+                set_field_opt!(item.od, "od");
+                set_field_opt!(item.wt, "wt");
+                set_field_opt!(item.quantity, "quantity");
+                set_field_opt!(from_decimal_opt(item.unit_price), "unit_price");
+                set_field!(item.notes, "notes");
+
+                if first {
+                    // No fields to update — keep the item but skip the UPDATE
+                    continue;
+                }
+
+                builder.push(" WHERE id = ");
+                builder.push_bind(item_id);
+                builder.push(
+                    " RETURNING id, order_id, pipe_type, grade, od, wt, quantity, \
+                     received_quantity, unit_price, total_price, notes, created_at",
+                );
+
+                let updated = builder
+                    .build_query_as::<PurchaseOrderItem>()
+                    .fetch_one(&mut *executor)
+                    .await?;
+
+                // Recompute total_price when quantity or unit_price changes
+                if item.quantity.is_some() || item.unit_price.is_some() {
+                    let qty = item.quantity.unwrap_or(updated.quantity);
+                    let price = from_decimal_opt(item.unit_price)
+                        .or(updated.unit_price)
+                        .unwrap_or(0.0);
+                    let computed_total = qty as f64 * price;
+                    sqlx::query("UPDATE purchase_order_items SET total_price = ? WHERE id = ?")
+                        .bind(computed_total)
+                        .bind(item_id)
+                        .execute(&mut *executor)
+                        .await?;
+                }
+            } else {
+                let quantity = item.quantity.unwrap_or(0);
+                let unit_price = from_decimal_opt(item.unit_price).unwrap_or(0.0);
+                let total_price = quantity as f64 * unit_price;
+
+                sqlx::query(
+                    "INSERT INTO purchase_order_items (order_id, pipe_type, grade, od, wt, \
+                     quantity, received_quantity, unit_price, total_price, notes) \
+                     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
+                )
+                .bind(order_id)
+                .bind(item.pipe_type.as_deref().unwrap_or(""))
+                .bind(item.grade.as_deref().unwrap_or(""))
+                .bind(item.od.unwrap_or(0.0))
+                .bind(item.wt.unwrap_or(0.0))
+                .bind(quantity)
+                .bind(from_decimal_opt(item.unit_price))
+                .bind(total_price)
+                .bind(&item.notes)
+                .execute(&mut *executor)
+                .await?;
+            }
+        }
+
+        // Delete items whose id is NOT in the kept set
+        if kept_ids.is_empty() {
+            sqlx::query("DELETE FROM purchase_order_items WHERE order_id = ?")
+                .bind(order_id)
+                .execute(&mut *executor)
+                .await?;
+        } else {
+            let mut del_q = QueryBuilder::new(
+                "DELETE FROM purchase_order_items WHERE order_id = ",
+            );
+            del_q.push_bind(order_id);
+            del_q.push(" AND id NOT IN (");
+            let mut first = true;
+            for id in &kept_ids {
+                if !first {
+                    del_q.push(", ");
+                }
+                del_q.push_bind(id);
+                first = false;
+            }
+            del_q.push(")");
+            del_q.build().execute(&mut *executor).await?;
+        }
+
+        // Recompute total_amount
+        Self::recalc_total_conn(executor, order_id).await
     }
 }

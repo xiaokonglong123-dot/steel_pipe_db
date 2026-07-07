@@ -1,54 +1,46 @@
 export interface SalesOrder {
   id: number;
-  order_number: string;
+  order_no: string;
   customer_id: number;
-  customer_name?: string;
   order_date: string;
-  expected_delivery?: string;
   status: string;
-  total_amount: number;
+  total_amount?: number;
   notes?: string;
-  items: SalesOrderItem[];
+  created_by?: number;
   created_at: string;
   updated_at: string;
+  deleted_at?: string;
 }
 
 export interface SalesOrderItem {
   id: number;
-  sales_order_id: number;
-  pipe_id: number;
-  pipe_number?: string;
-  pipe_type?: string;
-  grade?: string;
-  od?: number;
-  wt?: number;
-  length?: number;
+  order_id: number;
+  pipe_type: string;
+  grade: string;
+  od: number;
+  wt: number;
   quantity: number;
-  unit_price: number;
-  total_price: number;
+  delivered_quantity: number;
+  unit_price?: number;
+  total_price?: number;
   notes?: string;
+  created_at: string;
 }
 
 export interface CreateSalesOrderData {
   customer_id: number;
-  customer_name?: string;
-  order_date?: string;
-  expected_delivery?: string;
+  order_date: string;
   notes?: string;
   items: CreateSalesOrderItemData[];
 }
 
 export interface CreateSalesOrderItemData {
-  pipe_id: number;
-  pipe_number?: string;
-  pipe_type?: string;
-  grade?: string;
-  od?: number;
-  wt?: number;
-  length?: number;
+  pipe_type: string;
+  grade: string;
+  od: number;
+  wt: number;
   quantity: number;
-  unit_price: number;
-  total_price?: number;
+  unit_price?: number;
   notes?: string;
 }
 
@@ -64,7 +56,18 @@ export interface SalesOrderFilterParams {
 
 export interface SalesOrderStatusTransitionRequest {
   status: string;
+}
+
+export interface ApproveSalesOrderRequest {
   notes?: string;
+}
+
+export interface RejectSalesOrderRequest {
+  reason: string;
+}
+
+export interface LinkOutboundRequest {
+  outbound_record_id: number;
 }
 
 export interface UpdateSalesOrderItemData {

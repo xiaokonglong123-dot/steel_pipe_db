@@ -1,3 +1,4 @@
+use crate::cache::CacheManager;
 use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
@@ -6,9 +7,9 @@ use crate::dto::inventory_dto::{
 };
 use crate::error::AppError;
 use crate::models::inventory::Location;
-use crate::repositories::inventory_repo::{
-    CreateInventoryLog, InventoryLogRepo, InventoryRepo, LocationRepo,
-};
+use crate::repositories::inventory_log_repo::InventoryLogRepo;
+use crate::repositories::inventory_repo::{CreateInventoryLog, InventoryRepo};
+use crate::repositories::location_repo::LocationRepo;
 
 /// Location service — CRUD for warehouse locations, pipe assignment, and cross-location transfers.
 /// Location codes follow the `zone-shelf-level` format and are globally unique.
@@ -22,9 +23,10 @@ impl LocationService {
     /// Creates a location. Auto-concatenates `zone-shelf-level` as the full code; rejects duplicates.
     ///
     /// # Errors
-    /// - `AppError::Validation` — full code already exists, dipshit
+    /// - `AppError::Validation` — full code already exists
     pub async fn create_location(
         pool: &SqlitePool,
+        cache: &CacheManager,
         dto: &CreateLocationRequest,
     ) -> Result<Location, AppError> {
         let full_code = Self::build_full_code(&dto.zone_code, &dto.shelf_code, &dto.level_code);
@@ -40,9 +42,12 @@ impl LocationService {
             )));
         }
 
-        LocationRepo::create(pool, dto, &full_code)
+        let location = LocationRepo::create(pool, dto, &full_code)
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?;
+        
+        cache.invalidate_locations().await;
+        Ok(location)
     }
 
     /// Updates location info. Won't touch soft-deleted locations.
@@ -51,6 +56,7 @@ impl LocationService {
     /// - `AppError::LocationNotFound` — ID doesn't exist or was deleted
     pub async fn update_location(
         pool: &SqlitePool,
+        cache: &CacheManager,
         id: i64,
         dto: &UpdateLocationRequest,
     ) -> Result<Location, AppError> {
@@ -66,9 +72,12 @@ impl LocationService {
             )));
         }
 
-        LocationRepo::update(pool, id, dto)
+        let location = LocationRepo::update(pool, id, dto)
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?;
+        
+        cache.invalidate_locations().await;
+        Ok(location)
     }
 
     /// Paginated location list. Pass `active_only=true` to get only active locations.
@@ -98,7 +107,7 @@ impl LocationService {
     /// # Errors
     /// - `AppError::LocationNotFound` — ID doesn't exist
     /// - `AppError::Validation` — location still has pipes in it
-    pub async fn delete_location(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
+    pub async fn delete_location(pool: &SqlitePool, cache: &CacheManager, id: i64) -> Result<(), AppError> {
         let existing = LocationRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -111,9 +120,9 @@ impl LocationService {
             )));
         }
 
-        LocationRepo::delete(pool, id)
-            .await
-            .map_err(AppError::from)
+        LocationRepo::delete(pool, id).await.map_err(AppError::from)?;
+        cache.invalidate_locations().await;
+        Ok(())
     }
 
     /// Assigns a pipe to a target location. Updates the pipe's location and logs it.
@@ -124,13 +133,16 @@ impl LocationService {
     /// - `AppError::Validation` — target location ain't active
     pub async fn assign_location(
         pool: &SqlitePool,
+        cache: &CacheManager,
         location_id: i64,
         dto: &AssignLocationRequest,
     ) -> Result<serde_json::Value, AppError> {
         let location = LocationRepo::find_by_id(pool, location_id)
             .await
             .map_err(AppError::from)?
-            .ok_or_else(|| AppError::LocationNotFound(format!("Location id={} not found", location_id)))?;
+            .ok_or_else(|| {
+                AppError::LocationNotFound(format!("Location id={} not found", location_id))
+            })?;
 
         if !location.is_active {
             return Err(AppError::Validation(format!(
@@ -139,9 +151,22 @@ impl LocationService {
             )));
         }
 
+        let old_location_id = InventoryRepo::get_pipe_location_id(pool, &dto.pipe_type, dto.pipe_id)
+            .await
+            .map_err(AppError::from)?;
         InventoryRepo::update_pipe_location(pool, &dto.pipe_type, dto.pipe_id, location_id)
             .await
             .map_err(AppError::from)?;
+        LocationRepo::refresh_used_count(pool, location_id)
+            .await
+            .map_err(AppError::from)?;
+        if let Some(old_id) = old_location_id {
+            if old_id != location_id {
+                LocationRepo::refresh_used_count(pool, old_id)
+                    .await
+                    .map_err(AppError::from)?;
+            }
+        }
 
         if let Err(e) = InventoryLogRepo::create(
             pool,
@@ -161,6 +186,8 @@ impl LocationService {
         {
             tracing::error!(?e, "Failed to create inventory log for location_assign");
         }
+        
+        cache.invalidate_locations().await;
 
         Ok(serde_json::json!({
             "pipe_type": dto.pipe_type,
@@ -177,6 +204,7 @@ impl LocationService {
     /// - `AppError::Validation` — target location isn't active
     pub async fn transfer_location(
         pool: &SqlitePool,
+        cache: &CacheManager,
         pipe_type: &str,
         pipe_id: i64,
         dto: &TransferLocationRequest,
@@ -202,6 +230,14 @@ impl LocationService {
         InventoryRepo::update_pipe_location(pool, pipe_type, pipe_id, dto.to_location_id)
             .await
             .map_err(AppError::from)?;
+        if let Some(location_id) = from_location_id {
+            LocationRepo::refresh_used_count(pool, location_id)
+                .await
+                .map_err(AppError::from)?;
+        }
+        LocationRepo::refresh_used_count(pool, dto.to_location_id)
+            .await
+            .map_err(AppError::from)?;
 
         if let Err(e) = InventoryLogRepo::create(
             pool,
@@ -221,6 +257,8 @@ impl LocationService {
         {
             tracing::error!(?e, "Failed to create inventory log for location_transfer");
         }
+        
+        cache.invalidate_locations().await;
 
         Ok(serde_json::json!({
             "pipe_type": pipe_type,

@@ -1,5 +1,10 @@
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+
+use crate::domain::money::to_decimal_opt;
+use crate::domain::order::OrderStatus;
+use std::str::FromStr;
 
 /// Purchase order DB row. Buying pipes from a supplier — the full PO header.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -11,7 +16,7 @@ pub struct PurchaseOrder {
     pub supplier_id: i64,
     /// Order date.
     pub order_date: String,
-    /// Status: draft / pending / approved / rejected / completed / cancelled.
+    /// Status stored as string in DB; use `order_status()` for typed access.
     pub status: String,
     /// Total order amount.
     pub total_amount: Option<f64>,
@@ -22,6 +27,31 @@ pub struct PurchaseOrder {
     pub created_at: String,
     pub updated_at: String,
     pub deleted_at: Option<String>,
+}
+
+impl PurchaseOrder {
+    /// Returns the typed `OrderStatus` enum for this order.
+    /// Returns `None` if the stored string is not a valid status value.
+    pub fn order_status(&self) -> Option<OrderStatus> {
+        FromStr::from_str(&self.status).ok()
+    }
+
+    /// Returns `total_amount` as a `Decimal` for precise arithmetic.
+    pub fn total_amount_decimal(&self) -> Option<Decimal> {
+        to_decimal_opt(self.total_amount)
+    }
+}
+
+impl PurchaseOrderItem {
+    /// Returns `unit_price` as a `Decimal` for precise arithmetic.
+    pub fn unit_price_decimal(&self) -> Option<Decimal> {
+        to_decimal_opt(self.unit_price)
+    }
+
+    /// Returns `total_price` as a `Decimal` for precise arithmetic.
+    pub fn total_price_decimal(&self) -> Option<Decimal> {
+        to_decimal_opt(self.total_price)
+    }
 }
 
 /// Purchase order item DB row. Line items — what pipes and how many.

@@ -1,25 +1,76 @@
+//! Route definitions for the Steel Pipe DB API.
+//!
+//! # Organization Strategy
+//!
+//! Routes are grouped by authentication and authorization requirements:
+//! - **Public** — no auth required (login, refresh)
+//! - **Authenticated** — any logged-in user (logout, me, change-password)
+//! - **Role-protected write** — admin/warehouse/qc/sales per domain
+//! - **Authenticated read** — any logged-in user can read business data
+//!
+//! # Middleware Layering Order (innermost → outermost)
+//!
+//! ```text
+//! route_layer(auth_middleware)
+//!   → route_layer(rbac::require_role)
+//!     → layer(CORS)
+//!       → layer(Trace + RequestId)
+//!         → layer(Extension<SqlitePool>)
+//!           → layer(Extension<JwtSecret>)
+//!             → layer(Extension<RateLimiter>)
+//! ```
+//!
+//! # RBAC Quick Reference
+//!
+//! | Domain     | Read (any auth) | Write (roles)                    |
+//! |------------|:---------------:|----------------------------------|
+//! | Users      | admin           | admin                            |
+//! | Pipes      | ✅              | admin, warehouse                 |
+//! | Inbound    | ✅              | admin, warehouse                 |
+//! | Outbound   | ✅              | admin, warehouse                 |
+//! | Quality    | ✅              | admin, qc                        |
+//! | Sales      | ✅              | admin, sales                     |
+//! | Purchases  | ✅              | admin, warehouse, sales          |
+//! | Suppliers  | ✅              | admin, warehouse, sales          |
+//! | Customers  | ✅              | admin, warehouse, sales          |
+//! | Contracts  | ✅              | admin, warehouse, sales          |
+//! | Data IO    | templates       | admin (import/logs), admin/warehouse/sales (export) |
+//! | Labels     | ✅              | admin, warehouse (write)         |
+//! | Reports    | ✅              | — (read-only)                    |
+
 use std::time::Duration as StdDuration;
 
 use axum::{
     http::{
         header::{AUTHORIZATION, CONTENT_TYPE},
-        HeaderValue, Method,
+        HeaderName, HeaderValue, Method,
     },
     middleware, Router,
 };
 use sqlx::SqlitePool;
+use tower::ServiceBuilder;
+use tower_http::{request_id::MakeRequestUuid, ServiceBuilderExt};
 
+use crate::cache::CacheManager;
+use crate::cache_invalidator::CacheInvalidator;
+use crate::middleware::auth::JwtSecret;
 use crate::middleware::rate_limit::{
     rate_limit_import, rate_limit_login, rate_limit_password_change, RateLimiter,
 };
+use crate::middleware::security_headers::security_headers;
 
 use crate::handlers::atp_handler;
 use crate::handlers::auth_handler;
+use crate::handlers::check_handler;
 use crate::handlers::contract_handler;
 use crate::handlers::customer_handler;
 use crate::handlers::data_io_handler;
+use crate::handlers::health_handler;
+use crate::handlers::inbound_handler;
 use crate::handlers::inventory_handler;
 use crate::handlers::label_handler;
+use crate::handlers::location_handler;
+use crate::handlers::outbound_handler;
 use crate::handlers::pipe_handler;
 use crate::handlers::purchase_handler;
 use crate::handlers::quality_handler;
@@ -67,73 +118,75 @@ fn warehouse_write_routes() -> Router {
         // Inbound
         .route(
             "/api/v1/inbound-records",
-            axum::routing::post(inventory_handler::create_inbound_handler),
+            axum::routing::post(inbound_handler::create_inbound_handler),
         )
         .route(
             "/api/v1/inbound-records/{id}",
-            axum::routing::delete(inventory_handler::delete_inbound_handler),
+            axum::routing::put(inbound_handler::update_inbound_handler)
+                .delete(inbound_handler::delete_inbound_handler),
         )
         .route(
             "/api/v1/inbound-records/{id}/approve",
-            axum::routing::post(inventory_handler::approve_inbound_handler),
+            axum::routing::post(inbound_handler::approve_inbound_handler),
         )
         .route(
             "/api/v1/inbound-records/{id}/reject",
-            axum::routing::post(inventory_handler::reject_inbound_handler),
+            axum::routing::post(inbound_handler::reject_inbound_handler),
         )
         // Outbound
         .route(
             "/api/v1/outbound-records",
-            axum::routing::post(inventory_handler::create_outbound_handler),
+            axum::routing::post(outbound_handler::create_outbound_handler),
         )
         .route(
             "/api/v1/outbound-records/{id}",
-            axum::routing::delete(inventory_handler::delete_outbound_handler),
+            axum::routing::put(outbound_handler::update_outbound_handler)
+                .delete(outbound_handler::delete_outbound_handler),
         )
         .route(
             "/api/v1/outbound-records/{id}/approve",
-            axum::routing::post(inventory_handler::approve_outbound_handler),
+            axum::routing::post(outbound_handler::approve_outbound_handler),
         )
         .route(
             "/api/v1/outbound-records/{id}/reject",
-            axum::routing::post(inventory_handler::reject_outbound_handler),
+            axum::routing::post(outbound_handler::reject_outbound_handler),
         )
         // Locations
         .route(
             "/api/v1/locations",
-            axum::routing::post(inventory_handler::create_location_handler),
+            axum::routing::post(location_handler::create_location_handler),
         )
         .route(
             "/api/v1/locations/{id}",
-            axum::routing::put(inventory_handler::update_location_handler)
-                .delete(inventory_handler::delete_location_handler),
+            axum::routing::put(location_handler::update_location_handler)
+                .delete(location_handler::delete_location_handler),
         )
         // Inventory checks
         .route(
             "/api/v1/inventory/checks",
-            axum::routing::post(inventory_handler::create_check_handler),
+            axum::routing::post(check_handler::create_check_handler),
         )
         .route(
             "/api/v1/inventory/checks/{id}/complete",
-            axum::routing::post(inventory_handler::complete_check_handler),
+            axum::routing::post(check_handler::complete_check_handler),
         )
         .route(
             "/api/v1/inventory/checks/{check_id}/items/{item_id}",
-            axum::routing::put(inventory_handler::submit_check_item_handler),
+            axum::routing::put(check_handler::submit_check_item_handler),
         )
         // Location assign / transfer
         .route(
             "/api/v1/inventory/locations/{id}/assign",
-            axum::routing::post(inventory_handler::assign_location_handler),
+            axum::routing::post(location_handler::assign_location_handler),
         )
         .route(
             "/api/v1/inventory/pipes/{pipe_type}/{pipe_id}/transfer-location",
-            axum::routing::post(inventory_handler::transfer_location_handler),
+            axum::routing::post(location_handler::transfer_location_handler),
         )
         // Batch inbound
         .route(
             "/api/v1/inbound-records/batch",
-            axum::routing::post(inventory_handler::batch_create_inbound_handler),
+            axum::routing::post(inbound_handler::batch_create_inbound_handler),
         )
         // Labels (warehouse function)
         .route(
@@ -320,20 +373,39 @@ fn contract_write_routes() -> Router {
             axum::routing::put(contract_handler::update_contract_payment_handler)
                 .delete(contract_handler::delete_contract_payment_handler),
         )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ))
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse", "sales"])
         }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ))
 }
 
 // Main app builder — assembles all route groups, middleware, and shared layers
 
-pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
+pub fn create_app(
+    pool: SqlitePool,
+    jwt_secret: String,
+    cors_origins: Vec<HeaderValue>,
+    cache_manager: CacheManager,
+    cache_invalidator: CacheInvalidator,
+) -> Router {
     // Public: no auth required
+    let public = Router::new()
+        .route(
+            "/api/v1/health",
+            axum::routing::get(health_handler::health_handler),
+        )
+        .route(
+            "/api/v1/health/ready",
+            axum::routing::get(health_handler::readiness_handler),
+        );
+
     let public_auth = Router::new()
-        .route("/api/v1/auth/login", axum::routing::post(auth_handler::login_handler))
+        .route(
+            "/api/v1/auth/login",
+            axum::routing::post(auth_handler::login_handler),
+        )
         .route(
             "/api/v1/auth/refresh",
             axum::routing::post(auth_handler::refresh_handler),
@@ -348,7 +420,8 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         )
         .route(
             "/api/v1/auth/me",
-            axum::routing::get(auth_handler::me_handler),
+            axum::routing::get(auth_handler::me_handler)
+                .put(auth_handler::update_own_profile_handler),
         )
         .route(
             "/api/v1/users/{id}/change-password",
@@ -418,6 +491,10 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
             axum::routing::put(pipe_handler::update_screen_pipe_handler)
                 .delete(pipe_handler::delete_screen_pipe_handler),
         )
+        .route(
+            "/api/v1/pipes/batch",
+            axum::routing::post(pipe_handler::batch_create_pipes_handler),
+        )
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse"])
         }))
@@ -429,19 +506,19 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
     let inventory_read = Router::new()
         .route(
             "/api/v1/inbound-records",
-            axum::routing::get(inventory_handler::list_inbound_handler),
+            axum::routing::get(inbound_handler::list_inbound_handler),
         )
         .route(
             "/api/v1/inbound-records/{id}",
-            axum::routing::get(inventory_handler::get_inbound_handler),
+            axum::routing::get(inbound_handler::get_inbound_handler),
         )
         .route(
             "/api/v1/outbound-records",
-            axum::routing::get(inventory_handler::list_outbound_handler),
+            axum::routing::get(outbound_handler::list_outbound_handler),
         )
         .route(
             "/api/v1/outbound-records/{id}",
-            axum::routing::get(inventory_handler::get_outbound_handler),
+            axum::routing::get(outbound_handler::get_outbound_handler),
         )
         .route(
             "/api/v1/inventory",
@@ -453,19 +530,19 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         )
         .route(
             "/api/v1/locations",
-            axum::routing::get(inventory_handler::list_locations_handler),
+            axum::routing::get(location_handler::list_locations_handler),
         )
         .route(
             "/api/v1/locations/{id}",
-            axum::routing::get(inventory_handler::get_location_handler),
+            axum::routing::get(location_handler::get_location_handler),
         )
         .route(
             "/api/v1/inventory/checks",
-            axum::routing::get(inventory_handler::list_checks_handler),
+            axum::routing::get(check_handler::list_checks_handler),
         )
         .route(
             "/api/v1/inventory/checks/{id}",
-            axum::routing::get(inventory_handler::get_check_handler),
+            axum::routing::get(check_handler::get_check_handler),
         )
         .route(
             "/api/v1/trace/pipe/{pipe_type}/{pipe_id}",
@@ -485,34 +562,57 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         )
         .route(
             "/api/v1/inbound-records/{id}/items",
-            axum::routing::get(inventory_handler::list_inbound_items_handler),
+            axum::routing::get(inbound_handler::list_inbound_items_handler),
         )
         .route(
             "/api/v1/outbound-records/{id}/items",
-            axum::routing::get(inventory_handler::list_outbound_items_handler),
+            axum::routing::get(outbound_handler::list_outbound_items_handler),
         )
         .route(
             "/api/v1/atp",
             axum::routing::get(atp_handler::check_atp_handler),
         )
+        .route(
+            "/api/v1/inventory/inbound/search",
+            axum::routing::get(inbound_handler::list_inbound_handler),
+        )
+        .route(
+            "/api/v1/inventory/outbound/search",
+            axum::routing::get(outbound_handler::list_outbound_handler),
+        )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
         ));
 
-    // Data IO read (GET export, templates, logs)
-    let data_io_read = Router::new()
-        .route(
-            "/api/v1/data-io/export/{entity_type}",
-            axum::routing::get(data_io_handler::export_handler),
-        )
+    let data_io_template_read = Router::new()
         .route(
             "/api/v1/data-io/templates/{entity_type}",
             axum::routing::get(data_io_handler::template_handler),
         )
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    let data_io_export_read = Router::new()
+        .route(
+            "/api/v1/data-io/export/{entity_type}",
+            axum::routing::get(data_io_handler::export_handler),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin", "warehouse", "sales"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    let data_io_log_read = Router::new()
         .route(
             "/api/v1/data-io/operation-logs",
             axum::routing::get(data_io_handler::list_operation_logs_handler),
         )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
         ));
@@ -570,6 +670,10 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
             "/api/v1/purchase-orders/{id}",
             axum::routing::get(purchase_handler::get_purchase_order_handler),
         )
+        .route(
+            "/api/v1/purchase-orders/search",
+            axum::routing::get(purchase_handler::list_purchase_orders_handler),
+        )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
         ));
@@ -583,6 +687,10 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         .route(
             "/api/v1/sales-orders/{id}",
             axum::routing::get(sales_handler::get_sales_order_handler),
+        )
+        .route(
+            "/api/v1/sales-orders/search",
+            axum::routing::get(sales_handler::list_sales_orders_handler),
         )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
@@ -669,7 +777,8 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         ));
 
     Router::new()
-        // Public
+        // Public (no auth required)
+        .merge(public)
         .merge(public_auth)
         // Authenticated (any role)
         .merge(authenticated)
@@ -678,7 +787,9 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         // Business read-only (all authenticated users)
         .merge(pipe_read)
         .merge(inventory_read)
-        .merge(data_io_read)
+        .merge(data_io_template_read)
+        .merge(data_io_export_read)
+        .merge(data_io_log_read)
         .merge(supplier_read)
         .merge(customer_read)
         .merge(purchase_read)
@@ -697,11 +808,10 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
         .merge(supplier_customer_write_routes())
         .merge(contract_write_routes())
         // Shared layers — outermost (applied first)
+        .layer(axum::middleware::from_fn(security_headers))
         .layer(
             tower_http::cors::CorsLayer::new()
-                .allow_origin([
-                    "http://localhost:5173".parse::<HeaderValue>().unwrap(),
-                ])
+                .allow_origin(cors_origins)
                 .allow_methods([
                     Method::GET,
                     Method::POST,
@@ -709,12 +819,27 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
                     Method::DELETE,
                     Method::OPTIONS,
                 ])
-                .allow_headers([AUTHORIZATION, CONTENT_TYPE])
-                .expose_headers([AUTHORIZATION, CONTENT_TYPE])
+                .allow_headers([
+                    AUTHORIZATION,
+                    CONTENT_TYPE,
+                    HeaderName::from_static("x-request-id"),
+                ])
+                .expose_headers([
+                    AUTHORIZATION,
+                    CONTENT_TYPE,
+                    HeaderName::from_static("x-request-id"),
+                ])
                 .max_age(StdDuration::from_secs(86400)),
         )
-        .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(
+            ServiceBuilder::new()
+                .set_x_request_id(MakeRequestUuid)
+                .layer(tower_http::trace::TraceLayer::new_for_http())
+                .propagate_x_request_id(),
+        )
         .layer(axum::Extension(pool))
-        .layer(axum::Extension(jwt_secret))
+        .layer(axum::Extension(JwtSecret(jwt_secret)))
         .layer(axum::Extension(RateLimiter::new()))
+        .layer(axum::Extension(cache_manager))
+        .layer(axum::Extension(cache_invalidator))
 }

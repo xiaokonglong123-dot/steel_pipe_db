@@ -1,31 +1,25 @@
-// 质检证书列表页 — 分页查询、状态标签、按管类型/钢级筛选
+// 质检证书列表页 — 使用 DataTable + PageLayout 共享组件
 import { useState } from 'react';
-import { Table, Button, Space, Tag, Input, Select, Popconfirm } from 'antd';
+import { Button, Tag, Input, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DataTable } from '@/shared/components/DataTable';
+import { usePagination } from '@/shared/hooks/usePagination';
 import { useCerts, useDeleteCert } from '../hooks/useQuality';
 import type { QualityCert } from '../types';
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'default',
-  active: 'green',
-  void: 'red',
-};
 
 export default function CertListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { page, pageSize, onPaginationChange, reset } = usePagination();
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
 
   const { data, isLoading } = useCerts({
     page,
     page_size: pageSize,
     q: searchText || undefined,
-    status: statusFilter,
   });
 
   const deleteMutation = useDeleteCert();
@@ -37,114 +31,84 @@ export default function CertListPage() {
       key: 'cert_number',
     },
     {
-      title: t('pipes.grade'),
-      dataIndex: 'grade',
-      key: 'grade',
-      render: (grade: string) => <Tag color="blue">{grade}</Tag>,
+      title: t('quality.pipe_type'),
+      dataIndex: 'pipe_type',
+      key: 'pipe_type',
     },
     {
-      title: t('pipes.od'),
-      dataIndex: 'od',
-      key: 'od',
-    },
-    {
-      title: t('pipes.wt'),
-      dataIndex: 'wt',
-      key: 'wt',
-    },
-    {
-      title: t('quality.quantity'),
-      dataIndex: 'quantity',
-      key: 'quantity',
+      title: t('quality.result'),
+      dataIndex: 'result',
+      key: 'result',
+      render: (result: string) => (
+        <Tag color={result === 'pass' ? 'green' : 'red'}>{result}</Tag>
+      ),
     },
     {
       title: t('quality.inspector'),
       dataIndex: 'inspector',
       key: 'inspector',
+      render: (val: string | null) => val ?? '-',
     },
     {
-      title: t('quality.status'),
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => (
-        <Tag color={STATUS_COLORS[status] ?? 'default'}>{status}</Tag>
-      ),
+      title: t('quality.cert_date'),
+      dataIndex: 'cert_date',
+      key: 'cert_date',
+      render: (val: string | null) => val ?? '-',
     },
     {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: QualityCert) => (
-        <Space>
-          <Button type="link" onClick={() => navigate(`/quality/certs/${record.id}`)}>
+        <>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => navigate(`/quality/certs/${record.id}`)}
+          >
             {t('common.edit')}
           </Button>
           <Popconfirm
             title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger loading={deleteMutation.isPending}>
+            <Button type="link" danger size="small" loading={deleteMutation.isPending}>
               {t('common.delete')}
             </Button>
           </Popconfirm>
-        </Space>
+        </>
       ),
     },
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <Space>
-          <Input
-            placeholder={t('common.search')}
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 250 }}
-          />
-          <Select
-            placeholder={t('quality.status')}
-            allowClear
-            style={{ width: 120 }}
-            value={statusFilter}
-            onChange={(v) => setStatusFilter(v)}
-          >
-            <Select.Option value="draft">draft</Select.Option>
-            <Select.Option value="active">active</Select.Option>
-            <Select.Option value="void">void</Select.Option>
-          </Select>
-        </Space>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/quality/certs/new')}
-        >
+    <PageLayout
+      title={t('quality.certificates')}
+      extra={
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/quality/certs/new')}>
           {t('common.create')}
         </Button>
-      </div>
-      <Table
-        columns={columns}
-        dataSource={data?.items}
-        rowKey="id"
-        loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-          showTotal: (total) => t('common.total_items', { total }),
+      }
+    >
+      <Input
+        placeholder={t('common.search')}
+        prefix={<SearchOutlined />}
+        value={searchText}
+        onChange={(e) => {
+          setSearchText(e.target.value);
+          reset();
         }}
+        style={{ width: 250, marginBottom: 16 }}
+        allowClear
       />
-    </div>
+      <DataTable<QualityCert>
+        columns={columns}
+        items={data?.items}
+        total={data?.total}
+        page={page}
+        pageSize={pageSize}
+        loading={isLoading}
+        onPaginationChange={onPaginationChange}
+      />
+    </PageLayout>
   );
 }

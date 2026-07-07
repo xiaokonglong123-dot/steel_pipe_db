@@ -1,12 +1,11 @@
-// Supplier create/edit form — qualification info (supply grades, contact, tax ID, etc.)
+// Supplier create/edit form — 使用 PageLayout 共享组件
 import { useEffect } from 'react';
-import { Form, Input, Select, Button, Space, message } from 'antd';
+import { Form, Input, Button, Space, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { useSupplier, useCreateSupplier, useUpdateSupplier } from '../hooks/useSuppliers';
 import type { CreateSupplierData } from '../types';
-
-const API_5CT_GRADES = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
 
 export default function SupplierFormPage() {
   const { t } = useTranslation();
@@ -24,17 +23,13 @@ export default function SupplierFormPage() {
   useEffect(() => {
     if (isEdit && supplier) {
       form.setFieldsValue({
-        code: supplier.code,
+        supplier_code: supplier.supplier_code,
         name: supplier.name,
-        contact_person: supplier.contact_person,
-        phone: supplier.phone,
-        email: supplier.email,
-        address: supplier.address,
-        tax_id: supplier.tax_id,
-        bank_info: supplier.bank_info,
-        grade_supply: supplier.grade_supply,
-        status: supplier.status,
-        notes: supplier.notes,
+        contact_person: supplier.contact_person ?? undefined,
+        phone: supplier.phone ?? undefined,
+        email: supplier.email ?? undefined,
+        address: supplier.address ?? undefined,
+        notes: supplier.notes ?? undefined,
       });
     }
   }, [isEdit, supplier, form]);
@@ -58,10 +53,10 @@ export default function SupplierFormPage() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('common.edit') : t('common.create')} {t('suppliers.name')}
-      </h2>
+    <PageLayout
+      title={`${isEdit ? t('common.edit') : t('common.create')} ${t('suppliers.name')}`}
+      onBack={() => navigate('/suppliers')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -70,7 +65,7 @@ export default function SupplierFormPage() {
       >
         <Form.Item
           label={t('suppliers.code')}
-          name="code"
+          name="supplier_code"
           rules={[{ required: true, message: t('common.required') }]}
         >
           <Input disabled={isEdit} placeholder={t('common.required')} />
@@ -100,31 +95,6 @@ export default function SupplierFormPage() {
           <Input.TextArea rows={2} />
         </Form.Item>
 
-        <Form.Item label={t('suppliers.tax_id')} name="tax_id">
-          <Input />
-        </Form.Item>
-
-        <Form.Item label={t('suppliers.bank_info')} name="bank_info">
-          <Input />
-        </Form.Item>
-
-        <Form.Item label={t('suppliers.grade_supply')} name="grade_supply">
-          <Select mode="tags" placeholder={t('suppliers.select_grades')}>
-            {API_5CT_GRADES.map((g) => (
-              <Select.Option key={g} value={g}>
-                {g}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
-
-        <Form.Item label={t('suppliers.status')} name="status">
-          <Select>
-            <Select.Option value="active">{t('suppliers.status_active')}</Select.Option>
-            <Select.Option value="inactive">{t('suppliers.status_inactive')}</Select.Option>
-          </Select>
-        </Form.Item>
-
         <Form.Item label={t('suppliers.notes')} name="notes">
           <Input.TextArea rows={3} />
         </Form.Item>
@@ -144,6 +114,6 @@ export default function SupplierFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }

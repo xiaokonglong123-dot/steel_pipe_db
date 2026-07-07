@@ -1,37 +1,33 @@
 export interface Customer {
   id: number;
-  code: string;
+  customer_code: string;
   name: string;
   contact_person?: string;
   phone?: string;
   email?: string;
   address?: string;
-  tax_id?: string;
-  bank_info?: string;
-  industry?: string;
-  status: string;
+  is_active: boolean;
   notes?: string;
   created_at: string;
   updated_at: string;
+  deleted_at?: string;
 }
 
 export interface CreateCustomerData {
-  code: string;
+  customer_code?: string;
   name: string;
   contact_person?: string;
   phone?: string;
   email?: string;
   address?: string;
-  tax_id?: string;
-  bank_info?: string;
-  industry?: string;
-  status?: string;
   notes?: string;
 }
 
-export interface CustomerFilterParams {
+export type UpdateCustomerData = Partial<CreateCustomerData> & { is_active?: boolean };
+
+export interface CustomerFilterParams extends Record<string, unknown> {
   q?: string;
-  status?: string;
+  is_active?: boolean;
   page?: number;
   page_size?: number;
   sort_by?: string;

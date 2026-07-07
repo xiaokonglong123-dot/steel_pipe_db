@@ -26,14 +26,17 @@ export interface InboundRecord {
   id: number;
   inbound_no: string;
   inbound_type: string;
-  order_id?: number;
-  supplier_id?: number;
-  notes?: string;
+  order_id?: number | null;
+  supplier_id?: number | null;
+  notes?: string | null;
   approval_status: string;
-  handled_by?: number;
-  handled_at?: string;
+  rejection_reason?: string | null;
+  approval_reason?: string | null;
+  handled_by?: number | null;
+  handled_at?: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface InboundItem {
@@ -48,14 +51,17 @@ export interface OutboundRecord {
   id: number;
   outbound_no: string;
   outbound_type: string;
-  order_id?: number;
-  customer_id?: number;
-  notes?: string;
+  order_id?: number | null;
+  customer_id?: number | null;
+  notes?: string | null;
   approval_status: string;
-  handled_by?: number;
-  handled_at?: string;
+  rejection_reason?: string | null;
+  approval_reason?: string | null;
+  handled_by?: number | null;
+  handled_at?: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface OutboundItem {
@@ -72,12 +78,13 @@ export interface Location {
   shelf_code: string;
   level_code: string;
   full_code: string;
-  description?: string;
-  capacity?: number;
+  description?: string | null;
+  capacity?: number | null;
   used_count: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface InventoryLog {
@@ -85,24 +92,25 @@ export interface InventoryLog {
   pipe_type: string;
   pipe_id: number;
   change_type: string;
-  ref_type?: string;
-  ref_id?: number;
-  from_location_id?: number;
-  to_location_id?: number;
-  notes?: string;
-  created_by?: number;
+  ref_type?: string | null;
+  ref_id?: number | null;
+  from_location_id?: number | null;
+  to_location_id?: number | null;
+  notes?: string | null;
+  created_by?: number | null;
   created_at: string;
 }
 
 export interface InventoryCheckRecord {
   id: number;
   check_no: string;
-  location_id?: number;
+  location_id?: number | null;
   status: string;
-  notes?: string;
-  created_by?: number;
+  notes?: string | null;
+  created_by?: number | null;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface InventoryCheckItem {
@@ -111,9 +119,9 @@ export interface InventoryCheckItem {
   pipe_type: string;
   pipe_id: number;
   expected_status: string;
-  found_status?: string;
-  is_match?: boolean;
-  notes?: string;
+  found_status?: string | null;
+  is_match?: boolean | null;
+  notes?: string | null;
   created_at: string;
 }
 
@@ -217,27 +225,32 @@ export interface CheckFilter {
 export const inboundApi = {
   list: async (params?: InboundFilter) => {
     const res = await apiClient.get<PaginatedResponse<InboundRecord>>('/inbound-records', { params });
-    return validateResponse(paginatedDataSchema(inboundRecordSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(inboundRecordSchema), res.data);
   },
 
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<InboundDetail>>(`/inbound-records/${id}`);
-    return validateResponse(inboundDetailSchema, res.data.data);
+    return validateResponse(inboundDetailSchema, res.data);
   },
 
   create: async (data: CreateInboundData) => {
     const res = await apiClient.post<ApiResponse<InboundRecord>>('/inbound-records', data);
-    return validateResponse(inboundRecordSchema, res.data.data);
+    return validateResponse(inboundRecordSchema, res.data);
   },
 
   approve: async (id: number, reason?: string) => {
     const res = await apiClient.post<ApiResponse<string>>(`/inbound-records/${id}/approve`, { reason });
-    return validateResponse(z.string(), res.data.data);
+    return validateResponse(z.string(), res.data);
   },
 
   reject: async (id: number, reason: string) => {
     const res = await apiClient.post<ApiResponse<string>>(`/inbound-records/${id}/reject`, { reason });
-    return validateResponse(z.string(), res.data.data);
+    return validateResponse(z.string(), res.data);
+  },
+
+  update: async (id: number, data: CreateInboundData) => {
+    const res = await apiClient.put<ApiResponse<InboundRecord>>(`/inbound-records/${id}`, data);
+    return validateResponse(inboundRecordSchema, res.data);
   },
 
   delete: async (id: number) => {
@@ -250,27 +263,32 @@ export const inboundApi = {
 export const outboundApi = {
   list: async (params?: OutboundFilter) => {
     const res = await apiClient.get<PaginatedResponse<OutboundRecord>>('/outbound-records', { params });
-    return validateResponse(paginatedDataSchema(outboundRecordSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(outboundRecordSchema), res.data);
   },
 
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<OutboundDetail>>(`/outbound-records/${id}`);
-    return validateResponse(outboundDetailSchema, res.data.data);
+    return validateResponse(outboundDetailSchema, res.data);
   },
 
   create: async (data: CreateOutboundData) => {
     const res = await apiClient.post<ApiResponse<OutboundRecord>>('/outbound-records', data);
-    return validateResponse(outboundRecordSchema, res.data.data);
+    return validateResponse(outboundRecordSchema, res.data);
   },
 
   approve: async (id: number, reason?: string) => {
     const res = await apiClient.post<ApiResponse<string>>(`/outbound-records/${id}/approve`, { reason });
-    return validateResponse(z.string(), res.data.data);
+    return validateResponse(z.string(), res.data);
   },
 
   reject: async (id: number, reason: string) => {
     const res = await apiClient.post<ApiResponse<string>>(`/outbound-records/${id}/reject`, { reason });
-    return validateResponse(z.string(), res.data.data);
+    return validateResponse(z.string(), res.data);
+  },
+
+  update: async (id: number, data: CreateOutboundData) => {
+    const res = await apiClient.put<ApiResponse<OutboundRecord>>(`/outbound-records/${id}`, data);
+    return validateResponse(outboundRecordSchema, res.data);
   },
 
   delete: async (id: number) => {
@@ -283,27 +301,27 @@ export const outboundApi = {
 export const inventoryApi = {
   queryStock: async (params?: StockFilter) => {
     const res = await apiClient.get<PaginatedResponse<Record<string, unknown>>>('/inventory', { params });
-    return validateResponse(paginatedDataSchema(stockItemSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(stockItemSchema), res.data);
   },
 
   queryLogs: async (params?: StockFilter) => {
     const res = await apiClient.get<PaginatedResponse<InventoryLog>>('/inventory/logs', { params });
-    return validateResponse(paginatedDataSchema(inventoryLogSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(inventoryLogSchema), res.data);
   },
 
   tracePipe: async (pipeType: string, pipeId: number) => {
     const res = await apiClient.get<ApiResponse<Record<string, unknown>>>(`/trace/pipe/${pipeType}/${pipeId}`);
-    return validateResponse(tracePipeSchema, res.data.data);
+    return validateResponse(tracePipeSchema, res.data);
   },
 
   traceHeat: async (heatNumber: string) => {
     const res = await apiClient.get<ApiResponse<unknown[]>>(`/trace/heat-number/${heatNumber}`);
-    return validateResponse(z.array(traceHeatItemSchema), res.data.data);
+    return validateResponse(z.array(traceHeatItemSchema), res.data);
   },
 
   traceOrder: async (orderType: string, orderId: number) => {
     const res = await apiClient.get<ApiResponse<unknown>>(`/trace/order/${orderType}/${orderId}`);
-    return validateResponse(traceOrderSchema, res.data.data);
+    return validateResponse(traceOrderSchema, res.data);
   },
 };
 
@@ -312,22 +330,22 @@ export const inventoryApi = {
 export const locationApi = {
   list: async (params?: LocationFilter) => {
     const res = await apiClient.get<PaginatedResponse<Location>>('/locations', { params });
-    return validateResponse(paginatedDataSchema(locationSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(locationSchema), res.data);
   },
 
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<Location>>(`/locations/${id}`);
-    return validateResponse(locationSchema, res.data.data);
+    return validateResponse(locationSchema, res.data);
   },
 
   create: async (data: CreateLocationData) => {
     const res = await apiClient.post<ApiResponse<Location>>('/locations', data);
-    return validateResponse(locationSchema, res.data.data);
+    return validateResponse(locationSchema, res.data);
   },
 
   update: async (id: number, data: UpdateLocationData) => {
     const res = await apiClient.put<ApiResponse<Location>>(`/locations/${id}`, data);
-    return validateResponse(locationSchema, res.data.data);
+    return validateResponse(locationSchema, res.data);
   },
 
   delete: async (id: number) => {
@@ -340,17 +358,17 @@ export const locationApi = {
 export const checkApi = {
   list: async (params?: CheckFilter) => {
     const res = await apiClient.get<PaginatedResponse<InventoryCheckRecord>>('/inventory/checks', { params });
-    return validateResponse(paginatedDataSchema(inventoryCheckRecordSchema), res.data.data);
+    return validateResponse(paginatedDataSchema(inventoryCheckRecordSchema), res.data);
   },
 
   get: async (id: number) => {
     const res = await apiClient.get<ApiResponse<CheckDetail>>(`/inventory/checks/${id}`);
-    return validateResponse(checkDetailSchema, res.data.data);
+    return validateResponse(checkDetailSchema, res.data);
   },
 
   create: async (data: CreateCheckData) => {
     const res = await apiClient.post<ApiResponse<InventoryCheckRecord>>('/inventory/checks', data);
-    return validateResponse(inventoryCheckRecordSchema, res.data.data);
+    return validateResponse(inventoryCheckRecordSchema, res.data);
   },
 
   submitItem: async (checkId: number, itemId: number, data: SubmitCheckItemData) => {
@@ -358,7 +376,7 @@ export const checkApi = {
       `/inventory/checks/${checkId}/items/${itemId}`,
       data,
     );
-    return validateResponse(inventoryCheckItemSchema, res.data.data);
+    return validateResponse(inventoryCheckItemSchema, res.data);
   },
 };
 
@@ -372,12 +390,12 @@ export interface PipeSearchResult {
   od: number;
   wt: number;
   status: string;
-  location_id?: number;
+  location_id?: number | null;
 }
 
 export const pipeSearchApi = {
   search: async (params?: { q?: string; pipe_type?: string; status?: string; limit?: number }) => {
     const res = await apiClient.get<ApiResponse<PipeSearchResult[]>>('/pipes/search', { params });
-    return validateResponse(z.array(pipeSearchResultSchema), res.data.data);
+    return validateResponse(z.array(pipeSearchResultSchema), res.data);
   },
 };

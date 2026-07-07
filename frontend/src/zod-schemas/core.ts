@@ -6,90 +6,91 @@
  */
 import { z } from 'zod';
 
+const nullableString = z.string().optional();
+const nullableNumber = z.number().optional();
+
 export const seamlessPipeSchema = z.object({
   id: z.number(),
   pipe_number: z.string(),
-  batch_number: z.string().optional(),
+  batch_number: nullableString,
   pipe_type: z.string(),
   grade: z.string(),
   od: z.number(),
   wt: z.number(),
-  length: z.number().optional(),
-  weight_per_unit: z.number().optional(),
-  end_type: z.string().optional(),
-  coupling_type: z.string().optional(),
-  coupling_od: z.number().optional(),
-  coupling_length: z.number().optional(),
-  heat_number: z.string().optional(),
-  serial_number: z.string().optional(),
-  manufacturer: z.string().optional(),
-  production_date: z.string().optional(),
-  cert_number: z.string().optional(),
-  location_id: z.number().optional(),
+  length: nullableNumber,
+  weight_per_unit: nullableNumber,
+  end_type: nullableString,
+  coupling_type: nullableString,
+  coupling_od: nullableNumber,
+  coupling_length: nullableNumber,
+  heat_number: nullableString,
+  serial_number: nullableString,
+  manufacturer: nullableString,
+  production_date: nullableString,
+  cert_number: nullableString,
+  location_id: nullableNumber,
   status: z.string(),
-  notes: z.string().optional(),
+  notes: nullableString,
   created_at: z.string(),
   updated_at: z.string(),
-}).strict();
+  deleted_at: nullableString,
+}).passthrough();
 
 export const screenPipeSchema = z.object({
   id: z.number(),
   pipe_number: z.string(),
-  batch_number: z.string().optional(),
+  batch_number: nullableString,
   screen_type: z.string(),
-  slot_size: z.number().optional(),
-  filtration_grade: z.string().optional(),
+  slot_size: nullableNumber,
+  filtration_grade: nullableString,
   base_od: z.number(),
   base_wt: z.number(),
   base_grade: z.string(),
-  base_end_type: z.string().optional(),
-  length: z.number().optional(),
-  weight_per_unit: z.number().optional(),
-  heat_number: z.string().optional(),
-  serial_number: z.string().optional(),
-  manufacturer: z.string().optional(),
-  production_date: z.string().optional(),
-  cert_number: z.string().optional(),
-  location_id: z.number().optional(),
+  base_end_type: nullableString,
+  length: nullableNumber,
+  weight_per_unit: nullableNumber,
+  heat_number: nullableString,
+  serial_number: nullableString,
+  manufacturer: nullableString,
+  production_date: nullableString,
+  cert_number: nullableString,
+  location_id: nullableNumber,
   status: z.string(),
-  notes: z.string().optional(),
+  notes: nullableString,
   created_at: z.string(),
   updated_at: z.string(),
-}).strict();
+  deleted_at: nullableString,
+}).passthrough();
 
 export const customerSchema = z.object({
   id: z.number(),
-  code: z.string(),
+  customer_code: z.string(),
   name: z.string(),
-  contact_person: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().optional(),
-  address: z.string().optional(),
-  tax_id: z.string().optional(),
-  bank_info: z.string().optional(),
-  industry: z.string().optional(),
-  status: z.string(),
-  notes: z.string().optional(),
+  contact_person: nullableString,
+  phone: nullableString,
+  email: nullableString,
+  address: nullableString,
+  is_active: z.boolean(),
+  notes: nullableString,
   created_at: z.string(),
   updated_at: z.string(),
-}).strict();
+  deleted_at: nullableString,
+}).passthrough();
 
 export const supplierSchema = z.object({
   id: z.number(),
-  code: z.string(),
+  supplier_code: z.string(),
   name: z.string(),
-  contact_person: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().optional(),
-  address: z.string().optional(),
-  tax_id: z.string().optional(),
-  bank_info: z.string().optional(),
-  grade_supply: z.string().optional(),
-  status: z.string(),
-  notes: z.string().optional(),
+  contact_person: nullableString,
+  phone: nullableString,
+  email: nullableString,
+  address: nullableString,
+  is_active: z.boolean(),
+  notes: nullableString,
   created_at: z.string(),
   updated_at: z.string(),
-}).strict();
+  deleted_at: nullableString,
+}).passthrough();
 
 export const userInfoSchema = z.object({
   id: z.number(),
@@ -98,13 +99,15 @@ export const userInfoSchema = z.object({
   role: z.string(),
   email: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
-}).strict();
+}).passthrough();
 
 export const loginResponseSchema = z.object({
   token: z.string(),
+  refresh_token: z.string().optional(),
   user: userInfoSchema,
-}).strict();
+}).passthrough();
 
 export const tokenResponseSchema = z.object({
   token: z.string(),
-}).strict();
+  refresh_token: z.string().optional(),
+}).passthrough();

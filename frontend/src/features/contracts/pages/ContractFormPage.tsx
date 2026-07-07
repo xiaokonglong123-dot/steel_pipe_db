@@ -1,4 +1,4 @@
-// Contract create/edit form — contract fields + dynamic line items + payment milestones
+// 合同新增/编辑表单 — 使用 PageLayout
 import { useEffect, useState } from 'react';
 import {
   Form,
@@ -16,6 +16,7 @@ import {
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { useContract, useCreateContract, useUpdateContract } from '../hooks/useContracts';
 import type { ContractItem } from '../types';
 
@@ -24,16 +25,14 @@ interface ItemFormValue {
   grade: string;
   od: number;
   wt: number;
-  length?: number;
   quantity: number;
   unit_price: number;
   total_price: number;
-  delivery_date?: string;
   notes?: string;
 }
 
 interface FormValues {
-  contract_name: string;
+  title: string;
   contract_type: 'purchase' | 'sales';
   party_a: string;
   party_b: string;
@@ -60,15 +59,15 @@ export default function ContractFormPage() {
   useEffect(() => {
     if (contract && isEdit) {
       form.setFieldsValue({
-        contract_name: contract.contract_name,
+        title: contract.title,
         contract_type: contract.contract_type,
         party_a: contract.party_a,
         party_b: contract.party_b,
-        sign_date: contract.sign_date,
-        start_date: contract.start_date,
-        end_date: contract.end_date,
-        total_amount: contract.total_amount,
-        notes: contract.notes,
+        sign_date: contract.sign_date ?? undefined,
+        start_date: contract.start_date ?? undefined,
+        end_date: contract.end_date ?? undefined,
+        total_amount: contract.total_amount ?? 0,
+        notes: contract.notes ?? undefined,
       });
       if (contract.items) {
         setItems(
@@ -77,12 +76,10 @@ export default function ContractFormPage() {
             grade: item.grade,
             od: item.od,
             wt: item.wt,
-            length: item.length,
             quantity: item.quantity,
-            unit_price: item.unit_price,
-            total_price: item.total_price,
-            delivery_date: item.delivery_date,
-            notes: item.notes,
+            unit_price: item.unit_price ?? 0,
+            total_price: item.total_price ?? 0,
+            notes: item.notes ?? undefined,
           })),
         );
       }
@@ -243,23 +240,26 @@ export default function ContractFormPage() {
   ];
 
   return (
-    <div style={{ maxWidth: 960 }}>
+    <PageLayout
+      title={isEdit ? t('contracts.edit_contract') : t('contracts.create_contract')}
+      onBack={() => navigate('/contracts')}
+    >
       <Form
         form={form}
         layout="vertical"
         onFinish={handleFinish}
         initialValues={{ contract_type: 'purchase' }}
+        style={{ maxWidth: 960 }}
       >
-        <Card title={isEdit ? t('contracts.edit_contract') : t('contracts.create_contract')} style={{ marginBottom: 16 }}>
-          <Space style={{ display: 'flex' }} wrap>
+        <Space style={{ display: 'flex' }} wrap>
             {isEdit && (
               <Form.Item label={t('contracts.contract_number')}>
-                <Input value={contract?.contract_number} disabled />
+                <Input value={contract?.contract_no} disabled />
               </Form.Item>
             )}
             <Form.Item
               label={t('contracts.contract_name')}
-              name="contract_name"
+              name="title"
               rules={[{ required: true }]}
             >
               <Input style={{ width: 250 }} />
@@ -311,7 +311,6 @@ export default function ContractFormPage() {
               <Input.TextArea rows={2} style={{ width: 300 }} />
             </Form.Item>
           </Space>
-        </Card>
 
         <Card title={t('contracts.contract_items')} style={{ marginBottom: 16 }}>
           <Table
@@ -343,6 +342,6 @@ export default function ContractFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }

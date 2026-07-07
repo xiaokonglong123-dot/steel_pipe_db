@@ -1,8 +1,9 @@
 use axum::{
     extract::{Extension, Path, Query},
+    http::StatusCode,
+    response::IntoResponse,
     Json,
 };
-use serde_json;
 use sqlx::SqlitePool;
 
 use validator::Validate;
@@ -10,13 +11,14 @@ use validator::Validate;
 use crate::dto::common::PaginationParams;
 use crate::dto::purchase_dto::{
     ApproveOrderRequest, CreatePurchaseOrderRequest, LinkInboundRequest,
-    PurchaseOrderFilterParams, PurchaseOrderStatusTransitionRequest, RejectOrderRequest,
-    UpdatePurchaseItemRequest, UpdatePurchaseOrderRequest,
+    PurchaseOrderDetailResponse, PurchaseOrderFilterParams,
+    PurchaseOrderStatusTransitionRequest, RejectOrderRequest, UpdatePurchaseItemRequest,
+    UpdatePurchaseOrderRequest,
 };
 use crate::error::AppError;
 use crate::models::purchase_order::PurchaseOrder;
 use crate::response::{ApiResponse, PaginatedResponse};
-use crate::services::purchase_sales_service::PurchaseSalesService;
+use crate::services::purchase_service::PurchaseService;
 
 /// GET `/api/v1/purchase-orders` — Paginated list of purchase orders
 ///
@@ -35,7 +37,7 @@ pub async fn list_purchase_orders_handler(
     let page_size = pagination.page_size();
 
     let (items, total) =
-        PurchaseSalesService::list_purchase_orders(&pool, &filter, &pagination).await?;
+        PurchaseService::list_purchase_orders(&pool, &filter, &pagination).await?;
 
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
@@ -47,27 +49,26 @@ pub async fn list_purchase_orders_handler(
 pub async fn create_purchase_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreatePurchaseOrderRequest>,
-) -> Result<Json<ApiResponse<PurchaseOrder>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    let order = PurchaseSalesService::create_purchase_order(&pool, &req).await?;
-    Ok(ApiResponse::ok(order))
+) -> Result<axum::response::Response, AppError> {
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    let order = PurchaseService::create_purchase_order(&pool, &req).await?;
+    Ok(ApiResponse::created(order))
 }
 
 /// GET `/api/v1/purchase-orders/{id}` — Get purchase order details
 ///
-/// Returns the purchase order header plus its line items. Returns 404 if not found.
+/// Returns the purchase order header plus its line items in a standard ApiResponse envelope.
+/// Returns 404 if not found.
 pub async fn get_purchase_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let (order, items) = PurchaseSalesService::get_purchase_order(&pool, id).await?;
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "data": {
-            "order": order,
-            "items": items,
-        }
-    })))
+) -> Result<Json<ApiResponse<PurchaseOrderDetailResponse>>, AppError> {
+    let (order, items) = PurchaseService::get_purchase_order(&pool, id).await?;
+    Ok(ApiResponse::ok(PurchaseOrderDetailResponse {
+        order,
+        items,
+    }))
 }
 
 /// PUT `/api/v1/purchase-orders/{id}` — Update a purchase order
@@ -79,8 +80,9 @@ pub async fn update_purchase_order_handler(
     Path(id): Path<i64>,
     Json(req): Json<UpdatePurchaseOrderRequest>,
 ) -> Result<Json<ApiResponse<PurchaseOrder>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    let order = PurchaseSalesService::update_purchase_order(&pool, id, &req).await?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    let order = PurchaseService::update_purchase_order(&pool, id, &req).await?;
     Ok(ApiResponse::ok(order))
 }
 
@@ -90,9 +92,9 @@ pub async fn update_purchase_order_handler(
 pub async fn delete_purchase_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    PurchaseSalesService::delete_purchase_order(&pool, id).await?;
-    Ok(ApiResponse::ok("Purchase order deleted successfully".into()))
+) -> Result<axum::response::Response, AppError> {
+    PurchaseService::delete_purchase_order(&pool, id).await?;
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 /// PUT `/api/v1/purchase-orders/{id}/status` — Transition purchase order status
@@ -104,8 +106,9 @@ pub async fn transition_purchase_order_status_handler(
     Path(id): Path<i64>,
     Json(req): Json<PurchaseOrderStatusTransitionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    PurchaseSalesService::transition_purchase_status(&pool, id, &req).await?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    PurchaseService::transition_purchase_status(&pool, id, &req).await?;
     Ok(ApiResponse::ok(format!(
         "Purchase order status changed to '{}'",
         req.status
@@ -121,9 +124,10 @@ pub async fn update_purchase_item_handler(
     Path((order_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<UpdatePurchaseItemRequest>,
 ) -> Result<Json<ApiResponse<PurchaseOrder>>, AppError> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let (order, _item) =
-        PurchaseSalesService::update_purchase_item(&pool, order_id, item_id, &req).await?;
+        PurchaseService::update_purchase_item(&pool, order_id, item_id, &req).await?;
     Ok(ApiResponse::ok(order))
 }
 
@@ -133,9 +137,9 @@ pub async fn update_purchase_item_handler(
 pub async fn delete_purchase_item_handler(
     Extension(pool): Extension<SqlitePool>,
     Path((order_id, item_id)): Path<(i64, i64)>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    PurchaseSalesService::delete_purchase_item(&pool, order_id, item_id).await?;
-    Ok(ApiResponse::ok("Purchase order item deleted".into()))
+) -> Result<axum::response::Response, AppError> {
+    PurchaseService::delete_purchase_item(&pool, order_id, item_id).await?;
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }
 
 /// PUT `/api/v1/purchase-orders/{id}/approve` — Approve a purchase order
@@ -147,7 +151,7 @@ pub async fn approve_purchase_order_handler(
     Path(id): Path<i64>,
     Json(dto): Json<ApproveOrderRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    PurchaseSalesService::approve_purchase_order(&pool, id, &dto).await?;
+    PurchaseService::approve_purchase_order(&pool, id, &dto).await?;
     Ok(ApiResponse::ok("Purchase order approved".into()))
 }
 
@@ -159,7 +163,7 @@ pub async fn reject_purchase_order_handler(
     Path(id): Path<i64>,
     Json(dto): Json<RejectOrderRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    PurchaseSalesService::reject_purchase_order(&pool, id, &dto).await?;
+    PurchaseService::reject_purchase_order(&pool, id, &dto).await?;
     Ok(ApiResponse::ok("Purchase order rejected".into()))
 }
 
@@ -170,8 +174,8 @@ pub async fn reject_purchase_order_handler(
 pub async fn link_inbound_to_order_handler(
     Extension(pool): Extension<SqlitePool>,
     Path(order_id): Path<i64>,
-    Json(dto): Json<LinkInboundRequest>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    PurchaseSalesService::link_inbound_to_order(&pool, order_id, dto.inbound_record_id).await?;
-    Ok(ApiResponse::ok("Inbound record linked to purchase order".into()))
+    Json(req): Json<LinkInboundRequest>,
+) -> Result<axum::response::Response, AppError> {
+    PurchaseService::link_inbound_to_order(&pool, order_id, req.inbound_record_id).await?;
+    Ok((StatusCode::NO_CONTENT, ()).into_response())
 }

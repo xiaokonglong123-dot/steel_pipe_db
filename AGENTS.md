@@ -40,13 +40,13 @@ steel-pipe-db/
 │       ├── main.rs         ← Entry: tracing, DB pool, migrate, start server
 │       ├── lib.rs          ← Module declarations re-exported
 │       ├── router.rs       ← ~70 endpoints, all routes assembled here
-│       ├── handlers/       ← 13 files, 1 per entity (thin: extract → call service → respond)
-│       ├── services/       ← 12 files, business logic (unit structs, static methods)
-│       ├── repositories/   ← 13 files, pure SQL, soft-delete aware
-│       ├── models/         ← 11 files, DB row structs (sqlx::FromRow)
+│       ├── handlers/       ← 16 files, 1 per entity (thin: extract → call service → respond)
+│       ├── services/       ← 19 files, business logic (unit structs, static methods)
+│       ├── repositories/   ← 20 files, pure SQL, soft-delete aware
+│       ├── models/         ← 12 files, DB row structs (sqlx::FromRow)
 │       ├── dto/            ← 14 files, request/response types
-│       ├── domain/         ← 4 files, enums/domain types
-│       ├── middleware/     ← auth.rs + rbac.rs (updated with success/request_id in error responses)
+│       ├── domain/         ← 5 files, enums/domain types
+│       ├── middleware/     ← 4 files, auth.rs + rbac.rs + rate_limit.rs
 │       ├── config.rs       ← Env-based config (DATABASE_URL, JWT_SECRET, etc.)
 │       ├── error.rs        ← AppError enum, numeric error codes; ApiErrorResponse with success+request_id
 │       └── response.rs     ← ApiResponse<T>, PaginatedResponse<T>, Meta struct, request_id (uuid v4), ::created(), no_content()
@@ -56,7 +56,7 @@ steel-pipe-db/
 │       ├── App.tsx         ← ConfigProvider + QueryClientProvider + RouterProvider
 │       ├── api/            ← Axios instance + QueryClient config
 │       ├── routes/         ← createBrowserRouter + ProtectedRoute
-│       ├── features/       ← 11 feature modules (auth, contracts, customers, ...)
+│       ├── features/       ← 13 feature modules (auth, contracts, customers, search, profile, ...)
 │       ├── layouts/        ← MainLayout (sidebar + header + Outlet)
 │       ├── stores/         ← Zustand authStore, appStore (global state), unitStore (unit conversion)
 │       ├── lib/            ← validateResponse.ts, runtime zod response validation
@@ -97,10 +97,11 @@ steel-pipe-db/
 
 ### DI Pattern: Extension layers, NOT State<Arc<AppState>>
 ```
-router.rs: .layer(Extension(pool)).layer(Extension(jwt_secret))
+router.rs: .layer(Extension(pool)).layer(Extension(JwtSecret(jwt_secret)))
 Handler:   Extension(pool): Extension<SqlitePool>
+Auth:      Extension(jwt_secret): Extension<JwtSecret>
 ```
-No `AppState` struct exists. Pool and JWT secret get injected as raw types. Fight me.
+No `AppState` struct exists. The pool is injected directly, while the JWT secret uses the `JwtSecret` newtype so it cannot collide with other `String` extensions and redacts itself in debug output.
 
 ### Response Shapes
 ```rust
@@ -109,6 +110,7 @@ No `AppState` struct exists. Pool and JWT secret get injected as raw types. Figh
 // Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
 `request_id` is a uuid v4. `Meta` struct has total/page/page_size/total_pages. `ApiErrorResponse` always includes `success: false` and `request_id` — filled automatically by `AppError::into_response()`.
+The backend also propagates an `x-request-id` response header via `tower-http`; CORS exposes that header for browser debugging.
 
 ### Handler Pattern
 ```rust
@@ -154,14 +156,14 @@ Same deal — static methods, `pool: &SqlitePool`. Soft-delete: `WHERE deleted_a
 | 180xx | Data IO (ImportError, ExportError) |
 | 50001 | Database |
 
-### Handler Files (13)
+### Handler Files (16)
 `auth_handler`, `pipe_handler`, `inventory_handler`, `purchase_handler`, `sales_handler`, `quality_handler`, `contract_handler`, `customer_handler`, `supplier_handler`, `report_handler`, `label_handler`, `data_io_handler`, `atp_handler`
 
-### Service Files (12)
-`auth_service`, `pipe_service`, `inventory_service`, `purchase_sales_service`, `quality_service`, `contract_service`, `customer_service`, `supplier_service`, `label_service`, `report_service`, `data_io_service`, `trace_service`
+### Service Files (19)
+`auth_service`, `pipe_service`, `inbound_service`, `outbound_service`, `check_service`, `inventory_query_service`, `location_service`, `purchase_service`, `sales_service`, `quality_service`, `contract_service`, `customer_service`, `supplier_service`, `label_service`, `report_service`, `data_io_service`, `trace_service`
 
-### Repository Files (13)
-`pipe_repo`, `inventory_repo`, `purchase_order_repo`, `sales_order_repo`, `quality_repo`, `contract_repo`, `customer_repo`, `supplier_repo`, `label_repo`, `report_repo`, `data_io_repo`, `user_repo`, `operation_log_repo`
+### Repository Files (20)
+`pipe_repo`, `inventory_repo`, `location_repo`, `inbound_repo`, `outbound_repo`, `inventory_log_repo`, `check_repo`, `purchase_order_repo`, `sales_order_repo`, `quality_repo`, `contract_repo`, `customer_repo`, `supplier_repo`, `label_repo`, `report_repo`, `data_io_repo`, `user_repo`, `operation_log_repo`, `refresh_token_repo`
 
 ### DB Migrations (11 files in `backend/migrations/`)
 `001_create_users` → `002_create_seamless_pipes` → `003_create_screen_pipes` → `004_create_locations` → `005_create_inventory` → `006_create_orders` → `007_create_quality` → `008_create_logs` → `009_create_ref_data` → `010_seed_api_5ct_data` → `011_add_rejection_reason`
@@ -197,10 +199,10 @@ Same deal — static methods, `pool: &SqlitePool`. Soft-delete: `WHERE deleted_a
   /search                  ← SearchPage
 ```
 
-### Feature Modules (11)
-`auth`, `pipes`, `inventory`, `suppliers`, `customers`, `purchases`, `sales`, `quality`, `contracts`, `reports`, `labels`
+### Feature Modules (13)
+`auth`, `pipes`, `inventory`, `suppliers`, `customers`, `purchases`, `sales`, `quality`, `contracts`, `reports`, `labels`, `search`, `profile`
 
-Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, DetailPage), `types/` (TS interfaces). Some also have `hooks/` or `store/` or `stores/`.
+Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, DetailPage), `types/` (TS interfaces), and usually `queryKeys.ts` for TanStack Query key factories. Some also have `hooks/` or `store/` or `stores/`.
 
 ### Auth Flow
 - `authStore` (Zustand, localStorage-backed): stores `auth_token` + `auth_user`
@@ -227,8 +229,9 @@ Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, D
 - **Type safety**: CI enforces `cargo check` (not build) + `tsc --noEmit`. No Rust tests run in CI
 - **Dead code cleanup**: 26 unused items removed from domain/dto/error/response/repo modules. `#![allow(dead_code)]` retained at crate root to suppress legitimate false positives.
 - **Path params**: Axum 0.8 uses `{id}` syntax (not `:id` as in Axum 0.7)
-- **Bare `Extension<String>`** for JWT secret — no newtype wrapper
+- **JWT secret uses `JwtSecret` newtype** — no bare `Extension<String>` for auth secrets; missing secret extension fails closed with 500
 - **No State extractor** anywhere — all DI via Extension
+- **Frontend query keys**: feature hooks use per-module `queryKeys.ts` factories; avoid inline `queryKey: [...]` literals in feature API code
 - **`shared/components/` is populated** — 9 shared components: ConfirmModal, EmptyState, ErrorBoundary, FileUploader, LoadingSpin, PageContainer, PageHeader, SearchBar, StatusTag
 - **`docs/AGENTS.md`** exists as index for design docs in Chinese
 - **Seed data**: `backend/seed_data.py` and `backend/seed_data_enhanced.py` available

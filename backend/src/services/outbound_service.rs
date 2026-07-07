@@ -1,32 +1,60 @@
-use chrono::Utc;
 use sqlx::SqlitePool;
 
-use crate::dto::inventory_dto::{CreateOutboundRecordRequest, OutboundFilter};
+use crate::domain::pipe::PipeType;
+use crate::dto::inventory_dto::{
+    CreateOutboundRecordRequest, OutboundFilter, OutboundPipeItem, UpdateOutboundRecordRequest,
+};
 use crate::error::AppError;
 use crate::models::inventory::{OutboundItem, OutboundRecord};
-use crate::repositories::inventory_repo::OutboundRepo;
-use crate::repositories::pipe_repo::{SeamlessPipeRepo, ScreenPipeRepo};
+use crate::models::screen_pipe::ScreenPipe;
+use crate::models::seamless_pipe::SeamlessPipe;
+use crate::repositories::generic_pipe_repo::GenericPipeRepo;
+use crate::repositories::inventory_log_repo::InventoryLogRepo;
+use crate::repositories::inventory_repo::{CreateInventoryLog, InventoryRepo};
+use crate::repositories::location_repo::LocationRepo;
+use crate::repositories::outbound_repo::OutboundRepo;
+use crate::services::utils;
+
+/// After outbound execution, refresh location used_counts for all affected pipes.
+/// This ensures the `used_count` column stays consistent with actual stock.
+async fn refresh_outbound_locations(
+    pool: &SqlitePool,
+    items: &[OutboundPipeItem],
+) -> Result<(), AppError> {
+    let mut location_ids = std::collections::BTreeSet::new();
+    for item in items {
+        // Validate pipe type
+        PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+            AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+        })?;
+        if let Some(loc_id) =
+            InventoryRepo::get_pipe_location_id(pool, &item.pipe_type, item.pipe_id)
+                .await
+                .map_err(AppError::from)?
+        {
+            location_ids.insert(loc_id);
+        }
+    }
+    for loc_id in location_ids {
+        LocationRepo::refresh_used_count(pool, loc_id)
+            .await
+            .map_err(AppError::from)?;
+    }
+    Ok(())
+}
 
 /// Outbound service — handles sales, scrapped, and transfer stock-out with create/approve/execute/query.
 /// Mirror of inbound: `auto_approved` executes immediately, `pending` needs approval later.
 pub struct OutboundService;
 
 impl OutboundService {
-    fn generate_no(prefix: &str) -> String {
-        let now = Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-        let serial = uuid::Uuid::new_v4().to_string();
-        let short_serial = &serial[..8];
-        format!("{}-{}-{}", prefix, date_str, short_serial)
-    }
-
     /// Creates an outbound record. Needs at least one pipe; auto-checks every pipe is `in_stock`.
     /// If `auto_approved`, it immediately applies the stock changes.
     ///
     /// # Errors
     /// - `AppError::Validation` — pipe items list is empty
     /// - `AppError::NotFound` — pipe ID doesn't exist
-    /// - `AppError::InsufficientStock` — pipe ain't `in_stock`
+    /// - `AppError::InsufficientStock` — pipe is not `in_stock`
     pub async fn create_outbound(
         pool: &SqlitePool,
         dto: &CreateOutboundRecordRequest,
@@ -36,122 +64,135 @@ impl OutboundService {
         }
 
         // Batch query all pipes to fix N+1 problem
-        let seamless_ids: Vec<i64> = dto.pipes.iter()
-            .filter(|item| matches!(item.pipe_type.as_str(), "seamless" | "casing" | "tubing"))
+        let seamless_ids: Vec<i64> = dto
+            .pipes
+            .iter()
+            .filter(|item| {
+                PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Seamless)
+            })
             .map(|item| item.pipe_id)
             .collect();
-        let screen_ids: Vec<i64> = dto.pipes.iter()
-            .filter(|item| matches!(item.pipe_type.as_str(), "screen" | "screened"))
+        let screen_ids: Vec<i64> = dto
+            .pipes
+            .iter()
+            .filter(|item| PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Screen))
             .map(|item| item.pipe_id)
             .collect();
 
-        let seamless_pipes = SeamlessPipeRepo::find_by_ids(pool, &seamless_ids).await?;
-        let screen_pipes = ScreenPipeRepo::find_by_ids(pool, &screen_ids).await?;
+        let seamless_pipes = GenericPipeRepo::<SeamlessPipe>::find_by_ids(pool, &seamless_ids).await?;
+        let screen_pipes = GenericPipeRepo::<ScreenPipe>::find_by_ids(pool, &screen_ids).await?;
 
-        let seamless_map: std::collections::HashMap<i64, _> = seamless_pipes.iter()
-            .map(|p| (p.id, &p.status))
-            .collect();
-        let screen_map: std::collections::HashMap<i64, _> = screen_pipes.iter()
-            .map(|p| (p.id, &p.status))
-            .collect();
+        let seamless_map: std::collections::HashMap<i64, _> =
+            seamless_pipes.iter().map(|p| (p.id, &p.status)).collect();
+        let screen_map: std::collections::HashMap<i64, _> =
+            screen_pipes.iter().map(|p| (p.id, &p.status)).collect();
 
         for item in &dto.pipes {
-            match item.pipe_type.as_str() {
-                "seamless" | "casing" | "tubing" => {
-                    let status = seamless_map.get(&item.pipe_id)
-                        .ok_or_else(|| AppError::NotFound(format!(
-                            "Seamless pipe id={} not found", item.pipe_id
-                        )))?;
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+            })?;
+
+            match pipe_type {
+                PipeType::Seamless => {
+                    let status = seamless_map.get(&item.pipe_id).ok_or_else(|| {
+                        AppError::NotFound(format!("Seamless pipe id={} not found", item.pipe_id))
+                    })?;
                     if status.as_str() != "in_stock" {
-                        return Err(AppError::InsufficientStock);
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
                 }
-                "screen" | "screened" => {
-                    let status = screen_map.get(&item.pipe_id)
-                        .ok_or_else(|| AppError::NotFound(format!(
-                            "Screen pipe id={} not found", item.pipe_id
-                        )))?;
+                PipeType::Screen => {
+                    let status = screen_map.get(&item.pipe_id).ok_or_else(|| {
+                        AppError::NotFound(format!("Screen pipe id={} not found", item.pipe_id))
+                    })?;
                     if status.as_str() != "in_stock" {
-                        return Err(AppError::InsufficientStock);
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
                 }
-                _ => return Err(AppError::Validation(format!(
-                    "Unknown pipe_type: {}", item.pipe_type
-                ))),
+                PipeType::Welded => {
+                    return Err(AppError::Validation(
+                        "Outbound not yet supported for welded pipes".into(),
+                    ));
+                }
             }
         }
 
-        let outbound_no = Self::generate_no("OUT");
+        let outbound_no = utils::generate_no("OUT");
 
         let record = OutboundRepo::create_with_items(pool, dto, &outbound_no)
             .await
             .map_err(AppError::from)?;
 
         if record.approval_status == "auto_approved" {
-            for item in &dto.pipes {
-                Self::execute_outbound(pool, record.id, item).await?;
-            }
+            Self::execute_outbound_batch(pool, record.id, &record.outbound_type, None, &dto.pipes)
+                .await?;
         }
 
         Ok(record)
     }
 
-    async fn execute_outbound(
+    /// Applies outbound stock changes for all pipe items in a single transaction.
+    /// If any item fails, the entire batch is rolled back.
+    async fn execute_outbound_batch(
         pool: &SqlitePool,
         record_id: i64,
-        item: &crate::dto::inventory_dto::OutboundPipeItem,
+        outbound_type: &str,
+        created_by: Option<i64>,
+        items: &[crate::dto::inventory_dto::OutboundPipeItem],
     ) -> Result<(), AppError> {
         let mut tx = pool.begin().await.map_err(AppError::from)?;
-        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let next_status = if outbound_type == "scrapped" {
+            "scrapped"
+        } else {
+            "outbound"
+        };
 
-        match item.pipe_type.as_str() {
-            "seamless" | "casing" | "tubing" => {
-                sqlx::query(
-                    "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-                )
-                .bind(&now)
-                .bind(item.pipe_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(AppError::from)?;
+        for item in items {
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+            })?;
+
+            match pipe_type {
+                PipeType::Seamless | PipeType::Screen => {
+                    let affected = InventoryRepo::update_pipe_status_with_stock_check(
+                        &mut *tx,
+                        &item.pipe_type,
+                        item.pipe_id,
+                        next_status,
+                    )
+                    .await
+                    .map_err(AppError::from)?;
+                    if affected == 0 {
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
+                    }
+                }
+                PipeType::Welded => {
+                    return Err(AppError::Validation(
+                        "Outbound not yet supported for welded pipes".into(),
+                    ));
+                }
             }
-            "screen" | "screened" => {
-                sqlx::query(
-                    "UPDATE screen_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-                )
-                .bind(&now)
-                .bind(item.pipe_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(AppError::from)?;
-            }
-            _ => {
-                return Err(AppError::Validation(format!(
-                    "Unknown pipe_type: {}",
-                    item.pipe_type
-                )));
-            }
+
+            InventoryLogRepo::create_in_transaction(
+                &mut tx,
+                &CreateInventoryLog {
+                    pipe_type: item.pipe_type.clone(),
+                    pipe_id: item.pipe_id,
+                    change_type: "outbound".into(),
+                    ref_type: Some("outbound".into()),
+                    ref_id: Some(record_id),
+                    from_location_id: None,
+                    to_location_id: None,
+                    notes: None,
+                    created_by,
+                },
+            )
+            .await
+            .map_err(AppError::from)?;
         }
 
-        sqlx::query(
-            "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
-             from_location_id, to_location_id, notes, created_by) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&item.pipe_type)
-        .bind(item.pipe_id)
-        .bind("outbound")
-        .bind(Some("outbound"))
-        .bind(Some(record_id))
-        .bind(None::<i64>)
-        .bind(None::<i64>)
-        .bind(None::<String>)
-        .bind(None::<i64>)
-        .execute(&mut *tx)
-        .await
-        .map_err(AppError::from)?;
-
         tx.commit().await.map_err(AppError::from)?;
+        refresh_outbound_locations(pool, items).await?;
         Ok(())
     }
 
@@ -161,7 +202,12 @@ impl OutboundService {
     /// # Errors
     /// - `AppError::NotFound` — record doesn't exist or was deleted
     /// - `AppError::Validation` — current state won't allow approval
-    pub async fn approve_outbound(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
+    pub async fn approve_outbound(
+        pool: &SqlitePool,
+        id: i64,
+        approval_reason: Option<&str>,
+        handled_by: Option<i64>,
+    ) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -186,68 +232,101 @@ impl OutboundService {
             .map_err(AppError::from)?;
 
         let mut tx = pool.begin().await.map_err(AppError::from)?;
-        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-        sqlx::query(
-            "UPDATE outbound_records SET approval_status = 'approved', \
-             rejection_reason = NULL, updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
-        )
-        .bind(id)
-        .execute(&mut *tx)
-        .await
-        .map_err(AppError::from)?;
+        let affected = OutboundRepo::approve(&mut tx, id, approval_reason, handled_by)
+            .await
+            .map_err(AppError::from)?;
+        if affected == 0 {
+            return Err(AppError::Validation(format!(
+                "Outbound record id={} was already processed or deleted during approval",
+                id
+            )));
+        }
+
+        let next_status = if record.outbound_type == "scrapped" {
+            "scrapped"
+        } else {
+            "outbound"
+        };
 
         for item in &items {
-            match item.pipe_type.as_str() {
-                "seamless" | "casing" | "tubing" => {
-                    sqlx::query(
-                        "UPDATE seamless_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+            let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
+                AppError::Validation(format!("Unknown pipe_type: {}", item.pipe_type))
+            })?;
+
+            match pipe_type {
+                PipeType::Seamless | PipeType::Screen => {
+                    let affected = InventoryRepo::update_pipe_status_with_stock_check(
+                        &mut *tx,
+                        &item.pipe_type,
+                        item.pipe_id,
+                        next_status,
                     )
-                    .bind(&now)
-                    .bind(item.pipe_id)
-                    .execute(&mut *tx)
                     .await
                     .map_err(AppError::from)?;
+                    if affected == 0 {
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
+                    }
                 }
-                "screen" | "screened" => {
-                    sqlx::query(
-                        "UPDATE screen_pipes SET status = 'outbound', updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-                    )
-                    .bind(&now)
-                    .bind(item.pipe_id)
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(AppError::from)?;
-                }
-                _ => {
-                    return Err(AppError::Validation(format!(
-                        "Unknown pipe_type: {}",
-                        item.pipe_type
-                    )));
+                PipeType::Welded => {
+                    return Err(AppError::Validation(
+                        "Outbound execution not yet supported for welded pipes".into(),
+                    ));
                 }
             }
 
-            sqlx::query(
-                "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
-                 from_location_id, to_location_id, notes, created_by) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            InventoryLogRepo::create_in_transaction(
+                &mut tx,
+                &CreateInventoryLog {
+                    pipe_type: item.pipe_type.clone(),
+                    pipe_id: item.pipe_id,
+                    change_type: "outbound".into(),
+                    ref_type: Some("outbound".into()),
+                    ref_id: Some(id),
+                    from_location_id: None,
+                    to_location_id: None,
+                    notes: None,
+                    created_by: handled_by,
+                },
             )
-            .bind(&item.pipe_type)
-            .bind(item.pipe_id)
-            .bind("outbound")
-            .bind(Some("outbound"))
-            .bind(Some(id))
-            .bind(Option::<i64>::None)
-            .bind(Option::<i64>::None)
-            .bind(Option::<String>::None)
-            .bind(Option::<i64>::None)
-            .execute(&mut *tx)
             .await
             .map_err(AppError::from)?;
         }
 
+        // Increment delivered_quantity on linked sales order if order_id is present
+        if let Some(order_id) = record.order_id {
+            let mut count_by_type: std::collections::BTreeMap<String, i64> =
+                std::collections::BTreeMap::new();
+            for item in &items {
+                *count_by_type.entry(item.pipe_type.clone()).or_insert(0) += 1;
+            }
+            for (pipe_type, count) in count_by_type {
+                sqlx::query(
+                    "UPDATE sales_order_items SET delivered_quantity = delivered_quantity + ? \
+                     WHERE id = (SELECT id FROM sales_order_items \
+                      WHERE order_id = ? AND pipe_type = ? AND delivered_quantity < quantity LIMIT 1)",
+                )
+                .bind(count)
+                .bind(order_id)
+                .bind(&pipe_type)
+                .execute(&mut *tx)
+                .await
+                .map_err(AppError::from)?;
+            }
+        }
+
         tx.commit().await.map_err(AppError::from)?;
+        refresh_outbound_locations(
+            pool,
+            &items
+                .iter()
+                .map(|i| OutboundPipeItem {
+                    pipe_type: i.pipe_type.clone(),
+                    pipe_id: i.pipe_id,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .await?;
         Ok(())
     }
 
@@ -256,11 +335,7 @@ impl OutboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     /// - `AppError::Validation` — can't reject in this state
-    pub async fn reject_outbound(
-        pool: &SqlitePool,
-        id: i64,
-        reason: &str,
-    ) -> Result<(), AppError> {
+    pub async fn reject_outbound(pool: &SqlitePool, id: i64, reason: &str) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -329,7 +404,40 @@ impl OutboundService {
             )));
         }
 
-        OutboundRepo::delete(pool, id)
+        OutboundRepo::delete(pool, id).await.map_err(AppError::from)
+    }
+
+    /// Updates editable fields on an outbound record.
+    /// Only records with `auto_approved` or `rejected` status can be updated.
+    ///
+    /// # Errors
+    /// - `AppError::NotFound` — record not found or was deleted
+    /// - `AppError::Validation` — current status doesn't allow updates
+    pub async fn update_outbound(
+        pool: &SqlitePool,
+        id: i64,
+        dto: &UpdateOutboundRecordRequest,
+    ) -> Result<OutboundRecord, AppError> {
+        let record = OutboundRepo::find_by_id(pool, id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::NotFound(format!("Outbound record id={} not found", id)))?;
+
+        if record.deleted_at.is_some() {
+            return Err(AppError::NotFound(format!(
+                "Outbound record id={} has been deleted",
+                id
+            )));
+        }
+
+        if record.approval_status != "auto_approved" && record.approval_status != "rejected" {
+            return Err(AppError::Validation(format!(
+                "Cannot update outbound with status '{}'. Only auto-approved or rejected records can be updated.",
+                record.approval_status
+            )));
+        }
+
+        OutboundRepo::update(pool, id, dto)
             .await
             .map_err(AppError::from)
     }

@@ -85,10 +85,15 @@ src/
 │   ├── contract.rs
 │   ├── customer.rs
 │   └── supplier.rs
-├── repositories/        ← 13 files, pure SQL, soft-delete aware
+├── repositories/        ← 20 files, pure SQL, soft-delete aware
 │   ├── mod.rs
 │   ├── pipe_repo.rs
-│   ├── inventory_repo.rs
+│   ├── inventory_repo.rs          ← ATP queries, stock counting
+│   ├── location_repo.rs           ← warehouse location CRUD
+│   ├── inbound_repo.rs            ← inbound record CRUD
+│   ├── outbound_repo.rs           ← outbound record CRUD
+│   ├── inventory_log_repo.rs      ← pipe movement audit trail
+│   ├── check_repo.rs              ← inventory check records and items
 │   ├── purchase_order_repo.rs
 │   ├── sales_order_repo.rs
 │   ├── quality_repo.rs
@@ -99,13 +104,19 @@ src/
 │   ├── report_repo.rs
 │   ├── data_io_repo.rs
 │   ├── user_repo.rs
-│   └── operation_log_repo.rs
-├── services/            ← 12 files, business logic (unit structs, static methods)
+│   ├── operation_log_repo.rs
+│   └── refresh_token_repo.rs
+├── services/            ← 19 files, business logic (unit structs, static methods)
 │   ├── mod.rs
 │   ├── auth_service.rs
 │   ├── pipe_service.rs
-│   ├── inventory_service.rs
-│   ├── purchase_sales_service.rs
+│   ├── inbound_service.rs       ← Inbound (create/approve/execute/query)
+│   ├── outbound_service.rs      ← Outbound (create/approve/execute/query)
+│   ├── check_service.rs         ← Inventory checks (create/submit/complete)
+│   ├── inventory_query_service.rs ← Read-only inventory queries (list/stats)
+│   ├── location_service.rs      ← Warehouse locations (CRUD/assign/transfer)
+│   ├── purchase_service.rs      ← Purchase order lifecycle
+│   ├── sales_service.rs         ← Sales order lifecycle + ATP validation
 │   ├── quality_service.rs
 │   ├── contract_service.rs
 │   ├── customer_service.rs
@@ -113,11 +124,15 @@ src/
 │   ├── label_service.rs
 │   ├── report_service.rs
 │   ├── data_io_service.rs
-│   └── trace_service.rs
-├── handlers/            ← 13 files, thin handlers (extract → call service → respond)
+│   └── trace_service.rs         ← Full-lifecycle pipe tracing
+├── handlers/            ← 16 files, thin handlers (extract → call service → respond)
 │   ├── mod.rs
 │   ├── auth_handler.rs
 │   ├── pipe_handler.rs
+│   ├── inbound_handler.rs
+│   ├── outbound_handler.rs
+│   ├── location_handler.rs
+│   ├── check_handler.rs
 │   ├── inventory_handler.rs
 │   ├── purchase_handler.rs
 │   ├── sales_handler.rs
@@ -129,10 +144,11 @@ src/
 │   ├── label_handler.rs
 │   ├── data_io_handler.rs
 │   └── atp_handler.rs
-└── middleware/          ← 2 files, auth + RBAC
+└── middleware/          ← 4 files, auth + RBAC + rate limiting
     ├── mod.rs
     ├── auth.rs          ← JWT verification, Claims, AuthContext, auth_middleware
-    └── rbac.rs          ← Role-based access control helpers
+    ├── rbac.rs          ← Role-based access control helpers
+    └── rate_limit.rs    ← Per-IP rate limiting (e.g. 5 req/min on login/refresh)
 ```
 
 ## Key Files
@@ -152,7 +168,16 @@ src/
 - Services are **unit structs with static methods** (no constructor DI): `PipeService::list(...)`
 - Services return `Result<T, AppError>`
   - Repositories accept `&SqlitePool` and return `Result<Vec<T>, sqlx::Error>`
-- `inventory_service.rs` is the beefy one — ATP calculation, rejection reason handling, and all the inventory management magic lives there.
+- `inventory_service.rs` has been split into focused modules:
+  - `inbound_service.rs` — inbound record creation, approval, batch execution
+  - `outbound_service.rs` — outbound record creation, approval, stock deduction
+  - `check_service.rs` — inventory check (盘点) creation, item submission, completion
+  - `inventory_query_service.rs` — read-only queries (list, statistics)
+  - `location_service.rs` — warehouse location CRUD, assign, transfer
+- `purchase_sales_service.rs` has been split into:
+  - `purchase_service.rs` — purchase order lifecycle, approval, rejection
+  - `sales_service.rs` — sales order lifecycle, ATP validation, approval
+- ATP calculation lives in `sales_service.rs` and `atp_handler.rs`
 
 ## DI Pattern: Extension layers, NOT State<Arc<AppState>>
 
@@ -161,7 +186,7 @@ src/
 .layer(CorsLayer::permissive())
 .layer(TraceLayer::new_for_http())
 .layer(Extension(pool))       // Extension<SqlitePool>
-.layer(Extension(jwt_secret)) // Extension<String>
+.layer(Extension(JwtSecret(jwt_secret))) // Extension<JwtSecret>
 
 // Handler extracts:
 pub async fn list_pipes(
@@ -170,7 +195,7 @@ pub async fn list_pipes(
 ) -> Result<Json<PaginatedResponse<Pipe>>, AppError> {
 ```
 
-No `AppState` struct. Pool and JWT secret get injected as raw types. Simple.
+No `AppState` struct. The DB pool is injected directly; the JWT secret is wrapped in `JwtSecret` so it is type-safe, has redacted `Debug`, and cannot be confused with arbitrary string extensions.
 
 ## Response Shapes
 
@@ -179,6 +204,8 @@ No `AppState` struct. Pool and JWT secret get injected as raw types. Simple.
 // Paginated:  { "success": true, "request_id": "req_...", "meta": { "total": N, "page": P, "page_size": S, "total_pages": N }, "data": { "items": [], ... } }
 // Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
+
+`tower-http` also sets/propagates an `x-request-id` header, and CORS exposes it to the frontend.
 
 ## Error Codes (numeric, domain-prefixed)
 

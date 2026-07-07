@@ -1,17 +1,19 @@
-// 无缝钢管列表页 — 分页查询、搜索、状态标签、新建/编辑/删除操作
-import { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Input, Popconfirm } from 'antd';
+// 无缝钢管列表页 — 使用 DataTable + PageLayout 共享组件
+import { useState, useMemo } from 'react';
+import { Button, Tag, Input, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DataTable } from '@/shared/components/DataTable';
+import { usePagination } from '@/shared/hooks/usePagination';
 import { useSeamlessPipes, useDeleteSeamlessPipe } from '../hooks/useSeamlessPipes';
 import type { SeamlessPipe } from '@/types';
 
 export default function SeamlessPipeListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { page, pageSize, onPaginationChange, reset } = usePagination();
   const [searchText, setSearchText] = useState('');
 
   const { data, isLoading } = useSeamlessPipes({
@@ -20,13 +22,9 @@ export default function SeamlessPipeListPage() {
     q: searchText || undefined,
   });
 
-  useEffect(() => {
-    setPage(1);
-  }, [searchText]);
-
   const deleteMutation = useDeleteSeamlessPipe();
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       title: t('pipes.pipe_number'),
       dataIndex: 'pipe_number',
@@ -56,17 +54,17 @@ export default function SeamlessPipeListPage() {
       render: (status: string) => {
         const color =
           status === 'in_stock' ? 'green' : status === 'outbound' ? 'orange' : 'red';
-        const statusKey = `pipes.${status}`;
-        return <Tag color={color}>{t(statusKey)}</Tag>;
+        return <Tag color={color}>{t(`pipes.${status}`)}</Tag>;
       },
     },
     {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: SeamlessPipe) => (
-        <Space>
+        <>
           <Button
             type="link"
+            size="small"
             onClick={() => navigate(`/pipes/seamless/${record.id}`)}
           >
             {t('common.edit')}
@@ -75,58 +73,44 @@ export default function SeamlessPipeListPage() {
             title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger loading={deleteMutation.isPending}>
+            <Button type="link" danger size="small" loading={deleteMutation.isPending}>
               {t('common.delete')}
             </Button>
           </Popconfirm>
-        </Space>
+        </>
       ),
     },
-  ];
+  ], [t, navigate]);
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <Space>
-          <Input
-            placeholder={t('common.search')}
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 250 }}
-          />
-        </Space>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/pipes/seamless/new')}
-        >
+    <PageLayout
+      title={t('pipes.seamless_pipes')}
+      extra={
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/pipes/seamless/new')}>
           {t('common.create')}
         </Button>
-      </div>
-      <Table
-        columns={columns}
-        dataSource={data?.items}
-        rowKey="id"
-        loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-          showTotal: (total) => t('common.total_items', { total }),
+      }
+    >
+      <Input
+        placeholder={t('common.search')}
+        prefix={<SearchOutlined />}
+        value={searchText}
+        onChange={(e) => {
+          setSearchText(e.target.value);
+          reset();
         }}
+        style={{ width: 250, marginBottom: 16 }}
+        allowClear
       />
-    </div>
+      <DataTable<SeamlessPipe>
+        columns={columns}
+        items={data?.items}
+        total={data?.total}
+        page={page}
+        pageSize={pageSize}
+        loading={isLoading}
+        onPaginationChange={onPaginationChange}
+      />
+    </PageLayout>
   );
 }

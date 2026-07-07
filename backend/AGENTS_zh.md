@@ -85,10 +85,15 @@ src/
 │   ├── contract.rs
 │   ├── customer.rs
 │   └── supplier.rs
-├── repositories/        ← 13 files, pure SQL, soft-delete aware
+├── repositories/        ← 20 files, pure SQL, soft-delete aware
 │   ├── mod.rs
 │   ├── pipe_repo.rs
-│   ├── inventory_repo.rs
+│   ├── inventory_repo.rs          ← ATP查询, 库存统计
+│   ├── location_repo.rs           ← 仓库位置 CRUD
+│   ├── inbound_repo.rs            ← 入库记录 CRUD
+│   ├── outbound_repo.rs           ← 出库记录 CRUD
+│   ├── inventory_log_repo.rs      ← 管道移动审计日志
+│   ├── check_repo.rs              ← 盘点记录和盘点项
 │   ├── purchase_order_repo.rs
 │   ├── sales_order_repo.rs
 │   ├── quality_repo.rs
@@ -99,13 +104,19 @@ src/
 │   ├── report_repo.rs
 │   ├── data_io_repo.rs
 │   ├── user_repo.rs
-│   └── operation_log_repo.rs
-├── services/            ← 12 files, business logic (unit structs, static methods)
+│   ├── operation_log_repo.rs
+│   └── refresh_token_repo.rs
+├── services/            ← 19 files, business logic (unit structs, static methods)
 │   ├── mod.rs
 │   ├── auth_service.rs
 │   ├── pipe_service.rs
-│   ├── inventory_service.rs
-│   ├── purchase_sales_service.rs
+│   ├── inbound_service.rs       ← 入库 (创建/审批/执行/查询)
+│   ├── outbound_service.rs      ← 出库 (创建/审批/执行/查询)
+│   ├── check_service.rs         ← 盘点 (创建/提交/完成)
+│   ├── inventory_query_service.rs ← 只读库存查询 (列表/统计)
+│   ├── location_service.rs      ← 仓库位置 (CRUD/分配/调拨)
+│   ├── purchase_service.rs      ← 采购订单生命周期
+│   ├── sales_service.rs         ← 销售订单生命周期 + ATP 验证
 │   ├── quality_service.rs
 │   ├── contract_service.rs
 │   ├── customer_service.rs
@@ -113,11 +124,15 @@ src/
 │   ├── label_service.rs
 │   ├── report_service.rs
 │   ├── data_io_service.rs
-│   └── trace_service.rs
-├── handlers/            ← 13 files, thin handlers (extract → call service → respond)
+│   └── trace_service.rs         ← 全生命周期管道追溯
+├── handlers/            ← 16 files, thin handlers (extract → call service → respond)
 │   ├── mod.rs
 │   ├── auth_handler.rs
 │   ├── pipe_handler.rs
+│   ├── inbound_handler.rs
+│   ├── outbound_handler.rs
+│   ├── location_handler.rs
+│   ├── check_handler.rs
 │   ├── inventory_handler.rs
 │   ├── purchase_handler.rs
 │   ├── sales_handler.rs
@@ -129,10 +144,11 @@ src/
 │   ├── label_handler.rs
 │   ├── data_io_handler.rs
 │   └── atp_handler.rs
-└── middleware/          ← 2 files, auth + RBAC
+└── middleware/          ← 4 files, auth + RBAC + rate limiting
     ├── mod.rs
     ├── auth.rs          ← JWT verification, Claims, AuthContext, auth_middleware
-    └── rbac.rs          ← Role-based access control helpers
+    ├── rbac.rs          ← Role-based access control helpers
+    └── rate_limit.rs    ← Per-IP rate limiting (e.g. 5 req/min on login/refresh)
 ```
 
 ## Key Files
@@ -152,7 +168,16 @@ src/
 - Services are **unit structs with static methods** (no constructor DI): `PipeService::list(...)`
 - Services return `Result<T, AppError>`
   - Repositories accept `&SqlitePool` and return `Result<Vec<T>, sqlx::Error>`
-- `inventory_service.rs` is the beefy one — ATP calculation, rejection reason handling, and all the inventory management magic lives there.
+- `inventory_service.rs` 已拆分为专注的模块:
+  - `inbound_service.rs` — 入库记录创建, 审批, 批量执行
+  - `outbound_service.rs` — 出库记录创建, 审批, 库存扣减
+  - `check_service.rs` — 盘点创建, 项目提交, 完成
+  - `inventory_query_service.rs` — 只读查询 (列表, 统计)
+  - `location_service.rs` — 仓库位置 CRUD, 分配, 调拨
+- `purchase_sales_service.rs` 已拆分为:
+  - `purchase_service.rs` — 采购订单生命周期, 审批, 拒绝
+  - `sales_service.rs` — 销售订单生命周期, ATP 验证, 审批
+- ATP 计算位于 `sales_service.rs` 和 `atp_handler.rs`
 
 ## DI Pattern: Extension layers, NOT State<Arc<AppState>>
 
@@ -161,7 +186,7 @@ src/
 .layer(CorsLayer::permissive())
 .layer(TraceLayer::new_for_http())
 .layer(Extension(pool))       // Extension<SqlitePool>
-.layer(Extension(jwt_secret)) // Extension<String>
+.layer(Extension(JwtSecret(jwt_secret))) // Extension<JwtSecret>
 
 // Handler extracts:
 pub async fn list_pipes(
@@ -170,7 +195,7 @@ pub async fn list_pipes(
 ) -> Result<Json<PaginatedResponse<Pipe>>, AppError> {
 ```
 
-No `AppState` struct. Pool and JWT secret get injected as raw types. Simple.
+No `AppState` struct. The DB pool is injected directly; the JWT secret is wrapped in `JwtSecret` so it is type-safe, has redacted `Debug`, and cannot be confused with arbitrary string extensions.
 
 ## Response Shapes
 
@@ -179,6 +204,8 @@ No `AppState` struct. Pool and JWT secret get injected as raw types. Simple.
 // Paginated:  { "success": true, "request_id": "req_...", "meta": { "total": N, "page": P, "page_size": S, "total_pages": N }, "data": { "items": [], ... } }
 // Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
+
+`tower-http` also sets/propagates an `x-request-id` header, and CORS exposes it to the frontend.
 
 ## Error Codes (numeric, domain-prefixed)
 

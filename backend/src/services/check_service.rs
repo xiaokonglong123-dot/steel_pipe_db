@@ -1,42 +1,32 @@
-use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateCheckRequest, SubmitCheckItemRequest};
 use crate::error::AppError;
 use crate::models::inventory::{InventoryCheckItem, InventoryCheckRecord};
-use crate::repositories::inventory_repo::{CheckInitItem, CheckRepo};
+use crate::repositories::check_repo::CheckRepo;
+use crate::repositories::inventory_repo::{CheckInitItem, InventoryRepo};
+use crate::services::utils;
 
-/// Inventory check service — create check orders, submit results per item, complete the whole damn workflow.
+/// Inventory check service — create check orders, submit results per item, complete the full workflow.
 /// On creation, it auto-initializes all `in_stock` pipes as pending check items.
 pub struct CheckService;
 
 impl CheckService {
-    fn generate_no(prefix: &str) -> String {
-        let now = Utc::now();
-        let date_str = now.format("%Y%m%d").to_string();
-        let serial = uuid::Uuid::new_v4().to_string();
-        let short_serial = &serial[..8];
-        format!("{}-{}-{}", prefix, date_str, short_serial)
-    }
-
     /// Creates a check order. Auto-scans all `in_stock` pipes into check items and generates a CHK-prefixed number.
     pub async fn create_check(
         pool: &SqlitePool,
         dto: &CreateCheckRequest,
     ) -> Result<InventoryCheckRecord, AppError> {
-        let check_no = Self::generate_no("CHK");
+        let check_no = utils::generate_no("CHK");
 
         let mut items: Vec<CheckInitItem> = Vec::new();
 
-        let seamless_pipes: Vec<(i64,)> = sqlx::query_as(
-            "SELECT id FROM seamless_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
+        let (seamless_ids, screen_ids) = InventoryRepo::find_in_stock_pipe_ids(pool)
+            .await
+            .map_err(AppError::from)?;
 
-        for (id,) in seamless_pipes {
+        for id in seamless_ids {
             items.push(CheckInitItem {
                 pipe_type: "seamless".into(),
                 pipe_id: id,
@@ -44,14 +34,7 @@ impl CheckService {
             });
         }
 
-        let screen_pipes: Vec<(i64,)> = sqlx::query_as(
-            "SELECT id FROM screen_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        for (id,) in screen_pipes {
+        for id in screen_ids {
             items.push(CheckInitItem {
                 pipe_type: "screen".into(),
                 pipe_id: id,
@@ -89,9 +72,7 @@ impl CheckService {
         pool: &SqlitePool,
         params: &PaginationParams,
     ) -> Result<(Vec<InventoryCheckRecord>, u64), AppError> {
-        CheckRepo::list(pool, params)
-            .await
-            .map_err(AppError::from)
+        CheckRepo::list(pool, params).await.map_err(AppError::from)
     }
 
     /// Submitts the actual result for a check item (`found_status` + `notes`). Only works on `in_progress` checks.

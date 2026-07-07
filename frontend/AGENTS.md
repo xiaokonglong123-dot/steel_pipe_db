@@ -60,9 +60,9 @@ frontend/
 │       ├── search/
 │       └── profile/
 ├── index.html
-├── vite.config.ts       ← React plugin, proxy, manualChunks vendor splitting
+├── vite.config.ts       ← React plugin, proxy, vendor-ui manual chunk
 ├── tsconfig.json
-├── .eslintrc.cjs
+├── eslint.config.js     ← ESLint 9 flat config
 ├── .prettierrc
 └── package.json
 ```
@@ -86,11 +86,12 @@ frontend/
 - Ant Design theme lives in `src/theme/`.
 - Vite dev proxy: `/api/*` → `http://localhost:3000`.
 - TypeScript strict. `as any` and suppression comments are banned.
-- Vendor chunk splitting in `vite.config.ts`: antd → vendor-antd, React ecosystem → vendor-react, utils → vendor-utils, app code → index (~162 kB gzip).
+- Vendor chunk splitting in `vite.config.ts`: React, Ant Design, TanStack Query, Zustand, i18next, and dayjs are grouped into `vendor-ui` to avoid circular chunk warnings.
+- Feature API hooks use local `queryKeys.ts` factories; do not add inline `queryKey: [...]` literals in feature API code.
 
 ## Key Files
 
 - `vite.config.ts` — React plugin, proxy config, manualChunks splitting
 - `tsconfig.json` — Strict mode, JSX react-jsx
-- `.eslintrc.cjs` — Lint rules
+- `eslint.config.js` — ESLint 9 flat config
 - `.prettierrc` — `singleQuote: true, tabWidth: 2, bracketSpacing: false`

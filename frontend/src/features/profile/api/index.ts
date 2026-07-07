@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
+import { userQueryKeys } from '@/features/auth/queryKeys';
 import type { ApiResponse } from '@/types';
 import type { UserInfo } from '@/types';
 
@@ -12,7 +13,7 @@ export interface UpdateProfileData {
 }
 
 export interface ChangePasswordData {
-  current_password: string;
+  old_password: string;
   new_password: string;
 }
 
@@ -28,17 +29,19 @@ export function useUpdateProfile() {
         phone: data.phone,
       }),
     onSuccess: (res) => {
-      if (res.data.success && res.data.data) {
-        setUser(res.data.data);
+      if (res.success && res.data) {
+        setUser(res.data);
       }
-      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: userQueryKeys.all });
     },
   });
 }
 
 export function useChangePassword() {
   return useMutation({
-    mutationFn: (data: ChangePasswordData) =>
-      apiClient.put<ApiResponse<string>>('/auth/me/change-password', data),
+    mutationFn: (data: ChangePasswordData) => {
+      const userId = useAuthStore.getState().user?.id;
+      return apiClient.post<ApiResponse<string>>(`/users/${userId}/change-password`, data);
+    },
   });
 }

@@ -1,10 +1,3 @@
-/**
- * Main layout — sidebar nav + top bar with user info + content area
- *
- * All protected pages render inside this layout's Outlet.
- * The sidebar groups menu items by module (pipes, inventory, suppliers, customers, purchase/sales orders, etc),
- * and the top-right shows the current user with a logout dropdown.
- */
 import { Suspense } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
@@ -20,6 +13,7 @@ import {
   LogoutOutlined,
   UserOutlined,
   ContainerOutlined,
+  ImportOutlined,
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
@@ -124,6 +118,16 @@ export default function MainLayout() {
       icon: <SearchOutlined />,
       label: t('menu.search'),
       children: [{ key: '/search', label: t('menu.search_global') }],
+    },
+    {
+      key: 'data-io',
+      icon: <ImportOutlined />,
+      label: t('menu.data_io'),
+      children: [
+        { key: '/data-io/import', label: t('menu.data_import') },
+        { key: '/data-io/export', label: t('menu.data_export') },
+        { key: '/data-io/logs', label: t('menu.operation_log') },
+      ],
     },
     {
       key: 'system',

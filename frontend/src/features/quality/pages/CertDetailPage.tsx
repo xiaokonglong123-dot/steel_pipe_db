@@ -1,15 +1,15 @@
-// 质检证书详情页 — 完整检测数据展示 + 附件上传/下载/删除
-import { Button, Descriptions, Space, Tag, Card, Table, Upload, Popconfirm, message } from 'antd';
-import { EditOutlined, ArrowLeftOutlined, UploadOutlined, LinkOutlined } from '@ant-design/icons';
+// 质检证书详情页 — 使用 PageLayout 共享组件
+import { Button, Descriptions, Tag, Card, Table, Upload, Popconfirm, message } from 'antd';
+import { EditOutlined, UploadOutlined, LinkOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
 import { useCert, useAttachments, useCreateAttachment, useDeleteAttachment } from '../hooks/useQuality';
-import type { Attachment } from '../types';
+import type { PipeAttachment } from '../types';
 
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'default',
-  active: 'green',
-  void: 'red',
+const RESULT_COLORS: Record<string, string> = {
+  pass: 'green',
+  fail: 'red',
 };
 
 export default function CertDetailPage() {
@@ -24,10 +24,14 @@ export default function CertDetailPage() {
   const deleteAttachmentMutation = useDeleteAttachment();
 
   const handleUpload = (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('cert_id', String(certId));
-    createAttachmentMutation.mutate(formData, {
+    createAttachmentMutation.mutate({
+      pipe_type: cert!.pipe_type,
+      pipe_id: cert!.pipe_id,
+      file_name: file.name,
+      file_path: `uploads/${file.name}`,
+      file_size: file.size,
+      content_type: file.type,
+    }, {
       onSuccess: () => message.success(t('common.operate_success')),
       onError: () => message.error(t('common.operate_failed')),
     });
@@ -39,26 +43,27 @@ export default function CertDetailPage() {
       title: t('quality.file_name'),
       dataIndex: 'file_name',
       key: 'file_name',
-      render: (name: string, record: Attachment) => (
-        <a href={record.file_url} target="_blank" rel="noopener noreferrer">
+      render: (name: string, record: PipeAttachment) => (
+        <a href={record.file_path} target="_blank" rel="noopener noreferrer">
           <LinkOutlined /> {name}
         </a>
       ),
     },
     {
-      title: t('quality.file_type'),
-      dataIndex: 'file_type',
-      key: 'file_type',
+      title: t('quality.content_type'),
+      dataIndex: 'content_type',
+      key: 'content_type',
+      render: (val: string | null) => val ?? '-',
     },
     {
-      title: t('quality.uploaded_at'),
-      dataIndex: 'uploaded_at',
-      key: 'uploaded_at',
+      title: t('quality.created_at'),
+      dataIndex: 'created_at',
+      key: 'created_at',
     },
     {
       title: t('common.actions'),
       key: 'actions',
-      render: (_: unknown, record: Attachment) => (
+      render: (_: unknown, record: PipeAttachment) => (
         <Popconfirm
           title={t('common.confirm_delete')}
           onConfirm={() => deleteAttachmentMutation.mutate(record.id)}
@@ -80,63 +85,29 @@ export default function CertDetailPage() {
   }
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ margin: 0 }}>{t('quality.certificate')} — {cert.cert_number}</h2>
-        <Space>
-          <Button
-            type="primary"
-            icon={<EditOutlined />}
-            onClick={() => navigate(`/quality/certs/${cert.id}/edit`)}
-          >
-            {t('common.edit')}
-          </Button>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/quality/certs')}
-          >
-            {t('common.back')}
-          </Button>
-        </Space>
-      </div>
-
+    <PageLayout
+      title={`${t('quality.certificate')} — ${cert.cert_number}`}
+      onBack={() => navigate('/quality/certs')}
+      extra={
+        <Button
+          type="primary"
+          icon={<EditOutlined />}
+          onClick={() => navigate(`/quality/certs/${cert.id}/edit`)}
+        >
+          {t('common.edit')}
+        </Button>
+      }
+    >
       <Card title={t('quality.basic_info')} style={{ marginBottom: 24 }}>
         <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label={t('quality.cert_number')}>{cert.cert_number}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.batch_number')}>{cert.batch_number || '-'}</Descriptions.Item>
           <Descriptions.Item label={t('quality.pipe_type')}>{cert.pipe_type}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.grade')}>
-            <Tag color="blue">{cert.grade}</Tag>
+          <Descriptions.Item label={t('quality.pipe_id')}>{cert.pipe_id}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.result')}>
+            <Tag color={RESULT_COLORS[cert.result] ?? 'default'}>{cert.result}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label={t('quality.od')}>{cert.od}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.wt')}>{cert.wt}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.length')}>{cert.length ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.quantity')}>{cert.quantity}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.heat_number')}>{cert.heat_number ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.manufacturer')}>{cert.manufacturer ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.production_date')}>{cert.production_date ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.status')}>
-            <Tag color={STATUS_COLORS[cert.status] ?? 'default'}>{cert.status}</Tag>
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
-
-      <Card title={t('quality.mechanical_properties')} style={{ marginBottom: 24 }}>
-        <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
-          <Descriptions.Item label={t('quality.test_pressure')}>{cert.test_pressure ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.yield_strength')}>{cert.yield_strength ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.tensile_strength')}>{cert.tensile_strength ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.elongation')}>{cert.elongation ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.hardness')}>{cert.hardness ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={t('quality.inspection_standard')}>{cert.inspection_standard ?? '-'}</Descriptions.Item>
           <Descriptions.Item label={t('quality.inspector')}>{cert.inspector ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('quality.inspection_body')}>{cert.inspection_body ?? '-'}</Descriptions.Item>
           <Descriptions.Item label={t('quality.cert_date')}>{cert.cert_date ?? '-'}</Descriptions.Item>
         </Descriptions>
       </Card>
@@ -165,6 +136,6 @@ export default function CertDetailPage() {
           locale={{ emptyText: t('common.no_data') }}
         />
       </Card>
-    </div>
+    </PageLayout>
   );
 }

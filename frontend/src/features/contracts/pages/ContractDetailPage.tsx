@@ -20,7 +20,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  useContract,
+  useContractDetail,
   useUpdateContractStatus,
   useDeleteContractItem,
   useCreateContractPayment,
@@ -48,7 +48,7 @@ export default function ContractDetailPage() {
   const navigate = useNavigate();
   const contractId = Number(id);
 
-  const { data: contract, isLoading } = useContract(contractId);
+  const { data: contract, isLoading } = useContractDetail(contractId);
   const updateStatusMutation = useUpdateContractStatus(contractId);
   const deleteItemMutation = useDeleteContractItem(contractId);
   const createPaymentMutation = useCreateContractPayment(contractId);
@@ -67,10 +67,9 @@ export default function ContractDetailPage() {
   };
 
   const handleAddPayment = async (values: {
-    payment_date: string;
+    due_date: string;
     amount: number;
-    payment_method?: string;
-    reference_number?: string;
+    payment_type: string;
     notes?: string;
   }) => {
     try {
@@ -89,8 +88,8 @@ export default function ContractDetailPage() {
     { title: t('contracts.od'), dataIndex: 'od', key: 'od' },
     { title: t('contracts.wt'), dataIndex: 'wt', key: 'wt' },
     { title: t('contracts.quantity'), dataIndex: 'quantity', key: 'quantity' },
-    { title: t('contracts.unit_price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number) => v?.toLocaleString() },
-    { title: t('contracts.total_price'), dataIndex: 'total_price', key: 'total_price', render: (v: number) => v?.toLocaleString() },
+    { title: t('contracts.unit_price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number | null) => v != null ? v.toLocaleString() : '-' },
+    { title: t('contracts.total_price'), dataIndex: 'total_price', key: 'total_price', render: (v: number | null) => v != null ? v.toLocaleString() : '-' },
     {
       key: 'actions',
       render: (_: unknown, record: ContractItem) => (
@@ -102,10 +101,11 @@ export default function ContractDetailPage() {
   ];
 
   const paymentColumns = [
-    { title: t('contracts.payment_date'), dataIndex: 'payment_date', key: 'payment_date' },
+    { title: t('contracts.due_date'), dataIndex: 'due_date', key: 'due_date' },
     { title: t('contracts.amount'), dataIndex: 'amount', key: 'amount', render: (v: number) => v?.toLocaleString() },
-    { title: t('contracts.payment_method'), dataIndex: 'payment_method', key: 'payment_method' },
-    { title: t('contracts.reference_number'), dataIndex: 'reference_number', key: 'reference_number' },
+    { title: t('contracts.payment_type'), dataIndex: 'payment_type', key: 'payment_type' },
+    { title: t('contracts.is_paid'), dataIndex: 'is_paid', key: 'is_paid', render: (v: boolean) => v ? '✓' : '✗' },
+    { title: t('contracts.paid_date'), dataIndex: 'paid_date', key: 'paid_date', render: (v: string | null) => v ?? '-' },
     {
       key: 'actions',
       render: (_: unknown, record: ContractPayment) => (
@@ -120,15 +120,18 @@ export default function ContractDetailPage() {
 
   if (!contract) return <div>{t('common.notFound')}</div>;
 
-  const availableStatuses = nextStatuses[contract.status] || [];
+  const c = contract.contract;
+  const items = contract.items;
+  const payments = contract.payments;
+  const availableStatuses = nextStatuses[c.status] || [];
 
   return (
     <div>
       <Card
-        title={`${t('contracts.contract')} #${contract.contract_number}`}
+        title={`${t('contracts.contract')} #${c.contract_no}`}
         extra={
           <Space>
-            <Button onClick={() => navigate(`/contracts/${contract.id}/edit`)}>
+            <Button onClick={() => navigate(`/contracts/${c.id}/edit`)}>
               {t('common.edit')}
             </Button>
             {availableStatuses.length > 0 && (
@@ -144,26 +147,23 @@ export default function ContractDetailPage() {
         style={{ marginBottom: 16 }}
       >
         <Descriptions bordered column={2}>
-          <Descriptions.Item label={t('contracts.contract_name')}>{contract.contract_name}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.contract_name')}>{c.title}</Descriptions.Item>
           <Descriptions.Item label={t('contracts.contract_type')}>
-            <Tag color={contract.contract_type === 'purchase' ? 'blue' : 'green'}>{contract.contract_type}</Tag>
+            <Tag color={c.contract_type === 'purchase' ? 'blue' : 'green'}>{c.contract_type}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label={t('contracts.party_a')}>{contract.party_a}</Descriptions.Item>
-          <Descriptions.Item label={t('contracts.party_b')}>{contract.party_b}</Descriptions.Item>
-          <Descriptions.Item label={t('contracts.sign_date')}>{contract.sign_date}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.party_a')}>{c.party_a}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.party_b')}>{c.party_b}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.sign_date')}>{c.sign_date}</Descriptions.Item>
           <Descriptions.Item label={t('contracts.status')}>
-            <Tag color={statusColors[contract.status]}>{contract.status}</Tag>
+            <Tag color={statusColors[c.status]}>{c.status}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label={t('contracts.start_date')}>{contract.start_date}</Descriptions.Item>
-          <Descriptions.Item label={t('contracts.end_date')}>{contract.end_date}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.start_date')}>{c.start_date}</Descriptions.Item>
+          <Descriptions.Item label={t('contracts.end_date')}>{c.end_date}</Descriptions.Item>
           <Descriptions.Item label={t('contracts.total_amount')} span={2}>
-            {contract.total_amount?.toLocaleString()}
-          </Descriptions.Item>
-          <Descriptions.Item label={t('contracts.paid_amount')} span={2}>
-            {contract.paid_amount?.toLocaleString()}
+            {c.total_amount?.toLocaleString() ?? '-'}
           </Descriptions.Item>
           <Descriptions.Item label={t('common.notes')} span={2}>
-            {contract.notes}
+            {c.notes}
           </Descriptions.Item>
         </Descriptions>
       </Card>
@@ -174,7 +174,7 @@ export default function ContractDetailPage() {
       >
         <Table
           columns={itemColumns}
-          dataSource={contract.items}
+          dataSource={items}
           rowKey="id"
           pagination={false}
           bordered
@@ -196,7 +196,7 @@ export default function ContractDetailPage() {
       >
         <Table
           columns={paymentColumns}
-          dataSource={contract.payments}
+          dataSource={payments}
           rowKey="id"
           pagination={false}
           bordered

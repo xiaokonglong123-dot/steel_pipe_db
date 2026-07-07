@@ -15,13 +15,17 @@ export interface PipeLabel {
 }
 
 export interface BatchLabelRequest {
-  pipe_ids: number[];
-  pipe_type: string;
+  pipe_ids: { pipe_type: string; pipe_id: number }[];
 }
 
 export interface ShippingLabelRequest {
-  order_type: string;
-  order_id: number;
+  pipe_type: string;
+  pipe_id: number;
+  order_number?: string;
+  customer_name?: string;
+  destination?: string;
+  po_number?: string;
+  ship_date?: string;
 }
 
 export interface LabelData {

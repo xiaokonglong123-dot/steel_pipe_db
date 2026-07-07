@@ -1,4 +1,4 @@
-// 采购订单新增/编辑表单页 — 表头信息 + 可动态增删的多行采购项（钢管规格、数量、单价）
+// 采购订单新增/编辑表单页 — 使用 PageLayout + 共享常量
 import { useEffect } from 'react';
 import {
   Form,
@@ -16,11 +16,10 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { PIPE_TYPES, API_5CT_GRADES } from '@/shared/constants';
 import type { PurchaseOrderItem } from '../types';
 import { usePurchase, useCreatePurchaseOrder, useUpdatePurchaseOrder } from '../hooks/usePurchases';
-
-const PIPE_TYPES = ['seamless', 'screen'];
-const API_5CT_GRADES = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
 
 export default function PurchaseOrderFormPage() {
   const { t } = useTranslation();
@@ -31,7 +30,9 @@ export default function PurchaseOrderFormPage() {
   const isEdit = !!id;
   const orderId = isEdit ? Number(id) : 0;
 
-  const { data: order, isLoading: loadingOrder } = usePurchase(orderId);
+  const { data: detail, isLoading: loadingOrder } = usePurchase(orderId);
+  const order = detail?.order;
+  const orderItems = detail?.items ?? [];
   const createMutation = useCreatePurchaseOrder();
   const updateMutation = useUpdatePurchaseOrder(orderId);
 
@@ -40,17 +41,15 @@ export default function PurchaseOrderFormPage() {
       form.setFieldsValue({
         supplier_id: order.supplier_id,
         order_date: order.order_date ? dayjs(order.order_date) : undefined,
-        expected_date: order.expected_date ? dayjs(order.expected_date) : undefined,
-        notes: order.notes,
-        items: order.items.map((item: PurchaseOrderItem) => ({
+        notes: order.notes ?? undefined,
+        items: orderItems.map((item: PurchaseOrderItem) => ({
           pipe_type: item.pipe_type,
           grade: item.grade,
           od: item.od,
           wt: item.wt,
-          length: item.length,
           quantity: item.quantity,
-          unit_price: item.unit_price,
-          notes: item.notes,
+          unit_price: item.unit_price ?? undefined,
+          notes: item.notes ?? undefined,
         })),
       });
     }
@@ -60,7 +59,6 @@ export default function PurchaseOrderFormPage() {
     const payload = {
       ...values,
       order_date: (values.order_date as dayjs.Dayjs)?.format('YYYY-MM-DD'),
-      expected_date: (values.expected_date as dayjs.Dayjs)?.format('YYYY-MM-DD'),
     };
     try {
       if (isEdit) {
@@ -91,13 +89,7 @@ export default function PurchaseOrderFormPage() {
           rules={[{ required: true, message: t('common.required') }]}
           style={{ margin: 0 }}
         >
-          <Select style={{ width: 120 }}>
-            {PIPE_TYPES.map((type) => (
-              <Select.Option key={type} value={type}>
-                {type}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select style={{ width: 120 }} options={PIPE_TYPES.map((pt) => ({ label: pt, value: pt }))} />
         </Form.Item>
       ),
     },
@@ -112,13 +104,7 @@ export default function PurchaseOrderFormPage() {
           rules={[{ required: true, message: t('common.required') }]}
           style={{ margin: 0 }}
         >
-          <Select showSearch style={{ width: 100 }}>
-            {API_5CT_GRADES.map((grade) => (
-              <Select.Option key={grade} value={grade}>
-                {grade}
-              </Select.Option>
-            ))}
-          </Select>
+          <Select showSearch style={{ width: 100 }} options={API_5CT_GRADES.map((g) => ({ label: g, value: g }))} />
         </Form.Item>
       ),
     },
@@ -224,10 +210,10 @@ export default function PurchaseOrderFormPage() {
   ];
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>
-        {isEdit ? t('purchases.edit_purchase') : t('purchases.create_purchase')}
-      </h2>
+    <PageLayout
+      title={isEdit ? t('purchases.edit_purchase') : t('purchases.create_purchase')}
+      onBack={() => navigate('/purchases')}
+    >
       <Form
         form={form}
         layout="vertical"
@@ -261,7 +247,7 @@ export default function PurchaseOrderFormPage() {
         <h3 style={{ marginBottom: 16 }}>{t('purchases.items')}</h3>
 
         <Form.List name="items" initialValue={[]}>
-          {(fields, { add, remove: _remove }) => (
+          {(fields, { add }) => (
             <>
               <Table
                 columns={itemColumns}
@@ -309,6 +295,6 @@ export default function PurchaseOrderFormPage() {
           </Space>
         </Form.Item>
       </Form>
-    </div>
+    </PageLayout>
   );
 }

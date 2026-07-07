@@ -1,9 +1,7 @@
-// 入库管理页 — 入库记录列表 + 弹窗创建/编辑，支持采购/生产/退货/调拨等入库类型
-import { useState, useCallback } from 'react';
+// 入库管理页 — 使用 DataTable + PageLayout + usePagination
+import { useState, useCallback, useMemo } from 'react';
 import {
-  Table,
   Button,
-  Space,
   Tag,
   Input,
   Modal,
@@ -14,6 +12,10 @@ import {
 } from 'antd';
 import { PlusOutlined, SearchOutlined, InboxOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { PageLayout } from '@/shared/components/PageLayout';
+import { DataTable } from '@/shared/components/DataTable';
+import { usePagination } from '@/shared/hooks/usePagination';
+import { INBOUND_TYPES, PIPE_TYPES } from '@/shared/constants';
 import {
   useInboundRecords,
   useCreateInbound,
@@ -25,11 +27,9 @@ import type { InboundRecord, CreateInboundData } from '../api/inventoryApi';
 import type { PurchaseOrder } from '../../purchases/types';
 import PurchaseOrderSelector from '../components/PurchaseOrderSelector';
 
-const INBOUND_TYPES = ['purchase', 'production', 'return', 'transfer'];
-const PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'];
-
 const STATUS_COLOR_MAP: Record<string, string> = {
   pending: 'orange',
+  auto_approved: 'green',
   approved: 'green',
   rejected: 'red',
 };
@@ -38,13 +38,51 @@ const TYPE_LABEL_MAP: Record<string, string> = {
   purchase: 'inbound.type.purchase',
   production: 'inbound.type.production',
   return: 'inbound.type.return',
-  transfer: 'inbound.type.transfer',
 };
+
+interface InboundPipeFormRow {
+  pipe_type?: string;
+  pipe_id?: number;
+}
+
+function parsePipeIds(input: string): number[] {
+  const tokens = input
+    .replace(/[，、；;\r\n\t]+/g, ',')
+    .replace(/\s+/g, ',')
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  const ids: number[] = [];
+  for (const token of tokens) {
+    const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      if (Number.isInteger(start) && Number.isInteger(end) && start > 0 && end >= start) {
+        for (let id = start; id <= end; id += 1) {
+          ids.push(id);
+        }
+      }
+      continue;
+    }
+
+    const id = Number(token);
+    if (Number.isInteger(id) && id > 0) {
+      ids.push(id);
+    }
+  }
+
+  return [...new Set(ids)];
+}
+
+function pipeRowKey(pipeType: string | undefined, pipeId: number | undefined): string | null {
+  return pipeType && typeof pipeId === 'number' ? `${pipeType}:${pipeId}` : null;
+}
 
 export default function InboundListPage() {
   const { t } = useTranslation();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { page, pageSize, onPaginationChange, reset } = usePagination();
   const [searchText, setSearchText] = useState('');
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
@@ -52,22 +90,20 @@ export default function InboundListPage() {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<number | null>(null);
   const [poSelectorOpen, setPoSelectorOpen] = useState(false);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchPipeType, setBatchPipeType] = useState('casing');
+  const [batchPipeIds, setBatchPipeIds] = useState('');
   const [form] = Form.useForm<CreateInboundData>();
   const [rejectForm] = Form.useForm<{ reason: string }>();
 
   const handlePOSelect = useCallback(
     (po: PurchaseOrder) => {
       const pipes: { pipe_type: string; pipe_id?: number }[] = [];
-      for (const item of po.items) {
-        for (let i = 0; i < item.quantity; i++) {
-          pipes.push({ pipe_type: item.pipe_type, pipe_id: undefined });
-        }
-      }
       form.setFieldsValue({
         inbound_type: 'purchase',
         order_id: po.id,
         supplier_id: po.supplier_id,
-        notes: t('inbound.from_po_template', { order_no: po.order_number }),
+        notes: t('inbound.from_po_template', { order_no: po.order_no }),
         pipes: pipes.length > 0 ? pipes : [{ pipe_type: 'casing', pipe_id: undefined }],
       });
       setPoSelectorOpen(false);
@@ -106,6 +142,34 @@ export default function InboundListPage() {
     }
   };
 
+  const handleBatchAddPipes = () => {
+    const ids = parsePipeIds(batchPipeIds);
+    if (ids.length === 0) {
+      message.error(t('common.required'));
+      return;
+    }
+
+    const currentPipes = (form.getFieldValue('pipes') || []) as InboundPipeFormRow[];
+    const existingKeys = new Set(
+      currentPipes
+        .map((pipe) => pipeRowKey(pipe.pipe_type, pipe.pipe_id))
+        .filter((key): key is string => key !== null),
+    );
+    const rowsToAdd = ids
+      .filter((pipeId) => !existingKeys.has(pipeRowKey(batchPipeType, pipeId) ?? ''))
+      .map((pipeId) => ({ pipe_type: batchPipeType, pipe_id: pipeId }));
+
+    if (rowsToAdd.length === 0) {
+      message.warning(t('inbound.pipe_already_added', 'This pipe has already been added to the list'));
+      return;
+    }
+
+    form.setFieldsValue({ pipes: [...currentPipes, ...rowsToAdd] });
+    setBatchPipeIds('');
+    setBatchModalOpen(false);
+    message.success(t('common.operate_success'));
+  };
+
   const handleApprove = (id: number) => {
     approveMutation.mutate(
       { id },
@@ -135,7 +199,7 @@ export default function InboundListPage() {
     }
   };
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       title: t('inbound.inbound_no'),
       dataIndex: 'inbound_no',
@@ -172,11 +236,12 @@ export default function InboundListPage() {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: InboundRecord) => (
-        <Space>
+        <>
           {record.approval_status === 'pending' && (
             <>
               <Button
                 type="link"
+                size="small"
                 onClick={() => handleApprove(record.id)}
                 loading={approveMutation.isPending}
               >
@@ -184,6 +249,7 @@ export default function InboundListPage() {
               </Button>
               <Button
                 type="link"
+                size="small"
                 danger
                 onClick={() => openRejectModal(record.id)}
               >
@@ -195,88 +261,74 @@ export default function InboundListPage() {
             title={t('common.confirm_delete')}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="link" danger>
+            <Button type="link" danger size="small">
               {t('common.delete')}
             </Button>
           </Popconfirm>
-        </Space>
+        </>
       ),
     },
-  ];
+  ], [t, handleApprove, approveMutation, openRejectModal, deleteMutation]);
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-          gap: 8,
-        }}
-      >
-        <Space wrap>
-          <Input
-            placeholder={t('common.search')}
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => {
-              setSearchText(e.target.value);
-              setPage(1);
-            }}
-            style={{ width: 200 }}
-          />
-          <Select
-            placeholder={t('inbound.inbound_type')}
-            allowClear
-            style={{ width: 130 }}
-            value={typeFilter}
-            onChange={(v) => {
-              setTypeFilter(v);
-              setPage(1);
-            }}
-            options={INBOUND_TYPES.map((t2) => ({
-              label: t(TYPE_LABEL_MAP[t2]),
-              value: t2,
-            }))}
-          />
-          <Select
-            placeholder={t('inbound.approval_status')}
-            allowClear
-            style={{ width: 130 }}
-            value={statusFilter}
-            onChange={(v) => {
-              setStatusFilter(v);
-              setPage(1);
-            }}
-            options={[
-              { label: t('inbound.status.pending'), value: 'pending' },
-              { label: t('inbound.status.approved'), value: 'approved' },
-              { label: t('inbound.status.rejected'), value: 'rejected' },
-            ]}
-          />
-        </Space>
+    <PageLayout
+      title={t('inbound.title')}
+      extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
           {t('inbound.create_inbound')}
         </Button>
+      }
+    >
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <Input
+          placeholder={t('common.search')}
+          prefix={<SearchOutlined />}
+          value={searchText}
+          onChange={(e) => {
+            setSearchText(e.target.value);
+            reset();
+          }}
+          style={{ width: 200 }}
+        />
+        <Select
+          placeholder={t('inbound.inbound_type')}
+          allowClear
+          style={{ width: 130 }}
+          value={typeFilter}
+          onChange={(v) => {
+            setTypeFilter(v);
+            reset();
+          }}
+          options={INBOUND_TYPES.map((t2) => ({
+            label: t(TYPE_LABEL_MAP[t2]),
+            value: t2,
+          }))}
+        />
+        <Select
+          placeholder={t('inbound.approval_status')}
+          allowClear
+          style={{ width: 130 }}
+          value={statusFilter}
+          onChange={(v) => {
+            setStatusFilter(v);
+            reset();
+          }}
+          options={[
+            { label: t('inbound.status.pending'), value: 'pending' },
+            { label: t('inbound.status.approved'), value: 'approved' },
+            { label: t('inbound.status.rejected'), value: 'rejected' },
+          ]}
+        />
       </div>
 
-      <Table
+      <DataTable<InboundRecord>
         columns={columns}
-        dataSource={data?.items}
-        rowKey="id"
+        items={data?.items}
+        total={data?.total}
+        page={page}
+        pageSize={pageSize}
         loading={isLoading}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-          showTotal: (total) => t('common.total_items', { total }),
-        }}
+        onPaginationChange={onPaginationChange}
       />
 
       <Modal
@@ -325,7 +377,7 @@ export default function InboundListPage() {
               {(fields, { add, remove }) => (
                 <>
                   {fields.map(({ key, name, ...rest }) => (
-                    <Space key={key} align="baseline" style={{ marginBottom: 8 }}>
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                       <Form.Item
                         {...rest}
                         name={[name, 'pipe_type']}
@@ -353,16 +405,56 @@ export default function InboundListPage() {
                           {t('common.delete')}
                         </Button>
                       )}
-                    </Space>
+                    </div>
                   ))}
-                  <Button type="dashed" onClick={() => add({ pipe_type: 'casing' })} block>
-                    + {t('inbound.add_pipe')}
-                  </Button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                    <Button type="dashed" onClick={() => add({ pipe_type: 'casing' })} block>
+                      + {t('inbound.add_pipe')}
+                    </Button>
+                    <Button
+                      type="dashed"
+                      onClick={() => {
+                        setBatchPipeIds('');
+                        setBatchModalOpen(true);
+                      }}
+                      block
+                    >
+                      {t('inbound.batch_add_pipes', '批量添加管材')}
+                    </Button>
+                  </div>
                 </>
               )}
             </Form.List>
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={t('inbound.batch_add_pipes', '批量添加管材')}
+        open={batchModalOpen}
+        onOk={handleBatchAddPipes}
+        onCancel={() => setBatchModalOpen(false)}
+        destroyOnClose
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+          <Select
+            value={batchPipeType}
+            onChange={setBatchPipeType}
+            style={{ width: 200 }}
+          >
+            {PIPE_TYPES.map((type) => (
+              <Select.Option key={type} value={type}>
+                {t(`pipe_type.${type}`, type)}
+              </Select.Option>
+            ))}
+          </Select>
+          <Input.TextArea
+            rows={6}
+            value={batchPipeIds}
+            onChange={(event) => setBatchPipeIds(event.target.value)}
+            placeholder={t('inbound.batch_pipe_ids_placeholder', '例如：1001,1002,1003 或 1001-1010；支持空格、换行、逗号分隔')}
+          />
+        </div>
       </Modal>
 
       <PurchaseOrderSelector
@@ -392,6 +484,6 @@ export default function InboundListPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </PageLayout>
   );
 }

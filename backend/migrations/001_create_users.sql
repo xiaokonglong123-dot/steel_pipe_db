@@ -1,4 +1,8 @@
 -- Users table for authentication and RBAC
+-- 001_create_users.sql
+-- System users table with 4 RBAC roles: admin, warehouse, qc, sales.
+-- Passwords are Argon2id-hashed (never stored in plain text).
+-- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
@@ -16,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_role ON users(role);
 
--- Insert default admin user (password: admin123)
-INSERT INTO users (username, password_hash, display_name, role)
-VALUES ('admin', '$argon2id$v=19$m=19456,t=2,p=1$+YobHflrRI2qxqqUqIIB8A$0ECSCWpGHdX73H5CVw1n3YYAQJABRnRHQ76Mg3f+ebI', 'Administrator', 'admin');
+-- NOTE: No seed admin is inserted here. The first admin user is bootstrapped
+-- at application startup from ADMIN_USERNAME / ADMIN_PASSWORD env vars
+-- (see main.rs bootstrap_admin()). This avoids shipping a hardcoded credential
+-- that every deployment inherits.

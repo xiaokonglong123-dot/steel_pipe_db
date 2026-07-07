@@ -1,10 +1,11 @@
+use rust_decimal::Decimal;
 use sqlx::SqlitePool;
 
+use crate::domain::money::{from_decimal, from_decimal_opt};
 use crate::dto::common::PaginationParams;
 use crate::dto::contract_dto::{
-    ContractDetailResponse, ContractFilterParams, CreateContractItemRequest,
-    CreateContractRequest, CreatePaymentRequest, UpdateContractItemRequest,
-    UpdateContractRequest, UpdatePaymentRequest,
+    ContractDetailResponse, ContractFilterParams, CreateContractItemRequest, CreateContractRequest,
+    CreatePaymentRequest, UpdateContractItemRequest, UpdateContractRequest, UpdatePaymentRequest,
 };
 use crate::error::AppError;
 use crate::models::contract::{Contract, ContractItem, ContractPayment};
@@ -42,6 +43,10 @@ impl ContractService {
     /// items aren't empty and quantities are positive. Returns the full contract
     /// with items and payment schedule.
     ///
+    /// Uses `BEGIN IMMEDIATE` to serialise concurrent contract creation — the
+    /// contract-number generation (MAX+1) and the insert share one transaction,
+    /// preventing duplicate numbers under concurrency.
+    ///
     /// # Errors
     /// - `AppError::Validation` — bad type, empty items, or quantity ≤ 0
     pub async fn create_contract(
@@ -69,9 +74,36 @@ impl ContractService {
             }
         }
 
-        let contract = ContractRepo::create(pool, dto).await?;
-        let items = ContractRepo::create_items(pool, contract.id, &dto.items).await?;
-        ContractRepo::update_total_amount(pool, contract.id).await?;
+        let mut conn = pool.acquire().await.map_err(AppError::from)?;
+        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+            return Err(AppError::from(e));
+        }
+
+        let contract = match ContractRepo::create_conn(&mut *conn, dto).await {
+            Ok(c) => c,
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        };
+
+        let items = match ContractRepo::create_items_conn(&mut *conn, contract.id, &dto.items).await {
+            Ok(i) => i,
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        };
+
+        if let Err(e) = ContractRepo::update_total_amount_conn(&mut *conn, contract.id).await {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(AppError::from(e));
+        }
+
+        sqlx::query("COMMIT")
+            .execute(&mut *conn)
+            .await
+            .map_err(AppError::from)?;
 
         let contract = ContractRepo::find_by_id(pool, contract.id)
             .await?
@@ -86,12 +118,24 @@ impl ContractService {
         })
     }
 
-    /// Updates contract header fields. Only works when the contract is in `draft`
-    /// status — no touching active or completed ones.
+    /// Updates contract header fields and optionally replaces line items.
+    /// Only works when the contract is in `draft` status.
+    ///
+    /// When `dto.items` is `Some`, the existing line items are replaced atomically
+    /// within the same transaction:
+    /// - Items with an `id` matching an existing row → updated
+    /// - Items without an `id` → inserted as new rows
+    /// - Existing rows whose `id` is not in the incoming set → deleted
+    /// - `total_amount` is recomputed as `SUM(total_price)`
+    ///
+    /// When `dto.items` is `None`, items are left untouched (backward compatible).
+    ///
+    /// Uses `BEGIN IMMEDIATE` to serialise concurrent edits — the scalar update,
+    /// item replacement, and `total_amount` recalculation share one transaction.
     ///
     /// # Errors
     /// - `AppError::NotFound` — ID doesn't exist or was deleted
-    /// - `AppError::Validation` — current status doesn't allow edits
+    /// - `AppError::Validation` — current status doesn't allow edits, or quantity ≤ 0
     pub async fn update_contract(
         pool: &SqlitePool,
         id: i64,
@@ -108,9 +152,100 @@ impl ContractService {
             )));
         }
 
-        ContractRepo::update(pool, id, dto)
+        let mut conn = pool.acquire().await.map_err(AppError::from)?;
+        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+            return Err(AppError::from(e));
+        }
+
+        let _ = match ContractRepo::update_conn(&mut *conn, id, dto).await {
+            Ok(c) => c,
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        };
+
+        if let Some(ref items) = dto.items {
+            for item in items {
+                if let Some(qty) = item.quantity {
+                    if qty <= 0 {
+                        sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                        return Err(AppError::Validation(
+                            "Item quantity must be positive".into(),
+                        ));
+                    }
+                }
+            }
+
+            let keep_ids: Vec<i64> = items.iter().filter_map(|i| i.id).collect();
+
+            if let Err(e) =
+                ContractRepo::delete_items_not_in_conn(&mut *conn, id, &keep_ids).await
+            {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+
+            for item in items {
+                if let Some(item_id) = item.id {
+                    if let Err(e) =
+                        ContractRepo::update_item_conn(&mut *conn, item_id, item).await
+                    {
+                        sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                        return Err(AppError::from(e));
+                    }
+                } else {
+                    let pipe_type = item.pipe_type.as_deref().unwrap_or("");
+                    let grade = item.grade.as_deref().unwrap_or("");
+                    let od = item.od.unwrap_or(0.0);
+                    let wt = item.wt.unwrap_or(0.0);
+                    let quantity = item.quantity.unwrap_or(0);
+
+                    let total_price = item
+                        .unit_price
+                        .map(|p| from_decimal(p) * quantity as f64)
+                        .unwrap_or(0.0);
+
+                    match sqlx::query(
+                        "INSERT INTO contract_items (contract_id, pipe_type, grade, od, wt, \
+                         quantity, unit_price, total_price, notes) \
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    )
+                    .bind(id)
+                    .bind(pipe_type)
+                    .bind(grade)
+                    .bind(od)
+                    .bind(wt)
+                    .bind(quantity)
+                    .bind(from_decimal_opt(item.unit_price))
+                    .bind(total_price)
+                    .bind(item.notes.as_deref())
+                    .execute(&mut *conn)
+                    .await
+                    {
+                        Err(e) => {
+                            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                            return Err(AppError::from(e));
+                        }
+                        Ok(_) => {}
+                    }
+                }
+            }
+
+            if let Err(e) = ContractRepo::update_total_amount_conn(&mut *conn, id).await {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        }
+
+        sqlx::query("COMMIT")
+            .execute(&mut *conn)
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?;
+
+        ContractRepo::find_by_id(pool, id)
+            .await?
+            .ok_or_else(|| AppError::Internal("Failed to retrieve updated contract".into()))
     }
 
     /// Soft-deletes a contract. Only `draft` contracts can be removed — no wiping
@@ -119,10 +254,7 @@ impl ContractService {
     /// # Errors
     /// - `AppError::NotFound` — ID doesn't exist
     /// - `AppError::Validation` — current status doesn't allow deletion
-    pub async fn delete_contract(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<(), AppError> {
+    pub async fn delete_contract(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let existing = ContractRepo::find_by_id(pool, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Contract id={} not found", id)))?;
@@ -174,9 +306,14 @@ impl ContractService {
     /// Updates contract status. Only valid paths allowed: `draft` → `active` →
     /// `completed` | `terminated`. Activating requires a sign date.
     ///
+    /// Uses `BEGIN IMMEDIATE` with a guarded `WHERE status = <current>` update
+    /// to prevent TOCTOU races — concurrent transitions (e.g. `completed` vs
+    /// `terminated`) cannot silently overwrite each other.
+    ///
     /// # Errors
     /// - `AppError::NotFound` — ID doesn't exist
     /// - `AppError::Validation` — invalid status, illegal transition, or missing sign date
+    /// - `AppError::OrderCannotModify` — status changed by another request before commit
     pub async fn update_status(
         pool: &SqlitePool,
         id: i64,
@@ -206,14 +343,73 @@ impl ContractService {
             ));
         }
 
-        ContractRepo::update_status(pool, id, new_status)
+        // Acquire connection and start IMMEDIATE transaction. The initial read
+        // above is a stale-snapshot guard; we re-read inside the tx to confirm
+        // the status hasn't changed, then issue a guarded UPDATE.
+        let mut conn = pool.acquire().await.map_err(AppError::from)?;
+        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+            return Err(AppError::from(e));
+        }
+
+        // Re-read current status inside the transaction
+        let current = match ContractRepo::find_by_id_conn(&mut *conn, id).await {
+            Ok(Some(c)) => c,
+            Ok(None) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::NotFound(format!("Contract id={} not found", id)));
+            }
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        };
+
+        // Re-validate transition — status may have changed since the initial read
+        if !Self::allowed_transition(&current.status, new_status) {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(AppError::Validation(format!(
+                "Cannot transition contract from '{}' to '{}'",
+                current.status, new_status
+            )));
+        }
+
+        if new_status == "active" && current.sign_date.is_none() {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(AppError::Validation(
+                "Cannot activate contract without a sign date".into(),
+            ));
+        }
+
+        // Guarded UPDATE — only succeeds if status is still what we re-read
+        match ContractRepo::update_status_if_current(&mut *conn, id, &current.status, new_status)
             .await
-            .map_err(AppError::from)
+        {
+            Ok(Some(contract)) => {
+                sqlx::query("COMMIT")
+                    .execute(&mut *conn)
+                    .await
+                    .map_err(AppError::from)?;
+                Ok(contract)
+            }
+            Ok(None) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                Err(AppError::OrderCannotModify(
+                    "Contract status changed by another request".into(),
+                ))
+            }
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                Err(AppError::from(e))
+            }
+        }
     }
 
     // ━━━ Items ━━━
 
     /// Adds a line item to a contract. Only works when the contract is in `draft`.
+    ///
+    /// The item INSERT and `total_amount` recalculation share one transaction
+    /// so `total_amount` is never stale after a successful call.
     ///
     /// # Errors
     /// - `AppError::NotFound` — contract doesn't exist
@@ -238,14 +434,46 @@ impl ContractService {
             )));
         }
 
-        let items = ContractRepo::create_items(pool, contract_id, std::slice::from_ref(dto)).await?;
-        ContractRepo::update_total_amount(pool, contract_id).await?;
+        let mut conn = pool.acquire().await.map_err(AppError::from)?;
+        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+            return Err(AppError::from(e));
+        }
 
-        items.into_iter().next().ok_or_else(|| AppError::Internal("Failed to create item".into()))
+        let items = match ContractRepo::create_items_conn(
+            &mut *conn,
+            contract_id,
+            std::slice::from_ref(dto),
+        )
+        .await
+        {
+            Ok(i) => i,
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        };
+
+        if let Err(e) = ContractRepo::update_total_amount_conn(&mut *conn, contract_id).await {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(AppError::from(e));
+        }
+
+        sqlx::query("COMMIT")
+            .execute(&mut *conn)
+            .await
+            .map_err(AppError::from)?;
+
+        items
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::Internal("Failed to create item".into()))
     }
 
     /// Updates a contract line item. Only works in `draft` status; validates the
     /// item actually belongs to this contract.
+    ///
+    /// The item UPDATE and `total_amount` recalculation share one transaction
+    /// so `total_amount` is never stale after a successful call.
     ///
     /// # Errors
     /// - `AppError::NotFound` — contract or item doesn't exist
@@ -283,13 +511,36 @@ impl ContractService {
             }
         }
 
-        let result = ContractRepo::update_item(pool, item_id, dto).await?;
-        ContractRepo::update_total_amount(pool, contract_id).await?;
+        let mut conn = pool.acquire().await.map_err(AppError::from)?;
+        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+            return Err(AppError::from(e));
+        }
+
+        let result = match ContractRepo::update_item_conn(&mut *conn, item_id, dto).await {
+            Ok(r) => r,
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                return Err(AppError::from(e));
+            }
+        };
+
+        if let Err(e) = ContractRepo::update_total_amount_conn(&mut *conn, contract_id).await {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(AppError::from(e));
+        }
+
+        sqlx::query("COMMIT")
+            .execute(&mut *conn)
+            .await
+            .map_err(AppError::from)?;
 
         Ok(result)
     }
 
     /// Deletes a line item from a contract. Only allowed in `draft` status.
+    ///
+    /// The item DELETE and `total_amount` recalculation share one transaction
+    /// so `total_amount` is never stale after a successful call.
     ///
     /// # Errors
     /// - `AppError::NotFound` — contract or item doesn't exist
@@ -320,8 +571,25 @@ impl ContractService {
             ));
         }
 
-        ContractRepo::delete_item(pool, item_id).await?;
-        ContractRepo::update_total_amount(pool, contract_id).await?;
+        let mut conn = pool.acquire().await.map_err(AppError::from)?;
+        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+            return Err(AppError::from(e));
+        }
+
+        if let Err(e) = ContractRepo::delete_item_conn(&mut *conn, item_id).await {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(AppError::from(e));
+        }
+
+        if let Err(e) = ContractRepo::update_total_amount_conn(&mut *conn, contract_id).await {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+            return Err(AppError::from(e));
+        }
+
+        sqlx::query("COMMIT")
+            .execute(&mut *conn)
+            .await
+            .map_err(AppError::from)?;
 
         Ok(())
     }
@@ -339,8 +607,10 @@ impl ContractService {
         contract_id: i64,
         dto: &CreatePaymentRequest,
     ) -> Result<ContractPayment, AppError> {
-        if dto.amount <= 0.0 {
-            return Err(AppError::Validation("Payment amount must be positive".into()));
+        if dto.amount <= Decimal::ZERO {
+            return Err(AppError::Validation(
+                "Payment amount must be positive".into(),
+            ));
         }
 
         if !Self::valid_payment_type(&dto.payment_type) {
@@ -398,8 +668,10 @@ impl ContractService {
         }
 
         if let Some(amt) = dto.amount {
-            if amt <= 0.0 {
-                return Err(AppError::Validation("Payment amount must be positive".into()));
+            if amt <= Decimal::ZERO {
+                return Err(AppError::Validation(
+                    "Payment amount must be positive".into(),
+                ));
             }
         }
 

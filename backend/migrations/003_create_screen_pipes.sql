@@ -1,4 +1,8 @@
--- Screen pipes
+-- 003_create_screen_pipes.sql
+-- Master data for API 5CT screen pipes (slotted / wire-wrapped).
+-- Similar structure to seamless_pipes but with screen-specific fields (slot width, slot pattern, etc).
+-- No FK constraints — integrity enforced at application layer.
+-- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS screen_pipes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pipe_number TEXT NOT NULL UNIQUE,

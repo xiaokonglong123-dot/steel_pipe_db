@@ -1,7 +1,9 @@
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;
-use crate::dto::supplier_dto::{CreateSupplierRequest, SupplierFilterParams, UpdateSupplierRequest};
+use crate::dto::supplier_dto::{
+    CreateSupplierRequest, SupplierFilterParams, UpdateSupplierRequest,
+};
 use crate::models::supplier::Supplier;
 
 /// CRUD for `suppliers`. All queries filter `deleted_at IS NULL`.
@@ -32,8 +34,7 @@ impl SupplierRepo {
         .await
     }
 
-    /// Dynamic UPDATE of supplier fields (name, contact_person, phone, email, is_active, etc.).
-    /// Only supplied fields change. Returns the updated `Supplier`.
+    /// Dynamic UPDATE of supplier fields. Only supplied fields change. Returns the updated `Supplier`.
     pub async fn update(
         pool: &SqlitePool,
         id: i64,
@@ -82,10 +83,7 @@ impl SupplierRepo {
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
-    pub async fn find_by_id(
-        pool: &SqlitePool,
-        id: i64,
-    ) -> Result<Option<Supplier>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Supplier>, sqlx::Error> {
         sqlx::query_as::<_, Supplier>(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
@@ -112,14 +110,18 @@ impl SupplierRepo {
     }
 
     /// Soft-delete: sets `deleted_at` and `updated_at`.
+    /// Returns `sqlx::Error::RowNotFound` when no row was updated (already deleted or missing).
     pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE suppliers SET deleted_at = datetime('now'), \
              updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
         .await?;
+        if result.rows_affected() == 0 {
+            return Err(sqlx::Error::RowNotFound);
+        }
         Ok(())
     }
 
@@ -138,7 +140,8 @@ impl SupplierRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push("(name LIKE ? OR supplier_code LIKE ? OR contact_person LIKE ?)".into());
+                conditions
+                    .push("(name LIKE ? OR supplier_code LIKE ? OR contact_person LIKE ?)".into());
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern.clone());
@@ -160,7 +163,10 @@ impl SupplierRepo {
         };
         let sort_order = params.sort_order_sql();
 
-        let count_sql = format!("SELECT COUNT(*) as cnt FROM suppliers WHERE {}", where_clause);
+        let count_sql = format!(
+            "SELECT COUNT(*) as cnt FROM suppliers WHERE {}",
+            where_clause
+        );
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         for val in &bind_values {
             count_q = count_q.bind(val.as_str());
@@ -187,10 +193,7 @@ impl SupplierRepo {
     }
 
     /// Quick name/code search (LIKE) with LIMIT 50 results.
-    pub async fn search(
-        pool: &SqlitePool,
-        query: &str,
-    ) -> Result<Vec<Supplier>, sqlx::Error> {
+    pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<Supplier>, sqlx::Error> {
         let like = format!("%{}%", query);
         sqlx::query_as::<_, Supplier>(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
@@ -206,9 +209,7 @@ impl SupplierRepo {
     }
 
     /// SELECT all active suppliers, ordered by `name ASC`. Used for dropdowns.
-    pub async fn find_all_active(
-        pool: &SqlitePool,
-    ) -> Result<Vec<Supplier>, sqlx::Error> {
+    pub async fn find_all_active(pool: &SqlitePool) -> Result<Vec<Supplier>, sqlx::Error> {
         sqlx::query_as::<_, Supplier>(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \

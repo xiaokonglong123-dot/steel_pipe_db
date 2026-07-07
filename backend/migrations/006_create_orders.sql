@@ -1,4 +1,10 @@
--- Suppliers
+-- 006_create_orders.sql
+-- Business entity tables: suppliers, customers, purchase orders, sales orders.
+-- Purchase orders track procurement lifecycle (draft → submitted → approved → completed).
+-- Sales orders track sales lifecycle with ATP (Available-to-Promise) checks.
+-- Both order types support line items and approval/rejection workflow.
+-- No FK constraints — integrity enforced at application layer.
+-- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS suppliers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     supplier_code TEXT NOT NULL UNIQUE,

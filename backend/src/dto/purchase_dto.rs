@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -48,6 +49,8 @@ pub struct UpdatePurchaseOrderRequest {
     pub order_date: Option<String>,
     /// Notes.
     pub notes: Option<String>,
+    /// Optional: Replace all line items when present.
+    pub items: Option<Vec<UpdatePurchaseItemRequest>>,
 }
 
 /// Create purchase order item request DTO.
@@ -69,23 +72,30 @@ pub struct CreatePurchaseItemRequest {
     #[validate(range(min = 1))]
     pub quantity: i64,
     /// Unit price.
-    pub unit_price: Option<f64>,
+    pub unit_price: Option<Decimal>,
     /// Total price.
-    pub total_price: Option<f64>,
+    pub total_price: Option<Decimal>,
     /// Notes.
     pub notes: Option<String>,
 }
 
 /// Update purchase order item request DTO.
+///
+/// Note: `total_price` is NOT client-writable — the server always computes it
+/// as `quantity * unit_price` to prevent tampering.
+///
+/// `id` is used by the bulk-replace path on order update to match existing rows;
+/// it is ignored by the dedicated PUT `/items/{item_id}` endpoint.
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdatePurchaseItemRequest {
+    /// Existing item ID for matching during bulk-replace (ignored by dedicated item endpoints).
+    pub id: Option<i64>,
     pub pipe_type: Option<String>,
     pub grade: Option<String>,
     pub od: Option<f64>,
     pub wt: Option<f64>,
     pub quantity: Option<i64>,
-    pub unit_price: Option<f64>,
-    pub total_price: Option<f64>,
+    pub unit_price: Option<Decimal>,
     pub notes: Option<String>,
 }
 
@@ -114,4 +124,12 @@ pub struct PurchaseOrderStatusTransitionRequest {
     /// Target status.
     #[validate(length(min = 1))]
     pub status: String,
+}
+
+/// Purchase order detail response DTO (includes order header + line items).
+/// Used by GET `/api/v1/purchase-orders/{id}` to return a consistent ApiResponse shape.
+#[derive(Debug, serde::Serialize)]
+pub struct PurchaseOrderDetailResponse {
+    pub order: crate::models::purchase_order::PurchaseOrder,
+    pub items: Vec<crate::models::purchase_order::PurchaseOrderItem>,
 }

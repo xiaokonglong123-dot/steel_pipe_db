@@ -1,4 +1,7 @@
--- Operation logs for audit trail
+-- 008_create_logs.sql
+-- Operation logs for data import/export audit trail.
+-- Tracks who performed what action on which entity, with timestamps.
+-- Used by Data IO module to record all batch operations.
 CREATE TABLE IF NOT EXISTS operation_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,

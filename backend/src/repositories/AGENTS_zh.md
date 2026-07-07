@@ -1,8 +1,6 @@
 # `repositories/` + `models/` — Data Access Layer
 
-## repositories/ (13 files, SQL layer)
-
-> **Note**: `user_repo.rs` got a bump recently (+32 lines) but we're still at 13 repo files.
+## repositories/ (20 files, SQL layer)
 
 ### Pattern
 
@@ -44,23 +42,29 @@ Key facts:
 - **No constructor**, **no DI pattern** — you won't find `pub fn new(db)` anywhere
 - Returns `Result<T, sqlx::Error>` — the caller converts to AppError
 
-### File List (13 files)
+### File List (20 files)
 
 | File | Entity | Description |
 |------|--------|-------------|
-| `inventory_repo.rs` | Inventory | dynamic queries, stock movements |
-| `report_repo.rs` | Reports | aggregation queries, date ranges |
-| `pipe_repo.rs` | Pipe specs | CRUD + filtered + paginated |
-| `purchase_order_repo.rs` | Purchase Orders | PO CRUD + status |
-| `sales_order_repo.rs` | Sales Orders | SO CRUD + ATP queries |
-| `contract_repo.rs` | Contracts | CRUD + status queries |
-| `quality_repo.rs` | Quality | certs + test results |
+| `inventory_repo.rs` | Inventory (ATP) | ATP查询, 库存统计, 管道位置 |
+| `location_repo.rs` | Locations | 仓库位置 CRUD |
+| `inbound_repo.rs` | Inbound | 入库记录 CRUD |
+| `outbound_repo.rs` | Outbound | 出库记录 CRUD |
+| `inventory_log_repo.rs` | Inventory Logs | 管道移动审计日志 |
+| `check_repo.rs` | Inventory Checks | 盘点记录和盘点项 |
+| `report_repo.rs` | Reports | 聚合查询, 日期范围 |
+| `pipe_repo.rs` | Pipe specs | CRUD + 过滤 + 分页 |
+| `purchase_order_repo.rs` | Purchase Orders | PO CRUD + 状态 |
+| `sales_order_repo.rs` | Sales Orders | SO CRUD + ATP 查询 |
+| `contract_repo.rs` | Contracts | CRUD + 状态查询 |
+| `quality_repo.rs` | Quality | 证书 + 测试结果 |
 | `customer_repo.rs` | Customers | CRUD |
 | `supplier_repo.rs` | Suppliers | CRUD |
-| `label_repo.rs` | Labels | label data queries |
-| `data_io_repo.rs` | Data IO | bulk read/write |
-| `user_repo.rs` | Users | auth queries |
-| `operation_log_repo.rs` | Audit logs | insert + query |
+| `label_repo.rs` | Labels | 标签数据查询 |
+| `data_io_repo.rs` | Data IO | 批量读写 |
+| `user_repo.rs` | Users | 认证查询 |
+| `operation_log_repo.rs` | Audit logs | 插入 + 查询 |
+| `refresh_token_repo.rs` | Refresh Tokens | 令牌管理 |
 
 ### Repository Conventions
 

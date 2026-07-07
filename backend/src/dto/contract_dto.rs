@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -51,6 +52,10 @@ pub struct UpdateContractRequest {
     pub end_date: Option<String>,
     /// Notes.
     pub notes: Option<String>,
+    /// Optional replacement items. When `Some`, all items are replaced
+    /// (insert/update/delete) and `total_amount` is recomputed.
+    /// When `None`, items are left untouched (backward compatible).
+    pub items: Option<Vec<UpdateContractItemRequest>>,
 }
 
 /// Contract list filter params.
@@ -103,20 +108,24 @@ pub struct CreateContractItemRequest {
     #[validate(range(min = 1))]
     pub quantity: i64,
     /// Unit price.
-    pub unit_price: Option<f64>,
+    pub unit_price: Option<Decimal>,
     /// Notes.
     pub notes: Option<String>,
 }
 
 /// Update contract item request DTO.
+/// When `id` is `Some`, the item already exists and will be updated.
+/// When `id` is `None`, the item is new and will be inserted (all fields required).
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateContractItemRequest {
+    /// Existing item ID for updates. `None` for new items.
+    pub id: Option<i64>,
     pub pipe_type: Option<String>,
     pub grade: Option<String>,
     pub od: Option<f64>,
     pub wt: Option<f64>,
     pub quantity: Option<i64>,
-    pub unit_price: Option<f64>,
+    pub unit_price: Option<Decimal>,
     pub notes: Option<String>,
 }
 
@@ -131,9 +140,8 @@ pub struct CreatePaymentRequest {
     #[validate(length(min = 1))]
     pub due_date: String,
     /// Payment amount.
-    #[validate(range(min = 0.0))]
-    pub amount: f64,
-    /// Payment type: deposit / progress / final / retention.
+    pub amount: Decimal,
+    /// Payment type: deposit / progress / milestone / final / retention.
     #[validate(length(min = 1))]
     pub payment_type: String,
     /// Notes.
@@ -146,11 +154,11 @@ pub struct UpdatePaymentRequest {
     /// Due date.
     pub due_date: Option<String>,
     /// Amount.
-    pub amount: Option<f64>,
+    pub amount: Option<Decimal>,
     /// Payment type.
     pub payment_type: Option<String>,
-    /// Whether paid (0 = unpaid, 1 = paid).
-    pub is_paid: Option<i64>,
+    /// Whether paid.
+    pub is_paid: Option<bool>,
     /// Actual payment date.
     pub paid_date: Option<String>,
     /// Notes.

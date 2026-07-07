@@ -42,9 +42,8 @@ impl QualityCertRepo {
         id: i64,
         dto: &UpdateQualityCertRequest,
     ) -> Result<QualityCert, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "UPDATE quality_certs SET updated_at = datetime('now')",
-        );
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE quality_certs SET updated_at = datetime('now')");
 
         if let Some(ref val) = dto.cert_date {
             builder.push(", cert_date = ");
@@ -70,10 +69,15 @@ impl QualityCertRepo {
         builder.push(" WHERE id = ");
         builder.push_bind(id);
         builder.push(" AND deleted_at IS NULL");
-        builder.push(" RETURNING id, cert_number, pipe_type, pipe_id, cert_date, result, \
-            inspector, inspection_body, notes, created_at, updated_at, deleted_at");
+        builder.push(
+            " RETURNING id, cert_number, pipe_type, pipe_id, cert_date, result, \
+            inspector, inspection_body, notes, created_at, updated_at, deleted_at",
+        );
 
-        builder.build_query_as::<QualityCert>().fetch_one(pool).await
+        builder
+            .build_query_as::<QualityCert>()
+            .fetch_one(pool)
+            .await
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
@@ -87,6 +91,26 @@ impl QualityCertRepo {
              FROM quality_certs WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
+        .fetch_optional(pool)
+        .await
+    }
+
+    /// Find an active (non-deleted) cert by pipe type and ID.
+    /// Returns `Some(QualityCert)` if one exists, `None` otherwise.
+    pub async fn find_active_by_pipe(
+        pool: &SqlitePool,
+        pipe_type: &str,
+        pipe_id: i64,
+    ) -> Result<Option<QualityCert>, sqlx::Error> {
+        sqlx::query_as::<_, QualityCert>(
+            "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, \
+             inspection_body, notes, created_at, updated_at, deleted_at \
+             FROM quality_certs \
+             WHERE pipe_type = ? AND pipe_id = ? AND deleted_at IS NULL \
+             LIMIT 1",
+        )
+        .bind(pipe_type)
+        .bind(pipe_id)
         .fetch_optional(pool)
         .await
     }
@@ -193,9 +217,7 @@ impl Api5ctGradeRefRepo {
     }
 
     /// SELECT all grades ordered by `grade` name.
-    pub async fn list_all(
-        pool: &SqlitePool,
-    ) -> Result<Vec<Api5ctGradeRef>, sqlx::Error> {
+    pub async fn list_all(pool: &SqlitePool) -> Result<Vec<Api5ctGradeRef>, sqlx::Error> {
         sqlx::query_as::<_, Api5ctGradeRef>(
             "SELECT id, grade, yield_strength_min, yield_strength_max, tensile_strength_min, \
              hardness_max, carbon_content_max, manganese_content_max, phosphorus_content_max, \
@@ -204,6 +226,24 @@ impl Api5ctGradeRefRepo {
         )
         .fetch_all(pool)
         .await
+    }
+}
+
+/// UPDATE `cert_number` on a quality certificate. Used after creation to set the final cert number.
+impl QualityCertRepo {
+    pub async fn update_cert_number(
+        pool: &SqlitePool,
+        id: i64,
+        cert_number: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE quality_certs SET cert_number = ? WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(cert_number)
+        .bind(id)
+        .execute(pool)
+        .await?;
+        Ok(())
     }
 }
 
