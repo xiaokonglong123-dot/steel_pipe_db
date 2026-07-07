@@ -138,22 +138,90 @@ impl PipeModel for SeamlessPipe {
     }
 
     fn build_update_query<'a>(builder: &mut QueryBuilder<'a, Sqlite>, dto: &'a Self::UpdateDto) {
-        if let Some(ref v) = dto.batch_number { builder.push(", batch_number = ").push_bind(v); }
-        if let Some(ref v) = dto.pipe_type { builder.push(", pipe_type = ").push_bind(v); }
-        if let Some(ref v) = dto.grade { builder.push(", grade = ").push_bind(v); }
-        if let Some(v) = dto.od { builder.push(", od = ").push_bind(v); }
-        if let Some(v) = dto.wt { builder.push(", wt = ").push_bind(v); }
-        if let Some(v) = dto.length { builder.push(", length = ").push_bind(v); }
-        if let Some(v) = dto.weight_per_unit { builder.push(", weight_per_unit = ").push_bind(v); }
-        if let Some(ref v) = dto.end_type { builder.push(", end_type = ").push_bind(v); }
-        if let Some(ref v) = dto.coupling_type { builder.push(", coupling_type = ").push_bind(v); }
-        if let Some(v) = dto.coupling_od { builder.push(", coupling_od = ").push_bind(v); }
-        if let Some(v) = dto.coupling_length { builder.push(", coupling_length = ").push_bind(v); }
-        if let Some(ref v) = dto.heat_number { builder.push(", heat_number = ").push_bind(v); }
-        if let Some(ref v) = dto.serial_number { builder.push(", serial_number = ").push_bind(v); }
-        if let Some(ref v) = dto.manufacturer { builder.push(", manufacturer = ").push_bind(v); }
-        if let Some(ref v) = dto.production_date { builder.push(", production_date = ").push_bind(v); }
-        if let Some(ref v) = dto.cert_number { builder.push(", cert_number = ").push_bind(v); }
-        if let Some(ref v) = dto.notes { builder.push(", notes = ").push_bind(v); }
+        let mut first = true;
+        if let Some(ref v) = dto.batch_number {
+            if !first { builder.push(", "); }
+            builder.push("batch_number = ").push_bind(v);
+            first = false;
+        }
+        if let Some(ref v) = dto.pipe_type {
+            if !first { builder.push(", "); }
+            builder.push("pipe_type = ").push_bind(v);
+            first = false;
+        }
+        if let Some(ref v) = dto.grade {
+            if !first { builder.push(", "); }
+            builder.push("grade = ").push_bind(v);
+            first = false;
+        }
+        if let Some(v) = dto.od {
+            if !first { builder.push(", "); }
+            builder.push("od = ").push_bind(v);
+            first = false;
+        }
+        if let Some(v) = dto.wt {
+            if !first { builder.push(", "); }
+            builder.push("wt = ").push_bind(v);
+            first = false;
+        }
+        if let Some(v) = dto.length {
+            if !first { builder.push(", "); }
+            builder.push("length = ").push_bind(v);
+            first = false;
+        }
+        if let Some(v) = dto.weight_per_unit {
+            if !first { builder.push(", "); }
+            builder.push("weight_per_unit = ").push_bind(v);
+            first = false;
+        }
+        if let Some(ref v) = dto.end_type {
+            if !first { builder.push(", "); }
+            builder.push("end_type = ").push_bind(v);
+            first = false;
+        }
+        if let Some(ref v) = dto.coupling_type {
+            if !first { builder.push(", "); }
+            builder.push("coupling_type = ").push_bind(v);
+            first = false;
+        }
+        if let Some(v) = dto.coupling_od {
+            if !first { builder.push(", "); }
+            builder.push("coupling_od = ").push_bind(v);
+            first = false;
+        }
+        if let Some(v) = dto.coupling_length {
+            if !first { builder.push(", "); }
+            builder.push("coupling_length = ").push_bind(v);
+            first = false;
+        }
+        if let Some(ref v) = dto.heat_number {
+            if !first { builder.push(", "); }
+            builder.push("heat_number = ").push_bind(v);
+            first = false;
+        }
+        if let Some(ref v) = dto.serial_number {
+            if !first { builder.push(", "); }
+            builder.push("serial_number = ").push_bind(v);
+            first = false;
+        }
+        if let Some(ref v) = dto.manufacturer {
+            if !first { builder.push(", "); }
+            builder.push("manufacturer = ").push_bind(v);
+            first = false;
+        }
+        if let Some(ref v) = dto.production_date {
+            if !first { builder.push(", "); }
+            builder.push("production_date = ").push_bind(v);
+            first = false;
+        }
+        if let Some(ref v) = dto.cert_number {
+            if !first { builder.push(", "); }
+            builder.push("cert_number = ").push_bind(v);
+            first = false;
+        }
+        if let Some(ref v) = dto.notes {
+            if !first { builder.push(", "); }
+            builder.push("notes = ").push_bind(v);
+        }
     }
 }
