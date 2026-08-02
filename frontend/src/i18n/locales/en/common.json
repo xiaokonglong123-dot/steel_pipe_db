@@ -504,5 +504,10 @@
   "menu.procurement_overview": "Procurement",
   "menu.sales_crm": "Sales",
   "menu.sales_crm_overview": "Sales CRM",
-  "menu.atp_overview": "Available to Promise"
+  "menu.atp_overview": "Available to Promise",
+  "menu.manufacturing": "Manufacturing",
+  "menu.manufacturing_overview": "Manufacturing",
+  "menu.threading": "Threading",
+  "menu.projects": "Projects",
+  "menu.projects_overview": "Projects"
 }

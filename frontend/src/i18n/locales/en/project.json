@@ -1,0 +1,23 @@
+{
+  "title": "Projects",
+  "newProject": "New Project",
+  "newWbs": "New WBS",
+  "projectNo": "Project No",
+  "name": "Name",
+  "budget": "Budget",
+  "status": "Status",
+  "actions": "Actions",
+  "view": "View",
+  "activate": "Activate",
+  "projectDetail": "Project Detail",
+  "expense": "Expense",
+  "remaining": "Remaining",
+  "code": "Code",
+  "parent": "Parent",
+  "progress": "Progress%",
+  "weight": "Weight%",
+  "saved": "Saved",
+  "updated": "Updated",
+  "save": "Save",
+  "cancel": "Cancel"
+}

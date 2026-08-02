@@ -4,6 +4,8 @@ import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
 import {
   TeamOutlined,
   AuditOutlined,
+  ToolOutlined,
+  ProjectOutlined,
   ShopOutlined,
   ShoppingCartOutlined,
   DollarOutlined,
@@ -191,6 +193,21 @@ export default function MainLayout() {
       icon: <ContainerOutlined />,
       label: t('menu.atp'),
       children: [{ key: '/inventory/atp', label: t('menu.atp_overview'), roles: ['admin'] }],
+    },
+    {
+      key: 'manufacturing',
+      icon: <ToolOutlined />,
+      label: t('menu.manufacturing'),
+      children: [
+        { key: '/manufacturing', label: t('menu.manufacturing_overview'), roles: ['admin'] },
+        { key: '/threading', label: t('menu.threading'), roles: ['admin'] },
+      ],
+    },
+    {
+      key: 'projects',
+      icon: <ProjectOutlined />,
+      label: t('menu.projects'),
+      children: [{ key: '/projects', label: t('menu.projects_overview'), roles: ['admin'] }],
     },
     {
       key: 'system',

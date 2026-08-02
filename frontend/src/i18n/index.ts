@@ -49,6 +49,9 @@ const ZH_LOADERS = {
   hr: () => import('./locales/zh/hr.json'),
   finance: () => import('./locales/zh/finance.json'),
   procurement: () => import('./locales/zh/procurement.json'),
+  manufacturing: () => import('./locales/zh/manufacturing.json'),
+  threading: () => import('./locales/zh/threading.json'),
+  project: () => import('./locales/zh/project.json'),
   validation: () => import('./locales/zh/validation.json'),
 } satisfies Record<string, TranslationLoader>;
 
@@ -77,6 +80,9 @@ const EN_LOADERS = {
   hr: () => import('./locales/en/hr.json'),
   finance: () => import('./locales/en/finance.json'),
   procurement: () => import('./locales/en/procurement.json'),
+  manufacturing: () => import('./locales/en/manufacturing.json'),
+  threading: () => import('./locales/en/threading.json'),
+  project: () => import('./locales/en/project.json'),
   validation: () => import('./locales/en/validation.json'),
 } satisfies Record<keyof typeof ZH_LOADERS, TranslationLoader>;
 

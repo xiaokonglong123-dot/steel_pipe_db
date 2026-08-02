@@ -505,5 +505,10 @@
   "menu.procurement_overview": "采购管理",
   "menu.sales_crm": "销售",
   "menu.sales_crm_overview": "销售管理",
-  "menu.atp_overview": "可承诺库存"
+  "menu.atp_overview": "可承诺库存",
+  "menu.manufacturing": "制造",
+  "menu.manufacturing_overview": "制造管理",
+  "menu.threading": "螺纹工程",
+  "menu.projects": "项目管理",
+  "menu.projects_overview": "项目列表"
 }
