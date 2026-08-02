@@ -54,6 +54,9 @@ steel-pipe-db/
 │       ├── procurement/    ← Procurement: repos.rs + services.rs + handlers.rs (requisitions/receipts/quotes/scorecard)
 │       ├── sales_crm/      ← Sales CRM: repos.rs + services.rs + handlers.rs (shipments/quotes/customer credit)
 │       ├── inventory_atp/  ← Inventory ATP: repos.rs + services.rs + handlers.rs (reservations/transfers/count sessions)
+│       ├── manufacturing/  ← Manufacturing: repos.rs + services.rs + handlers.rs (BOMs/work orders/inspections/NCRs)
+│       ├── threading/      ← Threading: repos.rs + services.rs + handlers.rs (records + API 5CT engineering calcs)
+│       ├── project/        ← Projects: repos.rs + services.rs + handlers.rs (projects/WBS/budget)
 │       ├── config.rs       ← Env-based config (DATABASE_URL, JWT_SECRET, etc.)
 │       ├── error.rs        ← AppError enum, numeric error codes; ApiErrorResponse with success+request_id
 │       └── response.rs     ← ApiResponse<T>, PaginatedResponse<T>, Meta struct, request_id (uuid v4), ::created(), no_content()
