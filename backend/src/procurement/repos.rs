@@ -229,7 +229,7 @@ impl QuoteRepo {
             "SELECT $3::bigint AS supplier_id, \
                     (SELECT COUNT(*) FROM supplier_quotes WHERE tenant_id = $1 AND supplier_id = $3 AND deleted_at IS NULL) AS quote_count, \
                     (SELECT COUNT(*) FROM purchase_orders WHERE supplier_id = $3 AND deleted_at IS NULL) AS order_count, \
-                    COALESCE((SELECT SUM(total_amount) FROM purchase_orders WHERE supplier_id = $3 AND deleted_at IS NULL), 0)::BIGINT AS order_total",
+                    COALESCE((SELECT SUM(total_amount) FROM purchase_orders WHERE supplier_id = $3 AND deleted_at IS NULL), 0)::NUMERIC AS order_total",
         )
         .bind(tenant_id)
         .bind(supplier_id)

@@ -16,3 +16,7 @@ pub mod rbac_dto;
 
 pub mod workflow_dto;
 pub mod hr_dto;
+pub mod finance_dto;
+pub mod procurement_dto;
+pub mod sales_crm_dto;
+pub mod inventory_atp_dto;

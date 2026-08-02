@@ -116,6 +116,10 @@ impl FinanceService {
         }
         JournalEntryRepo::post(&mut tx, entry.id).await.map_err(AppError::from)?;
         tx.commit().await.map_err(AppError::from)?;
+        // Re-read: the in-memory entry predates the post() status update.
+        let entry = JournalEntryRepo::find_by_id(pool, tenant_id, entry.id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Journal entry not found: {}", entry.id)))?;
         Ok(entry)
     }
 

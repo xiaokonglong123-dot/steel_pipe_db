@@ -13,3 +13,7 @@ pub mod welded_pipe;
 pub mod rbac;
 pub mod workflow;
 pub mod hr;
+pub mod finance;
+pub mod procurement;
+pub mod sales_crm;
+pub mod inventory_atp;

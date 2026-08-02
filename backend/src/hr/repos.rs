@@ -36,7 +36,6 @@ impl HrEmployeeRepo {
         }
         if let Some(kw) = keyword {
             count_sql.push_str(&format!(" AND (name ILIKE ${} OR employee_no ILIKE ${})", n, n + 1));
-            n += 2;
             binds.push(format!("%{}%", kw));
             binds.push(format!("%{}%", kw));
         }

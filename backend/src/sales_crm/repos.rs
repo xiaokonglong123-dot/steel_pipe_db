@@ -1,5 +1,6 @@
 //! Sales CRM repositories.
 
+use rust_decimal::prelude::ToPrimitive;
 use sqlx::PgPool;
 use crate::models::sales_crm::{CustomerCredit, SalesQuote, SalesShipment};
 
@@ -155,30 +156,28 @@ impl SalesQuoteRepo {
         order_no: &str,
     ) -> Result<i64, sqlx::Error> {
         let order_id: i64 = sqlx::query_scalar(
-            "INSERT INTO sales_orders (tenant_id, order_number, customer_id, order_date, total_amount, status) \
-             VALUES ($1, $2, $3, CURRENT_DATE, $4, 'draft') RETURNING id",
+            "INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status) \
+             VALUES ($1, $2, NOW(), $3, 'draft') RETURNING id",
         )
-        .bind(tenant_id)
         .bind(order_no)
         .bind(quote.customer_id)
-        .bind(quote.total_amount)
+        .bind(quote.total_amount.to_f64().unwrap_or(0.0))
         .fetch_one(pool)
         .await?;
-        // Copy quote items into sales_order_items (pipe_type/grade/od/wt/length/qty/unit_price/total_price).
+        // Copy quote items into sales_order_items (pipe_type/grade/od/wt/qty/unit_price/total_price).
         if let Some(items) = quote.items_json.as_array() {
             for item in items {
                 sqlx::query(
                     "INSERT INTO sales_order_items \
-                     (order_id, pipe_type, grade, od, wt, length, quantity, unit_price, total_price) \
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                     (order_id, pipe_type, grade, od, wt, quantity, unit_price, total_price) \
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
                 )
                 .bind(order_id)
                 .bind(item.get("pipe_type").and_then(|v| v.as_str()).unwrap_or(""))
                 .bind(item.get("grade").and_then(|v| v.as_str()).unwrap_or(""))
                 .bind(item.get("od").and_then(|v| v.as_f64()).unwrap_or(0.0))
                 .bind(item.get("wt").and_then(|v| v.as_f64()).unwrap_or(0.0))
-                .bind(item.get("length").and_then(|v| v.as_f64()).unwrap_or(0.0))
-                .bind(item.get("quantity").and_then(|v| v.as_f64()).unwrap_or(0.0))
+                .bind(item.get("quantity").and_then(|v| v.as_i64()).unwrap_or(0))
                 .bind(item.get("unit_price").and_then(|v| v.as_f64()).unwrap_or(0.0))
                 .bind(item.get("total_price").and_then(|v| v.as_f64()).unwrap_or(0.0))
                 .execute(pool)
@@ -193,9 +192,9 @@ impl SalesQuoteRepo {
             "SELECT $3::bigint AS customer_id, \
                     COALESCE((SELECT SUM(total_amount) FROM finance_invoices \
                               WHERE tenant_id = $1 AND party_id = $3 AND invoice_type = 'sales' \
-                                AND status IN ('confirmed', 'draft')), 0)::BIGINT AS open_invoice_total, \
+                                AND status IN ('confirmed', 'draft')), 0) AS open_invoice_total, \
                     COALESCE((SELECT SUM(total_amount) FROM sales_orders \
-                              WHERE customer_id = $3 AND deleted_at IS NULL), 0)::BIGINT AS lifetime_sales",
+                              WHERE customer_id = $3 AND deleted_at IS NULL), 0)::NUMERIC AS lifetime_sales",
         )
         .bind(tenant_id)
         .bind(customer_id)

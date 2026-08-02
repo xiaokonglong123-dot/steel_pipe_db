@@ -190,8 +190,8 @@ impl JournalEntryRepo {
 
     pub async fn trial_balance(pool: &PgPool, tenant_id: i64) -> Result<Vec<TrialBalanceRow>, sqlx::Error> {
         sqlx::query_as::<_, TrialBalanceRow>(
-            "SELECT a.code, a.name, COALESCE(SUM(d.debit), 0)::BIGINT AS debit, \
-                    COALESCE(SUM(d.credit), 0)::BIGINT AS credit \
+            "SELECT a.code, a.name, COALESCE(SUM(d.debit), 0) AS debit, \
+                    COALESCE(SUM(d.credit), 0) AS credit \
              FROM journal_entry_details d \
              JOIN chart_of_accounts a ON a.id = d.account_id \
              JOIN journal_entries e ON e.id = d.entry_id \

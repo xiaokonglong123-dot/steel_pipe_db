@@ -1,6 +1,6 @@
 //! Inventory ATP repositories — reservations, transfers, count templates.
 
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::PgPool;
 use crate::models::inventory_atp::{
     AtpOverviewRow, AtpSlot, CountSession, CountTemplate, InternalTransfer,
 };
@@ -68,18 +68,25 @@ impl AtpSlotRepo {
         Ok(v)
     }
 
-    /// On-hand per pipe type from inventory, minus active reservations.
+    /// On-hand per pipe type from the pipes tables (one row per pipe,
+    /// status='in_stock'), minus active reservations. Inventory is not a
+    /// materialized table in this codebase — pipes ARE the stock.
     pub async fn overview(pool: &PgPool, tenant_id: i64) -> Result<Vec<AtpOverviewRow>, sqlx::Error> {
         sqlx::query_as::<_, AtpOverviewRow>(
-            "SELECT i.pipe_type AS pipe_type, \
-                    COALESCE(SUM(i.quantity), 0)::BIGINT AS on_hand, \
+            "SELECT pipe_type, \
+                    COALESCE(SUM(cnt), 0)::NUMERIC AS on_hand, \
                     COALESCE((SELECT SUM(a.quantity_reserved) FROM atp_slots a \
-                              WHERE a.pipe_type = i.pipe_type AND a.status = 'reserved'), 0)::BIGINT AS reserved, \
-                    (COALESCE(SUM(i.quantity), 0) - COALESCE((SELECT SUM(a.quantity_reserved) FROM atp_slots a \
-                              WHERE a.pipe_type = i.pipe_type AND a.status = 'reserved'), 0))::BIGINT AS available \
-             FROM inventory i \
-             WHERE i.tenant_id = $1 AND i.deleted_at IS NULL AND i.quantity > 0 \
-             GROUP BY i.pipe_type ORDER BY i.pipe_type",
+                              WHERE a.pipe_type = t.pipe_type AND a.status = 'reserved'), 0) AS reserved, \
+                    (COALESCE(SUM(cnt), 0) - COALESCE((SELECT SUM(a.quantity_reserved) FROM atp_slots a \
+                              WHERE a.pipe_type = t.pipe_type AND a.status = 'reserved'), 0))::NUMERIC AS available \
+             FROM ( \
+                SELECT 'seamless' AS pipe_type, COUNT(*)::BIGINT AS cnt FROM seamless_pipes WHERE status = 'in_stock' \
+                UNION ALL \
+                SELECT 'screen' AS pipe_type, COUNT(*)::BIGINT AS cnt FROM screen_pipes WHERE status = 'in_stock' \
+                UNION ALL \
+                SELECT 'welded' AS pipe_type, COUNT(*)::BIGINT AS cnt FROM welded_pipes WHERE status = 'in_stock' \
+             ) t \
+             WHERE cnt > 0 GROUP BY t.pipe_type ORDER BY t.pipe_type",
         )
         .bind(tenant_id)
         .fetch_all(pool)
@@ -93,22 +100,31 @@ impl AtpSlotRepo {
         pipe_type: &str,
         pipe_number: &str,
     ) -> Result<AtpOverviewRow, sqlx::Error> {
-        sqlx::query_as::<_, AtpOverviewRow>(
-            "SELECT $3::text AS pipe_type, \
-                    COALESCE((SELECT SUM(i.quantity) FROM inventory i \
-                              WHERE i.pipe_type = $2 AND i.pipe_number = $3 AND i.deleted_at IS NULL), 0)::BIGINT AS on_hand, \
+        let table = pipe_table(pipe_type);
+        let sql = format!(
+            "SELECT $2::text AS pipe_type, \
+                    (SELECT COUNT(*) FROM {table} WHERE pipe_number = $3 AND status = 'in_stock')::NUMERIC AS on_hand, \
                     COALESCE((SELECT SUM(a.quantity_reserved) FROM atp_slots a \
-                              WHERE a.pipe_type = $2 AND a.pipe_number = $3 AND a.status = 'reserved'), 0)::BIGINT AS reserved, \
-                    (COALESCE((SELECT SUM(i.quantity) FROM inventory i \
-                              WHERE i.pipe_type = $2 AND i.pipe_number = $3 AND i.deleted_at IS NULL), 0) \
+                              WHERE a.pipe_type = $2 AND a.pipe_number = $3 AND a.status = 'reserved'), 0) AS reserved, \
+                    ((SELECT COUNT(*) FROM {table} WHERE pipe_number = $3 AND status = 'in_stock') \
                      - COALESCE((SELECT SUM(a.quantity_reserved) FROM atp_slots a \
-                              WHERE a.pipe_type = $2 AND a.pipe_number = $3 AND a.status = 'reserved'), 0))::BIGINT AS available",
-        )
-        .bind(tenant_id)
-        .bind(pipe_type)
-        .bind(pipe_number)
-        .fetch_one(pool)
-        .await
+                              WHERE a.pipe_type = $2 AND a.pipe_number = $3 AND a.status = 'reserved'), 0))::NUMERIC AS available"
+        );
+        sqlx::query_as::<_, AtpOverviewRow>(&sql)
+            .bind(tenant_id)
+            .bind(pipe_type)
+            .bind(pipe_number)
+            .fetch_one(pool)
+            .await
+    }
+}
+
+/// Map pipe_type string to its pipes table name.
+fn pipe_table(pipe_type: &str) -> &'static str {
+    match pipe_type {
+        "screen" => "screen_pipes",
+        "welded" => "welded_pipes",
+        _ => "seamless_pipes",
     }
 }
 
@@ -116,7 +132,7 @@ pub struct TransferRepo;
 
 impl TransferRepo {
     pub async fn create(
-        tx: &mut Transaction<'_, Postgres>,
+        pool: &PgPool,
         tenant_id: i64,
         transfer_no: &str,
         from_location_id: i64,
@@ -144,7 +160,7 @@ impl TransferRepo {
         .bind(quantity)
         .bind(created_by)
         .bind(notes)
-        .fetch_one(&mut **tx)
+        .fetch_one(pool)
         .await
     }
 
