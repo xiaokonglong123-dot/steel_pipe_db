@@ -2,7 +2,7 @@
 
 use std::net::SocketAddr;
 
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::EnvFilter;
 
 use crate::dto::auth_dto::CreateUserRequest;
@@ -39,7 +39,7 @@ async fn main() {
     let cfg = config::Config::from_env();
 
     // Pool must be created before routes — all handlers pull connections from this pool
-    let pool = SqlitePoolOptions::new()
+    let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&cfg.database_url)
         .await
@@ -87,7 +87,7 @@ async fn main() {
 }
 
 /// Creates the initial admin user when the database is empty.
-async fn bootstrap_admin(pool: &sqlx::SqlitePool, admin_username: &str, admin_password: &str) {
+async fn bootstrap_admin(pool: &sqlx::PgPool, admin_username: &str, admin_password: &str) {
     let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
         .fetch_one(pool)
         .await
