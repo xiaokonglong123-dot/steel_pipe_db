@@ -1,0 +1,22 @@
+{
+  "title": "采购管理",
+  "requisitions": "请购单",
+  "quotes": "供应商报价",
+  "newReq": "新建请购单",
+  "newQuote": "新建报价",
+  "reqNo": "请购单号",
+  "title": "标题",
+  "status": "状态",
+  "actions": "操作",
+  "submit": "提交",
+  "approve": "批准",
+  "quoteNo": "报价单号",
+  "total": "总额",
+  "pipeType": "管型",
+  "quantity": "数量",
+  "supplierId": "供应商ID",
+  "saved": "已保存",
+  "updated": "已更新",
+  "save": "保存",
+  "cancel": "取消"
+}

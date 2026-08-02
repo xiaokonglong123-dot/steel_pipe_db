@@ -19,7 +19,7 @@
   "menu.purchase_orders": "Purchase Orders",
   "menu.sales": "Sales",
   "menu.sales_orders": "Sales Orders",
-  "menu.atp": "ATP",
+  "menu.atp": "Inventory ATP",
   "menu.quality": "Quality",
   "menu.quality_certs": "Quality Certificates",
   "menu.quality_api5ct": "API 5CT Reference",
@@ -497,5 +497,12 @@
   "menu.workflow_definitions": "Definitions",
   "menu.hr": "HR",
   "menu.hr_employees": "Employees",
-  "menu.hr_salaries": "Payroll"
+  "menu.hr_salaries": "Payroll",
+  "menu.finance": "Finance",
+  "menu.finance_overview": "Finance Overview",
+  "menu.procurement": "Procurement",
+  "menu.procurement_overview": "Procurement",
+  "menu.sales_crm": "Sales",
+  "menu.sales_crm_overview": "Sales CRM",
+  "menu.atp_overview": "Available to Promise"
 }

@@ -19,7 +19,7 @@
   "menu.purchase_orders": "采购订单",
   "menu.sales": "销售管理",
   "menu.sales_orders": "销售订单",
-  "menu.atp": "ATP可用量",
+  "menu.atp": "库存 ATP",
   "menu.quality": "质量管理",
   "menu.quality_certs": "质量证书",
   "menu.quality_api5ct": "API 5CT参考",
@@ -498,5 +498,12 @@
   "menu.workflow_definitions": "流程定义",
   "menu.hr": "人事",
   "menu.hr_employees": "员工管理",
-  "menu.hr_salaries": "薪资管理"
+  "menu.hr_salaries": "薪资管理",
+  "menu.finance": "财务",
+  "menu.finance_overview": "财务总览",
+  "menu.procurement": "采购",
+  "menu.procurement_overview": "采购管理",
+  "menu.sales_crm": "销售",
+  "menu.sales_crm_overview": "销售管理",
+  "menu.atp_overview": "可承诺库存"
 }

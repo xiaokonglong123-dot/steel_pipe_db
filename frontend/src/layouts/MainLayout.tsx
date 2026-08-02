@@ -169,6 +169,30 @@ export default function MainLayout() {
       ],
     },
     {
+      key: 'finance',
+      icon: <DollarOutlined />,
+      label: t('menu.finance'),
+      children: [{ key: '/finance', label: t('menu.finance_overview'), roles: ['admin'] }],
+    },
+    {
+      key: 'procurement',
+      icon: <ShoppingCartOutlined />,
+      label: t('menu.procurement'),
+      children: [{ key: '/procurement', label: t('menu.procurement_overview'), roles: ['admin'] }],
+    },
+    {
+      key: 'sales-crm',
+      icon: <ShopOutlined />,
+      label: t('menu.sales_crm'),
+      children: [{ key: '/sales/crm', label: t('menu.sales_crm_overview'), roles: ['admin'] }],
+    },
+    {
+      key: 'inventory-atp',
+      icon: <ContainerOutlined />,
+      label: t('menu.atp'),
+      children: [{ key: '/inventory/atp', label: t('menu.atp_overview'), roles: ['admin'] }],
+    },
+    {
       key: 'system',
       icon: <SettingOutlined />,
       label: t('menu.system'),

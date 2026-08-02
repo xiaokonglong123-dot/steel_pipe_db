@@ -58,6 +58,10 @@ const WorkflowListPage = lazy(() => import('@/features/workflow/pages/WorkflowLi
 const MyTasksPage = lazy(() => import('@/features/workflow/pages/MyTasksPage'));
 const EmployeeListPage = lazy(() => import('@/features/hr/pages/EmployeeListPage'));
 const SalaryPage = lazy(() => import('@/features/hr/pages/SalaryPage'));
+const FinancePage = lazy(() => import('@/features/finance/pages/FinancePage'));
+const ProcurementPage = lazy(() => import('@/features/procurement/pages/ProcurementPage'));
+const SalesCrmPage = lazy(() => import('@/features/sales_crm/pages/SalesCrmPage'));
+const InventoryAtpPage = lazy(() => import('@/features/inventory_atp/pages/InventoryAtpPage'));
 const DataImportPage = lazy(() => import('@/features/data-io/pages/DataImportPage'));
 const DataExportPage = lazy(() => import('@/features/data-io/pages/DataExportPage'));
 const OperationLogPage = lazy(() => import('@/features/data-io/pages/OperationLogPage'));
@@ -157,6 +161,14 @@ export const router = createBrowserRouter([
       // HR
       { path: 'hr/employees', element: route(<EmployeeListPage />), handle: { roles: ['admin'] } },
       { path: 'hr/salaries', element: route(<SalaryPage />), handle: { roles: ['admin'] } },
+      // Finance
+      { path: 'finance', element: route(<FinancePage />), handle: { roles: ['admin'] } },
+      // Procurement
+      { path: 'procurement', element: route(<ProcurementPage />), handle: { roles: ['admin'] } },
+      // Sales CRM
+      { path: 'sales/crm', element: route(<SalesCrmPage />), handle: { roles: ['admin'] } },
+      // Inventory ATP
+      { path: 'inventory/atp', element: route(<InventoryAtpPage />), handle: { roles: ['admin'] } },
       // Search & profile
       { path: 'search', element: route(<SearchPage />) },
       { path: 'profile/settings', element: route(<ProfileSettingsPage />) },

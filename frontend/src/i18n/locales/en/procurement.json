@@ -1,0 +1,22 @@
+{
+  "title": "Procurement",
+  "requisitions": "Requisitions",
+  "quotes": "Supplier Quotes",
+  "newReq": "New Requisition",
+  "newQuote": "New Quote",
+  "reqNo": "Req No",
+  "title": "Title",
+  "status": "Status",
+  "actions": "Actions",
+  "submit": "Submit",
+  "approve": "Approve",
+  "quoteNo": "Quote No",
+  "total": "Total",
+  "pipeType": "Pipe Type",
+  "quantity": "Qty",
+  "supplierId": "Supplier ID",
+  "saved": "Saved",
+  "updated": "Updated",
+  "save": "Save",
+  "cancel": "Cancel"
+}
