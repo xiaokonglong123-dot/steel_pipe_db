@@ -1,6 +1,6 @@
 use axum::extract::{Extension, Query};
 use axum::Json;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use validator::Validate;
 
 use crate::dto::report_dto::OrderReportQuery;
@@ -12,7 +12,7 @@ use crate::services::report_service::ReportService;
 ///
 /// Returns aggregated inventory data by pipe type, grade, and location.
 pub async fn inventory_summary_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data = ReportService::inventory_summary(&pool).await?;
     Ok(ApiResponse::ok(data))
@@ -23,7 +23,7 @@ pub async fn inventory_summary_handler(
 /// Returns aggregated order data grouped by period (monthly/quarterly/yearly).
 /// Query param `type` must be "purchase" or "sales".
 pub async fn order_report_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(query): Query<OrderReportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     query
@@ -51,7 +51,7 @@ pub async fn order_report_handler(
 ///
 /// Returns aggregated quality inspection pass/fail statistics.
 pub async fn quality_report_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data = ReportService::quality_report(&pool).await?;
     Ok(ApiResponse::ok(data))
@@ -61,7 +61,7 @@ pub async fn quality_report_handler(
 ///
 /// Returns key metrics for the main dashboard (inventory, orders, quality KPIs).
 pub async fn dashboard_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data = ReportService::dashboard(&pool).await?;
     Ok(ApiResponse::ok(data))

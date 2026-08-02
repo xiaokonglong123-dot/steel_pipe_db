@@ -1,5 +1,5 @@
 use crate::cache_invalidator::CacheInvalidate;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::dto::common::PaginationParams;
@@ -29,7 +29,7 @@ impl PipeService {
     }
 
     async fn validate_pipe_number_unique(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_number: &str,
     ) -> Result<(), AppError> {
         if !InventoryRepo::check_pipe_number_unique(pool, pipe_number).await.map_err(AppError::from)? {
@@ -57,7 +57,7 @@ impl PipeService {
     }
 
     pub async fn create_seamless_pipe<C: CacheInvalidate>(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &C,
         dto: &CreateSeamlessPipeRequest,
     ) -> Result<SeamlessPipe, AppError> {
@@ -117,7 +117,7 @@ impl PipeService {
     /// - `AppError::PipeNotFound` — pipe ID not found or has been soft-deleted
     /// Ensures the referenced location exists when one is provided.
     async fn validate_location(
-        pool: &SqlitePool,
+        pool: &PgPool,
         location_id: Option<i64>,
     ) -> Result<(), AppError> {
         if let Some(loc_id) = location_id {
@@ -130,7 +130,7 @@ impl PipeService {
     }
 
     pub async fn update_seamless_pipe<C: CacheInvalidate>(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &C,
         id: i64,
         dto: &UpdateSeamlessPipeRequest,
@@ -163,7 +163,7 @@ impl PipeService {
     /// # Errors
     /// - `AppError::PipeNotFound` — ID doesn't exist
     /// - `AppError::PipeStatusConflict` — current status says nope
-    pub async fn delete_seamless_pipe<C: CacheInvalidate>(pool: &SqlitePool, cache: &C, id: i64) -> Result<(), AppError> {
+    pub async fn delete_seamless_pipe<C: CacheInvalidate>(pool: &PgPool, cache: &C, id: i64) -> Result<(), AppError> {
         let existing = GenericPipeRepo::<SeamlessPipe>::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -188,7 +188,7 @@ impl PipeService {
     ///
     /// # Errors
     /// - `AppError::PipeNotFound` — pipe with the given ID not found
-    pub async fn get_seamless_pipe(pool: &SqlitePool, id: i64) -> Result<SeamlessPipe, AppError> {
+    pub async fn get_seamless_pipe(pool: &PgPool, id: i64) -> Result<SeamlessPipe, AppError> {
         GenericPipeRepo::<SeamlessPipe>::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -198,7 +198,7 @@ impl PipeService {
     /// Paginated list of seamless pipes — filter by spec, grade, heat number, etc.
     /// Returns `(items, total_count)`.
     pub async fn list_seamless_pipes(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &PipeFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<SeamlessPipe>, u64), AppError> {
@@ -210,7 +210,7 @@ impl PipeService {
     // ━━━ Screen Pipe ━━━
 
     pub async fn create_screen_pipe<C: CacheInvalidate>(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &C,
         dto: &CreateScreenPipeRequest,
     ) -> Result<ScreenPipe, AppError> {
@@ -267,7 +267,7 @@ impl PipeService {
     /// # Errors
     /// - `AppError::PipeNotFound` — ID not found or already deleted
     pub async fn update_screen_pipe<C: CacheInvalidate>(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &C,
         id: i64,
         dto: &UpdateScreenPipeRequest,
@@ -304,7 +304,7 @@ impl PipeService {
     /// # Errors
     /// - `AppError::PipeNotFound` — ID doesn't exist
     /// - `AppError::PipeStatusConflict` — status won't allow it
-    pub async fn delete_screen_pipe<C: CacheInvalidate>(pool: &SqlitePool, cache: &C, id: i64) -> Result<(), AppError> {
+    pub async fn delete_screen_pipe<C: CacheInvalidate>(pool: &PgPool, cache: &C, id: i64) -> Result<(), AppError> {
         let existing = GenericPipeRepo::<ScreenPipe>::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -329,7 +329,7 @@ impl PipeService {
     ///
     /// # Errors
     /// - `AppError::PipeNotFound` — ID doesn't exist
-    pub async fn get_screen_pipe(pool: &SqlitePool, id: i64) -> Result<ScreenPipe, AppError> {
+    pub async fn get_screen_pipe(pool: &PgPool, id: i64) -> Result<ScreenPipe, AppError> {
         GenericPipeRepo::<ScreenPipe>::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -339,7 +339,7 @@ impl PipeService {
     /// Paginated list of screen pipes — filter by spec, grade, whatever.
     /// Returns `(items, total_count)`.
     pub async fn list_screen_pipes(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &PipeFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<ScreenPipe>, u64), AppError> {
@@ -351,7 +351,7 @@ impl PipeService {
     // ━━━ Welded Pipe ━━━
 
     pub async fn create_welded_pipe<C: CacheInvalidate>(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &C,
         dto: &CreateWeldedPipeRequest,
     ) -> Result<WeldedPipe, AppError> {
@@ -400,7 +400,7 @@ impl PipeService {
 
     /// Updates welded pipe fields. Won't touch soft-deleted records.
     pub async fn update_welded_pipe<C: CacheInvalidate>(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &C,
         id: i64,
         dto: &UpdateWeldedPipeRequest,
@@ -429,7 +429,7 @@ impl PipeService {
     }
 
     /// Gets a single welded pipe by ID.
-    pub async fn get_welded_pipe(pool: &SqlitePool, id: i64) -> Result<WeldedPipe, AppError> {
+    pub async fn get_welded_pipe(pool: &PgPool, id: i64) -> Result<WeldedPipe, AppError> {
         GenericPipeRepo::<WeldedPipe>::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -442,7 +442,7 @@ impl PipeService {
     /// - `AppError::PipeNotFound` — ID doesn't exist
     /// - `AppError::PipeStatusConflict` — current status says nope
     pub async fn delete_welded_pipe<C: CacheInvalidate>(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &C,
         id: i64,
     ) -> Result<(), AppError> {
@@ -469,7 +469,7 @@ impl PipeService {
     /// Paginated list of welded pipes — filter by spec, grade, whatever.
     /// Returns `(items, total_count)`.
     pub async fn list_welded_pipes(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &PipeFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<WeldedPipe>, u64), AppError> {
@@ -479,7 +479,7 @@ impl PipeService {
     }
 
     pub async fn batch_create_pipes<C: CacheInvalidate>(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &C,
         dto: &BatchCreatePipeRequest,
     ) -> Result<Vec<i64>, AppError> {
@@ -588,7 +588,7 @@ impl PipeService {
         // ━━━ Search ━━━
 
         pub(crate) async fn search_pipes_generic(
-            pool: &SqlitePool,
+            pool: &PgPool,
             query: &str,
             marker: PipeMarker,
         ) -> Result<Vec<PipeSearchResult>, AppError> {
@@ -658,7 +658,7 @@ impl PipeService {
         ///
         /// Each hit is tagged `pipe_type: "seamless"`, `"screen"`, or `"welded"`.
         pub async fn search_pipes(
-            pool: &SqlitePool,
+            pool: &PgPool,
             query: &str,
         ) -> Result<Vec<PipeSearchResult>, AppError> {
             Self::search_pipes_generic(pool, query, PipeMarker::All).await
@@ -667,7 +667,7 @@ impl PipeService {
         // ━━━ Generic Pipe CRUD ━━━
 
         pub async fn list_pipes<P>(
-            pool: &SqlitePool,
+            pool: &PgPool,
             filter: &PipeFilterParams,
             params: &PaginationParams,
         ) -> Result<(Vec<P>, u64), AppError>
@@ -680,7 +680,7 @@ impl PipeService {
         }
 
         pub async fn create_pipe<P, C: CacheInvalidate>(
-            pool: &SqlitePool,
+            pool: &PgPool,
             cache: &C,
             dto: &P::CreateDto,
         ) -> Result<P, AppError>
@@ -695,7 +695,7 @@ impl PipeService {
         }
 
         pub async fn get_pipe<P>(
-            pool: &SqlitePool,
+            pool: &PgPool,
             id: i64,
         ) -> Result<P, AppError>
         where
@@ -710,7 +710,7 @@ impl PipeService {
         }
 
         pub async fn update_pipe<P, C: CacheInvalidate>(
-            pool: &SqlitePool,
+            pool: &PgPool,
             cache: &C,
             id: i64,
             dto: &P::UpdateDto,
@@ -740,7 +740,7 @@ impl PipeService {
         }
 
         pub async fn delete_pipe<P, C: CacheInvalidate>(
-            pool: &SqlitePool,
+            pool: &PgPool,
             cache: &C,
             id: i64,
         ) -> Result<(), AppError>

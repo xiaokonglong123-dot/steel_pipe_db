@@ -52,6 +52,23 @@ const LabelPrintPage = lazy(() => import('@/features/labels/pages/LabelPrintPage
 const ProfileSettingsPage = lazy(() => import('@/features/profile/pages/ProfileSettingsPage'));
 const SearchPage = lazy(() => import('@/features/search/pages/SearchPage'));
 const UserManagementPage = lazy(() => import('@/features/auth/pages/UserManagementPage'));
+const RoleManagementPage = lazy(() => import('@/features/auth/pages/RoleManagementPage'));
+const DepartmentPage = lazy(() => import('@/features/auth/pages/DepartmentPage'));
+const WorkflowListPage = lazy(() => import('@/features/workflow/pages/WorkflowListPage'));
+const MyTasksPage = lazy(() => import('@/features/workflow/pages/MyTasksPage'));
+const EmployeeListPage = lazy(() => import('@/features/hr/pages/EmployeeListPage'));
+const SalaryPage = lazy(() => import('@/features/hr/pages/SalaryPage'));
+const FinancePage = lazy(() => import('@/features/finance/pages/FinancePage'));
+const ProcurementPage = lazy(() => import('@/features/procurement/pages/ProcurementPage'));
+const SalesCrmPage = lazy(() => import('@/features/sales_crm/pages/SalesCrmPage'));
+const InventoryAtpPage = lazy(() => import('@/features/inventory_atp/pages/InventoryAtpPage'));
+const ManufacturingPage = lazy(() => import('@/features/manufacturing/pages/ManufacturingPage'));
+const ThreadingPage = lazy(() => import('@/features/threading/pages/ThreadingPage'));
+const ProjectPage = lazy(() => import('@/features/project/pages/ProjectPage'));
+const AssetsPage = lazy(() => import('@/features/assets/pages/AssetsPage'));
+const NotificationsPage = lazy(() => import('@/features/notification/pages/NotificationsPage'));
+const BiDashboardPage = lazy(() => import('@/features/bi/pages/DashboardPage'));
+const PortalAdminPage = lazy(() => import('@/features/portal/pages/PortalAdminPage'));
 const DataImportPage = lazy(() => import('@/features/data-io/pages/DataImportPage'));
 const DataExportPage = lazy(() => import('@/features/data-io/pages/DataExportPage'));
 const OperationLogPage = lazy(() => import('@/features/data-io/pages/OperationLogPage'));
@@ -143,6 +160,36 @@ export const router = createBrowserRouter([
       { path: 'data-io/logs', element: route(<OperationLogPage />), handle: { roles: ['admin'] } },
       // System
       { path: 'system/users', element: route(<UserManagementPage />), handle: { roles: ['admin'] } },
+      { path: 'system/roles', element: route(<RoleManagementPage />), handle: { roles: ['admin'] } },
+      { path: 'system/departments', element: route(<DepartmentPage />), handle: { roles: ['admin'] } },
+      // Workflow
+      { path: 'workflow/definitions', element: route(<WorkflowListPage />), handle: { roles: ['admin'] } },
+      { path: 'workflow/my-tasks', element: route(<MyTasksPage />) },
+      // HR
+      { path: 'hr/employees', element: route(<EmployeeListPage />), handle: { roles: ['admin'] } },
+      { path: 'hr/salaries', element: route(<SalaryPage />), handle: { roles: ['admin'] } },
+      // Finance
+      { path: 'finance', element: route(<FinancePage />), handle: { roles: ['admin'] } },
+      // Procurement
+      { path: 'procurement', element: route(<ProcurementPage />), handle: { roles: ['admin'] } },
+      // Sales CRM
+      { path: 'sales/crm', element: route(<SalesCrmPage />), handle: { roles: ['admin'] } },
+      // Inventory ATP
+      { path: 'inventory/atp', element: route(<InventoryAtpPage />), handle: { roles: ['admin'] } },
+      // Manufacturing
+      { path: 'manufacturing', element: route(<ManufacturingPage />), handle: { roles: ['admin'] } },
+      // Threading
+      { path: 'threading', element: route(<ThreadingPage />), handle: { roles: ['admin'] } },
+      // Projects
+      { path: 'projects', element: route(<ProjectPage />), handle: { roles: ['admin'] } },
+      // Assets
+      { path: 'assets', element: route(<AssetsPage />), handle: { roles: ['admin'] } },
+      // Notifications
+      { path: 'notifications', element: route(<NotificationsPage />) },
+      // BI Dashboard
+      { path: 'bi', element: route(<BiDashboardPage />), handle: { roles: ['admin'] } },
+      // Portal admin
+      { path: 'portal', element: route(<PortalAdminPage />), handle: { roles: ['admin'] } },
       // Search & profile
       { path: 'search', element: route(<SearchPage />) },
       { path: 'profile/settings', element: route(<ProfileSettingsPage />) },

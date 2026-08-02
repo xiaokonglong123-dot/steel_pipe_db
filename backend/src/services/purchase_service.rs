@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::purchase_dto::{
@@ -27,7 +27,7 @@ impl PurchaseService {
     /// - `AppError::Validation` — empty items, duplicate order no, or inactive supplier
     /// - `AppError::SupplierNotFound` — supplier ID doesn't exist
     pub async fn create_purchase_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreatePurchaseOrderRequest,
     ) -> Result<PurchaseOrder, AppError> {
         if dto.items.is_empty() {
@@ -83,7 +83,7 @@ impl PurchaseService {
     /// - `AppError::OrderNotFound` — ID doesn't exist or was soft-deleted
     /// - `AppError::OrderCannotModify` — current status won't allow edits
     pub async fn update_purchase_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdatePurchaseOrderRequest,
     ) -> Result<PurchaseOrder, AppError> {
@@ -109,7 +109,7 @@ impl PurchaseService {
         }
 
         let mut conn = pool.acquire().await.map_err(AppError::from)?;
-        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+        if let Err(e) = sqlx::query("BEGIN").execute(&mut *conn).await {
             return Err(AppError::from(e));
         }
 
@@ -143,7 +143,7 @@ impl PurchaseService {
     /// - `AppError::OrderNotFound` — ID doesn't exist or was deleted
     /// - `AppError::OrderCannotModify` — status transition isn't valid
     pub async fn transition_purchase_status(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &PurchaseOrderStatusTransitionRequest,
     ) -> Result<(), AppError> {
@@ -164,13 +164,13 @@ impl PurchaseService {
         utils::validate_status_transition(&existing.status, &dto.status)?;
 
         let mut conn = pool.acquire().await.map_err(AppError::from)?;
-        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+        if let Err(e) = sqlx::query("BEGIN").execute(&mut *conn).await {
             return Err(AppError::from(e));
         }
 
         let rows_affected = match sqlx::query(
-            "UPDATE purchase_orders SET status = ?, updated_at = datetime('now') \
-             WHERE id = ? AND status = ? AND deleted_at IS NULL",
+            "UPDATE purchase_orders SET status = $1, updated_at = NOW() \
+             WHERE id = $2 AND status = $3 AND deleted_at IS NULL",
         )
         .bind(&dto.status)
         .bind(id)
@@ -204,7 +204,7 @@ impl PurchaseService {
     /// # Errors
     /// - `AppError::OrderNotFound` — ID doesn't exist
     pub async fn get_purchase_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<(PurchaseOrder, Vec<PurchaseOrderItem>), AppError> {
         let order = PurchaseOrderRepo::find_by_id(pool, id)
@@ -223,7 +223,7 @@ impl PurchaseService {
 
     /// Paginates purchase orders with filters for supplier, date range, status, etc.
     pub async fn list_purchase_orders(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &PurchaseOrderFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<PurchaseOrder>, u64), AppError> {
@@ -238,7 +238,7 @@ impl PurchaseService {
     /// # Errors
     /// - `AppError::OrderNotFound` — ID doesn't exist
     /// - `AppError::OrderCannotModify` — current status doesn't allow deletion
-    pub async fn delete_purchase_order(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
+    pub async fn delete_purchase_order(pool: &PgPool, id: i64) -> Result<(), AppError> {
         let existing = PurchaseOrderRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -265,7 +265,7 @@ impl PurchaseService {
     /// - `AppError::OrderNotFound` — order doesn't exist
     /// - `AppError::OrderCannotModify` — order ain't in draft
     pub async fn update_purchase_item(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_id: i64,
         item_id: i64,
         dto: &UpdatePurchaseItemRequest,
@@ -309,7 +309,7 @@ impl PurchaseService {
     /// - `AppError::OrderNotFound` — order doesn't exist
     /// - `AppError::OrderCannotModify` — order isn't in draft
     pub async fn delete_purchase_item(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_id: i64,
         item_id: i64,
     ) -> Result<(), AppError> {
@@ -346,7 +346,7 @@ impl PurchaseService {
     /// - `AppError::OrderCannotModify` — current status won't allow approval
     /// - `AppError::Validation` — approval info is incomplete
     pub async fn approve_purchase_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         _dto: &ApproveOrderRequest,
     ) -> Result<(), AppError> {
@@ -372,13 +372,13 @@ impl PurchaseService {
         }
 
         let mut conn = pool.acquire().await.map_err(AppError::from)?;
-        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+        if let Err(e) = sqlx::query("BEGIN").execute(&mut *conn).await {
             return Err(AppError::from(e));
         }
 
         let rows_affected = match sqlx::query(
-            "UPDATE purchase_orders SET status = 'approved', updated_at = datetime('now') \
-             WHERE id = ? AND status = 'pending' AND deleted_at IS NULL",
+            "UPDATE purchase_orders SET status = 'approved', updated_at = NOW() \
+             WHERE id = $1 AND status = 'pending' AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(&mut *conn)
@@ -412,7 +412,7 @@ impl PurchaseService {
     /// - `AppError::OrderNotFound` — ID doesn't exist
     /// - `AppError::OrderCannotModify` — current status won't allow rejection
     pub async fn reject_purchase_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &RejectOrderRequest,
     ) -> Result<(), AppError> {
@@ -438,14 +438,14 @@ impl PurchaseService {
         }
 
         let mut conn = pool.acquire().await.map_err(AppError::from)?;
-        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+        if let Err(e) = sqlx::query("BEGIN").execute(&mut *conn).await {
             return Err(AppError::from(e));
         }
 
         let rows_affected = match sqlx::query(
-            "UPDATE purchase_orders SET status = 'rejected', notes = ?, \
-             updated_at = datetime('now') \
-             WHERE id = ? AND status = 'pending' AND deleted_at IS NULL",
+            "UPDATE purchase_orders SET status = 'rejected', notes = $1, \
+             updated_at = NOW() \
+             WHERE id = $2 AND status = 'pending' AND deleted_at IS NULL",
         )
         .bind(&dto.reason)
         .bind(id)
@@ -481,7 +481,7 @@ impl PurchaseService {
     /// - `AppError::OrderNotFound` — purchase order doesn't exist
     /// - `AppError::OrderCannotModify` — can't link (bad status or already linked)
     pub async fn link_inbound_to_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_id: i64,
         inbound_id: i64,
     ) -> Result<(), AppError> {
@@ -500,14 +500,14 @@ impl PurchaseService {
         }
 
         let mut conn = pool.acquire().await.map_err(AppError::from)?;
-        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+        if let Err(e) = sqlx::query("BEGIN").execute(&mut *conn).await {
             return Err(AppError::from(e));
         }
 
         // Link the inbound record to this purchase order
         if let Err(e) = sqlx::query(
-            "UPDATE inbound_records SET order_id = ?, updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE inbound_records SET order_id = $1, updated_at = NOW() \
+             WHERE id = $2 AND deleted_at IS NULL",
         )
         .bind(order_id)
         .bind(inbound_id)
@@ -522,7 +522,7 @@ impl PurchaseService {
         let items = match sqlx::query_as::<_, PurchaseOrderItem>(
             "SELECT id, order_id, pipe_type, grade, od, wt, quantity, received_quantity, \
              unit_price, total_price, notes, created_at \
-             FROM purchase_order_items WHERE order_id = ? ORDER BY id ASC",
+             FROM purchase_order_items WHERE order_id = $1 ORDER BY id ASC",
         )
         .bind(order_id)
         .fetch_all(&mut *conn)
@@ -538,8 +538,8 @@ impl PurchaseService {
         let all_received = items.iter().all(|item| item.received_quantity >= item.quantity);
         if all_received {
             if let Err(e) = sqlx::query(
-                "UPDATE purchase_orders SET status = 'completed', updated_at = datetime('now') \
-                 WHERE id = ? AND deleted_at IS NULL",
+                "UPDATE purchase_orders SET status = 'completed', updated_at = NOW() \
+                 WHERE id = $1 AND deleted_at IS NULL",
             )
             .bind(order_id)
             .execute(&mut *conn)

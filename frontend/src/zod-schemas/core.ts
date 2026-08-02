@@ -122,6 +122,7 @@ export const userInfoSchema = z.object({
   username: z.string(),
   display_name: z.string(),
   role: z.string(),
+  permissions: z.array(z.string()).optional(),
   email: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
 }).passthrough();

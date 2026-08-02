@@ -7,6 +7,7 @@
 
 mod common;
 
+use chrono::{DateTime, Utc};
 use rust_decimal_macros::dec;
 use steel_pipe_db::dto::common::PaginationParams;
 use steel_pipe_db::dto::purchase_dto::{
@@ -89,19 +90,18 @@ async fn create_purchase_order_fails_inactive_supplier() {
     let pool = common::test_pool().await;
 
     // Manually insert an inactive supplier
-    let result = sqlx::query(
+    let supplier_id: i64 = sqlx::query_scalar(
         "INSERT INTO suppliers (supplier_code, name, contact_person, phone, email, address, \
          is_active, notes, created_at, updated_at) \
-         VALUES ($1, $2, 'Contact', '13800138000', $3, 'Addr', 0, 'inactive', \
-         datetime('now'), datetime('now'))",
+         VALUES ($1, $2, 'Contact', '13800138000', $3, 'Addr', FALSE, 'inactive', \
+         NOW(), NOW()) RETURNING id",
     )
     .bind("SUP-003")
     .bind("Inactive Supplier")
     .bind("sup003@test.local")
-    .execute(&pool)
+    .fetch_one(&pool)
     .await
     .unwrap();
-    let supplier_id = result.last_insert_rowid();
 
     let dto = CreatePurchaseOrderRequest {
         order_no: None,
@@ -608,8 +608,8 @@ async fn delete_purchase_order_draft() {
         .expect("delete draft PO must succeed");
 
     // Verify soft-deleted
-    let deleted_at: (Option<String>,) =
-        sqlx::query_as("SELECT deleted_at FROM purchase_orders WHERE id = ?")
+    let deleted_at: (Option<DateTime<Utc>>,) =
+        sqlx::query_as("SELECT deleted_at FROM purchase_orders WHERE id = $1")
             .bind(order.id)
             .fetch_one(&pool)
             .await
@@ -945,19 +945,18 @@ async fn link_inbound_to_order_links() {
         .unwrap();
 
     // Create an inbound record to link
-    let inbound_result = sqlx::query(
+    let inbound_id: i64 = sqlx::query_scalar(
         "INSERT INTO inbound_records (inbound_no, inbound_type, notes, approval_status, \
          created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, datetime('now'), datetime('now'))",
+         VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING id",
     )
     .bind("INB-LNK-001")
     .bind("purchase")
     .bind("linked to PO")
     .bind("approved")
-    .execute(&pool)
+    .fetch_one(&pool)
     .await
     .unwrap();
-    let inbound_id = inbound_result.last_insert_rowid();
 
     PurchaseService::link_inbound_to_order(&pool, order_id, inbound_id)
         .await
@@ -965,7 +964,7 @@ async fn link_inbound_to_order_links() {
 
     // Verify the inbound record has the order_id set
     let linked_order_id: (Option<i64>,) =
-        sqlx::query_as("SELECT order_id FROM inbound_records WHERE id = ?")
+        sqlx::query_as("SELECT order_id FROM inbound_records WHERE id = $1")
             .bind(inbound_id)
             .fetch_one(&pool)
             .await
@@ -1038,19 +1037,18 @@ async fn full_purchase_order_lifecycle() {
     assert_eq!(fetched.status, "approved");
 
     // 5. Link inbound
-    let inbound_result = sqlx::query(
+    let inbound_id: i64 = sqlx::query_scalar(
         "INSERT INTO inbound_records (inbound_no, inbound_type, notes, approval_status, \
          created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, datetime('now'), datetime('now'))",
+         VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING id",
     )
     .bind("INB-LIFE-001")
     .bind("purchase")
     .bind("full lifecycle link")
     .bind("approved")
-    .execute(&pool)
+    .fetch_one(&pool)
     .await
     .unwrap();
-    let inbound_id = inbound_result.last_insert_rowid();
 
     PurchaseService::link_inbound_to_order(&pool, order.id, inbound_id)
         .await
@@ -1123,19 +1121,18 @@ async fn create_sales_order_fails_inactive_customer() {
     let pool = common::test_pool().await;
 
     // Manually insert inactive customer
-    let result = sqlx::query(
+    let customer_id: i64 = sqlx::query_scalar(
         "INSERT INTO customers (customer_code, name, contact_person, phone, email, address, \
          is_active, notes, created_at, updated_at) \
-         VALUES ($1, $2, 'Contact', '13800138001', $3, 'Addr', 0, 'inactive', \
-         datetime('now'), datetime('now'))",
+         VALUES ($1, $2, 'Contact', '13800138001', $3, 'Addr', FALSE, 'inactive', \
+         NOW(), NOW()) RETURNING id",
     )
     .bind("CUS-003")
     .bind("Inactive Customer")
     .bind("cus003@test.local")
-    .execute(&pool)
+    .fetch_one(&pool)
     .await
     .unwrap();
-    let customer_id = result.last_insert_rowid();
 
     let dto = CreateSalesOrderRequest {
         order_no: None,
@@ -1393,8 +1390,8 @@ async fn delete_sales_order_draft() {
         .await
         .expect("delete draft SO must succeed");
 
-    let deleted_at: (Option<String>,) =
-        sqlx::query_as("SELECT deleted_at FROM sales_orders WHERE id = ?")
+    let deleted_at: (Option<DateTime<Utc>>,) =
+        sqlx::query_as("SELECT deleted_at FROM sales_orders WHERE id = $1")
             .bind(order.id)
             .fetch_one(&pool)
             .await
@@ -1729,26 +1726,25 @@ async fn link_outbound_to_order_links() {
         .unwrap();
 
     // Create outbound record to link
-    let outbound_result = sqlx::query(
+    let outbound_id: i64 = sqlx::query_scalar(
         "INSERT INTO outbound_records (outbound_no, outbound_type, notes, approval_status, \
          created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, datetime('now'), datetime('now'))",
+         VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING id",
     )
     .bind("OUT-SLNK-001")
     .bind("sales")
     .bind("linked to SO")
     .bind("approved")
-    .execute(&pool)
+    .fetch_one(&pool)
     .await
     .unwrap();
-    let outbound_id = outbound_result.last_insert_rowid();
 
     SalesService::link_outbound_to_order(&pool, order.id, outbound_id)
         .await
         .expect("link_outbound must succeed");
 
     let linked_order_id: (Option<i64>,) =
-        sqlx::query_as("SELECT order_id FROM outbound_records WHERE id = ?")
+        sqlx::query_as("SELECT order_id FROM outbound_records WHERE id = $1")
             .bind(outbound_id)
             .fetch_one(&pool)
             .await
@@ -1871,7 +1867,7 @@ async fn sales_order_atp_validation_fails_without_stock() {
 
 /// Create a minimal purchase order with a single item (draft status).
 async fn create_dummy_po(
-    pool: &sqlx::SqlitePool,
+    pool: &sqlx::PgPool,
     supplier_id: i64,
 ) -> steel_pipe_db::models::purchase_order::PurchaseOrder {
     let dto = CreatePurchaseOrderRequest {
@@ -1897,7 +1893,7 @@ async fn create_dummy_po(
 
 /// Create a minimal sales order with a single item (draft status).
 async fn create_dummy_so(
-    pool: &sqlx::SqlitePool,
+    pool: &sqlx::PgPool,
     customer_id: i64,
 ) -> steel_pipe_db::models::sales_order::SalesOrder {
     let dto = CreateSalesOrderRequest {

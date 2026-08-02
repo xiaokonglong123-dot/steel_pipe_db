@@ -1,5 +1,7 @@
-use sqlx::{Row, SqlitePool};
+use chrono::{DateTime, Utc};
+use sqlx::{Row, PgPool};
 
+use crate::domain::date_utils::parse_opt_date;
 use crate::error::AppError;
 
 type InventoryExportRow = (
@@ -17,7 +19,7 @@ type OrderExportRow = (
     i64,
     String,
     i64,
-    String,
+    DateTime<Utc>,
     String,
     Option<f64>,
     Option<String>,
@@ -28,7 +30,7 @@ type QualityCertExportRow = (
     String,
     String,
     i64,
-    Option<String>,
+    Option<DateTime<Utc>>,
     String,
     Option<String>,
     Option<String>,
@@ -41,7 +43,7 @@ pub struct DataIORepo;
 impl DataIORepo {
     /// Export all non-deleted seamless pipes as JSON rows.
     pub async fn export_seamless_pipes(
-        pool: &SqlitePool,
+        pool: &PgPool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows = sqlx::query(
             "SELECT id, pipe_number, batch_number, pipe_type, grade, od, wt, length, weight_per_unit, \
@@ -73,7 +75,8 @@ impl DataIORepo {
                     "heat_number": r.get::<Option<String>, _>("heat_number"),
                     "serial_number": r.get::<Option<String>, _>("serial_number"),
                     "manufacturer": r.get::<Option<String>, _>("manufacturer"),
-                    "production_date": r.get::<Option<String>, _>("production_date"),
+                    "production_date": r.get::<Option<DateTime<Utc>>, _>("production_date")
+                        .map(|d| d.format("%Y-%m-%d").to_string()),
                     "cert_number": r.get::<Option<String>, _>("cert_number"),
                     "location_id": r.get::<Option<i64>, _>("location_id"),
                     "status": r.get::<String, _>("status"),
@@ -85,7 +88,7 @@ impl DataIORepo {
 
     /// Export all non-deleted screen pipes as JSON rows.
     pub async fn export_screen_pipes(
-        pool: &SqlitePool,
+        pool: &PgPool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows = sqlx::query(
             "SELECT id, pipe_number, batch_number, screen_type, slot_size, filtration_grade, \
@@ -116,7 +119,8 @@ impl DataIORepo {
                     "heat_number": r.get::<Option<String>, _>("heat_number"),
                     "serial_number": r.get::<Option<String>, _>("serial_number"),
                     "manufacturer": r.get::<Option<String>, _>("manufacturer"),
-                    "production_date": r.get::<Option<String>, _>("production_date"),
+                    "production_date": r.get::<Option<DateTime<Utc>>, _>("production_date")
+                        .map(|d| d.format("%Y-%m-%d").to_string()),
                     "cert_number": r.get::<Option<String>, _>("cert_number"),
                     "location_id": r.get::<Option<i64>, _>("location_id"),
                     "status": r.get::<String, _>("status"),
@@ -127,7 +131,7 @@ impl DataIORepo {
     }
 
     /// Export in-stock inventory (seamless + screen) as JSON rows.
-    pub async fn export_inventory(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, AppError> {
+    pub async fn export_inventory(pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
         let seamless: Vec<InventoryExportRow> = sqlx::query_as(
             "SELECT sp.id, sp.pipe_number, 'seamless', sp.grade, sp.od, sp.wt, sp.status, sp.location_id, sp.heat_number \
              FROM seamless_pipes sp WHERE sp.deleted_at IS NULL AND sp.status != 'outbound'"
@@ -176,7 +180,7 @@ impl DataIORepo {
 
     /// Export all purchase orders (with item count) as JSON rows.
     pub async fn export_purchase_orders(
-        pool: &SqlitePool,
+        pool: &PgPool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<OrderExportRow> = sqlx::query_as(
             "SELECT id, order_no, supplier_id, order_date, status, total_amount, notes, created_by \
@@ -190,7 +194,7 @@ impl DataIORepo {
         for (id, order_no, supplier_id, order_date, status, total_amount, notes, created_by) in rows
         {
             let count: (i64,) =
-                sqlx::query_as("SELECT COUNT(*) FROM purchase_order_items WHERE order_id = ?")
+                sqlx::query_as("SELECT COUNT(*) FROM purchase_order_items WHERE order_id = $1")
                     .bind(id)
                     .fetch_one(pool)
                     .await
@@ -213,7 +217,7 @@ impl DataIORepo {
 
     /// Export all sales orders (with item count) as JSON rows.
     pub async fn export_sales_orders(
-        pool: &SqlitePool,
+        pool: &PgPool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<OrderExportRow> = sqlx::query_as(
             "SELECT id, order_no, customer_id, order_date, status, total_amount, notes, created_by \
@@ -227,7 +231,7 @@ impl DataIORepo {
         for (id, order_no, customer_id, order_date, status, total_amount, notes, created_by) in rows
         {
             let count: (i64,) =
-                sqlx::query_as("SELECT COUNT(*) FROM sales_order_items WHERE order_id = ?")
+                sqlx::query_as("SELECT COUNT(*) FROM sales_order_items WHERE order_id = $1")
                     .bind(id)
                     .fetch_one(pool)
                     .await
@@ -250,7 +254,7 @@ impl DataIORepo {
 
     /// Export all quality certs as JSON rows.
     pub async fn export_quality_certs(
-        pool: &SqlitePool,
+        pool: &PgPool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<QualityCertExportRow> = sqlx::query_as(
             "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, inspection_body, notes \
@@ -280,7 +284,7 @@ impl DataIORepo {
 
     /// Batch insert seamless pipes from import rows. Skips duplicates by `pipe_number`. Returns (imported_count, errors).
     pub async fn import_seamless_pipes(
-        pool: &SqlitePool,
+        pool: &PgPool,
         rows: &[serde_json::Value],
     ) -> Result<(u64, Vec<String>), AppError> {
         let mut tx = pool
@@ -312,11 +316,11 @@ impl DataIORepo {
                 .unwrap_or("in_stock");
 
             let result: Option<(i64,)> = sqlx::query_as(
-                "INSERT OR IGNORE INTO seamless_pipes (pipe_number, batch_number, pipe_type, grade, od, wt, \
+                "INSERT INTO seamless_pipes (pipe_number, batch_number, pipe_type, grade, od, wt, \
                  length, weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
                  heat_number, serial_number, manufacturer, production_date, cert_number, status, notes) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
-                 RETURNING id",
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) \
+                 ON CONFLICT DO NOTHING                  RETURNING id",
             )
             .bind(&pipe_number)
             .bind(row.get("batch_number").and_then(|v| v.as_str()))
@@ -333,7 +337,7 @@ impl DataIORepo {
             .bind(row.get("heat_number").and_then(|v| v.as_str()))
             .bind(row.get("serial_number").and_then(|v| v.as_str()))
             .bind(row.get("manufacturer").and_then(|v| v.as_str()))
-            .bind(row.get("production_date").and_then(|v| v.as_str()))
+            .bind(parse_opt_date(row.get("production_date").and_then(|v| v.as_str())))
             .bind(row.get("cert_number").and_then(|v| v.as_str()))
             .bind(status)
             .bind(row.get("notes").and_then(|v| v.as_str()))
@@ -357,7 +361,7 @@ impl DataIORepo {
 
     /// Batch insert screen pipes from import rows. Skips duplicates by `pipe_number`. Returns (imported_count, errors).
     pub async fn import_screen_pipes(
-        pool: &SqlitePool,
+        pool: &PgPool,
         rows: &[serde_json::Value],
     ) -> Result<(u64, Vec<String>), AppError> {
         let mut tx = pool
@@ -392,12 +396,12 @@ impl DataIORepo {
                 .unwrap_or("in_stock");
 
             let result: Option<(i64,)> = sqlx::query_as(
-                "INSERT OR IGNORE INTO screen_pipes (pipe_number, batch_number, screen_type, slot_size, \
+                "INSERT INTO screen_pipes (pipe_number, batch_number, screen_type, slot_size, \
                  filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
                  weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
                  cert_number, status, notes) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
-                 RETURNING id",
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
+                 ON CONFLICT DO NOTHING                  RETURNING id",
             )
             .bind(&pipe_number)
             .bind(row.get("batch_number").and_then(|v| v.as_str()))
@@ -413,7 +417,7 @@ impl DataIORepo {
             .bind(row.get("heat_number").and_then(|v| v.as_str()))
             .bind(row.get("serial_number").and_then(|v| v.as_str()))
             .bind(row.get("manufacturer").and_then(|v| v.as_str()))
-            .bind(row.get("production_date").and_then(|v| v.as_str()))
+            .bind(parse_opt_date(row.get("production_date").and_then(|v| v.as_str())))
             .bind(row.get("cert_number").and_then(|v| v.as_str()))
             .bind(status)
             .bind(row.get("notes").and_then(|v| v.as_str()))

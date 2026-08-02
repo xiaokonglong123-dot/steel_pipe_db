@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::error::AppError;
 use crate::repositories::inbound_repo::InboundRepo;
@@ -20,7 +20,7 @@ impl TraceService {
     /// - `AppError::NotFound` — pipe ID does not exist or was deleted
     /// - `AppError::Validation` — invalid pipe_type
     pub async fn trace_pipe_lifecycle(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<serde_json::Value, AppError> {
@@ -36,7 +36,7 @@ impl TraceService {
             "seamless" | "casing" | "tubing" => {
                 let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
                     "SELECT pipe_number, grade, od, wt, status, location_id \
-                     FROM seamless_pipes WHERE id = ? AND deleted_at IS NULL",
+                     FROM seamless_pipes WHERE id = $1 AND deleted_at IS NULL",
                 )
                 .bind(pipe_id)
                 .fetch_optional(pool)
@@ -63,7 +63,7 @@ impl TraceService {
             "screen" | "screened" => {
                 let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
                     "SELECT pipe_number, base_grade, base_od, base_wt, status, location_id \
-                     FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
+                     FROM screen_pipes WHERE id = $1 AND deleted_at IS NULL",
                 )
                 .bind(pipe_id)
                 .fetch_optional(pool)
@@ -90,7 +90,7 @@ impl TraceService {
             "welded" => {
                 let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
                     "SELECT pipe_number, grade, od, wt, status, location_id \
-                     FROM welded_pipes WHERE id = ? AND deleted_at IS NULL",
+                     FROM welded_pipes WHERE id = $1 AND deleted_at IS NULL",
                 )
                 .bind(pipe_id)
                 .fetch_optional(pool)
@@ -148,7 +148,7 @@ impl TraceService {
     /// Query pipes by heat number — searches both seamless and screen pipes,
     /// returning type, ID, number, grade, status, and location.
     pub async fn trace_by_heat_number(
-        pool: &SqlitePool,
+        pool: &PgPool,
         heat_number: &str,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let mut results: Vec<serde_json::Value> = Vec::new();
@@ -185,7 +185,7 @@ impl TraceService {
 
         let welded: Vec<(i64, String, String, String, Option<i64>)> = sqlx::query_as(
             "SELECT id, pipe_number, grade, status, location_id \
-             FROM welded_pipes WHERE heat_number = ? AND deleted_at IS NULL",
+             FROM welded_pipes WHERE heat_number = $1 AND deleted_at IS NULL",
         )
         .bind(heat_number)
         .fetch_all(pool)
@@ -212,7 +212,7 @@ impl TraceService {
     /// # Errors
     /// - `AppError::Validation` — order_type is not `inbound` or `outbound`
     pub async fn trace_by_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_type: &str,
         order_id: i64,
     ) -> Result<serde_json::Value, AppError> {
@@ -308,7 +308,7 @@ impl TraceService {
     }
 
     async fn get_pipe_current_status(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<String, AppError> {

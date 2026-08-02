@@ -1,5 +1,5 @@
 use crate::cache::CacheManager;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{
@@ -25,7 +25,7 @@ impl LocationService {
     /// # Errors
     /// - `AppError::Validation` — full code already exists
     pub async fn create_location(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &CacheManager,
         dto: &CreateLocationRequest,
     ) -> Result<Location, AppError> {
@@ -55,7 +55,7 @@ impl LocationService {
     /// # Errors
     /// - `AppError::LocationNotFound` — ID doesn't exist or was deleted
     pub async fn update_location(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &CacheManager,
         id: i64,
         dto: &UpdateLocationRequest,
@@ -82,7 +82,7 @@ impl LocationService {
 
     /// Paginated location list. Pass `active_only=true` to get only active locations.
     pub async fn list_locations(
-        pool: &SqlitePool,
+        pool: &PgPool,
         params: &PaginationParams,
         active_only: bool,
     ) -> Result<(Vec<Location>, u64), AppError> {
@@ -95,7 +95,7 @@ impl LocationService {
     ///
     /// # Errors
     /// - `AppError::LocationNotFound` — ID doesn't exist
-    pub async fn get_location(pool: &SqlitePool, id: i64) -> Result<Location, AppError> {
+    pub async fn get_location(pool: &PgPool, id: i64) -> Result<Location, AppError> {
         LocationRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -107,7 +107,7 @@ impl LocationService {
     /// # Errors
     /// - `AppError::LocationNotFound` — ID doesn't exist
     /// - `AppError::Validation` — location still has pipes in it
-    pub async fn delete_location(pool: &SqlitePool, cache: &CacheManager, id: i64) -> Result<(), AppError> {
+    pub async fn delete_location(pool: &PgPool, cache: &CacheManager, id: i64) -> Result<(), AppError> {
         let existing = LocationRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -132,7 +132,7 @@ impl LocationService {
     /// - `AppError::LocationNotFound` — location ID doesn't exist
     /// - `AppError::Validation` — target location ain't active
     pub async fn assign_location(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &CacheManager,
         location_id: i64,
         dto: &AssignLocationRequest,
@@ -203,7 +203,7 @@ impl LocationService {
     /// - `AppError::LocationNotFound` — target location doesn't exist
     /// - `AppError::Validation` — target location isn't active
     pub async fn transfer_location(
-        pool: &SqlitePool,
+        pool: &PgPool,
         cache: &CacheManager,
         pipe_type: &str,
         pipe_id: i64,

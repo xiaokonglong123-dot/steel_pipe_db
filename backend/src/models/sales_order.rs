@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -15,7 +16,7 @@ pub struct SalesOrder {
     /// Customer ID we're selling to.
     pub customer_id: i64,
     /// Order date.
-    pub order_date: String,
+    pub order_date: DateTime<Utc>,
     /// Status stored as string in DB; use `order_status()` for typed access.
     pub status: String,
     /// Total order amount.
@@ -24,9 +25,9 @@ pub struct SalesOrder {
     pub notes: Option<String>,
     /// User ID who created this order.
     pub created_by: Option<i64>,
-    pub created_at: String,
-    pub updated_at: String,
-    pub deleted_at: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl SalesOrder {
@@ -78,5 +79,5 @@ pub struct SalesOrderItem {
     pub total_price: Option<f64>,
     /// Free-form notes.
     pub notes: Option<String>,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }

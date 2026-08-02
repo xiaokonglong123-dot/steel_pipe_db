@@ -2,14 +2,28 @@
 
 use std::net::SocketAddr;
 
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::EnvFilter;
 
 use crate::dto::auth_dto::CreateUserRequest;
 use crate::repositories::user_repo::UserRepo;
 use crate::services::auth_service::AuthService;
 
+mod auth;
 mod cache;
+mod workflow;
+mod hr;
+mod finance;
+mod procurement;
+mod sales_crm;
+mod inventory_atp;
+mod manufacturing;
+mod threading;
+mod project;
+mod bi;
+mod portal;
+mod notification;
+mod assets;
 mod cache_invalidator;
 mod config;
 mod domain;
@@ -39,7 +53,7 @@ async fn main() {
     let cfg = config::Config::from_env();
 
     // Pool must be created before routes — all handlers pull connections from this pool
-    let pool = SqlitePoolOptions::new()
+    let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&cfg.database_url)
         .await
@@ -87,7 +101,7 @@ async fn main() {
 }
 
 /// Creates the initial admin user when the database is empty.
-async fn bootstrap_admin(pool: &sqlx::SqlitePool, admin_username: &str, admin_password: &str) {
+async fn bootstrap_admin(pool: &sqlx::PgPool, admin_username: &str, admin_password: &str) {
     let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
         .fetch_one(pool)
         .await
@@ -116,11 +130,29 @@ async fn bootstrap_admin(pool: &sqlx::SqlitePool, admin_username: &str, admin_pa
     };
 
     match UserRepo::create(pool, &dto, &password_hash).await {
-        Ok(user) => tracing::info!(
-            "Bootstrapped admin user '{}' (id={})",
-            user.username,
-            user.id
-        ),
+        Ok(user) => {
+            tracing::info!(
+                "Bootstrapped admin user '{}' (id={})",
+                user.username,
+                user.id
+            );
+            // Bind the admin role so the fresh database has working
+            // permissions — migration 022's user_roles seed is a JOIN over
+            // existing users, which is empty on a brand-new install (the
+            // bootstrap runs after migrations).
+            let bound = sqlx::query(
+                "INSERT INTO user_roles (user_id, role_id) \
+                 SELECT $1, id FROM roles \
+                 WHERE name = 'admin' AND tenant_id = 1 AND deleted_at IS NULL \
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(user.id)
+            .execute(pool)
+            .await;
+            if let Err(e) = bound {
+                tracing::error!("Failed to bind admin role: {}", e);
+            }
+        }
         Err(e) => tracing::error!("Failed to bootstrap admin user: {}", e),
     }
 }

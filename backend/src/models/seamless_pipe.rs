@@ -1,8 +1,10 @@
+use chrono::{DateTime, Utc};
+use crate::domain::date_utils::{parse_date, parse_opt_date};
 use crate::domain::pipe::{PipeModel, PipeType, PipeStatus};
 use crate::dto::pipe_dto::{CreateSeamlessPipeRequest, UpdateSeamlessPipeRequest, PipeFilterParams, PipeSearchResult};
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, QueryBuilder, Sqlite};
+use sqlx::{FromRow, QueryBuilder, Postgres};
 
 /// Seamless pipe DB row. API 5CT standard master data.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -23,14 +25,14 @@ pub struct SeamlessPipe {
     pub heat_number: Option<String>,
     pub serial_number: Option<String>,
     pub manufacturer: Option<String>,
-    pub production_date: Option<String>,
+    pub production_date: Option<DateTime<Utc>>,
     pub cert_number: Option<String>,
     pub location_id: Option<i64>,
     pub status: String,
     pub notes: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-    pub deleted_at: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl PipeModel for SeamlessPipe {
@@ -59,7 +61,7 @@ impl PipeModel for SeamlessPipe {
     fn heat_number(&self) -> Option<&str> { self.heat_number.as_deref() }
     fn serial_number(&self) -> Option<&str> { self.serial_number.as_deref() }
     fn manufacturer(&self) -> Option<&str> { self.manufacturer.as_deref() }
-    fn deleted_at(&self) -> Option<&str> { self.deleted_at.as_deref() }
+    fn deleted_at(&self) -> Option<&chrono::DateTime<Utc>> { self.deleted_at.as_ref() }
     fn valid_sort_column(col: &str) -> Option<&'static str> {
         match col {
             "pipe_number" => Some("pipe_number"),
@@ -108,7 +110,7 @@ impl PipeModel for SeamlessPipe {
         Ok(())
     }
 
-    fn build_create_query<'a>(builder: &mut QueryBuilder<'a, Sqlite>, dto: &'a Self::CreateDto) {
+    fn build_create_query<'a>(builder: &mut QueryBuilder<'a, Postgres>, dto: &'a Self::CreateDto) {
         builder
             .push(", pipe_type, grade, od, wt, length, weight_per_unit, end_type, \
                   coupling_type, coupling_od, coupling_length, heat_number, serial_number, \
@@ -130,14 +132,14 @@ impl PipeModel for SeamlessPipe {
             .push_bind(dto.heat_number.as_deref())
             .push_bind(dto.serial_number.as_deref())
             .push_bind(dto.manufacturer.as_deref())
-            .push_bind(dto.production_date.as_deref())
+            .push_bind(parse_opt_date(dto.production_date.as_deref()))
             .push_bind(dto.cert_number.as_deref())
             .push_bind(None::<i64>) // location_id
             .push_bind(dto.notes.as_deref())
             .push_bind("new"); // status
     }
 
-    fn build_update_query<'a>(builder: &mut QueryBuilder<'a, Sqlite>, dto: &'a Self::UpdateDto) {
+    fn build_update_query<'a>(builder: &mut QueryBuilder<'a, Postgres>, dto: &'a Self::UpdateDto) {
         let mut first = true;
         if let Some(ref v) = dto.batch_number {
             if !first { builder.push(", "); }
@@ -211,7 +213,7 @@ impl PipeModel for SeamlessPipe {
         }
         if let Some(ref v) = dto.production_date {
             if !first { builder.push(", "); }
-            builder.push("production_date = ").push_bind(v);
+            builder.push("production_date = ").push_bind(parse_date(v));
             first = false;
         }
         if let Some(ref v) = dto.cert_number {

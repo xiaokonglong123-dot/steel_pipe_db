@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool, Transaction};
+use sqlx::{QueryBuilder, Postgres, PgPool, Transaction};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateInboundRecordRequest, InboundFilter, UpdateInboundRecordRequest};
@@ -12,13 +12,13 @@ impl InboundRepo {
     /// Used by the service layer when composing multi-record operations.
     /// Caller manages commit/rollback.
     pub async fn create_inner(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         dto: &CreateInboundRecordRequest,
         inbound_no: &str,
     ) -> Result<InboundRecord, sqlx::Error> {
         let record = sqlx::query_as::<_, InboundRecord>(
             "INSERT INTO inbound_records (inbound_no, inbound_type, order_id, supplier_id, notes, approval_status) \
-             VALUES (?, ?, ?, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6) \
              RETURNING id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
                rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
         )
@@ -37,7 +37,7 @@ impl InboundRepo {
 
         for item in &dto.pipes {
             sqlx::query(
-                "INSERT INTO inbound_items (inbound_id, pipe_type, pipe_id) VALUES (?, ?, ?)",
+                "INSERT INTO inbound_items (inbound_id, pipe_type, pipe_id) VALUES ($1, $2, $3)",
             )
             .bind(record.id)
             .bind(&item.pipe_type)
@@ -52,15 +52,15 @@ impl InboundRepo {
     /// UPDATE `inbound_records` status to `approved` inside an existing transaction.
     /// Returns the number of rows affected (0 if record was already processed or deleted).
     pub async fn approve(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         id: i64,
         approval_reason: Option<&str>,
         handled_by: Option<i64>,
     ) -> Result<u64, sqlx::Error> {
         let result = sqlx::query(
             "UPDATE inbound_records SET approval_status = 'approved', \
-             rejection_reason = NULL, approval_reason = ?, handled_by = ?, handled_at = datetime('now'), updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
+             rejection_reason = NULL, approval_reason = $1, handled_by = $2, handled_at = NOW(), updated_at = NOW() \
+             WHERE id = $3 AND deleted_at IS NULL",
         )
         .bind(approval_reason)
         .bind(handled_by)
@@ -74,7 +74,7 @@ impl InboundRepo {
     /// Purchase-type records start as `auto_approved`; others as `pending`.
     /// Returns the created `InboundRecord`.
     pub async fn create_with_items(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateInboundRecordRequest,
         inbound_no: &str,
     ) -> Result<InboundRecord, sqlx::Error> {
@@ -82,7 +82,7 @@ impl InboundRepo {
 
         let record = sqlx::query_as::<_, InboundRecord>(
             "INSERT INTO inbound_records (inbound_no, inbound_type, order_id, supplier_id, notes, approval_status) \
-             VALUES (?, ?, ?, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6) \
              RETURNING id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
                rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at",
         )
@@ -101,7 +101,7 @@ impl InboundRepo {
 
         for item in &dto.pipes {
             sqlx::query(
-                "INSERT INTO inbound_items (inbound_id, pipe_type, pipe_id) VALUES (?, ?, ?)",
+                "INSERT INTO inbound_items (inbound_id, pipe_type, pipe_id) VALUES ($1, $2, $3)",
             )
             .bind(record.id)
             .bind(&item.pipe_type)
@@ -116,13 +116,13 @@ impl InboundRepo {
 
     /// SELECT by primary key from `inbound_records`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_id(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<Option<InboundRecord>, sqlx::Error> {
         sqlx::query_as::<_, InboundRecord>(
             "SELECT id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
              rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
-             FROM inbound_records WHERE id = ? AND deleted_at IS NULL",
+             FROM inbound_records WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -131,12 +131,12 @@ impl InboundRepo {
 
     /// SELECT all `InboundItem` rows for a given inbound record.
     pub async fn find_items(
-        pool: &SqlitePool,
+        pool: &PgPool,
         inbound_id: i64,
     ) -> Result<Vec<InboundItem>, sqlx::Error> {
         sqlx::query_as::<_, InboundItem>(
             "SELECT id, inbound_id, pipe_type, pipe_id, created_at \
-             FROM inbound_items WHERE inbound_id = ? ORDER BY id",
+             FROM inbound_items WHERE inbound_id = $1 ORDER BY id",
         )
         .bind(inbound_id)
         .fetch_all(pool)
@@ -146,7 +146,7 @@ impl InboundRepo {
     /// Paginated SELECT with optional filters (`q`, `inbound_type`, `approval_status`, `order_id`).
     /// Returns `(items, total)`.
     pub async fn list(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &InboundFilter,
     ) -> Result<(Vec<InboundRecord>, u64), sqlx::Error> {
         let pagination = PaginationParams {
@@ -163,20 +163,20 @@ impl InboundRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push("inbound_no LIKE ?".into());
+                conditions.push(format!("inbound_no LIKE ${}", bind_values.len() + 1));
                 bind_values.push(format!("%{}%", q));
             }
         }
         if let Some(ref inbound_type) = filter.inbound_type {
-            conditions.push("inbound_type = ?".into());
+            conditions.push(format!("inbound_type = ${}", bind_values.len() + 1));
             bind_values.push(inbound_type.clone());
         }
         if let Some(ref approval_status) = filter.approval_status {
-            conditions.push("approval_status = ?".into());
+            conditions.push(format!("approval_status = ${}", bind_values.len() + 1));
             bind_values.push(approval_status.clone());
         }
         if let Some(order_id) = filter.order_id {
-            conditions.push("order_id = ?".into());
+            conditions.push(format!("order_id = ${}", bind_values.len() + 1));
             bind_values.push(order_id.to_string());
         }
 
@@ -204,8 +204,12 @@ impl InboundRepo {
             "SELECT id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
              rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM inbound_records WHERE {} \
-             ORDER BY {} {} LIMIT ? OFFSET ?",
-            where_clause, sort_by, sort_order
+             ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause,
+            sort_by,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, InboundRecord>(&list_sql);
         for val in &bind_values {
@@ -222,15 +226,15 @@ impl InboundRepo {
 
     /// UPDATE `approval_status` on an inbound record. Optionally sets `rejection_reason`.
     pub async fn update_status(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         status: &str,
         rejection_reason: Option<&str>,
     ) -> Result<(), sqlx::Error> {
         if let Some(reason) = rejection_reason {
             sqlx::query(
-                "UPDATE inbound_records SET approval_status = ?, rejection_reason = ?, \
-                 updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+                "UPDATE inbound_records SET approval_status = $1, rejection_reason = $2, \
+                 updated_at = NOW() WHERE id = $3 AND deleted_at IS NULL",
             )
             .bind(status)
             .bind(reason)
@@ -239,9 +243,9 @@ impl InboundRepo {
             .await?;
         } else {
             sqlx::query(
-                "UPDATE inbound_records SET approval_status = ?, \
-                 rejection_reason = NULL, updated_at = datetime('now') \
-                 WHERE id = ? AND deleted_at IS NULL",
+                "UPDATE inbound_records SET approval_status = $1, \
+                 rejection_reason = NULL, updated_at = NOW() \
+                 WHERE id = $2 AND deleted_at IS NULL",
             )
             .bind(status)
             .bind(id)
@@ -253,13 +257,13 @@ impl InboundRepo {
 
     /// Sets `order_id` on an inbound record to link it to a purchase order.
     pub async fn link_to_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         inbound_id: i64,
         order_id: i64,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE inbound_records SET order_id = ?, updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE inbound_records SET order_id = $1, updated_at = NOW() \
+             WHERE id = $2 AND deleted_at IS NULL",
         )
         .bind(order_id)
         .bind(inbound_id)
@@ -270,13 +274,13 @@ impl InboundRepo {
 
     /// SELECT inbound records by order_id. Returns only non-deleted records.
     pub async fn find_by_order_id(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_id: i64,
     ) -> Result<Vec<InboundRecord>, sqlx::Error> {
         sqlx::query_as::<_, InboundRecord>(
             "SELECT id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
              rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
-             FROM inbound_records WHERE order_id = ? AND deleted_at IS NULL",
+             FROM inbound_records WHERE order_id = $1 AND deleted_at IS NULL",
         )
         .bind(order_id)
         .fetch_all(pool)
@@ -284,10 +288,10 @@ impl InboundRepo {
     }
 
     /// Soft-delete by setting `deleted_at` timestamp. No-op if already deleted.
-    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE inbound_records SET deleted_at = datetime('now'), \
-             updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE inbound_records SET deleted_at = NOW(), \
+             updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
@@ -299,12 +303,12 @@ impl InboundRepo {
     /// Only records with `auto_approved` or `rejected` status can be updated.
     /// Returns the updated record.
     pub async fn update(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateInboundRecordRequest,
     ) -> Result<InboundRecord, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("UPDATE inbound_records SET updated_at = datetime('now')");
+        let mut builder: QueryBuilder<Postgres> =
+            QueryBuilder::new("UPDATE inbound_records SET updated_at = NOW()");
 
         if let Some(ref val) = dto.notes {
             builder.push(", notes = ");

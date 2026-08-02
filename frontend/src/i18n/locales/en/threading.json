@@ -1,0 +1,18 @@
+{
+  "title": "Thread Engineering",
+  "od": "OD mm",
+  "wt": "WT mm",
+  "grade": "Grade",
+  "connectionType": "Connection",
+  "depth": "Depth m",
+  "calc": "Calculate",
+  "calcResult": "Result",
+  "designCheck": "Casing Design Check",
+  "burst": "Burst",
+  "collapse": "Collapse",
+  "tension": "Tension",
+  "jointEff": "Joint Eff.",
+  "externalPressure": "External P",
+  "safe": "SAFE",
+  "unsafe": "UNSAFE"
+}

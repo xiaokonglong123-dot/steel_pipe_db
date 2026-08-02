@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Postgres, PgPool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::PipeFilterParams;
@@ -11,10 +11,10 @@ pub struct GenericPipeRepo<P: PipeModel> {
 
 impl<P: PipeModel> GenericPipeRepo<P> {
     pub async fn create(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &P::CreateDto,
     ) -> Result<P, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(format!(
+        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new(format!(
             "INSERT INTO {} (pipe_number, batch_number",
             P::TABLE_NAME
         ));
@@ -25,11 +25,11 @@ impl<P: PipeModel> GenericPipeRepo<P> {
     }
 
     pub async fn update(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &P::UpdateDto,
     ) -> Result<P, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(format!(
+        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new(format!(
             "UPDATE {} SET ",
             P::TABLE_NAME
         ));
@@ -41,11 +41,11 @@ impl<P: PipeModel> GenericPipeRepo<P> {
     }
 
     pub async fn find_by_id(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<Option<P>, sqlx::Error> {
         let query = format!(
-            "SELECT * FROM {} WHERE id = ? AND deleted_at IS NULL",
+            "SELECT * FROM {} WHERE id = $1 AND deleted_at IS NULL",
             P::TABLE_NAME
         );
         sqlx::query_as::<_, P>(&query)
@@ -55,13 +55,13 @@ impl<P: PipeModel> GenericPipeRepo<P> {
     }
 
     pub async fn find_by_ids(
-        pool: &SqlitePool,
+        pool: &PgPool,
         ids: &[i64],
     ) -> Result<Vec<P>, sqlx::Error> {
         if ids.is_empty() {
             return Ok(vec![]);
         }
-        let placeholders: Vec<String> = ids.iter().map(|_| "?".to_string()).collect();
+        let placeholders: Vec<String> = ids.iter().enumerate().map(|(i, _)| format!("${}", i + 1)).collect();
         let query = format!(
             "SELECT * FROM {} WHERE id IN ({}) AND deleted_at IS NULL",
             P::TABLE_NAME,
@@ -74,9 +74,9 @@ impl<P: PipeModel> GenericPipeRepo<P> {
         q.fetch_all(pool).await
     }
 
-    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(&format!(
-            "UPDATE {} SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE {} SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
             P::TABLE_NAME
         ))
         .bind(id)
@@ -86,11 +86,11 @@ impl<P: PipeModel> GenericPipeRepo<P> {
     }
 
     pub async fn find_by_pipe_number(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_number: &str,
     ) -> Result<Option<P>, sqlx::Error> {
         let query = format!(
-            "SELECT * FROM {} WHERE pipe_number = ? AND deleted_at IS NULL",
+            "SELECT * FROM {} WHERE pipe_number = $1 AND deleted_at IS NULL",
             P::TABLE_NAME
         );
         sqlx::query_as::<_, P>(&query)
@@ -100,7 +100,7 @@ impl<P: PipeModel> GenericPipeRepo<P> {
     }
 
     pub async fn list(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &PipeFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<P>, u64), sqlx::Error> {
@@ -112,7 +112,8 @@ impl<P: PipeModel> GenericPipeRepo<P> {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push("(pipe_number LIKE ? OR batch_number LIKE ?)".into());
+                let _base = bind_values.len() + 1;
+                conditions.push(format!("(pipe_number LIKE ${} OR batch_number LIKE ${})", _base, _base + 1));
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern);
@@ -120,7 +121,7 @@ impl<P: PipeModel> GenericPipeRepo<P> {
         }
 
         if let Some(ref grade) = filter.grade {
-            conditions.push(format!("{} = ?", P::GRADE_COLUMN));
+            conditions.push(format!("{} = ${}", P::GRADE_COLUMN, bind_values.len() + 1));
             bind_values.push(grade.clone());
         }
 
@@ -131,46 +132,46 @@ impl<P: PipeModel> GenericPipeRepo<P> {
             // not classes. Only real sub-types become column filters.
             let is_class = PipeType::from_pipe_type_str(pipe_type) == Some(P::PIPE_TYPE);
             if !is_class {
-                conditions.push(format!("{} = ?", P::PIPE_TYPE_COLUMN));
+                conditions.push(format!("{} = ${}", P::PIPE_TYPE_COLUMN, bind_values.len() + 1));
                 bind_values.push(pipe_type.clone());
             }
         }
 
         if let Some(ref status) = filter.status {
-            conditions.push("status = ?".into());
+            conditions.push(format!("status = ${}", bind_values.len() + 1));
             bind_values.push(status.clone());
         }
 
         if let Some(od_min) = filter.od_min {
-            conditions.push(format!("{} >= ?", P::OD_COLUMN));
+            conditions.push(format!("{} >= ${}", P::OD_COLUMN, bind_values.len() + 1));
             bind_values.push(od_min.to_string());
         }
         if let Some(od_max) = filter.od_max {
-            conditions.push(format!("{} <= ?", P::OD_COLUMN));
+            conditions.push(format!("{} <= ${}", P::OD_COLUMN, bind_values.len() + 1));
             bind_values.push(od_max.to_string());
         }
 
         if let Some(wt_min) = filter.wt_min {
-            conditions.push(format!("{} >= ?", P::WT_COLUMN));
+            conditions.push(format!("{} >= ${}", P::WT_COLUMN, bind_values.len() + 1));
             bind_values.push(wt_min.to_string());
         }
         if let Some(wt_max) = filter.wt_max {
-            conditions.push(format!("{} <= ?", P::WT_COLUMN));
+            conditions.push(format!("{} <= ${}", P::WT_COLUMN, bind_values.len() + 1));
             bind_values.push(wt_max.to_string());
         }
 
         if let Some(location_id) = filter.location_id {
-            conditions.push("location_id = ?".into());
+            conditions.push(format!("location_id = ${}", bind_values.len() + 1));
             bind_values.push(location_id.to_string());
         }
 
         if let Some(ref manufacturer) = filter.manufacturer {
-            conditions.push("manufacturer = ?".into());
+            conditions.push(format!("manufacturer = ${}", bind_values.len() + 1));
             bind_values.push(manufacturer.clone());
         }
 
         if let Some(ref heat_number) = filter.heat_number {
-            conditions.push("heat_number = ?".into());
+            conditions.push(format!("heat_number = ${}", bind_values.len() + 1));
             bind_values.push(heat_number.clone());
         }
 
@@ -191,8 +192,13 @@ impl<P: PipeModel> GenericPipeRepo<P> {
         let total: (i64,) = count_q.fetch_one(pool).await?;
 
         let list_sql = format!(
-            "SELECT * FROM {} WHERE {} ORDER BY {} {} LIMIT ? OFFSET ?",
-            P::TABLE_NAME, where_clause, sort_col, sort_order
+            "SELECT * FROM {} WHERE {} ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            P::TABLE_NAME,
+            where_clause,
+            sort_col,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, P>(&list_sql);
         for val in &bind_values {
@@ -207,10 +213,10 @@ impl<P: PipeModel> GenericPipeRepo<P> {
         Ok((items, total.0 as u64))
     }
 
-    pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<P>, sqlx::Error> {
+    pub async fn search(pool: &PgPool, query: &str) -> Result<Vec<P>, sqlx::Error> {
         let like = format!("%{}%", query);
         let search_sql = format!(
-            "SELECT * FROM {} WHERE deleted_at IS NULL AND (pipe_number LIKE ? OR batch_number LIKE ?) ORDER BY created_at DESC LIMIT 50",
+            "SELECT * FROM {} WHERE deleted_at IS NULL AND (pipe_number LIKE $1 OR batch_number LIKE $2) ORDER BY created_at DESC LIMIT 50",
             P::TABLE_NAME
         );
         sqlx::query_as::<_, P>(&search_sql)

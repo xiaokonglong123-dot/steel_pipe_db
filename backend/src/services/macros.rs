@@ -24,7 +24,7 @@ macro_rules! party_service {
             }
 
             pub async fn create(
-                pool: &sqlx::SqlitePool,
+                pool: &sqlx::PgPool,
                 dto: &$create_dto,
             ) -> Result<$model, crate::error::AppError> {
                 let code = match &dto.$code_field {
@@ -61,7 +61,7 @@ macro_rules! party_service {
             }
 
             pub async fn update(
-                pool: &sqlx::SqlitePool,
+                pool: &sqlx::PgPool,
                 id: i64,
                 dto: &$update_dto,
             ) -> Result<$model, crate::error::AppError> {
@@ -79,7 +79,7 @@ macro_rules! party_service {
                     })
             }
 
-            pub async fn delete(pool: &sqlx::SqlitePool, id: i64) -> Result<(), crate::error::AppError> {
+            pub async fn delete(pool: &sqlx::PgPool, id: i64) -> Result<(), crate::error::AppError> {
                 let existing = $repo::find_by_id(pool, id)
                     .await
                     .map_err(crate::error::AppError::from)?
@@ -96,7 +96,7 @@ macro_rules! party_service {
                 $repo::delete(pool, id).await.map_err(crate::error::AppError::from)
             }
 
-            pub async fn get(pool: &sqlx::SqlitePool, id: i64) -> Result<$model, crate::error::AppError> {
+            pub async fn get(pool: &sqlx::PgPool, id: i64) -> Result<$model, crate::error::AppError> {
                 $repo::find_by_id(pool, id)
                     .await
                     .map_err(crate::error::AppError::from)?
@@ -106,7 +106,7 @@ macro_rules! party_service {
             }
 
             pub async fn list(
-                pool: &sqlx::SqlitePool,
+                pool: &sqlx::PgPool,
                 filter: &$filter,
                 params: &crate::dto::common::PaginationParams,
             ) -> Result<(Vec<$model>, u64), crate::error::AppError> {
@@ -115,7 +115,7 @@ macro_rules! party_service {
                     .map_err(crate::error::AppError::from)
             }
 
-            pub async fn search(pool: &sqlx::SqlitePool, query: &str) -> Result<Vec<$model>, crate::error::AppError> {
+            pub async fn search(pool: &sqlx::PgPool, query: &str) -> Result<Vec<$model>, crate::error::AppError> {
                 if query.trim().is_empty() {
                     return Err(crate::error::AppError::Validation("Search query is required".into()));
                 }
@@ -124,7 +124,7 @@ macro_rules! party_service {
                     .map_err(crate::error::AppError::from)
             }
 
-            pub async fn list_active(pool: &sqlx::SqlitePool) -> Result<Vec<$model>, crate::error::AppError> {
+            pub async fn list_active(pool: &sqlx::PgPool) -> Result<Vec<$model>, crate::error::AppError> {
                 $repo::find_all_active(pool)
                     .await
                     .map_err(crate::error::AppError::from)

@@ -2,7 +2,7 @@ use axum::{
     extract::{Extension, Query},
     Json,
 };
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use validator::Validate;
 
 use crate::dto::inventory_dto::AtpItem;
@@ -16,7 +16,7 @@ use crate::services::inventory_query_service::InventoryQueryService;
 /// Checks available-to-promise inventory for a set of pipe specs.
 /// Used before sales order approval to ensure sufficient stock.
 pub async fn check_atp_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(query): Query<AtpQuery>,
 ) -> Result<Json<ApiResponse<Vec<AtpItem>>>, AppError> {
     query

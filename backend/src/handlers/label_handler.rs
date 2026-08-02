@@ -3,7 +3,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use validator::Validate;
 
@@ -22,7 +22,7 @@ pub struct PipeLabelPath {
 ///
 /// Generates an HTML label for a specific pipe by type and ID.
 pub async fn get_pipe_label_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(path): Path<PipeLabelPath>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let html = LabelService::generate_pipe_label(&pool, &path.pipe_type, path.pipe_id).await?;
@@ -34,7 +34,7 @@ pub async fn get_pipe_label_handler(
 /// Generates HTML labels for multiple pipes in batch.
 /// Validates request body.
 pub async fn create_batch_labels_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Json(req): Json<BatchLabelRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()
@@ -47,7 +47,7 @@ pub async fn create_batch_labels_handler(
 ///
 /// Generates an HTML quality inspection tag for a certificate.
 pub async fn get_quality_label_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(cert_id): Path<i64>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let html = LabelService::generate_quality_tag(&pool, cert_id).await?;
@@ -59,7 +59,7 @@ pub async fn get_quality_label_handler(
 /// Generates an HTML shipping label with customer and order info.
 /// Validates request body.
 pub async fn create_shipping_label_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Json(req): Json<ShippingLabelRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()

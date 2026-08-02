@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -21,9 +22,9 @@ pub struct Location {
     pub used_count: i64,
     /// Whether this location is active and usable.
     pub is_active: bool,
-    pub created_at: String,
-    pub updated_at: String,
-    pub deleted_at: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Inbound record DB row. Covers purchase receipts, production returns, and transfers.
@@ -49,10 +50,10 @@ pub struct InboundRecord {
     /// User ID of the handler / operator.
     pub handled_by: Option<i64>,
     /// When the handling happened.
-    pub handled_at: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-    pub deleted_at: Option<String>,
+    pub handled_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Inbound item DB row. The actual pipes in an inbound shipment.
@@ -65,7 +66,7 @@ pub struct InboundItem {
     pub pipe_type: String,
     /// Pipe ID — references either seamless_pipes or screen_pipes.
     pub pipe_id: i64,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }
 
 /// Outbound record DB row. Sales, scrapped, or transfer out of the warehouse.
@@ -91,10 +92,10 @@ pub struct OutboundRecord {
     /// User ID of the handler.
     pub handled_by: Option<i64>,
     /// When the handling happened.
-    pub handled_at: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-    pub deleted_at: Option<String>,
+    pub handled_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Outbound item DB row. Individual pipes going out the door.
@@ -107,7 +108,7 @@ pub struct OutboundItem {
     pub pipe_type: String,
     /// Pipe ID — references seamless_pipes or screen_pipes.
     pub pipe_id: i64,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }
 
 /// Inventory log DB row. Audit trail for every pipe movement, no exceptions.
@@ -132,7 +133,7 @@ pub struct InventoryLog {
     pub notes: Option<String>,
     /// User ID of whoever performed the operation.
     pub created_by: Option<i64>,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }
 
 /// Inventory check record DB row. The header for a stock-counting session.
@@ -149,9 +150,9 @@ pub struct InventoryCheckRecord {
     pub notes: Option<String>,
     /// User ID of whoever created this check.
     pub created_by: Option<i64>,
-    pub created_at: String,
-    pub updated_at: String,
-    pub deleted_at: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Inventory check item DB row. One row = one pipe being verified.
@@ -172,5 +173,5 @@ pub struct InventoryCheckItem {
     pub is_match: Option<bool>,
     /// Notes about this item.
     pub notes: Option<String>,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }

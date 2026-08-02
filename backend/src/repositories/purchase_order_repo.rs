@@ -1,5 +1,6 @@
-use sqlx::{sqlite::SqliteConnection, QueryBuilder, Sqlite, SqlitePool, Transaction};
+use sqlx::{postgres::PgConnection, QueryBuilder, Postgres, PgPool, Transaction};
 
+use crate::domain::date_utils::parse_date;
 use crate::domain::money::from_decimal_opt;
 use crate::dto::common::PaginationParams;
 use crate::dto::purchase_dto::{
@@ -16,7 +17,7 @@ impl PurchaseOrderRepo {
     /// Status starts as `draft`. Automatically computes `total_amount` from item prices.
     /// Returns the created `PurchaseOrder`.
     pub async fn create_with_items(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreatePurchaseOrderRequest,
         order_no: &str,
     ) -> Result<PurchaseOrder, sqlx::Error> {
@@ -25,13 +26,13 @@ impl PurchaseOrderRepo {
         let order = sqlx::query_as::<_, PurchaseOrder>(
             "INSERT INTO purchase_orders (order_no, supplier_id, order_date, status, \
              total_amount, notes) \
-             VALUES (?, ?, ?, 'draft', 0, ?) \
+             VALUES ($1, $2, $3, 'draft', 0, $4) \
              RETURNING id, order_no, supplier_id, order_date, status, total_amount, notes, \
                created_by, created_at, updated_at, deleted_at",
         )
         .bind(order_no)
         .bind(dto.supplier_id)
-        .bind(&dto.order_date)
+        .bind(parse_date(&dto.order_date))
         .bind(&dto.notes)
         .fetch_one(&mut *tx)
         .await?;
@@ -43,7 +44,7 @@ impl PurchaseOrderRepo {
         // Recompute total_amount INSIDE the transaction — no window where total = 0
         let total: f64 = Self::sum_item_totals_in_tx(&mut tx, order.id).await?;
         if total > 0.0 {
-            sqlx::query("UPDATE purchase_orders SET total_amount = ? WHERE id = ?")
+            sqlx::query("UPDATE purchase_orders SET total_amount = $1 WHERE id = $2")
                 .bind(total)
                 .bind(order.id)
                 .execute(&mut *tx)
@@ -59,9 +60,9 @@ impl PurchaseOrderRepo {
     }
 
     /// Recalculate and update the total_amount for a purchase order by summing its items.
-    pub async fn recalculate_total(pool: &SqlitePool, order_id: i64) -> Result<(), sqlx::Error> {
+    pub async fn recalculate_total(pool: &PgPool, order_id: i64) -> Result<(), sqlx::Error> {
         let total = Self::sum_item_totals(pool, order_id).await?;
-        sqlx::query("UPDATE purchase_orders SET total_amount = ? WHERE id = ?")
+        sqlx::query("UPDATE purchase_orders SET total_amount = $1 WHERE id = $2")
             .bind(total)
             .bind(order_id)
             .execute(pool)
@@ -70,14 +71,14 @@ impl PurchaseOrderRepo {
     }
 
     async fn create_item(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         order_id: i64,
         dto: &CreatePurchaseItemRequest,
     ) -> Result<PurchaseOrderItem, sqlx::Error> {
         sqlx::query_as::<_, PurchaseOrderItem>(
             "INSERT INTO purchase_order_items (order_id, pipe_type, grade, od, wt, quantity, \
              received_quantity, unit_price, total_price, notes) \
-             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8, $9) \
              RETURNING id, order_id, pipe_type, grade, od, wt, quantity, received_quantity, \
                unit_price, total_price, notes, created_at",
         )
@@ -94,9 +95,9 @@ impl PurchaseOrderRepo {
         .await
     }
 
-    async fn sum_item_totals(pool: &SqlitePool, order_id: i64) -> Result<f64, sqlx::Error> {
+    async fn sum_item_totals(pool: &PgPool, order_id: i64) -> Result<f64, sqlx::Error> {
         let row: (Option<f64>,) = sqlx::query_as(
-            "SELECT COALESCE(SUM(total_price), 0) FROM purchase_order_items WHERE order_id = ?",
+            "SELECT COALESCE(SUM(total_price), 0) FROM purchase_order_items WHERE order_id = $1",
         )
         .bind(order_id)
         .fetch_one(pool)
@@ -105,11 +106,11 @@ impl PurchaseOrderRepo {
     }
 
     async fn sum_item_totals_in_tx(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         order_id: i64,
     ) -> Result<f64, sqlx::Error> {
         let row: (Option<f64>,) = sqlx::query_as(
-            "SELECT COALESCE(SUM(total_price), 0) FROM purchase_order_items WHERE order_id = ?",
+            "SELECT COALESCE(SUM(total_price), 0) FROM purchase_order_items WHERE order_id = $1",
         )
         .bind(order_id)
         .fetch_one(&mut **tx)
@@ -120,16 +121,16 @@ impl PurchaseOrderRepo {
     /// Dynamic UPDATE of order-level fields (`order_date`, `notes`). Only supplied fields change.
     /// Returns the updated `PurchaseOrder`.
     pub async fn update_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdatePurchaseOrderRequest,
     ) -> Result<PurchaseOrder, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("UPDATE purchase_orders SET updated_at = datetime('now')");
+        let mut builder: QueryBuilder<Postgres> =
+            QueryBuilder::new("UPDATE purchase_orders SET updated_at = NOW()");
 
         if let Some(ref val) = dto.order_date {
             builder.push(", order_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.notes {
             builder.push(", notes = ");
@@ -151,13 +152,13 @@ impl PurchaseOrderRepo {
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
     pub async fn find_by_id(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<Option<PurchaseOrder>, sqlx::Error> {
         sqlx::query_as::<_, PurchaseOrder>(
             "SELECT id, order_no, supplier_id, order_date, status, total_amount, notes, \
              created_by, created_at, updated_at, deleted_at \
-             FROM purchase_orders WHERE id = ? AND deleted_at IS NULL",
+             FROM purchase_orders WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -166,13 +167,13 @@ impl PurchaseOrderRepo {
 
     /// SELECT by unique `order_no`. Returns `None` if soft-deleted or missing.
     pub async fn find_by_order_no(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_no: &str,
     ) -> Result<Option<PurchaseOrder>, sqlx::Error> {
         sqlx::query_as::<_, PurchaseOrder>(
             "SELECT id, order_no, supplier_id, order_date, status, total_amount, notes, \
              created_by, created_at, updated_at, deleted_at \
-             FROM purchase_orders WHERE order_no = ? AND deleted_at IS NULL",
+             FROM purchase_orders WHERE order_no = $1 AND deleted_at IS NULL",
         )
         .bind(order_no)
         .fetch_optional(pool)
@@ -181,13 +182,13 @@ impl PurchaseOrderRepo {
 
     /// SELECT all line items for a purchase order, ordered by `id ASC`.
     pub async fn find_items(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_id: i64,
     ) -> Result<Vec<PurchaseOrderItem>, sqlx::Error> {
         sqlx::query_as::<_, PurchaseOrderItem>(
             "SELECT id, order_id, pipe_type, grade, od, wt, quantity, received_quantity, \
              unit_price, total_price, notes, created_at \
-             FROM purchase_order_items WHERE order_id = ? ORDER BY id ASC",
+             FROM purchase_order_items WHERE order_id = $1 ORDER BY id ASC",
         )
         .bind(order_id)
         .fetch_all(pool)
@@ -196,13 +197,13 @@ impl PurchaseOrderRepo {
 
     /// UPDATE `status` (e.g. `draft` → `submitted`). Sets `updated_at` timestamp.
     pub async fn update_status(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         status: &str,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE purchase_orders SET status = ?, updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE purchase_orders SET status = $1, updated_at = NOW() \
+             WHERE id = $2 AND deleted_at IS NULL",
         )
         .bind(status)
         .bind(id)
@@ -212,10 +213,10 @@ impl PurchaseOrderRepo {
     }
 
     /// Soft-delete: sets `deleted_at`. Sets status to `rejected` and stores reason in `notes`.
-    pub async fn reject(pool: &SqlitePool, id: i64, reason: &str) -> Result<(), sqlx::Error> {
+    pub async fn reject(pool: &PgPool, id: i64, reason: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE purchase_orders SET status = 'rejected', notes = ?, updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE purchase_orders SET status = 'rejected', notes = $1, updated_at = NOW() \
+             WHERE id = $2 AND deleted_at IS NULL",
         )
         .bind(reason)
         .bind(id)
@@ -225,10 +226,10 @@ impl PurchaseOrderRepo {
     }
 
     /// Soft-delete: sets `deleted_at` and `updated_at`.
-    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE purchase_orders SET deleted_at = datetime('now'), \
-             updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE purchase_orders SET deleted_at = NOW(), \
+             updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
@@ -240,7 +241,7 @@ impl PurchaseOrderRepo {
     /// Supports sorting by order_no, order_date, status, total_amount. JOINs suppliers for search.
     /// Returns `(items, total)`.
     pub async fn list(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &PurchaseOrderFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<PurchaseOrder>, u64), sqlx::Error> {
@@ -252,26 +253,27 @@ impl PurchaseOrderRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push("(po.order_no LIKE ? OR s.name LIKE ?)".into());
+                let base = bind_values.len() + 1;
+                conditions.push(format!("(po.order_no LIKE ${} OR s.name LIKE ${})", base, base + 1));
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern);
             }
         }
         if let Some(ref status) = filter.status {
-            conditions.push("po.status = ?".into());
+            conditions.push(format!("po.status = ${}", bind_values.len() + 1));
             bind_values.push(status.clone());
         }
         if let Some(supplier_id) = filter.supplier_id {
-            conditions.push("po.supplier_id = ?".into());
+            conditions.push(format!("po.supplier_id = ${}", bind_values.len() + 1));
             bind_values.push(supplier_id.to_string());
         }
         if let Some(ref from) = filter.order_date_from {
-            conditions.push("po.order_date >= ?".into());
+            conditions.push(format!("po.order_date >= ${}", bind_values.len() + 1));
             bind_values.push(from.clone());
         }
         if let Some(ref to) = filter.order_date_to {
-            conditions.push("po.order_date <= ?".into());
+            conditions.push(format!("po.order_date <= ${}", bind_values.len() + 1));
             bind_values.push(to.clone());
         }
 
@@ -302,8 +304,8 @@ impl PurchaseOrderRepo {
              po.total_amount, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at \
              FROM purchase_orders po \
              LEFT JOIN suppliers s ON s.id = po.supplier_id \
-             WHERE {} ORDER BY {} {} LIMIT ? OFFSET ?",
-            where_clause, sort_by, sort_order
+             WHERE {} ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause, sort_by, sort_order, bind_values.len() + 1, bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, PurchaseOrder>(&list_sql);
         for val in &bind_values {
@@ -321,11 +323,11 @@ impl PurchaseOrderRepo {
     /// Dynamic UPDATE of item fields (pipe_type, grade, od, wt, quantity, unit_price, etc.).
     /// Only supplied fields are modified. Returns the updated `PurchaseOrderItem`.
     pub async fn update_item(
-        pool: &SqlitePool,
+        pool: &PgPool,
         item_id: i64,
         dto: &UpdatePurchaseItemRequest,
     ) -> Result<PurchaseOrderItem, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE purchase_order_items SET");
 
         let mut first = true;
@@ -383,14 +385,14 @@ impl PurchaseOrderRepo {
         // This runs after every update to ensure consistency even if only one field changed.
         if dto.quantity.is_some() || dto.unit_price.is_some() {
             let computed_total = item.quantity as f64 * item.unit_price.unwrap_or(0.0);
-            sqlx::query("UPDATE purchase_order_items SET total_price = ? WHERE id = ?")
+            sqlx::query("UPDATE purchase_order_items SET total_price = $1 WHERE id = $2")
                 .bind(computed_total)
                 .bind(item.id)
                 .execute(pool)
                 .await?;
             // Re-fetch to get the updated total_price
             return sqlx::query_as::<_, PurchaseOrderItem>(
-                "SELECT id, order_id, pipe_type, grade, od, wt, quantity, received_quantity,                  unit_price, total_price, notes, created_at                  FROM purchase_order_items WHERE id = ?"
+                "SELECT id, order_id, pipe_type, grade, od, wt, quantity, received_quantity,                  unit_price, total_price, notes, created_at                  FROM purchase_order_items WHERE id = $1"
             )
             .bind(item.id)
             .fetch_one(pool)
@@ -401,8 +403,8 @@ impl PurchaseOrderRepo {
     }
 
     /// Hard DELETE from `purchase_order_items` (no soft-delete for items).
-    pub async fn delete_item(pool: &SqlitePool, item_id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM purchase_order_items WHERE id = ?")
+    pub async fn delete_item(pool: &PgPool, item_id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM purchase_order_items WHERE id = $1")
             .bind(item_id)
             .execute(pool)
             .await?;
@@ -413,16 +415,16 @@ impl PurchaseOrderRepo {
 
     /// [`update_order`] variant that runs on an existing connection (inside a tx).
     pub async fn update_order_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         id: i64,
         dto: &UpdatePurchaseOrderRequest,
     ) -> Result<PurchaseOrder, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("UPDATE purchase_orders SET updated_at = datetime('now')");
+        let mut builder: QueryBuilder<Postgres> =
+            QueryBuilder::new("UPDATE purchase_orders SET updated_at = NOW()");
 
         if let Some(ref val) = dto.order_date {
             builder.push(", order_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.notes {
             builder.push(", notes = ");
@@ -443,11 +445,11 @@ impl PurchaseOrderRepo {
     }
 
     async fn sum_item_totals_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         order_id: i64,
     ) -> Result<f64, sqlx::Error> {
         let row: (Option<f64>,) = sqlx::query_as(
-            "SELECT COALESCE(SUM(total_price), 0) FROM purchase_order_items WHERE order_id = ?",
+            "SELECT COALESCE(SUM(total_price), 0) FROM purchase_order_items WHERE order_id = $1",
         )
         .bind(order_id)
         .fetch_one(&mut *executor)
@@ -457,11 +459,11 @@ impl PurchaseOrderRepo {
 
     /// [`recalculate_total`] variant that runs on an existing connection (inside a tx).
     pub async fn recalc_total_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         order_id: i64,
     ) -> Result<(), sqlx::Error> {
         let total = Self::sum_item_totals_conn(executor, order_id).await?;
-        sqlx::query("UPDATE purchase_orders SET total_amount = ? WHERE id = ?")
+        sqlx::query("UPDATE purchase_orders SET total_amount = $1 WHERE id = $2")
             .bind(total)
             .bind(order_id)
             .execute(&mut *executor)
@@ -477,7 +479,7 @@ impl PurchaseOrderRepo {
     /// * Each item's `total_price` is recomputed as `quantity * unit_price`.
     /// * The order's `total_amount` is recalculated from the new item set.
     pub async fn replace_items_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         order_id: i64,
         items: &[UpdatePurchaseItemRequest],
     ) -> Result<(), sqlx::Error> {
@@ -488,7 +490,7 @@ impl PurchaseOrderRepo {
                 // UPDATE an existing row
                 kept_ids.push(item_id);
 
-                let mut builder: QueryBuilder<Sqlite> =
+                let mut builder: QueryBuilder<Postgres> =
                     QueryBuilder::new("UPDATE purchase_order_items SET");
                 let mut first = true;
 
@@ -549,7 +551,7 @@ impl PurchaseOrderRepo {
                         .or(updated.unit_price)
                         .unwrap_or(0.0);
                     let computed_total = qty as f64 * price;
-                    sqlx::query("UPDATE purchase_order_items SET total_price = ? WHERE id = ?")
+                    sqlx::query("UPDATE purchase_order_items SET total_price = $1 WHERE id = $2")
                         .bind(computed_total)
                         .bind(item_id)
                         .execute(&mut *executor)
@@ -563,7 +565,7 @@ impl PurchaseOrderRepo {
                 sqlx::query(
                     "INSERT INTO purchase_order_items (order_id, pipe_type, grade, od, wt, \
                      quantity, received_quantity, unit_price, total_price, notes) \
-                     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
+                     VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8, $9)",
                 )
                 .bind(order_id)
                 .bind(item.pipe_type.as_deref().unwrap_or(""))
@@ -581,7 +583,7 @@ impl PurchaseOrderRepo {
 
         // Delete items whose id is NOT in the kept set
         if kept_ids.is_empty() {
-            sqlx::query("DELETE FROM purchase_order_items WHERE order_id = ?")
+            sqlx::query("DELETE FROM purchase_order_items WHERE order_id = $1")
                 .bind(order_id)
                 .execute(&mut *executor)
                 .await?;

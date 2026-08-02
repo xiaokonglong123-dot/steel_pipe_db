@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -12,7 +13,7 @@ pub struct QualityCert {
     /// Pipe ID this cert belongs to.
     pub pipe_id: i64,
     /// Inspection date.
-    pub cert_date: Option<String>,
+    pub cert_date: Option<DateTime<Utc>>,
     /// Result: pass or fail. No middle ground.
     pub result: String,
     /// Inspector name.
@@ -21,9 +22,9 @@ pub struct QualityCert {
     pub inspection_body: Option<String>,
     /// Free-form notes.
     pub notes: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-    pub deleted_at: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// API 5CT grade reference data. Mechanical properties and chemical composition standards.
@@ -70,5 +71,5 @@ pub struct PipeAttachment {
     pub content_type: Option<String>,
     /// User ID of whoever uploaded this.
     pub uploaded_by: Option<i64>,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }

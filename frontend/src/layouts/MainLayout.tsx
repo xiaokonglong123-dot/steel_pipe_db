@@ -3,6 +3,12 @@ import { Outlet, useNavigate, useLocation, useMatches, Navigate } from 'react-ro
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
 import {
   TeamOutlined,
+  AuditOutlined,
+  ToolOutlined,
+  ProjectOutlined,
+  ApartmentOutlined,
+  BellOutlined,
+  GlobalOutlined,
   ShopOutlined,
   ShoppingCartOutlined,
   DollarOutlined,
@@ -150,10 +156,95 @@ export default function MainLayout() {
       ],
     },
     {
+      key: 'workflow',
+      icon: <AuditOutlined />,
+      label: t('menu.workflow'),
+      children: [
+        { key: '/workflow/my-tasks', label: t('menu.workflow_tasks') },
+        { key: '/workflow/definitions', label: t('menu.workflow_definitions'), roles: ['admin'] },
+      ],
+    },
+    {
+      key: 'hr',
+      icon: <TeamOutlined />,
+      label: t('menu.hr'),
+      children: [
+        { key: '/hr/employees', label: t('menu.hr_employees'), roles: ['admin'] },
+        { key: '/hr/salaries', label: t('menu.hr_salaries'), roles: ['admin'] },
+      ],
+    },
+    {
+      key: 'finance',
+      icon: <DollarOutlined />,
+      label: t('menu.finance'),
+      children: [{ key: '/finance', label: t('menu.finance_overview'), roles: ['admin'] }],
+    },
+    {
+      key: 'procurement',
+      icon: <ShoppingCartOutlined />,
+      label: t('menu.procurement'),
+      children: [{ key: '/procurement', label: t('menu.procurement_overview'), roles: ['admin'] }],
+    },
+    {
+      key: 'sales-crm',
+      icon: <ShopOutlined />,
+      label: t('menu.sales_crm'),
+      children: [{ key: '/sales/crm', label: t('menu.sales_crm_overview'), roles: ['admin'] }],
+    },
+    {
+      key: 'inventory-atp',
+      icon: <ContainerOutlined />,
+      label: t('menu.atp'),
+      children: [{ key: '/inventory/atp', label: t('menu.atp_overview'), roles: ['admin'] }],
+    },
+    {
+      key: 'manufacturing',
+      icon: <ToolOutlined />,
+      label: t('menu.manufacturing'),
+      children: [
+        { key: '/manufacturing', label: t('menu.manufacturing_overview'), roles: ['admin'] },
+        { key: '/threading', label: t('menu.threading'), roles: ['admin'] },
+      ],
+    },
+    {
+      key: 'projects',
+      icon: <ProjectOutlined />,
+      label: t('menu.projects'),
+      children: [{ key: '/projects', label: t('menu.projects_overview'), roles: ['admin'] }],
+    },
+    {
+      key: 'bi',
+      icon: <BarChartOutlined />,
+      label: t('menu.bi'),
+      children: [{ key: '/bi', label: t('menu.bi_dashboard'), roles: ['admin'] }],
+    },
+    {
+      key: 'assets',
+      icon: <ApartmentOutlined />,
+      label: t('menu.assets'),
+      children: [{ key: '/assets', label: t('menu.assets_overview'), roles: ['admin'] }],
+    },
+    {
+      key: 'notifications',
+      icon: <BellOutlined />,
+      label: t('menu.notifications'),
+      children: [{ key: '/notifications', label: t('menu.notifications_inbox') }],
+    },
+    {
+      key: 'portal',
+      icon: <GlobalOutlined />,
+      label: t('menu.portal'),
+      children: [{ key: '/portal', label: t('menu.portal_admin'), roles: ['admin'] }],
+    },
+    {
       key: 'system',
       icon: <SettingOutlined />,
       label: t('menu.system'),
-      children: [{ key: '/system/users', label: t('menu.user_management'), roles: ['admin'] }],
+      children: [
+        { key: '/system/users', label: t('menu.user_management'), roles: ['admin'] },
+        { key: '/system/roles', label: t('menu.role_management'), roles: ['admin'] },
+        { key: '/system/departments', label: t('menu.department_management'), roles: ['admin'] },
+      ],
     },
     {
       key: 'profile',
