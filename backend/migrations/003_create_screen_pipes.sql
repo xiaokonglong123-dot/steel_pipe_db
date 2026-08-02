@@ -4,29 +4,29 @@
 -- No FK constraints — integrity enforced at application layer.
 -- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS screen_pipes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     pipe_number TEXT NOT NULL UNIQUE,
     batch_number TEXT,
     screen_type TEXT NOT NULL CHECK (screen_type IN ('wire_wrapped', 'slotted', 'punched', 'metal_felt')),
-    slot_size REAL,
+    slot_size DOUBLE PRECISION,
     filtration_grade TEXT,
-    base_od REAL NOT NULL,
-    base_wt REAL NOT NULL,
+    base_od DOUBLE PRECISION NOT NULL,
+    base_wt DOUBLE PRECISION NOT NULL,
     base_grade TEXT NOT NULL,
     base_end_type TEXT,
-    length REAL,
-    weight_per_unit REAL,
+    length DOUBLE PRECISION,
+    weight_per_unit DOUBLE PRECISION,
     heat_number TEXT,
     serial_number TEXT,
     manufacturer TEXT,
-    production_date TEXT,
+    production_date TIMESTAMPTZ,
     cert_number TEXT,
-    location_id INTEGER,
+    location_id BIGINT,
     status TEXT NOT NULL DEFAULT 'in_stock' CHECK (status IN ('in_stock', 'outbound', 'scrapped')),
     notes TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    deleted_at TEXT
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 CREATE INDEX idx_screen_pipes_screen_type ON screen_pipes(screen_type);

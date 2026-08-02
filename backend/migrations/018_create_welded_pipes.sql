@@ -4,28 +4,28 @@
 -- No FK constraints — integrity enforced at application layer.
 -- Soft delete via deleted_at column.
 CREATE TABLE IF NOT EXISTS welded_pipes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     pipe_number TEXT NOT NULL UNIQUE,
     batch_number TEXT,
     pipe_type TEXT NOT NULL CHECK (pipe_type IN ('erw', 'saw', 'hfi')),
     grade TEXT NOT NULL,
-    od REAL NOT NULL,
-    wt REAL NOT NULL,
-    length REAL,
-    weight_per_unit REAL,
+    od DOUBLE PRECISION NOT NULL,
+    wt DOUBLE PRECISION NOT NULL,
+    length DOUBLE PRECISION,
+    weight_per_unit DOUBLE PRECISION,
     end_type TEXT,
     seam_type TEXT,
     heat_number TEXT,
     serial_number TEXT,
     manufacturer TEXT,
-    production_date TEXT,
+    production_date TIMESTAMPTZ,
     cert_number TEXT,
-    location_id INTEGER,
+    location_id BIGINT,
     status TEXT NOT NULL DEFAULT 'in_stock' CHECK (status IN ('in_stock', 'outbound', 'scrapped')),
     notes TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    deleted_at TEXT
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- Indexes for common query patterns
