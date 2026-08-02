@@ -50,6 +50,10 @@ steel-pipe-db/
 │       ├── auth/           ← RBAC: repos.rs + services.rs (IdentityService) + handlers.rs (roles/permissions/departments/tenants)
 │       ├── workflow/       ← approval engine: repos.rs + services.rs (WorkflowService) + handlers.rs (definitions/instances/tasks)
 │       ├── hr/             ← HR: repos.rs + services.rs (HrService) + handlers.rs (employees/attendance/salaries/contracts)
+│       ├── finance/        ← Finance: repos.rs + services.rs (FinanceService) + handlers.rs (accounts/journal/invoices/payments/trial-balance)
+│       ├── procurement/    ← Procurement: repos.rs + services.rs + handlers.rs (requisitions/receipts/quotes/scorecard)
+│       ├── sales_crm/      ← Sales CRM: repos.rs + services.rs + handlers.rs (shipments/quotes/customer credit)
+│       ├── inventory_atp/  ← Inventory ATP: repos.rs + services.rs + handlers.rs (reservations/transfers/count sessions)
 │       ├── config.rs       ← Env-based config (DATABASE_URL, JWT_SECRET, etc.)
 │       ├── error.rs        ← AppError enum, numeric error codes; ApiErrorResponse with success+request_id
 │       └── response.rs     ← ApiResponse<T>, PaginatedResponse<T>, Meta struct, request_id (uuid v4), ::created(), no_content()
