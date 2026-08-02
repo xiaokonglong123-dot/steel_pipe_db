@@ -35,7 +35,7 @@ Backend runs on `http://localhost:3000`, frontend dev on `http://localhost:5173`
 
 ```
 steel-pipe-db/
-├── backend/          ← Rust Axum 0.8 REST API (SQLite, JWT/Argon2)
+├── backend/          ← Rust Axum 0.8 REST API (PostgreSQL, JWT/Argon2)
 │   └── src/
 │       ├── main.rs         ← Entry: tracing, DB pool, migrate, start server
 │       ├── lib.rs          ← Module declarations re-exported
@@ -72,7 +72,7 @@ steel-pipe-db/
 ### Backend
 - **Rust** edition 2021, nightly 2024-02-08
 - **Axum 0.8** with macros + multipart features
-- **SQLx 0.8** with SQLite, runtime-tokio-rustls, chrono
+- **SQLx 0.8** with PostgreSQL, runtime-tokio-rustls, chrono
 - **Auth**: jsonwebtoken 9 + argon2 0.5 (NOT bcrypt)
 - **Validation**: validator 0.19 with derive
 - **Tracing**: tracing + tracing-subscriber with env-filter + json
@@ -165,8 +165,10 @@ Same deal — static methods, `pool: &SqlitePool`. Soft-delete: `WHERE deleted_a
 ### Repository Files (20)
 `pipe_repo`, `inventory_repo`, `location_repo`, `inbound_repo`, `outbound_repo`, `inventory_log_repo`, `check_repo`, `purchase_order_repo`, `sales_order_repo`, `quality_repo`, `contract_repo`, `customer_repo`, `supplier_repo`, `label_repo`, `report_repo`, `data_io_repo`, `user_repo`, `operation_log_repo`, `refresh_token_repo`
 
-### DB Migrations (11 files in `backend/migrations/`)
-`001_create_users` → `002_create_seamless_pipes` → `003_create_screen_pipes` → `004_create_locations` → `005_create_inventory` → `006_create_orders` → `007_create_quality` → `008_create_logs` → `009_create_ref_data` → `010_seed_api_5ct_data` → `011_add_rejection_reason`
+### DB Migrations (20 files in `backend/migrations/`)
+`001_create_users` → `002_create_seamless_pipes` → `003_create_screen_pipes` → `004_create_locations` → `005_create_inventory` → `006_create_orders` → `007_create_quality` → `008_create_logs` → `009_create_ref_data` → `010_seed_api_5ct_data` → `011_add_rejection_reason` → `012_add_indexes` → `013_add_approval_reason` → `014_create_refresh_tokens` → `015_fix_contract_constraints` → `016_add_performance_indexes` → `017_seed_initial_data` → `018_create_welded_pipes` → `019_fix_status_checks_and_indexes` → `021_unique_quality_certs_pipe`
+
+Migrations run against PostgreSQL (`postgres://postgres@localhost:5432/steel_pipe`); each test gets an isolated `test_<pid>_<n>` schema via `search_path`. Local PG lifecycle is managed by `scripts/pg-dev.sh`.
 
 ## Frontend Patterns
 
