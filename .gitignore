@@ -78,3 +78,6 @@ backups/
 # ── Project specific ──
 pipes.db
 steel_pipe.ico
+
+# ── Worktrees ──
+.worktrees/
