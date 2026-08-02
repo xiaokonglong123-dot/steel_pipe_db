@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateCheckRequest, SubmitCheckItemRequest};
@@ -15,7 +15,7 @@ pub struct CheckService;
 impl CheckService {
     /// Creates a check order. Auto-scans all `in_stock` pipes into check items and generates a CHK-prefixed number.
     pub async fn create_check(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateCheckRequest,
     ) -> Result<InventoryCheckRecord, AppError> {
         let check_no = utils::generate_no("CHK");
@@ -61,7 +61,7 @@ impl CheckService {
     /// # Errors
     /// - `AppError::NotFound` — check record not found
     pub async fn get_check_detail(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<(InventoryCheckRecord, Vec<InventoryCheckItem>), AppError> {
         let record = CheckRepo::find_by_id(pool, id)
@@ -78,7 +78,7 @@ impl CheckService {
 
     /// Paginated list of check records.
     pub async fn list_checks(
-        pool: &SqlitePool,
+        pool: &PgPool,
         params: &PaginationParams,
     ) -> Result<(Vec<InventoryCheckRecord>, u64), AppError> {
         CheckRepo::list(pool, params).await.map_err(AppError::from)
@@ -90,7 +90,7 @@ impl CheckService {
     /// - `AppError::NotFound` — check record not found
     /// - `AppError::Validation` — check ain't in progress
     pub async fn submit_check_item(
-        pool: &SqlitePool,
+        pool: &PgPool,
         check_id: i64,
         item_id: i64,
         dto: &SubmitCheckItemRequest,
@@ -124,7 +124,7 @@ impl CheckService {
     /// - `AppError::NotFound` — check record not found
     /// - `AppError::Validation` — can't complete in the current state
     pub async fn complete_check(
-        pool: &SqlitePool,
+        pool: &PgPool,
         check_id: i64,
     ) -> Result<serde_json::Value, AppError> {
         let record = CheckRepo::find_by_id(pool, check_id)

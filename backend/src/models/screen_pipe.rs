@@ -29,7 +29,7 @@ pub struct ScreenPipe {
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub deleted_at: Option<String>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl PipeModel for ScreenPipe {
@@ -58,7 +58,7 @@ impl PipeModel for ScreenPipe {
     fn heat_number(&self) -> Option<&str> { self.heat_number.as_deref() }
     fn serial_number(&self) -> Option<&str> { self.serial_number.as_deref() }
     fn manufacturer(&self) -> Option<&str> { self.manufacturer.as_deref() }
-    fn deleted_at(&self) -> Option<&str> { self.deleted_at.as_deref() }
+    fn deleted_at(&self) -> Option<&chrono::DateTime<Utc>> { self.deleted_at.as_ref() }
 
     fn valid_sort_column(col: &str) -> Option<&'static str> {
         match col {

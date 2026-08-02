@@ -4,7 +4,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use validator::Validate;
 
@@ -24,7 +24,7 @@ use crate::services::purchase_service::PurchaseService;
 ///
 /// Returns paginated purchase orders, filterable by status, supplier, date range, etc.
 pub async fn list_purchase_orders_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(filter): Query<PurchaseOrderFilterParams>,
 ) -> Result<Json<PaginatedResponse<PurchaseOrder>>, AppError> {
     let pagination = PaginationParams {
@@ -47,7 +47,7 @@ pub async fn list_purchase_orders_handler(
 /// Creates a new purchase order with supplier, items, and delivery info.
 /// Validates the request body. Admin/procurement role required.
 pub async fn create_purchase_order_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Json(req): Json<CreatePurchaseOrderRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()
@@ -61,7 +61,7 @@ pub async fn create_purchase_order_handler(
 /// Returns the purchase order header plus its line items in a standard ApiResponse envelope.
 /// Returns 404 if not found.
 pub async fn get_purchase_order_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PurchaseOrderDetailResponse>>, AppError> {
     let (order, items) = PurchaseService::get_purchase_order(&pool, id).await?;
@@ -76,7 +76,7 @@ pub async fn get_purchase_order_handler(
 /// Updates an existing purchase order (items, dates, terms, etc.).
 /// Validates the request body. Returns 404 if not found.
 pub async fn update_purchase_order_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
     Json(req): Json<UpdatePurchaseOrderRequest>,
 ) -> Result<Json<ApiResponse<PurchaseOrder>>, AppError> {
@@ -90,7 +90,7 @@ pub async fn update_purchase_order_handler(
 ///
 /// Soft-deletes a purchase order. Returns 404 if not found.
 pub async fn delete_purchase_order_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
     PurchaseService::delete_purchase_order(&pool, id).await?;
@@ -102,7 +102,7 @@ pub async fn delete_purchase_order_handler(
 /// Transitions the purchase order to a new status (e.g., confirmed, received, closed).
 /// Validates the status transition request. Returns 400 on invalid transition.
 pub async fn transition_purchase_order_status_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
     Json(req): Json<PurchaseOrderStatusTransitionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -120,7 +120,7 @@ pub async fn transition_purchase_order_status_handler(
 /// Updates a specific line item within a purchase order (quantity, price, spec, etc.).
 /// Validates the request body. Returns 404 if order or item not found.
 pub async fn update_purchase_item_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path((order_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<UpdatePurchaseItemRequest>,
 ) -> Result<Json<ApiResponse<PurchaseOrder>>, AppError> {
@@ -135,7 +135,7 @@ pub async fn update_purchase_item_handler(
 ///
 /// Removes a line item from a purchase order. Returns 404 if order or item not found.
 pub async fn delete_purchase_item_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path((order_id, item_id)): Path<(i64, i64)>,
 ) -> Result<axum::response::Response, AppError> {
     PurchaseService::delete_purchase_item(&pool, order_id, item_id).await?;
@@ -147,7 +147,7 @@ pub async fn delete_purchase_item_handler(
 /// Approves a purchase order, moving it to approved status.
 /// Admin/procurement role required. Returns 404 if not found.
 pub async fn approve_purchase_order_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
     Json(dto): Json<ApproveOrderRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -159,7 +159,7 @@ pub async fn approve_purchase_order_handler(
 ///
 /// Rejects a purchase order with a reason. Returns 404 if not found.
 pub async fn reject_purchase_order_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
     Json(dto): Json<RejectOrderRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -172,7 +172,7 @@ pub async fn reject_purchase_order_handler(
 /// Links an existing inbound record to a purchase order for traceability.
 /// Returns 404 if order or inbound record not found.
 pub async fn link_inbound_to_order_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(order_id): Path<i64>,
     Json(req): Json<LinkInboundRequest>,
 ) -> Result<axum::response::Response, AppError> {

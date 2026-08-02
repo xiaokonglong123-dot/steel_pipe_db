@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::domain::pipe::PipeType;
 use crate::dto::inventory_dto::{
@@ -19,7 +19,7 @@ use crate::services::utils;
 /// After outbound execution, refresh location used_counts for all affected pipes.
 /// This ensures the `used_count` column stays consistent with actual stock.
 async fn refresh_outbound_locations(
-    pool: &SqlitePool,
+    pool: &PgPool,
     items: &[OutboundPipeItem],
 ) -> Result<(), AppError> {
     let mut location_ids = std::collections::BTreeSet::new();
@@ -57,7 +57,7 @@ impl OutboundService {
     /// - `AppError::NotFound` — pipe ID doesn't exist
     /// - `AppError::InsufficientStock` — pipe is not `in_stock`
     pub async fn create_outbound(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateOutboundRecordRequest,
     ) -> Result<OutboundRecord, AppError> {
         if dto.pipes.is_empty() {
@@ -147,7 +147,7 @@ impl OutboundService {
     /// Applies outbound stock changes for all pipe items in a single transaction.
     /// If any item fails, the entire batch is rolled back.
     async fn execute_outbound_batch(
-        pool: &SqlitePool,
+        pool: &PgPool,
         record_id: i64,
         outbound_type: &str,
         created_by: Option<i64>,
@@ -211,7 +211,7 @@ impl OutboundService {
     /// - `AppError::NotFound` — record doesn't exist or was deleted
     /// - `AppError::Validation` — current state won't allow approval
     pub async fn approve_outbound(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         approval_reason: Option<&str>,
         handled_by: Option<i64>,
@@ -338,7 +338,7 @@ impl OutboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     /// - `AppError::Validation` — can't reject in this state
-    pub async fn reject_outbound(pool: &SqlitePool, id: i64, reason: &str) -> Result<(), AppError> {
+    pub async fn reject_outbound(pool: &PgPool, id: i64, reason: &str) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -363,7 +363,7 @@ impl OutboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     pub async fn get_outbound_record(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<(OutboundRecord, Vec<OutboundItem>), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
@@ -381,7 +381,7 @@ impl OutboundService {
     /// Paginated outbound records — filter by date, status, type, etc.
     /// Returns `(records, total_count)`.
     pub async fn list_outbound_records(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &OutboundFilter,
     ) -> Result<(Vec<OutboundRecord>, u64), AppError> {
         OutboundRepo::list(pool, filter)
@@ -394,7 +394,7 @@ impl OutboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     /// - `AppError::Validation` — current state doesn't allow deletion
-    pub async fn delete_outbound(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
+    pub async fn delete_outbound(pool: &PgPool, id: i64) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -417,7 +417,7 @@ impl OutboundService {
     /// - `AppError::NotFound` — record not found or was deleted
     /// - `AppError::Validation` — current status doesn't allow updates
     pub async fn update_outbound(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateOutboundRecordRequest,
     ) -> Result<OutboundRecord, AppError> {
@@ -447,7 +447,7 @@ impl OutboundService {
 
     /// Gets all line items for a given outbound record.
     pub async fn list_outbound_items(
-        pool: &SqlitePool,
+        pool: &PgPool,
         outbound_id: i64,
     ) -> Result<Vec<OutboundItem>, AppError> {
         OutboundRepo::find_items(pool, outbound_id)

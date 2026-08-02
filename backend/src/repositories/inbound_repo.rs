@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, PgPool, Transaction};
+use sqlx::{QueryBuilder, Postgres, PgPool, Transaction};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateInboundRecordRequest, InboundFilter, UpdateInboundRecordRequest};
@@ -12,7 +12,7 @@ impl InboundRepo {
     /// Used by the service layer when composing multi-record operations.
     /// Caller manages commit/rollback.
     pub async fn create_inner(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         dto: &CreateInboundRecordRequest,
         inbound_no: &str,
     ) -> Result<InboundRecord, sqlx::Error> {
@@ -52,7 +52,7 @@ impl InboundRepo {
     /// UPDATE `inbound_records` status to `approved` inside an existing transaction.
     /// Returns the number of rows affected (0 if record was already processed or deleted).
     pub async fn approve(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         id: i64,
         approval_reason: Option<&str>,
         handled_by: Option<i64>,
@@ -303,7 +303,7 @@ impl InboundRepo {
         id: i64,
         dto: &UpdateInboundRecordRequest,
     ) -> Result<InboundRecord, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE inbound_records SET updated_at = NOW()");
 
         if let Some(ref val) = dto.notes {

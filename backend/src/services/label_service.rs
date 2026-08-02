@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::dto::label_dto::{BatchLabelRequest, ShippingLabelRequest};
 use crate::error::AppError;
@@ -17,7 +17,7 @@ impl LabelService {
     /// - `AppError::PipeNotFound` — pipe ID doesn't exist
     /// - `AppError::Validation` — invalid pipe_type
     pub async fn generate_pipe_label(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<String, AppError> {
@@ -60,7 +60,7 @@ impl LabelService {
     /// - `AppError::PipeNotFound` — any pipe ID doesn't exist
     /// - `AppError::Validation` — any pipe_type is invalid
     pub async fn generate_batch_labels(
-        pool: &SqlitePool,
+        pool: &PgPool,
         req: &BatchLabelRequest,
     ) -> Result<String, AppError> {
         let mut labels = Vec::new();
@@ -111,7 +111,7 @@ impl LabelService {
     /// # Errors
     /// - `AppError::QualityCertNotFound` — cert ID doesn't exist
     /// - `AppError::PipeNotFound` — linked pipe doesn't exist
-    pub async fn generate_quality_tag(pool: &SqlitePool, cert_id: i64) -> Result<String, AppError> {
+    pub async fn generate_quality_tag(pool: &PgPool, cert_id: i64) -> Result<String, AppError> {
         let cert = LabelRepo::find_quality_cert(pool, cert_id)
             .await
             .map_err(AppError::from)?
@@ -163,7 +163,7 @@ impl LabelService {
     /// - `AppError::PipeNotFound` — pipe ID doesn't exist
     /// - `AppError::Validation` — invalid pipe_type
     pub async fn generate_shipping_label(
-        pool: &SqlitePool,
+        pool: &PgPool,
         req: &ShippingLabelRequest,
     ) -> Result<String, AppError> {
         match req.pipe_type.as_str() {

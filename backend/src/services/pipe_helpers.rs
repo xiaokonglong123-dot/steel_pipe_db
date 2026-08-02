@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::domain::pipe::PipeModel;
 use crate::error::AppError;
@@ -10,7 +10,7 @@ pub struct PipeHelpers;
 
 impl PipeHelpers {
     pub async fn validate_pipes_for_inbound<P: PipeModel>(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_ids: &[i64],
     ) -> Result<(), AppError> {
         let pipes = GenericPipeRepo::<P>::find_by_ids(pool, pipe_ids)

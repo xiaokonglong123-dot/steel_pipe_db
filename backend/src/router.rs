@@ -15,7 +15,7 @@
 //!   → route_layer(rbac::require_role)
 //!     → layer(CORS)
 //!       → layer(Trace + RequestId)
-//!         → layer(Extension<SqlitePool>)
+//!         → layer(Extension<PgPool>)
 //!           → layer(Extension<JwtSecret>)
 //!             → layer(Extension<RateLimiter>)
 //! ```
@@ -47,7 +47,7 @@ use axum::{
     },
     middleware, Router,
 };
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use tower::ServiceBuilder;
 use tower_http::{request_id::MakeRequestUuid, ServiceBuilderExt};
 
@@ -385,7 +385,7 @@ fn contract_write_routes() -> Router {
 // Main app builder — assembles all route groups, middleware, and shared layers
 
 pub fn create_app(
-    pool: SqlitePool,
+    pool: PgPool,
     jwt_secret: String,
     cors_origins: Vec<HeaderValue>,
     cache_manager: CacheManager,

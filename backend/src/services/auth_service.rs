@@ -4,7 +4,7 @@ use argon2::{
 };
 use jsonwebtoken::{encode, Header};
 use sha2::{Digest, Sha256};
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::dto::auth_dto::{
@@ -28,7 +28,7 @@ impl AuthService {
     /// refresh token, stores the refresh token hash in the DB, updates `last_login`,
     /// and returns both tokens + user profile.
     pub async fn login(
-        pool: &SqlitePool,
+        pool: &PgPool,
         jwt_secret: &str,
         jwt_expiry_hours: i64,
         refresh_token_expiry_days: i64,
@@ -88,7 +88,7 @@ impl AuthService {
     /// The incoming refresh token is revoked (rotation), and a new pair is issued.
     /// Tokens that are expired, revoked, or not found are rejected.
     pub async fn refresh_token(
-        pool: &SqlitePool,
+        pool: &PgPool,
         jwt_secret: &str,
         jwt_expiry_hours: i64,
         refresh_token_expiry_days: i64,
@@ -138,7 +138,7 @@ impl AuthService {
     }
 
     /// Revoke all refresh tokens for a user (logout / forced session invalidation).
-    pub async fn logout(pool: &SqlitePool, user_id: i64) -> Result<(), AppError> {
+    pub async fn logout(pool: &PgPool, user_id: i64) -> Result<(), AppError> {
         RefreshTokenRepo::revoke_all_for_user(pool, user_id)
             .await
             .map_err(AppError::from)?;
@@ -148,7 +148,7 @@ impl AuthService {
     /// Creates a new user and returns the basic profile.
     /// Hashes the password with Argon2 before storing it in the DB.
     pub async fn create_user(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateUserRequest,
     ) -> Result<UserInfo, AppError> {
         let existing = UserRepo::find_by_username(pool, &dto.username)
@@ -178,7 +178,7 @@ impl AuthService {
     /// Updates the user's profile — display name, email, phone, etc.
     /// Returns the updated `UserInfo`.
     pub async fn update_user(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateUserRequest,
     ) -> Result<UserInfo, AppError> {
@@ -204,7 +204,7 @@ impl AuthService {
     /// Changes the user's password.
     /// Admins bypass the old-password check; everyone else must provide their current password.
     pub async fn change_password(
-        pool: &SqlitePool,
+        pool: &PgPool,
         user_id: i64,
         current_user_role: &str,
         req: &ChangePasswordRequest,
@@ -241,7 +241,7 @@ impl AuthService {
     }
 
     /// Fetches the currently logged-in user's own profile.
-    pub async fn get_me(pool: &SqlitePool, user_id: i64) -> Result<UserInfo, AppError> {
+    pub async fn get_me(pool: &PgPool, user_id: i64) -> Result<UserInfo, AppError> {
         let user = UserRepo::find_by_id(pool, user_id)
             .await
             .map_err(AppError::from)?
@@ -260,7 +260,7 @@ impl AuthService {
     /// Paginated user list with fuzzy username search.
     /// Returns a tuple of `(user_infos, total_count)`.
     pub async fn list_users(
-        pool: &SqlitePool,
+        pool: &PgPool,
         params: &crate::dto::common::PaginationParams,
         q: Option<&str>,
     ) -> Result<(Vec<UserInfo>, u64), AppError> {
@@ -336,7 +336,7 @@ impl AuthService {
 
     /// Swaps a user's role — only accepts admin/warehouse/qc/sales, no-BS.
     pub async fn change_role(
-        pool: &SqlitePool,
+        pool: &PgPool,
         user_id: i64,
         new_role: &str,
     ) -> Result<UserInfo, AppError> {
@@ -369,7 +369,7 @@ impl AuthService {
     }
 
     /// Soft-deletes a user by flipping on the `deleted_at` flag.
-    pub async fn delete_user(pool: &SqlitePool, user_id: i64) -> Result<(), AppError> {
+    pub async fn delete_user(pool: &PgPool, user_id: i64) -> Result<(), AppError> {
         let user = UserRepo::find_by_id(pool, user_id)
             .await
             .map_err(AppError::from)?

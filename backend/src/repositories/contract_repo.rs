@@ -1,4 +1,4 @@
-use sqlx::{postgres::SqliteConnection, QueryBuilder, Sqlite, PgPool};
+use sqlx::{postgres::PgConnection, QueryBuilder, Postgres, PgPool};
 
 use crate::domain::money::{from_decimal, from_decimal_opt};
 use crate::dto::common::PaginationParams;
@@ -80,7 +80,7 @@ impl ContractRepo {
         id: i64,
         dto: &UpdateContractRequest,
     ) -> Result<Contract, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE contracts SET updated_at = NOW()");
 
         if let Some(ref val) = dto.title {
@@ -343,7 +343,7 @@ impl ContractRepo {
         item_id: i64,
         dto: &UpdateContractItemRequest,
     ) -> Result<ContractItem, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE contract_items SET");
+        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE contract_items SET");
 
         let mut sep = false;
         if let Some(ref val) = dto.pipe_type {
@@ -488,7 +488,7 @@ impl ContractRepo {
         payment_id: i64,
         dto: &UpdatePaymentRequest,
     ) -> Result<ContractPayment, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE contract_payments SET");
+        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE contract_payments SET");
 
         let mut sep = false;
         if let Some(ref val) = dto.due_date {
@@ -597,7 +597,7 @@ impl ContractRepo {
 
     /// [`next_contract_no`] variant that runs on an existing connection (inside a tx).
     async fn next_contract_no_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         contract_type: &str,
     ) -> Result<String, sqlx::Error> {
         let prefix = match contract_type {
@@ -628,7 +628,7 @@ impl ContractRepo {
 
     /// [`create`] variant that runs on an existing connection (inside a tx).
     pub async fn create_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         dto: &CreateContractRequest,
     ) -> Result<Contract, sqlx::Error> {
         let contract_no = Self::next_contract_no_conn(&mut *executor, &dto.contract_type).await?;
@@ -656,7 +656,7 @@ impl ContractRepo {
 
     /// [`create_items`] variant that runs on an existing connection (inside a tx).
     pub async fn create_items_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         contract_id: i64,
         items: &[CreateContractItemRequest],
     ) -> Result<Vec<ContractItem>, sqlx::Error> {
@@ -692,7 +692,7 @@ impl ContractRepo {
     /// Guarded status UPDATE: only succeeds when current status matches `current_status`.
     /// Returns `None` when no row was updated (TOCTOU detected).
     pub async fn update_status_if_current(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         id: i64,
         current_status: &str,
         new_status: &str,
@@ -713,7 +713,7 @@ impl ContractRepo {
 
     /// [`update_total_amount`] variant that runs on an existing connection (inside a tx).
     pub async fn update_total_amount_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         id: i64,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
@@ -730,11 +730,11 @@ impl ContractRepo {
 
     /// [`update`] variant that runs on an existing connection (inside a tx).
     pub async fn update_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         id: i64,
         dto: &UpdateContractRequest,
     ) -> Result<Contract, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE contracts SET updated_at = NOW()");
 
         if let Some(ref val) = dto.title {
@@ -779,7 +779,7 @@ impl ContractRepo {
 
     /// [`find_by_id`] variant that runs on an existing connection (inside a tx).
     pub async fn find_by_id_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         id: i64,
     ) -> Result<Option<Contract>, sqlx::Error> {
         sqlx::query_as::<_, Contract>(
@@ -795,11 +795,11 @@ impl ContractRepo {
 
     /// [`update_item`] variant that runs on an existing connection (inside a tx).
     pub async fn update_item_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         item_id: i64,
         dto: &UpdateContractItemRequest,
     ) -> Result<ContractItem, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE contract_items SET");
+        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE contract_items SET");
 
         let mut sep = false;
         if let Some(ref val) = dto.pipe_type {
@@ -909,7 +909,7 @@ impl ContractRepo {
 
     /// [`delete_item`] variant that runs on an existing connection (inside a tx).
     pub async fn delete_item_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         item_id: i64,
     ) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM contract_items WHERE id = $1")
@@ -923,7 +923,7 @@ impl ContractRepo {
     /// Used during bulk item replacement on contract update.
     /// When `keep_ids` is empty, deletes ALL items for the contract.
     pub async fn delete_items_not_in_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         contract_id: i64,
         keep_ids: &[i64],
     ) -> Result<(), sqlx::Error> {

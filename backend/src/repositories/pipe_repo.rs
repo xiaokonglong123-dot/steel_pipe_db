@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, PgPool};
+use sqlx::{QueryBuilder, Postgres, PgPool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::{
@@ -58,7 +58,7 @@ impl SeamlessPipeRepo {
         id: i64,
         dto: &UpdateSeamlessPipeRequest,
     ) -> Result<SeamlessPipe, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE seamless_pipes SET updated_at = NOW()");
 
         if let Some(ref val) = dto.batch_number {
@@ -413,7 +413,7 @@ impl ScreenPipeRepo {
         id: i64,
         dto: &UpdateScreenPipeRequest,
     ) -> Result<ScreenPipe, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE screen_pipes SET updated_at = NOW()");
 
         if let Some(ref val) = dto.batch_number {

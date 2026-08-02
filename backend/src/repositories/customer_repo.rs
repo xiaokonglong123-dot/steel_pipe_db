@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, PgPool};
+use sqlx::{QueryBuilder, Postgres, PgPool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::customer_dto::{
@@ -41,7 +41,7 @@ impl CustomerRepo {
         id: i64,
         dto: &UpdateCustomerRequest,
     ) -> Result<Customer, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE customers SET updated_at = NOW()");
 
         if let Some(ref val) = dto.name {

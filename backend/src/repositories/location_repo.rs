@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, PgPool};
+use sqlx::{QueryBuilder, Postgres, PgPool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateLocationRequest, UpdateLocationRequest};
@@ -63,7 +63,7 @@ impl LocationRepo {
         id: i64,
         dto: &UpdateLocationRequest,
     ) -> Result<Location, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE locations SET updated_at = NOW()");
 
         if let Some(ref val) = dto.description {

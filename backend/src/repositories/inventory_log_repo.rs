@@ -1,4 +1,4 @@
-use sqlx::postgres::Sqlite;
+use sqlx::Postgres;
 use sqlx::{PgPool, Transaction};
 
 use crate::dto::common::PaginationParams;
@@ -13,7 +13,7 @@ pub struct InventoryLogRepo;
 impl InventoryLogRepo {
     /// INSERT a row into `inventory_logs` using a transaction. Returns the newly created log entry with generated `id`.
     pub async fn create_in_transaction(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         log: &CreateInventoryLog,
     ) -> Result<InventoryLog, sqlx::Error> {
         sqlx::query_as::<_, InventoryLog>(

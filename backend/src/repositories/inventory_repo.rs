@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sqlx::{Executor, QueryBuilder, Sqlite, PgPool};
+use sqlx::{Executor, QueryBuilder, Postgres, PgPool};
 
 use crate::domain::pipe::PipeType;
 
@@ -50,13 +50,13 @@ impl InventoryRepo {
     ///
     /// Accepts any SQLx executor (`&PgPool`, `&mut Transaction`, `&mut Connection`), making it
     /// safe to use inside an `IMMEDIATE` transaction for TOCTOU-free ATP checks.
-    pub async fn find_atp<'e, E: Executor<'e, Database = Sqlite>>(
+    pub async fn find_atp<'e, E: Executor<'e, Database = Postgres>>(
         executor: E,
         pipe_type: &Option<String>,
         grade: &Option<String>,
         location_id: &Option<i64>,
     ) -> Result<Vec<(String, String, i64, Option<i64>)>, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new(
             "SELECT pipe_type, grade, SUM(cnt) as quantity, location_id FROM ( \
              SELECT pipe_type, grade, COUNT(*) as cnt, location_id \
              FROM seamless_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
@@ -275,7 +275,7 @@ impl InventoryRepo {
     /// Used by outbound operations to prevent double-deduction.
     /// Returns rows affected (0 means pipe was not in_stock).
     /// Accepts any SQLx executor, safe to use inside transactions.
-    pub async fn update_pipe_status_with_stock_check<'e, E: Executor<'e, Database = Sqlite>>(
+    pub async fn update_pipe_status_with_stock_check<'e, E: Executor<'e, Database = Postgres>>(
         executor: E,
         pipe_type: &str,
         pipe_id: i64,
@@ -304,7 +304,7 @@ impl InventoryRepo {
     }
 
     /// Returns `status` for a given pipe (seamless, screen, or welded). Returns `None` if not found.
-    pub async fn get_pipe_status<'e, E: Executor<'e, Database = Sqlite>>(
+    pub async fn get_pipe_status<'e, E: Executor<'e, Database = Postgres>>(
         executor: E,
         pipe_type: &str,
         pipe_id: i64,
@@ -388,7 +388,7 @@ impl InventoryRepo {
     /// Used by inbound operations where pipes can be in any valid pre-inbound status.
     /// Returns rows affected (0 means pipe was not found or was deleted).
     /// Accepts any SQLx executor, safe to use inside transactions.
-    pub async fn update_pipe_status<'e, E: Executor<'e, Database = Sqlite>>(
+    pub async fn update_pipe_status<'e, E: Executor<'e, Database = Postgres>>(
         executor: E,
         pipe_type: &str,
         pipe_id: i64,

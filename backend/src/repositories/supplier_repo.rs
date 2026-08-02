@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, PgPool};
+use sqlx::{QueryBuilder, Postgres, PgPool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::supplier_dto::{
@@ -40,7 +40,7 @@ impl SupplierRepo {
         id: i64,
         dto: &UpdateSupplierRequest,
     ) -> Result<Supplier, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE suppliers SET updated_at = NOW()");
 
         if let Some(ref val) = dto.name {

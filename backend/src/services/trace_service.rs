@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::error::AppError;
 use crate::repositories::inbound_repo::InboundRepo;
@@ -20,7 +20,7 @@ impl TraceService {
     /// - `AppError::NotFound` — pipe ID does not exist or was deleted
     /// - `AppError::Validation` — invalid pipe_type
     pub async fn trace_pipe_lifecycle(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<serde_json::Value, AppError> {
@@ -148,7 +148,7 @@ impl TraceService {
     /// Query pipes by heat number — searches both seamless and screen pipes,
     /// returning type, ID, number, grade, status, and location.
     pub async fn trace_by_heat_number(
-        pool: &SqlitePool,
+        pool: &PgPool,
         heat_number: &str,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let mut results: Vec<serde_json::Value> = Vec::new();
@@ -212,7 +212,7 @@ impl TraceService {
     /// # Errors
     /// - `AppError::Validation` — order_type is not `inbound` or `outbound`
     pub async fn trace_by_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_type: &str,
         order_id: i64,
     ) -> Result<serde_json::Value, AppError> {
@@ -308,7 +308,7 @@ impl TraceService {
     }
 
     async fn get_pipe_current_status(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<String, AppError> {

@@ -4,7 +4,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use validator::Validate;
 
 use crate::dto::data_io_dto::*;
@@ -18,7 +18,7 @@ use crate::services::data_io_service::DataIOService;
 /// Accepts a multipart file upload for a given entity type.
 /// Logs the import operation. Returns import stats (imported/failed counts).
 pub async fn import_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(entity_type): Path<String>,
     mut multipart: Multipart,
 ) -> Result<Json<ApiResponse<ImportResult>>, AppError> {
@@ -78,7 +78,7 @@ pub async fn import_handler(
 /// Exports all records for a given entity type in the requested format.
 /// Logs the export operation. Returns the file as a download.
 pub async fn export_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(entity_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<axum::response::Response, AppError> {
@@ -119,7 +119,7 @@ pub async fn export_handler(
 /// Downloads a blank import template for a given entity type.
 /// Logs the download operation.
 pub async fn template_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(entity_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<axum::response::Response, AppError> {
@@ -162,7 +162,7 @@ pub async fn template_handler(
 ///
 /// Returns paginated import/export operation logs for auditing.
 pub async fn list_operation_logs_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(query): Query<OperationLogQuery>,
 ) -> Result<Json<PaginatedResponse<OperationLog>>, AppError> {
     query

@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, PgPool, Transaction};
+use sqlx::{QueryBuilder, Postgres, PgPool, Transaction};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateOutboundRecordRequest, OutboundFilter, UpdateOutboundRecordRequest};
@@ -192,7 +192,7 @@ impl OutboundRepo {
     /// UPDATE outbound_records status to 'approved' inside an existing transaction.
     /// Returns the number of rows affected (0 if record was already processed or deleted).
     pub async fn approve(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         id: i64,
         approval_reason: Option<&str>,
         handled_by: Option<i64>,
@@ -262,7 +262,7 @@ impl OutboundRepo {
         id: i64,
         dto: &UpdateOutboundRecordRequest,
     ) -> Result<OutboundRecord, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE outbound_records SET updated_at = NOW()");
 
         if let Some(ref val) = dto.notes {

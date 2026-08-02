@@ -5,7 +5,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use validator::Validate;
 
 use crate::cache_invalidator::CacheInvalidator;
@@ -36,7 +36,7 @@ pub mod generic {
 
     /// Generic handler for listing pipes of type P.
     pub async fn list_pipes_handler<P>(
-        Extension(pool): Extension<SqlitePool>,
+        Extension(pool): Extension<PgPool>,
         Query(filter): Query<PipeFilterParams>,
     ) -> Result<Json<PaginatedResponse<P>>, AppError>
     where
@@ -58,7 +58,7 @@ pub mod generic {
 
     /// Generic handler for creating a pipe of type P.
     pub async fn create_pipe_handler<P>(
-        Extension(pool): Extension<SqlitePool>,
+        Extension(pool): Extension<PgPool>,
         Extension(cache): Extension<CacheInvalidator>,
         Json(req): Json<P::CreateDto>,
     ) -> Result<axum::response::Response, AppError>
@@ -74,7 +74,7 @@ pub mod generic {
 
     /// Generic handler for getting a pipe of type P by ID.
     pub async fn get_pipe_handler<P>(
-        Extension(pool): Extension<SqlitePool>,
+        Extension(pool): Extension<PgPool>,
         Path(id): Path<i64>,
     ) -> Result<Json<ApiResponse<P>>, AppError>
     where
@@ -86,7 +86,7 @@ pub mod generic {
 
     /// Generic handler for updating a pipe of type P.
     pub async fn update_pipe_handler<P>(
-        Extension(pool): Extension<SqlitePool>,
+        Extension(pool): Extension<PgPool>,
         Extension(cache): Extension<CacheInvalidator>,
         Path(id): Path<i64>,
         Json(req): Json<P::UpdateDto>,
@@ -103,7 +103,7 @@ pub mod generic {
 
     /// Generic handler for deleting a pipe of type P.
     pub async fn delete_pipe_handler<P>(
-        Extension(pool): Extension<SqlitePool>,
+        Extension(pool): Extension<PgPool>,
         Extension(cache): Extension<CacheInvalidator>,
         Path(id): Path<i64>,
     ) -> Result<axum::response::Response, AppError>
@@ -124,7 +124,7 @@ pub mod generic {
 /// Returns a paginated list of seamless pipes, filterable by spec, grade, heat number, etc.
 /// Supports sorting and pagination via query params.
 pub async fn list_seamless_pipes_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(filter): Query<PipeFilterParams>,
 ) -> Result<Json<PaginatedResponse<SeamlessPipe>>, AppError> {
     let pagination = PaginationParams {
@@ -147,7 +147,7 @@ pub async fn list_seamless_pipes_handler(
 /// Validates the request body. Warehouse/admin role required.
 /// Returns 400 on validation error.
 pub async fn create_seamless_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheInvalidator>,
     Json(req): Json<CreateSeamlessPipeRequest>,
 ) -> Result<axum::response::Response, AppError> {
@@ -162,7 +162,7 @@ pub async fn create_seamless_pipe_handler(
 /// Returns a single seamless pipe record by its ID.
 /// Returns 404 if not found.
 pub async fn get_seamless_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<SeamlessPipe>>, AppError> {
     let pipe = PipeService::get_seamless_pipe(&pool, id).await?;
@@ -174,7 +174,7 @@ pub async fn get_seamless_pipe_handler(
 /// Updates an existing seamless pipe record with partial fields.
 /// Validates the request body. Returns 404 if not found.
 pub async fn update_seamless_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheInvalidator>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateSeamlessPipeRequest>,
@@ -189,7 +189,7 @@ pub async fn update_seamless_pipe_handler(
 ///
 /// Soft-deletes a seamless pipe record. Returns 404 if not found.
 pub async fn delete_seamless_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheInvalidator>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
@@ -204,7 +204,7 @@ pub async fn delete_seamless_pipe_handler(
 /// Returns a paginated list of screen pipes, filterable by spec, grade, etc.
 /// Supports sorting and pagination via query params.
 pub async fn list_screen_pipes_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(filter): Query<PipeFilterParams>,
 ) -> Result<Json<PaginatedResponse<ScreenPipe>>, AppError> {
     let pagination = PaginationParams {
@@ -226,7 +226,7 @@ pub async fn list_screen_pipes_handler(
 /// Creates a new screen pipe record with specs (slot width, wire type, etc.).
 /// Validates the request body. Warehouse/admin role required.
 pub async fn create_screen_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheInvalidator>,
     Json(req): Json<CreateScreenPipeRequest>,
 ) -> Result<axum::response::Response, AppError> {
@@ -240,7 +240,7 @@ pub async fn create_screen_pipe_handler(
 ///
 /// Returns a single screen pipe record by its ID. Returns 404 if not found.
 pub async fn get_screen_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ScreenPipe>>, AppError> {
     let pipe = PipeService::get_screen_pipe(&pool, id).await?;
@@ -251,7 +251,7 @@ pub async fn get_screen_pipe_handler(
 ///
 /// Updates an existing screen pipe record. Validates request body. Returns 404 if not found.
 pub async fn update_screen_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheInvalidator>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateScreenPipeRequest>,
@@ -266,7 +266,7 @@ pub async fn update_screen_pipe_handler(
 ///
 /// Soft-deletes a screen pipe record. Returns 404 if not found.
 pub async fn delete_screen_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheInvalidator>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
@@ -282,7 +282,7 @@ pub async fn delete_screen_pipe_handler(
 /// Searches across pipe number, heat number, grade, and other fields.
 /// Returns 400 if the search query is empty.
 pub async fn search_pipes_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<ApiResponse<Vec<PipeSearchResult>>>, AppError> {
     if query.q.trim().is_empty() {
@@ -293,7 +293,7 @@ pub async fn search_pipes_handler(
 }
 
 pub async fn batch_create_pipes_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheInvalidator>,
     Json(req): Json<BatchCreatePipeRequest>,
 ) -> Result<axum::response::Response, AppError> {

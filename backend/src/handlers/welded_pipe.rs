@@ -2,7 +2,7 @@ use axum::{
     extract::{Extension, Path, Query},
     Json,
 };
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use validator::Validate;
 
 use crate::cache_invalidator::CacheInvalidator;
@@ -15,7 +15,7 @@ use crate::services::pipe_service::PipeService;
 
 /// GET `/api/v1/welded-pipes` — Paginated list of welded pipes
 pub async fn list_welded_pipes_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(filter): Query<PipeFilterParams>,
 ) -> Result<Json<PaginatedResponse<WeldedPipe>>, AppError> {
     let pagination = PaginationParams {
@@ -34,7 +34,7 @@ pub async fn list_welded_pipes_handler(
 
 /// POST `/api/v1/welded-pipes` — Create a new welded pipe
 pub async fn create_welded_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheInvalidator>,
     Json(req): Json<CreateWeldedPipeRequest>,
 ) -> Result<axum::response::Response, AppError> {
@@ -46,7 +46,7 @@ pub async fn create_welded_pipe_handler(
 
 /// GET `/api/v1/welded-pipes/{id}` — Get welded pipe by ID
 pub async fn get_welded_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<WeldedPipe>>, AppError> {
     let pipe = PipeService::get_welded_pipe(&pool, id).await?;
@@ -55,7 +55,7 @@ pub async fn get_welded_pipe_handler(
 
 /// PUT `/api/v1/welded-pipes/{id}` — Update a welded pipe
 pub async fn update_welded_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheInvalidator>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateWeldedPipeRequest>,
@@ -68,7 +68,7 @@ pub async fn update_welded_pipe_handler(
 
 /// DELETE `/api/v1/welded-pipes/{id}` — Soft-delete a welded pipe
 pub async fn delete_welded_pipe_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheInvalidator>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {

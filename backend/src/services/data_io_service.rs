@@ -4,7 +4,7 @@ use std::io::Cursor;
 use calamine::{open_workbook_from_rs, Data, Reader, Xlsx};
 use csv::Trim;
 use rust_xlsxwriter::*;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::data_io_dto::*;
@@ -129,7 +129,7 @@ impl DataIOService {
     }
 
     async fn fetch_export_data(
-        pool: &SqlitePool,
+        pool: &PgPool,
         entity_type: &str,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         match entity_type {
@@ -378,7 +378,7 @@ impl DataIOService {
     /// - `AppError::Validation` — unknown entity type
     /// - `AppError::ExportError` — file generation failed
     pub async fn export_entity(
-        pool: &SqlitePool,
+        pool: &PgPool,
         entity_type: &str,
         format: &str,
     ) -> Result<Vec<u8>, AppError> {
@@ -419,7 +419,7 @@ impl DataIOService {
     /// - `AppError::ImportError` — parse or import failure
     /// - `AppError::ImportError` — empty data rows
     pub async fn import_entity(
-        pool: &SqlitePool,
+        pool: &PgPool,
         entity_type: &str,
         data: &[u8],
         file_name: &str,
@@ -459,7 +459,7 @@ impl DataIOService {
 
     /// Paginated operation-log query with optional user, action, and entity-type filters.
     pub async fn list_operation_logs(
-        pool: &SqlitePool,
+        pool: &PgPool,
         query: &OperationLogQuery,
     ) -> Result<(Vec<OperationLog>, u64), AppError> {
         let params = PaginationParams {
@@ -486,7 +486,7 @@ impl DataIOService {
     /// Record an operation log entry — called by handlers after user actions.
     #[allow(clippy::too_many_arguments)]
     pub async fn log_operation(
-        pool: &SqlitePool,
+        pool: &PgPool,
         user_id: Option<i64>,
         username: Option<String>,
         action: &str,

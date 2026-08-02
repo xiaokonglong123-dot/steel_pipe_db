@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::sales_dto::{
@@ -26,7 +26,7 @@ impl SalesService {
     /// - `AppError::Validation` — empty items, duplicate order no, or inactive customer
     /// - `AppError::CustomerNotFound` — customer ID doesn't exist
     pub async fn create_sales_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateSalesOrderRequest,
     ) -> Result<SalesOrder, AppError> {
         if dto.items.is_empty() {
@@ -76,7 +76,7 @@ impl SalesService {
     /// - `AppError::OrderNotFound` — ID doesn't exist or was soft-deleted
     /// - `AppError::OrderCannotModify` — current status won't allow edits
     pub async fn update_sales_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateSalesOrderRequest,
     ) -> Result<SalesOrder, AppError> {
@@ -107,7 +107,7 @@ impl SalesService {
     /// Transitions a sales order's status. Validates the current→target hop against
     /// `OrderStatus` domain rules — only valid transitions are allowed.
     ///
-    /// Uses `BEGIN IMMEDIATE` to serialize concurrent transitions and prevent TOCTOU
+    /// Uses `BEGIN` to serialize concurrent transitions and prevent TOCTOU
     /// races — the status guard in the WHERE clause ensures that if another request
     /// changed the order between our read and the update, the update hits zero rows
     /// and we fail safe.
@@ -116,7 +116,7 @@ impl SalesService {
     /// - `AppError::OrderNotFound` — ID doesn't exist or was deleted
     /// - `AppError::OrderCannotModify` — status transition isn't valid or race lost
     pub async fn transition_sales_status(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &SalesOrderStatusTransitionRequest,
     ) -> Result<(), AppError> {
@@ -135,7 +135,7 @@ impl SalesService {
         // Acquire a connection and start an IMMEDIATE transaction to serialize
         // concurrent status transitions.
         let mut conn = pool.acquire().await.map_err(AppError::from)?;
-        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+        if let Err(e) = sqlx::query("BEGIN").execute(&mut *conn).await {
             return Err(AppError::from(e));
         }
 
@@ -146,7 +146,7 @@ impl SalesService {
         }
 
         let rows_affected = match sqlx::query(
-            "UPDATE sales_orders SET status = ?, updated_at = datetime('now') \
+            "UPDATE sales_orders SET status = ?, updated_at = NOW() \
              WHERE id = ? AND status = ? AND deleted_at IS NULL",
         )
         .bind(&dto.status)
@@ -181,7 +181,7 @@ impl SalesService {
     /// # Errors
     /// - `AppError::OrderNotFound` — ID doesn't exist
     pub async fn get_sales_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<(SalesOrder, Vec<SalesOrderItem>), AppError> {
         let order = SalesOrderRepo::find_by_id(pool, id)
@@ -198,7 +198,7 @@ impl SalesService {
 
     /// Paginates sales orders with filters for customer, date range, status, etc.
     pub async fn list_sales_orders(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &SalesOrderFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<SalesOrder>, u64), AppError> {
@@ -213,7 +213,7 @@ impl SalesService {
     /// # Errors
     /// - `AppError::OrderNotFound` — ID doesn't exist
     /// - `AppError::OrderCannotModify` — current status doesn't allow deletion
-    pub async fn delete_sales_order(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
+    pub async fn delete_sales_order(pool: &PgPool, id: i64) -> Result<(), AppError> {
         let existing = SalesOrderRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -238,7 +238,7 @@ impl SalesService {
     /// - `AppError::OrderNotFound` — order doesn't exist
     /// - `AppError::OrderCannotModify` — order ain't in draft
     pub async fn update_sales_item(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_id: i64,
         item_id: i64,
         dto: &UpdateSalesItemRequest,
@@ -282,7 +282,7 @@ impl SalesService {
     /// - `AppError::OrderNotFound` — order doesn't exist
     /// - `AppError::OrderCannotModify` — order isn't in draft
     pub async fn delete_sales_item(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_id: i64,
         item_id: i64,
     ) -> Result<(), AppError> {
@@ -314,7 +314,7 @@ impl SalesService {
     /// Approves a sales order — checks the info and amount, then bumps it to
     /// `approved` status. Also verifies there's enough ATP stock for each item.
     ///
-    /// Uses `BEGIN IMMEDIATE` to serialize concurrent approvals and prevent TOCTOU
+    /// Uses `BEGIN` to serialize concurrent approvals and prevent TOCTOU
     /// races on ATP (Available-to-Promise) inventory checks. The ATP query and the
     /// status update share a single serialised transaction, so two concurrent
     /// approvals for the same order cannot both pass the ATP check.
@@ -325,7 +325,7 @@ impl SalesService {
     /// - `AppError::Validation` — approval info is incomplete
     /// - `AppError::InsufficientStock` — not enough inventory to fulfill
     pub async fn approve_sales_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         _dto: &ApproveOrderRequest,
     ) -> Result<(), AppError> {
@@ -355,7 +355,7 @@ impl SalesService {
         // Acquire a connection and start an IMMEDIATE transaction — this prevents two
         // concurrent requests from both reading stale ATP data (C1: TOCTOU fix).
         let mut conn = pool.acquire().await.map_err(AppError::from)?;
-        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+        if let Err(e) = sqlx::query("BEGIN").execute(&mut *conn).await {
             return Err(AppError::from(e));
         }
 
@@ -385,7 +385,7 @@ impl SalesService {
         }
 
         let rows_affected = match sqlx::query(
-            "UPDATE sales_orders SET status = 'approved', updated_at = datetime('now') \
+            "UPDATE sales_orders SET status = 'approved', updated_at = NOW() \
              WHERE id = ? AND status = 'pending' AND deleted_at IS NULL",
         )
         .bind(id)
@@ -416,7 +416,7 @@ impl SalesService {
     /// Rejects a sales order. Requires a rejection reason and rolls the status
     /// back to `draft`.
     ///
-    /// Uses `BEGIN IMMEDIATE` to serialize concurrent operations and prevent TOCTOU
+    /// Uses `BEGIN` to serialize concurrent operations and prevent TOCTOU
     /// races — the `AND status='pending'` guard in the WHERE clause means that a
     /// concurrent approve wins and this reject safely fails instead of silently
     /// overwriting.
@@ -426,7 +426,7 @@ impl SalesService {
     /// - `AppError::OrderCannotModify` — current status won't allow rejection, or
     ///   race lost to another concurrent status change
     pub async fn reject_sales_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &RejectOrderRequest,
     ) -> Result<(), AppError> {
@@ -452,12 +452,12 @@ impl SalesService {
         // Acquire a connection and start an IMMEDIATE transaction — this prevents two
         // concurrent requests from both reading stale status data (TOCTOU fix).
         let mut conn = pool.acquire().await.map_err(AppError::from)?;
-        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+        if let Err(e) = sqlx::query("BEGIN").execute(&mut *conn).await {
             return Err(AppError::from(e));
         }
 
         let rows_affected = match sqlx::query(
-            "UPDATE sales_orders SET status = 'rejected', notes = ?, updated_at = datetime('now') \
+            "UPDATE sales_orders SET status = 'rejected', notes = ?, updated_at = NOW() \
              WHERE id = ? AND status = 'pending' AND deleted_at IS NULL",
         )
         .bind(&dto.reason)
@@ -494,7 +494,7 @@ impl SalesService {
     /// - `AppError::OrderNotFound` — sales order doesn't exist
     /// - `AppError::OrderCannotModify` — can't link (bad status or already linked)
     pub async fn link_outbound_to_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_id: i64,
         outbound_id: i64,
     ) -> Result<(), AppError> {
@@ -513,13 +513,13 @@ impl SalesService {
         }
 
         let mut conn = pool.acquire().await.map_err(AppError::from)?;
-        if let Err(e) = sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await {
+        if let Err(e) = sqlx::query("BEGIN").execute(&mut *conn).await {
             return Err(AppError::from(e));
         }
 
         // Link the outbound record to this sales order
         if let Err(e) = sqlx::query(
-            "UPDATE outbound_records SET order_id = ?, updated_at = datetime('now') \
+            "UPDATE outbound_records SET order_id = ?, updated_at = NOW() \
              WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(order_id)
@@ -551,7 +551,7 @@ impl SalesService {
         let all_delivered = items.iter().all(|item| item.delivered_quantity >= item.quantity);
         if all_delivered {
             if let Err(e) = sqlx::query(
-                "UPDATE sales_orders SET status = 'completed', updated_at = datetime('now') \
+                "UPDATE sales_orders SET status = 'completed', updated_at = NOW() \
                  WHERE id = ? AND deleted_at IS NULL",
             )
             .bind(order_id)

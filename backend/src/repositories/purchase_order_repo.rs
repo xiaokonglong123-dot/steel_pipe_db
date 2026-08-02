@@ -1,4 +1,4 @@
-use sqlx::{postgres::SqliteConnection, QueryBuilder, Sqlite, PgPool, Transaction};
+use sqlx::{postgres::PgConnection, QueryBuilder, Postgres, PgPool, Transaction};
 
 use crate::domain::money::from_decimal_opt;
 use crate::dto::common::PaginationParams;
@@ -70,7 +70,7 @@ impl PurchaseOrderRepo {
     }
 
     async fn create_item(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         order_id: i64,
         dto: &CreatePurchaseItemRequest,
     ) -> Result<PurchaseOrderItem, sqlx::Error> {
@@ -105,7 +105,7 @@ impl PurchaseOrderRepo {
     }
 
     async fn sum_item_totals_in_tx(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         order_id: i64,
     ) -> Result<f64, sqlx::Error> {
         let row: (Option<f64>,) = sqlx::query_as(
@@ -124,7 +124,7 @@ impl PurchaseOrderRepo {
         id: i64,
         dto: &UpdatePurchaseOrderRequest,
     ) -> Result<PurchaseOrder, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE purchase_orders SET updated_at = NOW()");
 
         if let Some(ref val) = dto.order_date {
@@ -326,7 +326,7 @@ impl PurchaseOrderRepo {
         item_id: i64,
         dto: &UpdatePurchaseItemRequest,
     ) -> Result<PurchaseOrderItem, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE purchase_order_items SET");
 
         let mut first = true;
@@ -414,11 +414,11 @@ impl PurchaseOrderRepo {
 
     /// [`update_order`] variant that runs on an existing connection (inside a tx).
     pub async fn update_order_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         id: i64,
         dto: &UpdatePurchaseOrderRequest,
     ) -> Result<PurchaseOrder, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE purchase_orders SET updated_at = NOW()");
 
         if let Some(ref val) = dto.order_date {
@@ -444,7 +444,7 @@ impl PurchaseOrderRepo {
     }
 
     async fn sum_item_totals_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         order_id: i64,
     ) -> Result<f64, sqlx::Error> {
         let row: (Option<f64>,) = sqlx::query_as(
@@ -458,7 +458,7 @@ impl PurchaseOrderRepo {
 
     /// [`recalculate_total`] variant that runs on an existing connection (inside a tx).
     pub async fn recalc_total_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         order_id: i64,
     ) -> Result<(), sqlx::Error> {
         let total = Self::sum_item_totals_conn(executor, order_id).await?;
@@ -478,7 +478,7 @@ impl PurchaseOrderRepo {
     /// * Each item's `total_price` is recomputed as `quantity * unit_price`.
     /// * The order's `total_amount` is recalculated from the new item set.
     pub async fn replace_items_conn(
-        executor: &mut SqliteConnection,
+        executor: &mut PgConnection,
         order_id: i64,
         items: &[UpdatePurchaseItemRequest],
     ) -> Result<(), sqlx::Error> {
@@ -489,7 +489,7 @@ impl PurchaseOrderRepo {
                 // UPDATE an existing row
                 kept_ids.push(item_id);
 
-                let mut builder: QueryBuilder<Sqlite> =
+                let mut builder: QueryBuilder<Postgres> =
                     QueryBuilder::new("UPDATE purchase_order_items SET");
                 let mut first = true;
 

@@ -4,7 +4,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{
@@ -20,7 +20,7 @@ use crate::response::{ApiResponse, PaginatedResponse};
 use crate::services::outbound_service::OutboundService;
 
 pub async fn create_outbound_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Json(req): Json<CreateOutboundRecordRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()
@@ -30,7 +30,7 @@ pub async fn create_outbound_handler(
 }
 
 pub async fn list_outbound_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(filter): Query<OutboundFilter>,
 ) -> Result<Json<PaginatedResponse<OutboundRecord>>, AppError> {
     let pagination = PaginationParams {
@@ -48,7 +48,7 @@ pub async fn list_outbound_handler(
 }
 
 pub async fn get_outbound_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<crate::dto::inventory_dto::OutboundRecordDetail>>, AppError> {
     let (record, items) = OutboundService::get_outbound_record(&pool, id).await?;
@@ -58,7 +58,7 @@ pub async fn get_outbound_handler(
 }
 
 pub async fn approve_outbound_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
     Extension(auth): Extension<AuthContext>,
     Json(req): Json<ApproveRequest>,
@@ -70,7 +70,7 @@ pub async fn approve_outbound_handler(
 }
 
 pub async fn reject_outbound_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
     Json(req): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -81,7 +81,7 @@ pub async fn reject_outbound_handler(
 }
 
 pub async fn update_outbound_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateOutboundRecordRequest>,
 ) -> Result<Json<ApiResponse<OutboundRecord>>, AppError> {
@@ -90,7 +90,7 @@ pub async fn update_outbound_handler(
 }
 
 pub async fn delete_outbound_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
     OutboundService::delete_outbound(&pool, id).await?;
@@ -98,7 +98,7 @@ pub async fn delete_outbound_handler(
 }
 
 pub async fn list_outbound_items_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<OutboundItem>>>, AppError> {
     let items = OutboundService::list_outbound_items(&pool, id).await?;

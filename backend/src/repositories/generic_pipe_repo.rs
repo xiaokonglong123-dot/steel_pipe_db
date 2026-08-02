@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, PgPool};
+use sqlx::{QueryBuilder, Postgres, PgPool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::PipeFilterParams;
@@ -14,7 +14,7 @@ impl<P: PipeModel> GenericPipeRepo<P> {
         pool: &PgPool,
         dto: &P::CreateDto,
     ) -> Result<P, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(format!(
+        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new(format!(
             "INSERT INTO {} (pipe_number, batch_number",
             P::TABLE_NAME
         ));
@@ -29,7 +29,7 @@ impl<P: PipeModel> GenericPipeRepo<P> {
         id: i64,
         dto: &P::UpdateDto,
     ) -> Result<P, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(format!(
+        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new(format!(
             "UPDATE {} SET ",
             P::TABLE_NAME
         ));

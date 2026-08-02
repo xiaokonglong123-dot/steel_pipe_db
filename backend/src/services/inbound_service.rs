@@ -1,5 +1,5 @@
-use sqlx::sqlite::Sqlite;
-use sqlx::{SqlitePool, Transaction};
+use sqlx::Postgres;
+use sqlx::{PgPool, Transaction};
 
 use crate::domain::pipe::PipeType;
 use crate::dto::inventory_dto::{
@@ -20,7 +20,7 @@ use crate::services::utils;
 /// After inbound execution, refresh location used_counts for all affected pipes.
 /// This ensures the `used_count` column stays consistent with actual stock.
 async fn refresh_inbound_locations(
-    pool: &SqlitePool,
+    pool: &PgPool,
     items: &[InboundPipeItem],
 ) -> Result<(), AppError> {
     let mut location_ids = std::collections::BTreeSet::new();
@@ -53,7 +53,7 @@ pub struct InboundService;
 
 impl InboundService {
     pub async fn create_inbound(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateInboundRecordRequest,
     ) -> Result<InboundRecord, AppError> {
         if dto.pipes.is_empty() {
@@ -94,7 +94,7 @@ impl InboundService {
     }
 
     async fn execute_inbound_batch_inner(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         record_id: i64,
         items: &[crate::dto::inventory_dto::InboundPipeItem],
     ) -> Result<(), AppError> {
@@ -114,7 +114,7 @@ impl InboundService {
             // `affected == 0` means the pipe was deleted or its status changed
             // concurrently — roll back instead of double-counting stock.
             let sql = format!(
-                "UPDATE {} SET status = 'in_stock', updated_at = datetime('now') \
+                "UPDATE {} SET status = 'in_stock', updated_at = NOW() \
                  WHERE id = ? AND deleted_at IS NULL AND status != 'in_stock'",
                 table
             );
@@ -152,7 +152,7 @@ impl InboundService {
     }
 
     async fn create_inbound_inner(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         dto: &CreateInboundRecordRequest,
         inbound_no: &str,
     ) -> Result<InboundRecord, AppError> {
@@ -162,7 +162,7 @@ impl InboundService {
     }
 
     pub async fn approve_inbound(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         approval_reason: Option<&str>,
         handled_by: Option<i64>,
@@ -227,7 +227,7 @@ impl InboundService {
                 }
             };
             let sql = format!(
-                "UPDATE {} SET status = 'in_stock', updated_at = datetime('now') \
+                "UPDATE {} SET status = 'in_stock', updated_at = NOW() \
                  WHERE id = ? AND deleted_at IS NULL AND status != 'in_stock'",
                 table
             );
@@ -291,7 +291,7 @@ impl InboundService {
         Ok(())
     }
 
-    pub async fn reject_inbound(pool: &SqlitePool, id: i64, reason: &str) -> Result<(), AppError> {
+    pub async fn reject_inbound(pool: &PgPool, id: i64, reason: &str) -> Result<(), AppError> {
         let record = InboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -316,7 +316,7 @@ impl InboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     pub async fn get_inbound_record(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<(InboundRecord, Vec<InboundItem>), AppError> {
         let record = InboundRepo::find_by_id(pool, id)
@@ -334,7 +334,7 @@ impl InboundService {
     /// Paginated inbound records — filter by date, status, type, whatever.
     /// Returns `(records, total_count)`.
     pub async fn list_inbound_records(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &InboundFilter,
     ) -> Result<(Vec<InboundRecord>, u64), AppError> {
         InboundRepo::list(pool, filter)
@@ -347,7 +347,7 @@ impl InboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     /// - `AppError::Validation` — current status won't let you delete
-    pub async fn delete_inbound(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
+    pub async fn delete_inbound(pool: &PgPool, id: i64) -> Result<(), AppError> {
         let record = InboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -370,7 +370,7 @@ impl InboundService {
     /// - `AppError::NotFound` — record not found or was deleted
     /// - `AppError::Validation` — current status doesn't allow updates
     pub async fn update_inbound(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateInboundRecordRequest,
     ) -> Result<InboundRecord, AppError> {
@@ -400,7 +400,7 @@ impl InboundService {
 
     /// Gets all line items for a given inbound record.
     pub async fn list_inbound_items(
-        pool: &SqlitePool,
+        pool: &PgPool,
         inbound_id: i64,
     ) -> Result<Vec<InboundItem>, AppError> {
         InboundRepo::find_items(pool, inbound_id)
@@ -409,7 +409,7 @@ impl InboundService {
     }
 
     pub async fn batch_create_inbound(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &BatchCreateInboundRequest,
     ) -> Result<Vec<InboundRecord>, AppError> {
         if dto.records.is_empty() {

@@ -5,7 +5,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::cache::CacheManager;
 use crate::dto::common::PaginationParams;
@@ -27,7 +27,7 @@ pub struct LocationListQuery {
 }
 
 pub async fn list_locations_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheManager>,
     Query(query): Query<LocationListQuery>,
 ) -> Result<Json<PaginatedResponse<Location>>, AppError> {
@@ -56,7 +56,7 @@ pub async fn list_locations_handler(
 }
 
 pub async fn create_location_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheManager>,
     Json(req): Json<CreateLocationRequest>,
 ) -> Result<axum::response::Response, AppError> {
@@ -67,7 +67,7 @@ pub async fn create_location_handler(
 }
 
 pub async fn get_location_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Location>>, AppError> {
     let location = LocationService::get_location(&pool, id).await?;
@@ -75,7 +75,7 @@ pub async fn get_location_handler(
 }
 
 pub async fn update_location_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheManager>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateLocationRequest>,
@@ -87,7 +87,7 @@ pub async fn update_location_handler(
 }
 
 pub async fn delete_location_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheManager>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
@@ -96,7 +96,7 @@ pub async fn delete_location_handler(
 }
 
 pub async fn assign_location_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheManager>,
     Path(location_id): Path<i64>,
     Json(req): Json<AssignLocationRequest>,
@@ -108,7 +108,7 @@ pub async fn assign_location_handler(
 }
 
 pub async fn transfer_location_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheManager>,
     Path((pipe_type, pipe_id)): Path<(String, i64)>,
     Json(req): Json<TransferLocationRequest>,

@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, PgPool, Transaction};
+use sqlx::{QueryBuilder, Postgres, PgPool, Transaction};
 
 use crate::domain::money::from_decimal_opt;
 use crate::dto::common::PaginationParams;
@@ -58,7 +58,7 @@ impl SalesOrderRepo {
     }
 
     async fn create_item(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         order_id: i64,
         dto: &CreateSalesItemRequest,
     ) -> Result<SalesOrderItem, sqlx::Error> {
@@ -93,7 +93,7 @@ impl SalesOrderRepo {
     }
 
     async fn sum_item_totals_in_tx(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         order_id: i64,
     ) -> Result<f64, sqlx::Error> {
         let row: (Option<f64>,) = sqlx::query_as(
@@ -123,7 +123,7 @@ impl SalesOrderRepo {
         id: i64,
         dto: &UpdateSalesOrderRequest,
     ) -> Result<SalesOrder, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
+        let mut builder: QueryBuilder<Postgres> =
             QueryBuilder::new("UPDATE sales_orders SET updated_at = NOW()");
 
         if let Some(ref val) = dto.order_date {
@@ -319,7 +319,7 @@ impl SalesOrderRepo {
         item_id: i64,
         dto: &UpdateSalesItemRequest,
     ) -> Result<SalesOrderItem, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE sales_order_items SET");
+        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE sales_order_items SET");
 
         let mut first = true;
         macro_rules! set_field {
