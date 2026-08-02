@@ -95,7 +95,7 @@ async fn inventory_summary_with_location_shows_occupancy() {
         .unwrap();
 
     // Assign pipe to location
-    sqlx::query("UPDATE seamless_pipes SET location_id = ? WHERE id = ?")
+    sqlx::query("UPDATE seamless_pipes SET location_id = $1 WHERE id = $2")
         .bind(loc_id)
         .bind(pipe_id)
         .execute(&pool)

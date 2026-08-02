@@ -21,6 +21,8 @@ const SeamlessPipeDetailPage = lazy(() => import('@/features/pipes/pages/Seamles
 const ScreenPipeListPage = lazy(() => import('@/features/pipes/pages/ScreenPipeListPage'));
 const ScreenPipeFormPage = lazy(() => import('@/features/pipes/pages/ScreenPipeFormPage'));
 const ScreenPipeDetailPage = lazy(() => import('@/features/pipes/pages/ScreenPipeDetailPage'));
+const WeldedPipeListPage = lazy(() => import('@/features/pipes/pages/WeldedPipeListPage'));
+const WeldedPipeFormPage = lazy(() => import('@/features/pipes/pages/WeldedPipeFormPage'));
 const InboundListPage = lazy(() => import('@/features/inventory/pages/InboundListPage'));
 const InboundFormPage = lazy(() => import('@/features/inventory/pages/InboundFormPage'));
 const OutboundListPage = lazy(() => import('@/features/inventory/pages/OutboundListPage'));
@@ -50,12 +52,33 @@ const LabelPrintPage = lazy(() => import('@/features/labels/pages/LabelPrintPage
 const ProfileSettingsPage = lazy(() => import('@/features/profile/pages/ProfileSettingsPage'));
 const SearchPage = lazy(() => import('@/features/search/pages/SearchPage'));
 const UserManagementPage = lazy(() => import('@/features/auth/pages/UserManagementPage'));
+const RoleManagementPage = lazy(() => import('@/features/auth/pages/RoleManagementPage'));
+const DepartmentPage = lazy(() => import('@/features/auth/pages/DepartmentPage'));
+const WorkflowListPage = lazy(() => import('@/features/workflow/pages/WorkflowListPage'));
+const MyTasksPage = lazy(() => import('@/features/workflow/pages/MyTasksPage'));
+const EmployeeListPage = lazy(() => import('@/features/hr/pages/EmployeeListPage'));
+const SalaryPage = lazy(() => import('@/features/hr/pages/SalaryPage'));
+const FinancePage = lazy(() => import('@/features/finance/pages/FinancePage'));
+const ProcurementPage = lazy(() => import('@/features/procurement/pages/ProcurementPage'));
+const SalesCrmPage = lazy(() => import('@/features/sales_crm/pages/SalesCrmPage'));
+const InventoryAtpPage = lazy(() => import('@/features/inventory_atp/pages/InventoryAtpPage'));
+const ManufacturingPage = lazy(() => import('@/features/manufacturing/pages/ManufacturingPage'));
+const ThreadingPage = lazy(() => import('@/features/threading/pages/ThreadingPage'));
+const ProjectPage = lazy(() => import('@/features/project/pages/ProjectPage'));
+const AssetsPage = lazy(() => import('@/features/assets/pages/AssetsPage'));
+const NotificationsPage = lazy(() => import('@/features/notification/pages/NotificationsPage'));
+const BiDashboardPage = lazy(() => import('@/features/bi/pages/DashboardPage'));
+const PortalAdminPage = lazy(() => import('@/features/portal/pages/PortalAdminPage'));
 const DataImportPage = lazy(() => import('@/features/data-io/pages/DataImportPage'));
 const DataExportPage = lazy(() => import('@/features/data-io/pages/DataExportPage'));
 const OperationLogPage = lazy(() => import('@/features/data-io/pages/OperationLogPage'));
 const InventoryReportPage = lazy(() => import('@/features/reports/pages/InventoryReportPage'));
 const OrderReportPage = lazy(() => import('@/features/reports/pages/OrderReportPage'));
 const QualityReportPage = lazy(() => import('@/features/reports/pages/QualityReportPage'));
+const AtpPage = lazy(() => import('@/features/sales/pages/AtpPage'));
+const TrendsPage = lazy(() => import('@/features/reports/pages/TrendsPage'));
+const InventoryLogsPage = lazy(() => import('@/features/inventory/pages/LogsPage'));
+const Api5ctRefPage = lazy(() => import('@/features/quality/pages/Api5ctRefPage'));
 
 export const router = createBrowserRouter([
   {
@@ -80,6 +103,9 @@ export const router = createBrowserRouter([
       { path: 'pipes/screen/new', element: route(<ScreenPipeFormPage key="new" />) },
       { path: 'pipes/screen/:id', element: route(<ScreenPipeDetailPage />) },
       { path: 'pipes/screen/:id/edit', element: route(<ScreenPipeFormPage key="edit" />) },
+      { path: 'pipes/welded', element: route(<WeldedPipeListPage />) },
+      { path: 'pipes/welded/new', element: route(<WeldedPipeFormPage key="new" />) },
+      { path: 'pipes/welded/:id/edit', element: route(<WeldedPipeFormPage key="edit" />) },
       // Inventory
       { path: 'inventory/inbound', element: route(<InboundListPage />) },
       { path: 'inventory/inbound/new', element: route(<InboundFormPage key="new" />) },
@@ -90,6 +116,7 @@ export const router = createBrowserRouter([
       { path: 'inventory/stock', element: route(<StockQueryPage />) },
       { path: 'inventory/locations', element: route(<LocationListPage />) },
       { path: 'inventory/check', element: route(<InventoryCheckListPage />) },
+      { path: 'inventory/logs', element: route(<InventoryLogsPage />) },
       // Supplier & customer
       { path: 'suppliers', element: route(<SupplierListPage />) },
       { path: 'suppliers/new', element: route(<SupplierFormPage key="new" />) },
@@ -107,11 +134,13 @@ export const router = createBrowserRouter([
       { path: 'sales/new', element: route(<SalesOrderFormPage key="new" />) },
       { path: 'sales/:id', element: route(<SalesOrderDetailPage />) },
       { path: 'sales/:id/edit', element: route(<SalesOrderFormPage key="edit" />) },
+      { path: 'sales/atp', element: route(<AtpPage />) },
       // Quality certs
       { path: 'quality/certs', element: route(<CertListPage />) },
       { path: 'quality/certs/new', element: route(<CertFormPage key="new" />) },
       { path: 'quality/certs/:id', element: route(<CertDetailPage />) },
       { path: 'quality/certs/:id/edit', element: route(<CertFormPage key="edit" />) },
+      { path: 'quality/api5ct-ref', element: route(<Api5ctRefPage />) },
       // Contracts
       { path: 'contracts', element: route(<ContractListPage />) },
       { path: 'contracts/new', element: route(<ContractFormPage key="new" />) },
@@ -123,13 +152,44 @@ export const router = createBrowserRouter([
       { path: 'reports/inventory', element: route(<InventoryReportPage />) },
       { path: 'reports/orders', element: route(<OrderReportPage />) },
       { path: 'reports/quality', element: route(<QualityReportPage />) },
+      { path: 'reports/trends', element: route(<TrendsPage />) },
       { path: 'labels', element: route(<LabelPrintPage />) },
       // Data IO
-      { path: 'data-io/import', element: route(<DataImportPage />) },
+      { path: 'data-io/import', element: route(<DataImportPage />), handle: { roles: ['admin'] } },
       { path: 'data-io/export', element: route(<DataExportPage />) },
-      { path: 'data-io/logs', element: route(<OperationLogPage />) },
+      { path: 'data-io/logs', element: route(<OperationLogPage />), handle: { roles: ['admin'] } },
       // System
-      { path: 'system/users', element: route(<UserManagementPage />) },
+      { path: 'system/users', element: route(<UserManagementPage />), handle: { roles: ['admin'] } },
+      { path: 'system/roles', element: route(<RoleManagementPage />), handle: { roles: ['admin'] } },
+      { path: 'system/departments', element: route(<DepartmentPage />), handle: { roles: ['admin'] } },
+      // Workflow
+      { path: 'workflow/definitions', element: route(<WorkflowListPage />), handle: { roles: ['admin'] } },
+      { path: 'workflow/my-tasks', element: route(<MyTasksPage />) },
+      // HR
+      { path: 'hr/employees', element: route(<EmployeeListPage />), handle: { roles: ['admin'] } },
+      { path: 'hr/salaries', element: route(<SalaryPage />), handle: { roles: ['admin'] } },
+      // Finance
+      { path: 'finance', element: route(<FinancePage />), handle: { roles: ['admin'] } },
+      // Procurement
+      { path: 'procurement', element: route(<ProcurementPage />), handle: { roles: ['admin'] } },
+      // Sales CRM
+      { path: 'sales/crm', element: route(<SalesCrmPage />), handle: { roles: ['admin'] } },
+      // Inventory ATP
+      { path: 'inventory/atp', element: route(<InventoryAtpPage />), handle: { roles: ['admin'] } },
+      // Manufacturing
+      { path: 'manufacturing', element: route(<ManufacturingPage />), handle: { roles: ['admin'] } },
+      // Threading
+      { path: 'threading', element: route(<ThreadingPage />), handle: { roles: ['admin'] } },
+      // Projects
+      { path: 'projects', element: route(<ProjectPage />), handle: { roles: ['admin'] } },
+      // Assets
+      { path: 'assets', element: route(<AssetsPage />), handle: { roles: ['admin'] } },
+      // Notifications
+      { path: 'notifications', element: route(<NotificationsPage />) },
+      // BI Dashboard
+      { path: 'bi', element: route(<BiDashboardPage />), handle: { roles: ['admin'] } },
+      // Portal admin
+      { path: 'portal', element: route(<PortalAdminPage />), handle: { roles: ['admin'] } },
       // Search & profile
       { path: 'search', element: route(<SearchPage />) },
       { path: 'profile/settings', element: route(<ProfileSettingsPage />) },

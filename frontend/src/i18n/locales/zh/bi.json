@@ -1,0 +1,15 @@
+{
+  "title": "BI 仪表盘",
+  "postedEntries": "已过账分录",
+  "openAr": "未结应收 (AR)",
+  "openAp": "未结应付 (AP)",
+  "sales12m": "12个月销售额",
+  "inventoryValue": "库存概览",
+  "salesTrend": "销售趋势",
+  "pipeType": "管型",
+  "onHand": "在库",
+  "month": "月份",
+  "status": "状态",
+  "orders": "订单数",
+  "amount": "金额"
+}

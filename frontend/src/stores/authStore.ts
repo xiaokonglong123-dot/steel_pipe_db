@@ -14,6 +14,7 @@ interface AuthState {
   isRestoring: boolean;
   setAuth: (user: UserInfo, token: string) => void;
   setUser: (user: UserInfo) => void;
+  setToken: (token: string) => void;
   setRestoring: (v: boolean) => void;
   logout: () => void;
 }
@@ -27,6 +28,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   setUser: (user) => {
     set({ user });
+  },
+  setToken: (token) => {
+    set({ token });
   },
   setRestoring: (v) => {
     set({ isRestoring: v });

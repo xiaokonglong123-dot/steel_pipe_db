@@ -32,7 +32,7 @@ export const customerApi = {
   },
 
   search: async (q: string) => {
-    const res = await apiClient.get<ApiResponse<Customer[]>>('/customers/search', { params: { q } });
+    const res = await apiClient.get<ApiResponse<Customer[]>>('/customers/search', { q });
     return validateResponse(z.array(customerSchema), res.data);
   },
 

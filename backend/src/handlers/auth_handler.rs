@@ -5,7 +5,7 @@ use axum::{
     Json,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use validator::Validate;
 
 use crate::dto::auth_dto::{
@@ -40,7 +40,7 @@ impl<S: Sync> FromRequestParts<S> for AuthenticatedUser {
 ///
 /// Returns JWT access token in body and sets refresh token as httpOnly cookie.
 pub async fn login_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(jwt_secret): Extension<JwtSecret>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Response, AppError> {
@@ -89,7 +89,7 @@ pub async fn login_handler(
 /// Reads refresh token from httpOnly cookie. Returns new access + refresh pair,
 /// sets new cookie. Returns 401 if cookie is missing or invalid.
 pub async fn refresh_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(jwt_secret): Extension<JwtSecret>,
     jar: CookieJar,
 ) -> Result<Response, AppError> {
@@ -123,7 +123,7 @@ pub async fn refresh_handler(
 
 /// POST `/api/v1/auth/logout` — Revoke all refresh tokens + clear cookie
 pub async fn logout_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     AuthenticatedUser(auth): AuthenticatedUser,
 ) -> Result<Response, AppError> {
     AuthService::logout(&pool, auth.user_id).await?;
@@ -159,7 +159,7 @@ pub async fn logout_handler(
 /// Returns the profile of the currently authenticated user, including id, username, role, etc.
 /// Requires valid JWT. Returns 401 if not authenticated.
 pub async fn me_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     AuthenticatedUser(auth): AuthenticatedUser,
 ) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
     let user = AuthService::get_me(&pool, auth.user_id).await?;
@@ -179,7 +179,7 @@ pub struct UpdateOwnProfileRequest {
 /// Role, is_active, and password changes are NOT permitted here —
 /// those require the admin-only `PUT /api/v1/users/{id}` endpoint.
 pub async fn update_own_profile_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     AuthenticatedUser(auth): AuthenticatedUser,
     Json(req): Json<UpdateOwnProfileRequest>,
 ) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
@@ -210,7 +210,7 @@ pub async fn update_own_profile_handler(
 /// Returns a paginated list of all system users, with optional search query `q`.
 /// Admin-only. Supports pagination via `page` and `page_size` query params.
 pub async fn list_users_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(params): Query<UserListQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let (users, total) =
@@ -241,7 +241,7 @@ pub struct UserListQuery {
 /// Creates a new system user with the specified username, password, role, and display name.
 /// Admin-only. Logs the operation. Returns 400 on validation error, 409 on duplicate username.
 pub async fn create_user_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     AuthenticatedUser(auth): AuthenticatedUser,
     Json(req): Json<CreateUserRequest>,
 ) -> Result<axum::response::Response, AppError> {
@@ -274,7 +274,7 @@ pub async fn create_user_handler(
 /// Updates user fields (username, display_name, active status) by user ID.
 /// Admin-only. Logs the operation. Returns 404 if user not found.
 pub async fn update_user_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     AuthenticatedUser(auth): AuthenticatedUser,
     Path(id): Path<i64>,
     Json(req): Json<UpdateUserRequest>,
@@ -309,7 +309,7 @@ pub async fn update_user_handler(
 /// Rate-limited (rate_limit_password_change middleware). Logs the operation.
 /// Returns 403 if non-admin tries to change another user's password.
 pub async fn change_password_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     AuthenticatedUser(auth): AuthenticatedUser,
     Path(id): Path<i64>,
     Json(req): Json<ChangePasswordRequest>,
@@ -351,7 +351,7 @@ pub async fn change_password_handler(
 /// Changes the role of a user (e.g., admin, warehouse, qc, sales).
 /// Admin-only. Logs the operation. Returns 404 if user not found.
 pub async fn change_role_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     AuthenticatedUser(auth): AuthenticatedUser,
     Path(id): Path<i64>,
     Json(req): Json<ChangeUserRoleRequest>,
@@ -385,7 +385,7 @@ pub async fn change_role_handler(
 /// Soft-deletes a user by setting `deleted_at`. Admin-only.
 /// Logs the operation. Returns 404 if user not found.
 pub async fn delete_user_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     AuthenticatedUser(auth): AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {

@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateCheckRequest, SubmitCheckItemRequest};
@@ -15,16 +15,17 @@ pub struct CheckService;
 impl CheckService {
     /// Creates a check order. Auto-scans all `in_stock` pipes into check items and generates a CHK-prefixed number.
     pub async fn create_check(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateCheckRequest,
     ) -> Result<InventoryCheckRecord, AppError> {
         let check_no = utils::generate_no("CHK");
 
         let mut items: Vec<CheckInitItem> = Vec::new();
 
-        let (seamless_ids, screen_ids) = InventoryRepo::find_in_stock_pipe_ids(pool)
-            .await
-            .map_err(AppError::from)?;
+        let (seamless_ids, screen_ids, welded_ids) =
+            InventoryRepo::find_in_stock_pipe_ids(pool, dto.location_id)
+                .await
+                .map_err(AppError::from)?;
 
         for id in seamless_ids {
             items.push(CheckInitItem {
@@ -42,6 +43,14 @@ impl CheckService {
             });
         }
 
+        for id in welded_ids {
+            items.push(CheckInitItem {
+                pipe_type: "welded".into(),
+                pipe_id: id,
+                expected_status: "in_stock".into(),
+            });
+        }
+
         CheckRepo::create(pool, dto, &check_no, &items)
             .await
             .map_err(AppError::from)
@@ -52,7 +61,7 @@ impl CheckService {
     /// # Errors
     /// - `AppError::NotFound` — check record not found
     pub async fn get_check_detail(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<(InventoryCheckRecord, Vec<InventoryCheckItem>), AppError> {
         let record = CheckRepo::find_by_id(pool, id)
@@ -69,7 +78,7 @@ impl CheckService {
 
     /// Paginated list of check records.
     pub async fn list_checks(
-        pool: &SqlitePool,
+        pool: &PgPool,
         params: &PaginationParams,
     ) -> Result<(Vec<InventoryCheckRecord>, u64), AppError> {
         CheckRepo::list(pool, params).await.map_err(AppError::from)
@@ -81,7 +90,7 @@ impl CheckService {
     /// - `AppError::NotFound` — check record not found
     /// - `AppError::Validation` — check ain't in progress
     pub async fn submit_check_item(
-        pool: &SqlitePool,
+        pool: &PgPool,
         check_id: i64,
         item_id: i64,
         dto: &SubmitCheckItemRequest,
@@ -100,7 +109,13 @@ impl CheckService {
 
         CheckRepo::update_item_result(pool, check_id, item_id, &dto.found_status, &dto.notes)
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?
+            .ok_or_else(|| {
+                AppError::NotFound(format!(
+                    "Check item id={} not found in check id={}",
+                    item_id, check_id
+                ))
+            })
     }
 
     /// Completes a check — sets status to `completed` and returns the mismatch count. Only for `in_progress` checks.
@@ -109,7 +124,7 @@ impl CheckService {
     /// - `AppError::NotFound` — check record not found
     /// - `AppError::Validation` — can't complete in the current state
     pub async fn complete_check(
-        pool: &SqlitePool,
+        pool: &PgPool,
         check_id: i64,
     ) -> Result<serde_json::Value, AppError> {
         let record = CheckRepo::find_by_id(pool, check_id)

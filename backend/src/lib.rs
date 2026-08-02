@@ -6,6 +6,20 @@
 
 pub mod cache;
 pub mod cache_invalidator;
+pub mod auth;
+pub mod workflow;
+pub mod hr;
+pub mod finance;
+pub mod procurement;
+pub mod sales_crm;
+pub mod inventory_atp;
+pub mod manufacturing;
+pub mod threading;
+pub mod project;
+pub mod bi;
+pub mod portal;
+pub mod notification;
+pub mod assets;
 pub mod config;
 pub mod domain;
 pub mod dto;

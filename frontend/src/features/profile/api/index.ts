@@ -6,7 +6,6 @@ import type { ApiResponse } from '@/types';
 import type { UserInfo } from '@/types';
 
 export interface UpdateProfileData {
-  id: number;
   display_name: string;
   email?: string;
   phone?: string;
@@ -23,7 +22,7 @@ export function useUpdateProfile() {
 
   return useMutation({
     mutationFn: (data: UpdateProfileData) =>
-      apiClient.put<{ success: boolean; data: UserInfo }>(`/users/${data.id}`, {
+      apiClient.put<{ success: boolean; data: UserInfo }>('/auth/me', {
         display_name: data.display_name,
         email: data.email,
         phone: data.phone,

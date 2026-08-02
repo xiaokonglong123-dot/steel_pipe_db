@@ -1,8 +1,9 @@
 use std::str::FromStr;
+use chrono::Utc;
 use crate::dto::pipe_dto::PipeSearchResult;
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Sqlite, QueryBuilder};
+use sqlx::{FromRow, Postgres, QueryBuilder};
 
 /// Domain enum for pipe type classification.
 ///
@@ -116,7 +117,7 @@ impl PipeStatus {
 ///
 /// This enables writing CRUD logic once and having it work for SeamlessPipe, ScreenPipe,
 /// and any future pipe types (WeldedPipe, CoatedPipe, etc.).
-pub trait PipeModel: Send + Sync + Serialize + for<'r> FromRow<'r, sqlx::sqlite::SqliteRow> + Clone + Unpin + 'static {
+pub trait PipeModel: Send + Sync + Serialize + for<'r> FromRow<'r, sqlx::postgres::PgRow> + Clone + Unpin + 'static {
     /// The DTO for creating a new pipe of this type.
     type CreateDto: Send + Sync + Clone + 'static;
     /// The DTO for updating a pipe of this type.
@@ -185,7 +186,7 @@ pub trait PipeModel: Send + Sync + Serialize + for<'r> FromRow<'r, sqlx::sqlite:
     fn manufacturer(&self) -> Option<&str>;
 
     /// Get the deleted_at timestamp (for soft delete check).
-    fn deleted_at(&self) -> Option<&str>;
+    fn deleted_at(&self) -> Option<&chrono::DateTime<Utc>>;
 
     /// Check if this pipe has been soft-deleted.
     fn is_deleted(&self) -> bool {
@@ -236,9 +237,9 @@ pub trait PipeModel: Send + Sync + Serialize + for<'r> FromRow<'r, sqlx::sqlite:
 
     /// Build INSERT query using QueryBuilder.
     /// Implementors append column names and values to the builder.
-    fn build_create_query<'a>(builder: &mut QueryBuilder<'a, Sqlite>, dto: &'a Self::CreateDto);
+    fn build_create_query<'a>(builder: &mut QueryBuilder<'a, Postgres>, dto: &'a Self::CreateDto);
 
     /// Build UPDATE query using QueryBuilder.
     /// Implementors append SET clauses to the builder.
-    fn build_update_query<'a>(builder: &mut QueryBuilder<'a, Sqlite>, dto: &'a Self::UpdateDto);
+    fn build_update_query<'a>(builder: &mut QueryBuilder<'a, Postgres>, dto: &'a Self::UpdateDto);
 }

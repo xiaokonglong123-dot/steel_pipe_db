@@ -4,6 +4,7 @@ import {
   Button,
   Tag,
   Input,
+  InputNumber,
   Modal,
   Form,
   Select,
@@ -86,11 +87,22 @@ export default function OutboundListPage() {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      await createMutation.mutateAsync(values);
+      const payload = {
+        ...values,
+        order_id: values.order_id != null ? Number(values.order_id) : undefined,
+        customer_id:
+          values.customer_id != null ? Number(values.customer_id) : undefined,
+        pipes: (values.pipes ?? []).map((pipe) => ({
+          ...pipe,
+          pipe_id: Number(pipe.pipe_id),
+        })),
+      };
+      await createMutation.mutateAsync(payload);
       message.success(t('common.operate_success'));
       setModalOpen(false);
     } catch (err) {
       console.error('create outbound failed', err);
+      message.error(t('common.operate_failed'));
     }
   };
 
@@ -288,10 +300,10 @@ export default function OutboundListPage() {
             />
           </Form.Item>
           <Form.Item name="order_id" label={t('outbound.order_id')}>
-            <Input type="number" />
+            <InputNumber style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="customer_id" label={t('outbound.customer_id')}>
-            <Input type="number" />
+            <InputNumber style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="notes" label={t('outbound.notes')}>
             <Input.TextArea rows={3} />
@@ -322,7 +334,11 @@ export default function OutboundListPage() {
                         rules={[{ required: true, message: t('common.required') }]}
                         noStyle
                       >
-                        <Input placeholder={t('outbound.pipe_id_placeholder')} type="number" style={{ width: 120 }} />
+                        <InputNumber
+                          placeholder={t('outbound.pipe_id_placeholder')}
+                          min={1}
+                          style={{ width: 120 }}
+                        />
                       </Form.Item>
                       {fields.length > 1 && (
                         <Button size="small" danger onClick={() => remove(name)}>

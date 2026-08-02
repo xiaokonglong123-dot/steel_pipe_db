@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Postgres, PgPool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::customer_dto::{
@@ -12,14 +12,14 @@ pub struct CustomerRepo;
 impl CustomerRepo {
     /// INSERT a new customer with the given `code`. `is_active` defaults to `1`. Returns the created `Customer`.
     pub async fn create(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateCustomerRequest,
         code: &str,
     ) -> Result<Customer, sqlx::Error> {
         sqlx::query_as::<_, Customer>(
             "INSERT INTO customers (customer_code, name, contact_person, phone, email, address, \
              is_active, notes) \
-             VALUES (?, ?, ?, ?, ?, ?, 1, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7) \
              RETURNING id, customer_code, name, contact_person, phone, email, address, \
                is_active, notes, created_at, updated_at, deleted_at",
         )
@@ -37,12 +37,12 @@ impl CustomerRepo {
     /// Dynamic UPDATE of customer fields (name, contact_person, phone, email, is_active, etc.).
     /// Only supplied fields change. Returns the updated `Customer`.
     pub async fn update(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateCustomerRequest,
     ) -> Result<Customer, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("UPDATE customers SET updated_at = datetime('now')");
+        let mut builder: QueryBuilder<Postgres> =
+            QueryBuilder::new("UPDATE customers SET updated_at = NOW()");
 
         if let Some(ref val) = dto.name {
             builder.push(", name = ");
@@ -84,11 +84,11 @@ impl CustomerRepo {
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
-    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Customer>, sqlx::Error> {
+    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<Customer>, sqlx::Error> {
         sqlx::query_as::<_, Customer>(
             "SELECT id, customer_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
-             FROM customers WHERE id = ? AND deleted_at IS NULL",
+             FROM customers WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -97,13 +97,13 @@ impl CustomerRepo {
 
     /// SELECT by unique `customer_code`. Returns `None` if soft-deleted or missing.
     pub async fn find_by_code(
-        pool: &SqlitePool,
+        pool: &PgPool,
         code: &str,
     ) -> Result<Option<Customer>, sqlx::Error> {
         sqlx::query_as::<_, Customer>(
             "SELECT id, customer_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
-             FROM customers WHERE customer_code = ? AND deleted_at IS NULL",
+             FROM customers WHERE customer_code = $1 AND deleted_at IS NULL",
         )
         .bind(code)
         .fetch_optional(pool)
@@ -112,10 +112,10 @@ impl CustomerRepo {
 
     /// Soft-delete: sets `deleted_at` and `updated_at`.
     /// Returns `sqlx::Error::RowNotFound` when no row was updated (already deleted or missing).
-    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
         let result = sqlx::query(
-            "UPDATE customers SET deleted_at = datetime('now'), \
-             updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE customers SET deleted_at = NOW(), \
+             updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
@@ -129,7 +129,7 @@ impl CustomerRepo {
     /// Paginated SELECT with dynamic filters (q, is_active).
     /// Supports sorting by customer_code, name, created_at. Returns `(items, total)`.
     pub async fn list(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &CustomerFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<Customer>, u64), sqlx::Error> {
@@ -141,8 +141,9 @@ impl CustomerRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
+                let base = bind_values.len() + 1;
                 conditions
-                    .push("(name LIKE ? OR customer_code LIKE ? OR contact_person LIKE ?)".into());
+                    .push(format!("(name LIKE ${} OR customer_code LIKE ${} OR contact_person LIKE ${})", base, base + 1, base + 2));
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern.clone());
@@ -150,8 +151,11 @@ impl CustomerRepo {
             }
         }
         if let Some(val) = filter.is_active {
-            conditions.push("is_active = ?".into());
-            bind_values.push(if val { "1" } else { "0" }.into());
+            conditions.push(if val {
+                "is_active = TRUE".to_string()
+            } else {
+                "is_active = FALSE".to_string()
+            });
         }
 
         let where_clause = conditions.join(" AND ");
@@ -177,8 +181,12 @@ impl CustomerRepo {
         let list_sql = format!(
             "SELECT id, customer_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
-             FROM customers WHERE {} ORDER BY {} {} LIMIT ? OFFSET ?",
-            where_clause, sort_by, sort_order
+             FROM customers WHERE {} ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause,
+            sort_by,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, Customer>(&list_sql);
         for val in &bind_values {
@@ -194,13 +202,13 @@ impl CustomerRepo {
     }
 
     /// Quick name/code search (LIKE) with LIMIT 50 results.
-    pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<Customer>, sqlx::Error> {
+    pub async fn search(pool: &PgPool, query: &str) -> Result<Vec<Customer>, sqlx::Error> {
         let like = format!("%{}%", query);
         sqlx::query_as::<_, Customer>(
             "SELECT id, customer_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
              FROM customers \
-             WHERE deleted_at IS NULL AND (name LIKE ? OR customer_code LIKE ?) \
+             WHERE deleted_at IS NULL AND (name LIKE $1 OR customer_code LIKE $2) \
              ORDER BY name ASC LIMIT 50",
         )
         .bind(&like)
@@ -210,11 +218,11 @@ impl CustomerRepo {
     }
 
     /// SELECT all active customers, ordered by `name ASC`. Used for dropdowns.
-    pub async fn find_all_active(pool: &SqlitePool) -> Result<Vec<Customer>, sqlx::Error> {
+    pub async fn find_all_active(pool: &PgPool) -> Result<Vec<Customer>, sqlx::Error> {
         sqlx::query_as::<_, Customer>(
             "SELECT id, customer_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
-             FROM customers WHERE deleted_at IS NULL AND is_active = 1 \
+             FROM customers WHERE deleted_at IS NULL AND is_active = TRUE \
              ORDER BY name ASC",
         )
         .fetch_all(pool)

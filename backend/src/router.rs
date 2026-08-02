@@ -15,7 +15,7 @@
 //!   → route_layer(rbac::require_role)
 //!     → layer(CORS)
 //!       → layer(Trace + RequestId)
-//!         → layer(Extension<SqlitePool>)
+//!         → layer(Extension<PgPool>)
 //!           → layer(Extension<JwtSecret>)
 //!             → layer(Extension<RateLimiter>)
 //! ```
@@ -47,7 +47,7 @@ use axum::{
     },
     middleware, Router,
 };
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use tower::ServiceBuilder;
 use tower_http::{request_id::MakeRequestUuid, ServiceBuilderExt};
 
@@ -77,6 +77,7 @@ use crate::handlers::quality_handler;
 use crate::handlers::report_handler;
 use crate::handlers::sales_handler;
 use crate::handlers::supplier_handler;
+use crate::handlers::welded_pipe;
 
 // Helper functions for route groups with role-protected write operations
 // Each returns a Router with auth_middleware + require_role on all endpoints.
@@ -384,7 +385,7 @@ fn contract_write_routes() -> Router {
 // Main app builder — assembles all route groups, middleware, and shared layers
 
 pub fn create_app(
-    pool: SqlitePool,
+    pool: PgPool,
     jwt_secret: String,
     cors_origins: Vec<HeaderValue>,
     cache_manager: CacheManager,
@@ -432,6 +433,561 @@ pub fn create_app(
             crate::middleware::auth::auth_middleware,
         ));
 
+    // RBAC admin (roles, permissions, departments, user-role binding)
+    let rbac_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/auth/permissions",
+            axum::routing::get(crate::auth::handlers::list_permissions),
+        )
+        .route(
+            "/api/v1/auth/roles",
+            axum::routing::get(crate::auth::handlers::list_roles)
+                .post(crate::auth::handlers::create_role),
+        )
+        .route(
+            "/api/v1/auth/roles/{id}",
+            axum::routing::put(crate::auth::handlers::update_role)
+                .delete(crate::auth::handlers::delete_role),
+        )
+        .route(
+            "/api/v1/auth/roles/{id}/permissions",
+            axum::routing::get(crate::auth::handlers::get_role_permissions)
+                .put(crate::auth::handlers::set_role_permissions),
+        )
+        .route(
+            "/api/v1/auth/departments",
+            axum::routing::get(crate::auth::handlers::list_departments)
+                .post(crate::auth::handlers::create_department),
+        )
+        .route(
+            "/api/v1/auth/departments/{id}",
+            axum::routing::put(crate::auth::handlers::update_department)
+                .delete(crate::auth::handlers::delete_department),
+        )
+        .route(
+            "/api/v1/auth/tenants/{id}",
+            axum::routing::get(crate::auth::handlers::get_tenant),
+        )
+        .route(
+            "/api/v1/auth/users/{user_id}/roles",
+            axum::routing::put(crate::auth::handlers::assign_user_roles)
+                .get(crate::auth::handlers::get_user_roles),
+        )
+        .route(
+            "/api/v1/auth/users/{user_id}/permissions",
+            axum::routing::get(crate::auth::handlers::get_user_permissions),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Workflow definition management (admin) + task operations (any authenticated user)
+    let workflow_routes = Router::new()
+        .route(
+            "/api/v1/workflows/definitions",
+            axum::routing::get(crate::workflow::handlers::list_definitions)
+                .post(crate::workflow::handlers::create_definition),
+        )
+        .route(
+            "/api/v1/workflows/definitions/{id}",
+            axum::routing::get(crate::workflow::handlers::get_definition)
+                .put(crate::workflow::handlers::update_definition)
+                .delete(crate::workflow::handlers::delete_definition),
+        )
+        .route(
+            "/api/v1/workflows/instances",
+            axum::routing::post(crate::workflow::handlers::start_instance),
+        )
+        .route(
+            "/api/v1/workflows/my-tasks",
+            axum::routing::get(crate::workflow::handlers::my_tasks),
+        )
+        .route(
+            "/api/v1/workflows/tasks/{node_id}",
+            axum::routing::get(crate::workflow::handlers::get_task),
+        )
+        .route(
+            "/api/v1/workflows/tasks/{node_id}/approve",
+            axum::routing::post(crate::workflow::handlers::approve_task),
+        )
+        .route(
+            "/api/v1/workflows/tasks/{node_id}/reject",
+            axum::routing::post(crate::workflow::handlers::reject_task),
+        )
+        .route(
+            "/api/v1/workflows/delegations",
+            axum::routing::post(crate::workflow::handlers::delegate_task),
+        )
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // HR module (admin)
+    let hr_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/hr/employees",
+            axum::routing::get(crate::hr::handlers::list_employees)
+                .post(crate::hr::handlers::create_employee),
+        )
+        .route(
+            "/api/v1/hr/employees/{id}",
+            axum::routing::get(crate::hr::handlers::get_employee)
+                .put(crate::hr::handlers::update_employee)
+                .delete(crate::hr::handlers::delete_employee),
+        )
+        .route(
+            "/api/v1/hr/employees/{id}/terminate",
+            axum::routing::post(crate::hr::handlers::terminate_employee),
+        )
+        .route(
+            "/api/v1/hr/employees/{id}/contracts",
+            axum::routing::get(crate::hr::handlers::list_contracts),
+        )
+        .route(
+            "/api/v1/hr/contracts",
+            axum::routing::post(crate::hr::handlers::create_contract),
+        )
+        .route(
+            "/api/v1/hr/positions",
+            axum::routing::get(crate::hr::handlers::list_positions)
+                .post(crate::hr::handlers::create_position),
+        )
+        .route(
+            "/api/v1/hr/attendance",
+            axum::routing::get(crate::hr::handlers::list_attendance),
+        )
+        .route(
+            "/api/v1/hr/attendance/check-in",
+            axum::routing::post(crate::hr::handlers::check_in),
+        )
+        .route(
+            "/api/v1/hr/attendance/rules",
+            axum::routing::get(crate::hr::handlers::list_rules),
+        )
+        .route(
+            "/api/v1/hr/salaries",
+            axum::routing::get(crate::hr::handlers::list_salaries)
+                .post(crate::hr::handlers::generate_salaries),
+        )
+        .route(
+            "/api/v1/hr/salaries/{id}",
+            axum::routing::get(crate::hr::handlers::get_salary),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Finance module (admin): accounts, journal entries, invoices, payments, reports
+    let finance_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/chart-of-accounts",
+            axum::routing::get(crate::finance::handlers::list_accounts)
+                .post(crate::finance::handlers::create_account),
+        )
+        .route(
+            "/api/v1/chart-of-accounts/{id}",
+            axum::routing::put(crate::finance::handlers::update_account),
+        )
+        .route(
+            "/api/v1/journal-entries",
+            axum::routing::get(crate::finance::handlers::list_journal_entries)
+                .post(crate::finance::handlers::create_journal_entry),
+        )
+        .route(
+            "/api/v1/journal-entries/{id}",
+            axum::routing::get(crate::finance::handlers::get_journal_entry),
+        )
+        .route(
+            "/api/v1/finance/trial-balance",
+            axum::routing::get(crate::finance::handlers::trial_balance),
+        )
+        .route(
+            "/api/v1/invoices",
+            axum::routing::get(crate::finance::handlers::list_invoices)
+                .post(crate::finance::handlers::create_invoice),
+        )
+        .route(
+            "/api/v1/invoices/{id}",
+            axum::routing::get(crate::finance::handlers::get_invoice),
+        )
+        .route(
+            "/api/v1/invoices/{id}/confirm",
+            axum::routing::post(crate::finance::handlers::confirm_invoice),
+        )
+        .route(
+            "/api/v1/invoices/{id}/void",
+            axum::routing::post(crate::finance::handlers::void_invoice),
+        )
+        .route(
+            "/api/v1/payments",
+            axum::routing::get(crate::finance::handlers::list_payments)
+                .post(crate::finance::handlers::create_payment),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Procurement module (admin): requisitions, goods receipts, supplier quotes
+    let procurement_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/purchase-requisitions",
+            axum::routing::get(crate::procurement::handlers::list_requisitions)
+                .post(crate::procurement::handlers::create_requisition),
+        )
+        .route(
+            "/api/v1/purchase-requisitions/{id}",
+            axum::routing::get(crate::procurement::handlers::get_requisition)
+                .put(crate::procurement::handlers::update_requisition_status),
+        )
+        .route(
+            "/api/v1/po-receipts",
+            axum::routing::get(crate::procurement::handlers::list_receipts)
+                .post(crate::procurement::handlers::create_receipt),
+        )
+        .route(
+            "/api/v1/po-receipts/{id}",
+            axum::routing::get(crate::procurement::handlers::get_receipt),
+        )
+        .route(
+            "/api/v1/supplier-quotes",
+            axum::routing::get(crate::procurement::handlers::list_quotes)
+                .post(crate::procurement::handlers::create_quote),
+        )
+        .route(
+            "/api/v1/supplier-quotes/{id}/status",
+            axum::routing::put(crate::procurement::handlers::update_quote_status),
+        )
+        .route(
+            "/api/v1/suppliers/{supplier_id}/scorecard",
+            axum::routing::get(crate::procurement::handlers::supplier_scorecard),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Sales CRM (admin): shipments, quotes, customer credit
+    let sales_crm_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/shipments",
+            axum::routing::get(crate::sales_crm::handlers::list_shipments)
+                .post(crate::sales_crm::handlers::create_shipment),
+        )
+        .route(
+            "/api/v1/shipments/{id}/status",
+            axum::routing::put(crate::sales_crm::handlers::update_shipment_status),
+        )
+        .route(
+            "/api/v1/sales-quotes",
+            axum::routing::get(crate::sales_crm::handlers::list_quotes)
+                .post(crate::sales_crm::handlers::create_quote),
+        )
+        .route(
+            "/api/v1/sales-quotes/{id}",
+            axum::routing::get(crate::sales_crm::handlers::get_quote),
+        )
+        .route(
+            "/api/v1/sales-quotes/{id}/status",
+            axum::routing::put(crate::sales_crm::handlers::update_quote_status),
+        )
+        .route(
+            "/api/v1/sales-quotes/{id}/convert",
+            axum::routing::post(crate::sales_crm::handlers::convert_quote),
+        )
+        .route(
+            "/api/v1/customers/{customer_id}/credit",
+            axum::routing::get(crate::sales_crm::handlers::customer_credit),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Inventory ATP (admin): reservations, transfers, cycle counts
+    let inventory_atp_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/inventory/atp/overview",
+            axum::routing::get(crate::inventory_atp::handlers::overview),
+        )
+        .route(
+            "/api/v1/inventory/atp/pipe",
+            axum::routing::get(crate::inventory_atp::handlers::pipe_atp),
+        )
+        .route(
+            "/api/v1/inventory/reservations",
+            axum::routing::post(crate::inventory_atp::handlers::reserve),
+        )
+        .route(
+            "/api/v1/inventory/reservations/{id}/release",
+            axum::routing::post(crate::inventory_atp::handlers::release),
+        )
+        .route(
+            "/api/v1/inventory/transfers",
+            axum::routing::get(crate::inventory_atp::handlers::list_transfers)
+                .post(crate::inventory_atp::handlers::create_transfer),
+        )
+        .route(
+            "/api/v1/inventory/count-templates",
+            axum::routing::get(crate::inventory_atp::handlers::list_count_templates)
+                .post(crate::inventory_atp::handlers::create_count_template),
+        )
+        .route(
+            "/api/v1/inventory/count-templates/{template_id}/start",
+            axum::routing::post(crate::inventory_atp::handlers::start_count_session),
+        )
+        .route(
+            "/api/v1/inventory/count-sessions",
+            axum::routing::get(crate::inventory_atp::handlers::list_count_sessions)
+                .post(crate::inventory_atp::handlers::complete_count_session),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Manufacturing module (admin): BOMs, work orders, inspections, NCRs
+    let manufacturing_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/manufacturing/boms",
+            axum::routing::get(crate::manufacturing::handlers::list_boms)
+                .post(crate::manufacturing::handlers::create_bom),
+        )
+        .route(
+            "/api/v1/manufacturing/boms/{id}",
+            axum::routing::get(crate::manufacturing::handlers::get_bom),
+        )
+        .route(
+            "/api/v1/manufacturing/work-orders",
+            axum::routing::get(crate::manufacturing::handlers::list_work_orders)
+                .post(crate::manufacturing::handlers::create_work_order),
+        )
+        .route(
+            "/api/v1/manufacturing/work-orders/{id}",
+            axum::routing::get(crate::manufacturing::handlers::get_work_order),
+        )
+        .route(
+            "/api/v1/manufacturing/work-orders/{id}/start",
+            axum::routing::post(crate::manufacturing::handlers::start_work_order),
+        )
+        .route(
+            "/api/v1/manufacturing/work-orders/{id}/complete-step",
+            axum::routing::post(crate::manufacturing::handlers::complete_step),
+        )
+        .route(
+            "/api/v1/manufacturing/inspections",
+            axum::routing::get(crate::manufacturing::handlers::list_inspections)
+                .post(crate::manufacturing::handlers::create_inspection),
+        )
+        .route(
+            "/api/v1/manufacturing/ncrs",
+            axum::routing::get(crate::manufacturing::handlers::list_ncrs)
+                .post(crate::manufacturing::handlers::create_ncr),
+        )
+        .route(
+            "/api/v1/manufacturing/ncrs/{id}/resolve",
+            axum::routing::post(crate::manufacturing::handlers::resolve_ncr),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Threading module (admin): machining records, API 5CT engineering calcs
+    let threading_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/threading/records",
+            axum::routing::get(crate::threading::handlers::list_records)
+                .post(crate::threading::handlers::create_record),
+        )
+        .route(
+            "/api/v1/threading/calc",
+            axum::routing::post(crate::threading::handlers::calc),
+        )
+        .route(
+            "/api/v1/casing/design-check",
+            axum::routing::post(crate::threading::handlers::design_check),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Project management (admin): projects, WBS, budget transactions
+    let project_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/projects",
+            axum::routing::get(crate::project::handlers::list_projects)
+                .post(crate::project::handlers::create_project),
+        )
+        .route(
+            "/api/v1/projects/{id}",
+            axum::routing::get(crate::project::handlers::get_project)
+                .put(crate::project::handlers::update_project_status),
+        )
+        .route(
+            "/api/v1/projects/{id}/wbs",
+            axum::routing::get(crate::project::handlers::wbs_tree)
+                .post(crate::project::handlers::create_wbs),
+        )
+        .route(
+            "/api/v1/projects/{project_id}/wbs/{id}",
+            axum::routing::put(crate::project::handlers::update_wbs_progress),
+        )
+        .route(
+            "/api/v1/projects/{id}/financials",
+            axum::routing::get(crate::project::handlers::financials),
+        )
+        .route(
+            "/api/v1/projects/{id}/transactions",
+            axum::routing::get(crate::project::handlers::list_transactions)
+                .post(crate::project::handlers::create_transaction),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Fixed assets (admin): registration, depreciation, disposal
+    let assets_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/assets",
+            axum::routing::get(crate::assets::handlers::list_assets)
+                .post(crate::assets::handlers::create_asset),
+        )
+        .route(
+            "/api/v1/assets/{id}",
+            axum::routing::get(crate::assets::handlers::get_asset)
+                .put(crate::assets::handlers::update_asset),
+        )
+        .route(
+            "/api/v1/assets/{id}/depreciate",
+            axum::routing::post(crate::assets::handlers::depreciate),
+        )
+        .route(
+            "/api/v1/assets/{id}/dispose",
+            axum::routing::post(crate::assets::handlers::dispose_asset),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Notifications (any authenticated user): own inbox + preferences
+    let notification_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/notifications",
+            axum::routing::get(crate::notification::handlers::list_notifications)
+                .post(crate::notification::handlers::send_notification),
+        )
+        .route(
+            "/api/v1/notifications/unread-count",
+            axum::routing::get(crate::notification::handlers::unread_count),
+        )
+        .route(
+            "/api/v1/notifications/{id}/read",
+            axum::routing::post(crate::notification::handlers::mark_read),
+        )
+        .route(
+            "/api/v1/notifications/preferences",
+            axum::routing::get(crate::notification::handlers::list_preferences)
+                .put(crate::notification::handlers::update_preference),
+        )
+        .route(
+            "/api/v1/notifications/templates",
+            axum::routing::post(crate::notification::handlers::create_template),
+        )
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Portal admin (admin): create portal accounts
+    let portal_admin_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/portal/accounts",
+            axum::routing::post(crate::portal::handlers::create_account),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Portal API (portal JWT, no internal auth)
+    let portal_api_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/portal-api/login",
+            axum::routing::post(crate::portal::handlers::portal_login),
+        )
+        .route(
+            "/api/v1/portal-api/purchases",
+            axum::routing::get(crate::portal::handlers::portal_purchases),
+        )
+        .route(
+            "/api/v1/portal-api/purchases/{id}/accept",
+            axum::routing::post(crate::portal::handlers::portal_accept_purchase),
+        )
+        .route(
+            "/api/v1/portal-api/sales",
+            axum::routing::get(crate::portal::handlers::portal_sales),
+        )
+        .route(
+            "/api/v1/portal-api/sales/{id}/acknowledge",
+            axum::routing::post(crate::portal::handlers::portal_acknowledge_sales),
+        )
+        .route(
+            "/api/v1/portal-api/events",
+            axum::routing::get(crate::portal::handlers::portal_events),
+        );
+
+    // BI analytics (admin)
+    let bi_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/bi/sales-trend",
+            axum::routing::get(crate::bi::handlers::sales_trend),
+        )
+        .route(
+            "/api/v1/bi/inventory-value",
+            axum::routing::get(crate::bi::handlers::inventory_value),
+        )
+        .route(
+            "/api/v1/bi/finance-summary",
+            axum::routing::get(crate::bi::handlers::finance_summary),
+        )
+        .route(
+            "/api/v1/bi/supplier-performance",
+            axum::routing::get(crate::bi::handlers::supplier_performance),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
     // Admin read-only (GET user list)
     let admin_read = Router::new()
         .route(
@@ -467,6 +1023,14 @@ pub fn create_app(
             "/api/v1/pipes/search",
             axum::routing::get(pipe_handler::search_pipes_handler),
         )
+        .route(
+            "/api/v1/welded-pipes",
+            axum::routing::get(welded_pipe::list_welded_pipes_handler),
+        )
+        .route(
+            "/api/v1/welded-pipes/{id}",
+            axum::routing::get(welded_pipe::get_welded_pipe_handler),
+        )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
         ));
@@ -494,6 +1058,15 @@ pub fn create_app(
         .route(
             "/api/v1/pipes/batch",
             axum::routing::post(pipe_handler::batch_create_pipes_handler),
+        )
+        .route(
+            "/api/v1/welded-pipes",
+            axum::routing::post(welded_pipe::create_welded_pipe_handler),
+        )
+        .route(
+            "/api/v1/welded-pipes/{id}",
+            axum::routing::put(welded_pipe::update_welded_pipe_handler)
+                .delete(welded_pipe::delete_welded_pipe_handler),
         )
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse"])
@@ -782,6 +1355,36 @@ pub fn create_app(
         .merge(public_auth)
         // Authenticated (any role)
         .merge(authenticated)
+        // RBAC admin (roles, permissions, departments, user-role binding)
+        .merge(rbac_routes)
+        // Workflow (definitions admin, tasks any authenticated)
+        .merge(workflow_routes)
+        // HR module (admin)
+        .merge(hr_routes)
+        // Finance module (admin)
+        .merge(finance_routes)
+        // Procurement module (admin)
+        .merge(procurement_routes)
+        // Sales CRM (admin)
+        .merge(sales_crm_routes)
+        // Inventory ATP (admin)
+        .merge(inventory_atp_routes)
+        // Manufacturing module (admin): BOMs, work orders, inspections, NCRs
+        .merge(manufacturing_routes)
+        // Threading module (admin): machining records, API 5CT engineering calcs
+        .merge(threading_routes)
+        // Project management (admin): projects, WBS, budget transactions
+        .merge(project_routes)
+        // Fixed assets (admin)
+        .merge(assets_routes)
+        // Notifications (any authenticated user)
+        .merge(notification_routes)
+        // Portal admin (admin): create portal accounts
+        .merge(portal_admin_routes)
+        // BI analytics (admin)
+        .merge(bi_routes)
+        // Portal API (portal JWT — no internal auth)
+        .merge(portal_api_routes)
         // Admin read
         .merge(admin_read)
         // Business read-only (all authenticated users)

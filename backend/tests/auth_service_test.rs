@@ -2,11 +2,10 @@
 //!
 //! Covers login, token refresh, user CRUD, password management, role management,
 //! and soft-delete semantics.
-//!
-//! All tests use an in-memory SQLite database with fresh migrations.
 
 mod common;
 
+use chrono::{DateTime, Utc};
 use steel_pipe_db::dto::auth_dto::{
     ChangePasswordRequest, CreateUserRequest, LoginRequest, RefreshTokenRequest, UpdateUserRequest,
 };
@@ -75,7 +74,7 @@ async fn login_inactive_user_returns_forbidden() {
     let pool = common::test_pool().await;
     let user_id = common::seed_user(&pool, "disabled", "admin").await.unwrap();
 
-    sqlx::query("UPDATE users SET is_active = 0 WHERE id = ?")
+    sqlx::query("UPDATE users SET is_active = FALSE WHERE id = $1")
         .bind(user_id)
         .execute(&pool)
         .await
@@ -240,7 +239,7 @@ async fn refresh_token_expired_token_returns_unauthorized() {
     .await
     .expect("login must succeed");
 
-    sqlx::query("UPDATE refresh_tokens SET expires_at = '2000-01-01T00:00:00Z' WHERE user_id = ?")
+    sqlx::query("UPDATE refresh_tokens SET expires_at = '2000-01-01T00:00:00Z' WHERE user_id = $1")
         .bind(user_id)
         .execute(&pool)
         .await
@@ -431,7 +430,7 @@ async fn change_password_with_correct_old_password_succeeds() {
         .unwrap();
 
     let req = ChangePasswordRequest {
-        old_password: "password123".into(),
+        old_password: Some("password123".to_string()).into(),
         new_password: "NewSecure1Pass".into(),
     };
 
@@ -465,7 +464,7 @@ async fn change_password_with_wrong_old_password_returns_unauthorized() {
         .unwrap();
 
     let req = ChangePasswordRequest {
-        old_password: "wrongOldPassword".into(),
+        old_password: Some("wrongOldPassword".to_string()).into(),
         new_password: "NewSecure1Pass".into(),
     };
 
@@ -489,7 +488,7 @@ async fn change_password_admin_bypasses_old_password_check() {
 
     // Admin can change any user's password without knowing the old one
     let req = ChangePasswordRequest {
-        old_password: "does_not_matter".into(),
+        old_password: Some("does_not_matter".to_string()).into(),
         new_password: "AdminSetPass1".into(),
     };
 
@@ -719,7 +718,7 @@ async fn delete_user_sets_deleted_at_timestamp() {
         .await
         .expect("delete_user must succeed");
 
-    let row: (Option<String>,) = sqlx::query_as("SELECT deleted_at FROM users WHERE id = ?")
+    let row: (Option<DateTime<Utc>>,) = sqlx::query_as("SELECT deleted_at FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(&pool)
         .await

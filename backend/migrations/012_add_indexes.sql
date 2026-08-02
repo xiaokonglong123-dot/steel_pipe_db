@@ -11,7 +11,7 @@
 --   - entity_type/entity_id/user_id: audit log filtering (high-volume table)
 --
 -- All indexes use CREATE INDEX IF NOT EXISTS for idempotency.
--- SQLite WAL mode + these indexes provide sufficient read performance for typical workloads.
+-- These indexes provide sufficient read performance for typical workloads.
 -- For very large datasets, consider adding composite indexes based on actual query patterns.
 
 -- Seamless pipes

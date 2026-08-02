@@ -35,8 +35,10 @@ impl fmt::Debug for JwtSecret {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub: i64,
+    pub tenant_id: i64,
     pub username: String,
     pub role: String,
+    pub permissions: Vec<String>,
     pub exp: usize,
     pub iat: usize,
 }
@@ -44,12 +46,14 @@ pub struct Claims {
 /// Authenticated user context injected into request extensions by [`auth_middleware`].
 ///
 /// Downstream handlers and middlewares extract this via `Extension<AuthContext>`
-/// to access the current user's identity and role.
+/// to access the current user's identity, tenant scope, and effective permissions.
 #[derive(Debug, Clone)]
 pub struct AuthContext {
     pub user_id: i64,
+    pub tenant_id: i64,
     pub username: String,
     pub role: String,
+    pub permissions: Vec<String>,
 }
 
 /// Axum middleware that validates a Bearer JWT from the `Authorization` header.
@@ -103,8 +107,10 @@ pub async fn auth_middleware(mut req: Request, next: Next) -> Response {
         Ok(data) => {
             let ctx = AuthContext {
                 user_id: data.claims.sub,
+                tenant_id: data.claims.tenant_id,
                 username: data.claims.username,
                 role: data.claims.role,
+                permissions: data.claims.permissions,
             };
             req.extensions_mut().insert(ctx);
             next.run(req).await

@@ -89,9 +89,9 @@ pub struct ChangeUserRoleRequest {
 /// Change password request DTO.
 #[derive(Debug, Deserialize, Validate)]
 pub struct ChangePasswordRequest {
-    /// Current password.
-    #[validate(length(min = 1))]
-    pub old_password: String,
+    /// Current password. Optional — admins resetting another user's password
+    /// don't need it; it's required for self-service changes.
+    pub old_password: Option<String>,
     /// New password.
     #[validate(length(min = 1))]
     pub new_password: String,

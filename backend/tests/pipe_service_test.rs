@@ -10,6 +10,7 @@
 
 mod common;
 
+use chrono::{DateTime, Utc};
 use steel_pipe_db::dto::common::PaginationParams;
 use steel_pipe_db::dto::pipe_dto::{
     CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams, UpdateScreenPipeRequest,
@@ -207,7 +208,6 @@ async fn update_seamless_pipe_updates_fields() {
         production_date: None,
         cert_number: None,
             location_id: None,
-        status: None,
     };
 
     let updated = PipeService::update_seamless_pipe(&pool, &cache, pipe.id, &update)
@@ -250,7 +250,6 @@ async fn update_seamless_pipe_nonexistent_fails() {
         cert_number: None,
         notes: None,
             location_id: None,
-        status: None,
     };
 
     let err = PipeService::update_seamless_pipe(&pool, &cache, 99999, &update)
@@ -293,8 +292,8 @@ async fn delete_seamless_pipe_soft_deletes() {
     );
 
     // Check deleted_at is set directly in DB
-    let deleted_at: (Option<String>,) =
-        sqlx::query_as("SELECT deleted_at FROM seamless_pipes WHERE id = ?")
+    let deleted_at: (Option<DateTime<Utc>>,) =
+        sqlx::query_as("SELECT deleted_at FROM seamless_pipes WHERE id = $1")
             .bind(pipe_id)
             .fetch_one(&pool)
             .await
@@ -758,7 +757,6 @@ async fn update_screen_pipe_updates_fields() {
         production_date: None,
         cert_number: None,
             location_id: None,
-        status: None,
     };
 
     let updated = PipeService::update_screen_pipe(&pool, &cache, pipe_id, &update)
@@ -800,7 +798,6 @@ async fn update_screen_pipe_nonexistent_fails() {
         cert_number: None,
         notes: None,
             location_id: None,
-        status: None,
     };
 
     let err = PipeService::update_screen_pipe(&pool, &cache, 99999, &update)
@@ -842,8 +839,8 @@ async fn delete_screen_pipe_soft_deletes() {
     );
 
     // Verify deleted_at is set in DB
-    let deleted_at: (Option<String>,) =
-        sqlx::query_as("SELECT deleted_at FROM screen_pipes WHERE id = ?")
+    let deleted_at: (Option<DateTime<Utc>>,) =
+        sqlx::query_as("SELECT deleted_at FROM screen_pipes WHERE id = $1")
             .bind(pipe_id)
             .fetch_one(&pool)
             .await

@@ -94,7 +94,7 @@ export default function OutboundFormPage() {
         order_id: values.order_id != null ? Number(values.order_id) : undefined,
         customer_id: values.customer_id != null ? Number(values.customer_id) : undefined,
         notes: values.notes != null ? String(values.notes) : undefined,
-        pipes,
+        pipes: isEdit ? [] : pipes,
       };
 
       if (!cleanValues.outbound_type || cleanValues.pipes.length === 0) {
@@ -186,7 +186,7 @@ export default function OutboundFormPage() {
           rules={[{ required: true, message: t('common.required') }]}
           style={{ margin: 0 }}
         >
-          <Select style={{ width: 120 }}>
+          <Select style={{ width: 120 }} disabled={isEdit}>
             {DETAILED_PIPE_TYPES.map((type) => (
               <Select.Option key={type} value={type}>
                 {t(`pipe_type.${type}`, type)}
@@ -207,7 +207,7 @@ export default function OutboundFormPage() {
           rules={[{ required: true, message: t('common.required') }]}
           style={{ margin: 0 }}
         >
-          <InputNumber min={1} style={{ width: '100%' }} />
+          <InputNumber min={1} style={{ width: '100%' }} disabled={isEdit} />
         </Form.Item>
       ),
     },
@@ -243,18 +243,19 @@ export default function OutboundFormPage() {
       title: t('common.actions'),
       key: 'actions',
       width: 80,
-      render: (_: unknown, __: unknown, index: number) => (
-        <Popconfirm
-          title={t('common.confirm_delete')}
-          onConfirm={() => {
-            const pipes = form.getFieldValue('pipes') || [];
-            pipes.splice(index, 1);
-            form.setFieldsValue({ pipes: [...pipes] });
-          }}
-        >
-          <Button type="link" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
-      ),
+      render: (_: unknown, __: unknown, index: number) =>
+        isEdit ? null : (
+          <Popconfirm
+            title={t('common.confirm_delete')}
+            onConfirm={() => {
+              const pipes = form.getFieldValue('pipes') || [];
+              pipes.splice(index, 1);
+              form.setFieldsValue({ pipes: [...pipes] });
+            }}
+          >
+            <Button type="link" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        ),
     },
   ];
 
@@ -298,19 +299,21 @@ export default function OutboundFormPage() {
         <h3 style={{ marginBottom: 16 }}>
           <Space>
             <span>{t('outbound.pipes')}</span>
-            <Button
-              type="primary"
-              ghost
-              size="small"
-              icon={<SearchOutlined />}
-              onClick={() => {
-                setSearchText('');
-                setSearchResults([]);
-                setSearchModalOpen(true);
-              }}
-            >
-              {t('common.search')}
-            </Button>
+            {!isEdit && (
+              <Button
+                type="primary"
+                ghost
+                size="small"
+                icon={<SearchOutlined />}
+                onClick={() => {
+                  setSearchText('');
+                  setSearchResults([]);
+                  setSearchModalOpen(true);
+                }}
+              >
+                {t('common.search')}
+              </Button>
+            )}
           </Space>
         </h3>
 
@@ -322,21 +325,23 @@ export default function OutboundFormPage() {
                 dataSource={fields.map((field) => ({ ...field }))}
                 rowKey="key"
                 pagination={false}
-                footer={() => (
-                  <Button
-                    type="dashed"
-                    onClick={() =>
-                      add({
-                        pipe_type: 'casing',
-                        pipe_id: undefined,
-                      })
-                    }
-                    icon={<PlusOutlined />}
-                    style={{ width: '100%' }}
-                  >
-                    {t('outbound.add_pipe')}
-                  </Button>
-                )}
+                footer={() =>
+                  isEdit ? null : (
+                    <Button
+                      type="dashed"
+                      onClick={() =>
+                        add({
+                          pipe_type: 'casing',
+                          pipe_id: undefined,
+                        })
+                      }
+                      icon={<PlusOutlined />}
+                      style={{ width: '100%' }}
+                    >
+                      {t('outbound.add_pipe')}
+                    </Button>
+                  )
+                }
               />
             </>
           )}

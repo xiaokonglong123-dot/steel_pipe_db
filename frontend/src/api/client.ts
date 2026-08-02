@@ -53,9 +53,39 @@ function handle401(): never {
   throw new ApiError(401, 11001, 'Unauthorized');
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Try to refresh the access token via the httpOnly refresh cookie.
+ * Concurrent 401s share a single refresh call (single-flight).
+ * Returns the new token, or null when the refresh fails.
+ */
+function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!res.ok) return null;
+        const body = await res.json();
+        const token: unknown = body?.data?.token;
+        return typeof token === 'string' && token.length > 0 ? token : null;
+      } catch {
+        return null;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+}
+
 interface RequestOptions {
   body?: unknown;
-  params?: Record<string, unknown>;
+  params?: object;
   signal?: AbortSignal;
   responseType?: 'json' | 'blob';
 }
@@ -90,10 +120,10 @@ async function request<T>(
   // Check if body is FormData
   const isFormData = options?.body instanceof FormData;
 
-  try {
-    const response = await fetch(url.toString(), {
+  const perform = (authToken: string | null) =>
+    fetch(url.toString(), {
       method,
-      headers: buildHeaders(token, isFormData),
+      headers: buildHeaders(authToken, isFormData),
       body: options?.body
         ? isFormData
           ? (options.body as FormData)
@@ -103,9 +133,22 @@ async function request<T>(
       credentials: 'include',
     });
 
+  try {
+    let response = await perform(token);
+
+    // On 401, try a single-flight token refresh and replay the request once.
+    const isAuthEndpoint = path === '/auth/refresh' || path === '/auth/login';
+    if (response.status === 401 && !isAuthEndpoint) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        useAuthStore.getState().setToken(newToken);
+        response = await perform(newToken);
+      }
+    }
+
     clearTimeout(timeoutId);
 
-    // Handle 401
+    // Handle 401 (refresh failed or auth endpoint itself returned 401)
     if (response.status === 401) {
       handle401();
     }
@@ -159,7 +202,7 @@ async function request<T>(
 export const apiClient = {
   get: <T>(
     path: string,
-    params?: Record<string, unknown>,
+    params?: object,
     signal?: AbortSignal,
   ) => request<T>('GET', path, { params, signal }),
 
@@ -188,7 +231,7 @@ export const apiClient = {
   /** GET with blob response (for file downloads) */
   getBlob: (
     path: string,
-    params?: Record<string, unknown>,
+    params?: object,
     signal?: AbortSignal,
   ) => request<Blob>('GET', path, { params, signal, responseType: 'blob' }),
 };

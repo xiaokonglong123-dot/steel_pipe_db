@@ -18,8 +18,8 @@ pub struct Config {
     /// Deployment environment: `development` (default) or `production`.
     /// In production, missing/placeholder/weak secrets cause a fail-closed panic.
     pub app_env: String,
-    /// SQLite connection string (e.g., `sqlite://./data/steel_pipe.db?mode=rwc`).
-    /// Default: `sqlite://./data/steel_pipe.db?mode=rwc` (auto-creates DB file).
+    /// PostgreSQL connection string (e.g., `postgres://user:pass@host:5432/dbname`).
+    /// Default: `postgres://postgres@localhost:5432/steel_pipe_erp` (local dev server).
     pub database_url: String,
     /// HMAC secret for signing and verifying JWT tokens.
     /// Default is a placeholder — must be changed in production.
@@ -60,7 +60,7 @@ impl Config {
         Self {
             app_env,
             database_url: env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "sqlite://./data/steel_pipe.db?mode=rwc".to_string()),
+                .unwrap_or_else(|_| "postgres://postgres@localhost:5432/steel_pipe_erp".to_string()),
             jwt_secret,
             jwt_expiry_hours: env::var("JWT_EXPIRY_HOURS")
                 .ok()

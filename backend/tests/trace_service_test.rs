@@ -27,7 +27,7 @@ async fn trace_pipe_lifecycle_seamless_with_logs() {
     // Insert inventory log entries directly (matching actual schema)
     sqlx::query(
         "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, notes, created_at)
-         VALUES ('seamless', $1, 'inbound', 'purchase', 100, 'received from supplier', datetime('now', '-2 days'))",
+         VALUES ('seamless', $1, 'inbound', 'purchase', 100, 'received from supplier', NOW() + '-2 days'::interval)",
     )
     .bind(pipe_id)
     .execute(&pool)
@@ -36,7 +36,7 @@ async fn trace_pipe_lifecycle_seamless_with_logs() {
 
     sqlx::query(
         "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, notes, created_at)
-         VALUES ('seamless', $1, 'transfer', 'location_change', 200, 'moved to A-01-01', datetime('now', '-1 days'))",
+         VALUES ('seamless', $1, 'transfer', 'location_change', 200, 'moved to A-01-01', NOW() + '-1 days'::interval)",
     )
     .bind(pipe_id)
     .execute(&pool)
@@ -86,7 +86,7 @@ async fn trace_pipe_lifecycle_screen_with_logs() {
 
     sqlx::query(
         "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, notes, created_at)
-         VALUES ('screen', $1, 'inbound', 'purchase', 101, 'received', datetime('now'))",
+         VALUES ('screen', $1, 'inbound', 'purchase', 101, 'received', NOW())",
     )
     .bind(pipe_id)
     .execute(&pool)
@@ -140,7 +140,7 @@ async fn trace_pipe_lifecycle_events_sorted_by_time() {
     // Insert events out of order (older first is correct, but we interleave)
     sqlx::query(
         "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, notes, created_at)
-         VALUES ('seamless', $1, 'outbound', 'sales', 300, 'shipped to customer', datetime('now', '+1 days'))",
+         VALUES ('seamless', $1, 'outbound', 'sales', 300, 'shipped to customer', NOW() + '+1 days'::interval)",
     )
     .bind(pipe_id)
     .execute(&pool)
@@ -149,7 +149,7 @@ async fn trace_pipe_lifecycle_events_sorted_by_time() {
 
     sqlx::query(
         "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, notes, created_at)
-         VALUES ('seamless', $1, 'inbound', 'purchase', 301, 'received', datetime('now', '-1 days'))",
+         VALUES ('seamless', $1, 'inbound', 'purchase', 301, 'received', NOW() + '-1 days'::interval)",
     )
     .bind(pipe_id)
     .execute(&pool)
@@ -290,19 +290,19 @@ async fn trace_by_order_inbound() {
         .unwrap();
 
     // Create inbound record linked to a purchase order
-    let inbound_id: i64 = sqlx::query(
+    let inbound_id: i64 = sqlx::query_scalar(
         "INSERT INTO inbound_records (inbound_no, inbound_type, order_id, approval_status, notes, created_at, updated_at)
-         VALUES ('IN-ORD-001', 'purchase', 42, 'approved', 'test inbound', datetime('now'), datetime('now'))",
+         VALUES ('IN-ORD-001', 'purchase', 42, 'approved', 'test inbound', NOW(), NOW())
+         RETURNING id",
     )
-    .execute(&pool)
+    .fetch_one(&pool)
     .await
-    .unwrap()
-    .last_insert_rowid();
+    .unwrap();
 
     // Create inbound item
     sqlx::query(
         "INSERT INTO inbound_items (inbound_id, pipe_type, pipe_id, created_at)
-         VALUES ($1, 'seamless', $2, datetime('now'))",
+         VALUES ($1, 'seamless', $2, NOW())",
     )
     .bind(inbound_id)
     .bind(pipe_id)
@@ -351,18 +351,18 @@ async fn trace_by_order_outbound() {
         .await
         .unwrap();
 
-    let outbound_id: i64 = sqlx::query(
+    let outbound_id: i64 = sqlx::query_scalar(
         "INSERT INTO outbound_records (outbound_no, outbound_type, order_id, approval_status, notes, created_at, updated_at)
-         VALUES ('OUT-ORD-001', 'sales', 55, 'approved', 'test outbound', datetime('now'), datetime('now'))",
+         VALUES ('OUT-ORD-001', 'sales', 55, 'approved', 'test outbound', NOW(), NOW())
+         RETURNING id",
     )
-    .execute(&pool)
+    .fetch_one(&pool)
     .await
-    .unwrap()
-    .last_insert_rowid();
+    .unwrap();
 
     sqlx::query(
         "INSERT INTO outbound_items (outbound_id, pipe_type, pipe_id, created_at)
-         VALUES ($1, 'seamless', $2, datetime('now'))",
+         VALUES ($1, 'seamless', $2, NOW())",
     )
     .bind(outbound_id)
     .bind(pipe_id)

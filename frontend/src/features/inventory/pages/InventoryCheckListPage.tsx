@@ -9,7 +9,7 @@ import {
   Input,
   message,
 } from 'antd';
-import { PlusOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlusOutlined, EyeOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { PageLayout } from '@/shared/components/PageLayout';
 import { DataTable } from '@/shared/components/DataTable';
@@ -28,6 +28,9 @@ import type {
   SubmitCheckItemData,
   Location,
 } from '../api/inventoryApi';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { inventoryQueryKeys } from '../queryKeys';
+import { apiClient } from '@/api/client';
 
 const STATUS_COLOR_MAP: Record<string, string> = {
   in_progress: 'blue',
@@ -58,6 +61,18 @@ export default function InventoryCheckListPage() {
 
   const createMutation = useCreateCheck();
   const submitItemMutation = useSubmitCheckItem();
+  const qc = useQueryClient();
+
+  const completeMutation = useMutation({
+    mutationFn: (checkId: number) =>
+      apiClient.post<{ success: boolean; data: { record: InventoryCheckRecord } }>(
+        `/inventory/checks/${checkId}/complete`,
+      ),
+    onSuccess: () => {
+      message.success(t('common.operate_success'));
+      qc.invalidateQueries({ queryKey: inventoryQueryKeys.checks.all });
+    },
+  });
 
   const openCreateModal = () => {
     createForm.resetFields();
@@ -139,14 +154,33 @@ export default function InventoryCheckListPage() {
       title: t('common.actions'),
       key: 'actions',
       render: (_: unknown, record: InventoryCheckRecord) => (
-        <Button
-          type="link"
-          size="small"
-          icon={<EyeOutlined />}
-          onClick={() => openDetailModal(record.id)}
-        >
-          {t('inventory_check.view_items')}
-        </Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => openDetailModal(record.id)}
+          >
+            {t('inventory_check.view_items')}
+          </Button>
+          {record.status === 'in_progress' && (
+            <Button
+              type="link"
+              size="small"
+              icon={<CheckCircleOutlined />}
+              loading={completeMutation.isPending && completeMutation.variables === record.id}
+              onClick={() => {
+                Modal.confirm({
+                  title: t('inventory_check.complete_confirm_title'),
+                  content: t('inventory_check.complete_confirm_content'),
+                  onOk: () => completeMutation.mutate(record.id),
+                });
+              }}
+            >
+              {t('inventory_check.complete')}
+            </Button>
+          )}
+        </div>
       ),
     },
   ];

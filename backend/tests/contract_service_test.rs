@@ -228,7 +228,7 @@ async fn update_contract_title_and_status() {
     assert_eq!(updated.title, "Updated Title");
     assert_eq!(updated.party_a, "Updated Party A");
     assert_eq!(updated.notes.as_deref(), Some("updated notes"));
-    assert_eq!(updated.sign_date.as_deref(), Some("2025-06-01"));
+    assert_eq!(updated.sign_date.map(|d| d.date_naive().to_string()).as_deref(), Some("2025-06-01"));
 }
 
 #[tokio::test]
@@ -1072,7 +1072,7 @@ async fn add_payment_to_contract() {
 
     assert!(payment.id > 0);
     assert_eq!(payment.contract_id, contract_id);
-    assert_eq!(payment.due_date, "2025-07-01");
+    assert_eq!(payment.due_date.date_naive().to_string(), "2025-07-01");
     assert_eq!(payment.amount, 50000.0);
     assert_eq!(payment.payment_type, "milestone");
     assert_eq!(payment.is_paid, false);
@@ -1176,11 +1176,11 @@ async fn update_payment_fields() {
         .expect("update_payment must succeed");
 
     assert_eq!(updated.id, payment.id);
-    assert_eq!(updated.due_date, "2025-09-01");
+    assert_eq!(updated.due_date.date_naive().to_string(), "2025-09-01");
     assert_eq!(updated.amount, 35000.0);
     assert_eq!(updated.payment_type, "milestone");
     assert_eq!(updated.is_paid, true);
-    assert_eq!(updated.paid_date.as_deref(), Some("2025-09-01"));
+    assert_eq!(updated.paid_date.map(|d| d.date_naive().to_string()).as_deref(), Some("2025-09-01"));
     assert_eq!(updated.notes.as_deref(), Some("updated"));
 }
 

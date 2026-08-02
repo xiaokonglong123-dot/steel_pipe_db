@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::domain::pipe::PipeType;
 use crate::dto::inventory_dto::{
@@ -8,6 +8,7 @@ use crate::error::AppError;
 use crate::models::inventory::{OutboundItem, OutboundRecord};
 use crate::models::screen_pipe::ScreenPipe;
 use crate::models::seamless_pipe::SeamlessPipe;
+use crate::models::welded_pipe::WeldedPipe;
 use crate::repositories::generic_pipe_repo::GenericPipeRepo;
 use crate::repositories::inventory_log_repo::InventoryLogRepo;
 use crate::repositories::inventory_repo::{CreateInventoryLog, InventoryRepo};
@@ -18,7 +19,7 @@ use crate::services::utils;
 /// After outbound execution, refresh location used_counts for all affected pipes.
 /// This ensures the `used_count` column stays consistent with actual stock.
 async fn refresh_outbound_locations(
-    pool: &SqlitePool,
+    pool: &PgPool,
     items: &[OutboundPipeItem],
 ) -> Result<(), AppError> {
     let mut location_ids = std::collections::BTreeSet::new();
@@ -56,7 +57,7 @@ impl OutboundService {
     /// - `AppError::NotFound` — pipe ID doesn't exist
     /// - `AppError::InsufficientStock` — pipe is not `in_stock`
     pub async fn create_outbound(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateOutboundRecordRequest,
     ) -> Result<OutboundRecord, AppError> {
         if dto.pipes.is_empty() {
@@ -78,14 +79,23 @@ impl OutboundService {
             .filter(|item| PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Screen))
             .map(|item| item.pipe_id)
             .collect();
+        let welded_ids: Vec<i64> = dto
+            .pipes
+            .iter()
+            .filter(|item| PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Welded))
+            .map(|item| item.pipe_id)
+            .collect();
 
         let seamless_pipes = GenericPipeRepo::<SeamlessPipe>::find_by_ids(pool, &seamless_ids).await?;
         let screen_pipes = GenericPipeRepo::<ScreenPipe>::find_by_ids(pool, &screen_ids).await?;
+        let welded_pipes = GenericPipeRepo::<WeldedPipe>::find_by_ids(pool, &welded_ids).await?;
 
         let seamless_map: std::collections::HashMap<i64, _> =
             seamless_pipes.iter().map(|p| (p.id, &p.status)).collect();
         let screen_map: std::collections::HashMap<i64, _> =
             screen_pipes.iter().map(|p| (p.id, &p.status)).collect();
+        let welded_map: std::collections::HashMap<i64, _> =
+            welded_pipes.iter().map(|p| (p.id, &p.status)).collect();
 
         for item in &dto.pipes {
             let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
@@ -110,9 +120,12 @@ impl OutboundService {
                     }
                 }
                 PipeType::Welded => {
-                    return Err(AppError::Validation(
-                        "Outbound not yet supported for welded pipes".into(),
-                    ));
+                    let status = welded_map.get(&item.pipe_id).ok_or_else(|| {
+                        AppError::NotFound(format!("Welded pipe id={} not found", item.pipe_id))
+                    })?;
+                    if status.as_str() != "in_stock" {
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
+                    }
                 }
             }
         }
@@ -134,7 +147,7 @@ impl OutboundService {
     /// Applies outbound stock changes for all pipe items in a single transaction.
     /// If any item fails, the entire batch is rolled back.
     async fn execute_outbound_batch(
-        pool: &SqlitePool,
+        pool: &PgPool,
         record_id: i64,
         outbound_type: &str,
         created_by: Option<i64>,
@@ -153,7 +166,7 @@ impl OutboundService {
             })?;
 
             match pipe_type {
-                PipeType::Seamless | PipeType::Screen => {
+                PipeType::Seamless | PipeType::Screen | PipeType::Welded => {
                     let affected = InventoryRepo::update_pipe_status_with_stock_check(
                         &mut *tx,
                         &item.pipe_type,
@@ -165,11 +178,6 @@ impl OutboundService {
                     if affected == 0 {
                         return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
-                }
-                PipeType::Welded => {
-                    return Err(AppError::Validation(
-                        "Outbound not yet supported for welded pipes".into(),
-                    ));
                 }
             }
 
@@ -203,7 +211,7 @@ impl OutboundService {
     /// - `AppError::NotFound` — record doesn't exist or was deleted
     /// - `AppError::Validation` — current state won't allow approval
     pub async fn approve_outbound(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         approval_reason: Option<&str>,
         handled_by: Option<i64>,
@@ -255,7 +263,7 @@ impl OutboundService {
             })?;
 
             match pipe_type {
-                PipeType::Seamless | PipeType::Screen => {
+                PipeType::Seamless | PipeType::Screen | PipeType::Welded => {
                     let affected = InventoryRepo::update_pipe_status_with_stock_check(
                         &mut *tx,
                         &item.pipe_type,
@@ -267,11 +275,6 @@ impl OutboundService {
                     if affected == 0 {
                         return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
-                }
-                PipeType::Welded => {
-                    return Err(AppError::Validation(
-                        "Outbound execution not yet supported for welded pipes".into(),
-                    ));
                 }
             }
 
@@ -302,9 +305,9 @@ impl OutboundService {
             }
             for (pipe_type, count) in count_by_type {
                 sqlx::query(
-                    "UPDATE sales_order_items SET delivered_quantity = delivered_quantity + ? \
+                    "UPDATE sales_order_items SET delivered_quantity = delivered_quantity + $1 \
                      WHERE id = (SELECT id FROM sales_order_items \
-                      WHERE order_id = ? AND pipe_type = ? AND delivered_quantity < quantity LIMIT 1)",
+                      WHERE order_id = $2 AND pipe_type = $3 AND delivered_quantity < quantity LIMIT 1)",
                 )
                 .bind(count)
                 .bind(order_id)
@@ -335,7 +338,7 @@ impl OutboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     /// - `AppError::Validation` — can't reject in this state
-    pub async fn reject_outbound(pool: &SqlitePool, id: i64, reason: &str) -> Result<(), AppError> {
+    pub async fn reject_outbound(pool: &PgPool, id: i64, reason: &str) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -360,7 +363,7 @@ impl OutboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     pub async fn get_outbound_record(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<(OutboundRecord, Vec<OutboundItem>), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
@@ -378,7 +381,7 @@ impl OutboundService {
     /// Paginated outbound records — filter by date, status, type, etc.
     /// Returns `(records, total_count)`.
     pub async fn list_outbound_records(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &OutboundFilter,
     ) -> Result<(Vec<OutboundRecord>, u64), AppError> {
         OutboundRepo::list(pool, filter)
@@ -391,7 +394,7 @@ impl OutboundService {
     /// # Errors
     /// - `AppError::NotFound` — record not found
     /// - `AppError::Validation` — current state doesn't allow deletion
-    pub async fn delete_outbound(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
+    pub async fn delete_outbound(pool: &PgPool, id: i64) -> Result<(), AppError> {
         let record = OutboundRepo::find_by_id(pool, id)
             .await
             .map_err(AppError::from)?
@@ -414,7 +417,7 @@ impl OutboundService {
     /// - `AppError::NotFound` — record not found or was deleted
     /// - `AppError::Validation` — current status doesn't allow updates
     pub async fn update_outbound(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateOutboundRecordRequest,
     ) -> Result<OutboundRecord, AppError> {
@@ -444,7 +447,7 @@ impl OutboundService {
 
     /// Gets all line items for a given outbound record.
     pub async fn list_outbound_items(
-        pool: &SqlitePool,
+        pool: &PgPool,
         outbound_id: i64,
     ) -> Result<Vec<OutboundItem>, AppError> {
         OutboundRepo::find_items(pool, outbound_id)

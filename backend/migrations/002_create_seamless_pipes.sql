@@ -3,31 +3,36 @@
 -- Tracks pipe specs, dimensions, steel grade, heat treatment, threading, and status lifecycle.
 -- No FK constraints — integrity enforced at application layer.
 -- Soft delete via deleted_at column.
+--
+-- NOTE: the status CHECK uses the full PipeStatus enum set (matching
+-- 019_fix_status_checks_and_indexes.sql) instead of the original 3-value list,
+-- because 017_seed_initial_data.sql inserts rows with status 'new' — which the
+-- original CHECK rejected (on SQLite as well; the fresh-install chain was broken).
 CREATE TABLE IF NOT EXISTS seamless_pipes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     pipe_number TEXT NOT NULL UNIQUE,
     batch_number TEXT,
     pipe_type TEXT NOT NULL CHECK (pipe_type IN ('casing', 'tubing')),
     grade TEXT NOT NULL,
-    od REAL NOT NULL,
-    wt REAL NOT NULL,
-    length REAL,
-    weight_per_unit REAL,
+    od DOUBLE PRECISION NOT NULL,
+    wt DOUBLE PRECISION NOT NULL,
+    length DOUBLE PRECISION,
+    weight_per_unit DOUBLE PRECISION,
     end_type TEXT,
     coupling_type TEXT,
-    coupling_od REAL,
-    coupling_length REAL,
+    coupling_od DOUBLE PRECISION,
+    coupling_length DOUBLE PRECISION,
     heat_number TEXT,
     serial_number TEXT,
     manufacturer TEXT,
-    production_date TEXT,
+    production_date TIMESTAMPTZ,
     cert_number TEXT,
-    location_id INTEGER,
-    status TEXT NOT NULL DEFAULT 'in_stock' CHECK (status IN ('in_stock', 'outbound', 'scrapped')),
+    location_id BIGINT,
+    status TEXT NOT NULL DEFAULT 'in_stock' CHECK (status IN ('new', 'in_stock', 'outbound', 'scrapped', 'in_transit', 'reserved')),
     notes TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    deleted_at TEXT
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 CREATE INDEX idx_seamless_pipes_grade ON seamless_pipes(grade);

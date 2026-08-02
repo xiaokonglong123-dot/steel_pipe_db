@@ -12,6 +12,7 @@
 
 mod common;
 
+use chrono::{DateTime, Utc};
 use steel_pipe_db::cache::CacheManager;
 use steel_pipe_db::dto::common::PaginationParams;
 use steel_pipe_db::dto::inventory_dto::{
@@ -55,7 +56,7 @@ async fn create_inbound_auto_approved_sets_pipes_to_in_stock() {
     assert_eq!(record.approval_status, "auto_approved");
 
     // Verify pipe status was updated to "in_stock"
-    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
+    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await
@@ -88,7 +89,7 @@ async fn create_inbound_pending_does_not_update_pipe_status() {
         .expect("create_inbound must succeed");
     assert_eq!(record.approval_status, "pending");
 
-    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
+    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await
@@ -148,7 +149,7 @@ async fn approve_inbound_updates_pending_record_and_pipes() {
 
     // Verify record is now approved
     let updated: (String,) =
-        sqlx::query_as("SELECT approval_status FROM inbound_records WHERE id = ?")
+        sqlx::query_as("SELECT approval_status FROM inbound_records WHERE id = $1")
             .bind(record.id)
             .fetch_one(&pool)
             .await
@@ -156,7 +157,7 @@ async fn approve_inbound_updates_pending_record_and_pipes() {
     assert_eq!(updated.0, "approved");
 
     // Verify pipe is now in_stock
-    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
+    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await
@@ -165,7 +166,7 @@ async fn approve_inbound_updates_pending_record_and_pipes() {
 
     // Verify inventory log was created
     let log_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM inventory_logs WHERE ref_id = ? AND change_type = 'inbound'",
+        "SELECT COUNT(*) FROM inventory_logs WHERE ref_id = $1 AND change_type = 'inbound'",
     )
     .bind(record.id)
     .fetch_one(&pool)
@@ -234,7 +235,7 @@ async fn reject_inbound_only_updates_status() {
 
     // Verify record is rejected
     let updated: (String, Option<String>) = sqlx::query_as(
-        "SELECT approval_status, rejection_reason FROM inbound_records WHERE id = ?",
+        "SELECT approval_status, rejection_reason FROM inbound_records WHERE id = $1",
     )
     .bind(record.id)
     .fetch_one(&pool)
@@ -243,7 +244,7 @@ async fn reject_inbound_only_updates_status() {
     assert_eq!(updated.0, "rejected");
     assert_eq!(updated.1.as_deref(), Some("material rejected"));
 
-    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
+    let pipe: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await
@@ -281,8 +282,8 @@ async fn delete_inbound_deletes_auto_approved_record() {
         .expect("delete_inbound must succeed for auto_approved");
 
     // Record must be soft-deleted
-    let deleted: (Option<String>,) =
-        sqlx::query_as("SELECT deleted_at FROM inbound_records WHERE id = ?")
+    let deleted: (Option<DateTime<Utc>>,) =
+        sqlx::query_as("SELECT deleted_at FROM inbound_records WHERE id = $1")
             .bind(record.id)
             .fetch_one(&pool)
             .await
@@ -481,6 +482,14 @@ async fn create_and_submit_check_record() {
         .await
         .unwrap();
 
+    // Place the pipe in the seeded location so the location-scoped check can find it
+    sqlx::query("UPDATE seamless_pipes SET location_id = $1 WHERE id = $2")
+        .bind(location_id)
+        .bind(pipe_id)
+        .execute(&pool)
+        .await
+        .expect("assign pipe to location must succeed");
+
     // Create a check record — auto-scans in_stock pipes
     let dto = CreateCheckRequest {
         location_id: Some(location_id),
@@ -573,7 +582,7 @@ async fn pipe_status_transitions_correctly_through_inbound_outbound_cycle() {
         .await
         .unwrap();
 
-    let status: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
+    let status: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await
@@ -600,7 +609,7 @@ async fn pipe_status_transitions_correctly_through_inbound_outbound_cycle() {
         .await
         .expect("approve must succeed");
 
-    let status: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
+    let status: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await
@@ -622,7 +631,7 @@ async fn pipe_status_transitions_correctly_through_inbound_outbound_cycle() {
         .await
         .unwrap();
 
-    let status: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = ?")
+    let status: (String,) = sqlx::query_as("SELECT status FROM seamless_pipes WHERE id = $1")
         .bind(pipe_id)
         .fetch_one(&pool)
         .await

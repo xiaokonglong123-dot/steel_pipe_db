@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::error::AppError;
 use crate::repositories::inbound_repo::InboundRepo;
@@ -20,7 +20,7 @@ impl TraceService {
     /// - `AppError::NotFound` — pipe ID does not exist or was deleted
     /// - `AppError::Validation` — invalid pipe_type
     pub async fn trace_pipe_lifecycle(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<serde_json::Value, AppError> {
@@ -36,7 +36,7 @@ impl TraceService {
             "seamless" | "casing" | "tubing" => {
                 let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
                     "SELECT pipe_number, grade, od, wt, status, location_id \
-                     FROM seamless_pipes WHERE id = ? AND deleted_at IS NULL",
+                     FROM seamless_pipes WHERE id = $1 AND deleted_at IS NULL",
                 )
                 .bind(pipe_id)
                 .fetch_optional(pool)
@@ -63,7 +63,34 @@ impl TraceService {
             "screen" | "screened" => {
                 let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
                     "SELECT pipe_number, base_grade, base_od, base_wt, status, location_id \
-                     FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
+                     FROM screen_pipes WHERE id = $1 AND deleted_at IS NULL",
+                )
+                .bind(pipe_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(AppError::from)?;
+                match row {
+                    Some((pn, grade, od, wt, status, loc)) => serde_json::json!({
+                        "pipe_type": pipe_type,
+                        "pipe_number": pn,
+                        "grade": grade,
+                        "od": od,
+                        "wt": wt,
+                        "current_status": status,
+                        "current_location_id": loc,
+                    }),
+                    None => {
+                        return Err(AppError::NotFound(format!(
+                            "Pipe {} id={} not found",
+                            pipe_type, pipe_id
+                        )))
+                    }
+                }
+            }
+            "welded" => {
+                let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
+                    "SELECT pipe_number, grade, od, wt, status, location_id \
+                     FROM welded_pipes WHERE id = $1 AND deleted_at IS NULL",
                 )
                 .bind(pipe_id)
                 .fetch_optional(pool)
@@ -121,7 +148,7 @@ impl TraceService {
     /// Query pipes by heat number — searches both seamless and screen pipes,
     /// returning type, ID, number, grade, status, and location.
     pub async fn trace_by_heat_number(
-        pool: &SqlitePool,
+        pool: &PgPool,
         heat_number: &str,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let mut results: Vec<serde_json::Value> = Vec::new();
@@ -156,6 +183,26 @@ impl TraceService {
             }));
         }
 
+        let welded: Vec<(i64, String, String, String, Option<i64>)> = sqlx::query_as(
+            "SELECT id, pipe_number, grade, status, location_id \
+             FROM welded_pipes WHERE heat_number = $1 AND deleted_at IS NULL",
+        )
+        .bind(heat_number)
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::from)?;
+
+        for (id, pn, grade, status, loc) in welded {
+            results.push(serde_json::json!({
+                "pipe_type": "welded",
+                "pipe_id": id,
+                "pipe_number": pn,
+                "grade": grade,
+                "status": status,
+                "location_id": loc,
+            }));
+        }
+
         Ok(results)
     }
 
@@ -165,7 +212,7 @@ impl TraceService {
     /// # Errors
     /// - `AppError::Validation` — order_type is not `inbound` or `outbound`
     pub async fn trace_by_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_type: &str,
         order_id: i64,
     ) -> Result<serde_json::Value, AppError> {
@@ -261,7 +308,7 @@ impl TraceService {
     }
 
     async fn get_pipe_current_status(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<String, AppError> {

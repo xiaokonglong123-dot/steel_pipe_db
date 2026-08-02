@@ -1,0 +1,23 @@
+{
+  "title": "项目管理",
+  "newProject": "新建项目",
+  "newWbs": "新建 WBS",
+  "projectNo": "项目编号",
+  "name": "名称",
+  "budget": "预算",
+  "status": "状态",
+  "actions": "操作",
+  "view": "查看",
+  "activate": "启动",
+  "projectDetail": "项目详情",
+  "expense": "支出",
+  "remaining": "余额",
+  "code": "编码",
+  "parent": "上级",
+  "progress": "进度%",
+  "weight": "权重%",
+  "saved": "已保存",
+  "updated": "已更新",
+  "save": "保存",
+  "cancel": "取消"
+}

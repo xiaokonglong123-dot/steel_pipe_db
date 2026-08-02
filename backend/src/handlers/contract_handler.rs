@@ -2,7 +2,7 @@ use axum::extract::{Extension, Path, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use validator::Validate;
 
@@ -24,7 +24,7 @@ use crate::services::contract_service::ContractService;
 /// Supports filtering by status, type, date range, etc.
 /// Returns paginated contract results.
 pub async fn list_contracts_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(filter): Query<ContractFilterParams>,
 ) -> Result<Json<PaginatedResponse<Contract>>, AppError> {
     let pagination = PaginationParams {
@@ -46,7 +46,7 @@ pub async fn list_contracts_handler(
 /// Creates a new contract with line items and payment milestones.
 /// Validates request body. Returns the created contract with details.
 pub async fn create_contract_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Json(req): Json<CreateContractRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()
@@ -60,7 +60,7 @@ pub async fn create_contract_handler(
 /// Returns the full contract detail with items and payment milestones.
 /// Returns 404 if not found.
 pub async fn get_contract_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ContractDetailResponse>>, AppError> {
     let result = ContractService::get_contract_detail(&pool, id).await?;
@@ -72,7 +72,7 @@ pub async fn get_contract_handler(
 /// Updates an existing contract's header fields. Validates request body.
 /// Returns 404 if not found.
 pub async fn update_contract_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateContractRequest>,
 ) -> Result<Json<ApiResponse<Contract>>, AppError> {
@@ -86,7 +86,7 @@ pub async fn update_contract_handler(
 ///
 /// Soft-deletes a contract. Returns 404 if not found.
 pub async fn delete_contract_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
     ContractService::delete_contract(&pool, id).await?;
@@ -98,7 +98,7 @@ pub async fn delete_contract_handler(
 /// Updates the contract status (e.g., active, completed, terminated).
 /// Validates request body. Returns 404 if not found.
 pub async fn update_contract_status_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateContractStatusRequest>,
 ) -> Result<Json<ApiResponse<Contract>>, AppError> {
@@ -115,7 +115,7 @@ pub async fn update_contract_status_handler(
 /// Adds a new line item to a contract. Validates request body.
 /// Returns 404 if contract not found.
 pub async fn add_contract_item_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(contract_id): Path<i64>,
     Json(req): Json<CreateContractItemRequest>,
 ) -> Result<axum::response::Response, AppError> {
@@ -130,7 +130,7 @@ pub async fn add_contract_item_handler(
 /// Updates a specific line item within a contract. Validates request body.
 /// Returns 404 if contract or item not found.
 pub async fn update_contract_item_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path((contract_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<UpdateContractItemRequest>,
 ) -> Result<Json<ApiResponse<ContractItem>>, AppError> {
@@ -144,7 +144,7 @@ pub async fn update_contract_item_handler(
 ///
 /// Removes a line item from a contract. Returns 404 if not found.
 pub async fn delete_contract_item_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path((contract_id, item_id)): Path<(i64, i64)>,
 ) -> Result<axum::response::Response, AppError> {
     ContractService::delete_item(&pool, contract_id, item_id).await?;
@@ -157,7 +157,7 @@ pub async fn delete_contract_item_handler(
 ///
 /// Lists all payment milestones for a contract.
 pub async fn list_contract_payments_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(contract_id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<ContractPayment>>>, AppError> {
     let payments = ContractService::get_payments(&pool, contract_id).await?;
@@ -169,7 +169,7 @@ pub async fn list_contract_payments_handler(
 /// Adds a new payment milestone to a contract. Validates request body.
 /// Returns 404 if contract not found.
 pub async fn add_contract_payment_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(contract_id): Path<i64>,
     Json(req): Json<CreatePaymentRequest>,
 ) -> Result<axum::response::Response, AppError> {
@@ -184,7 +184,7 @@ pub async fn add_contract_payment_handler(
 /// Updates a specific payment milestone. Validates request body.
 /// Returns 404 if contract or payment not found.
 pub async fn update_contract_payment_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path((contract_id, payment_id)): Path<(i64, i64)>,
     Json(req): Json<UpdatePaymentRequest>,
 ) -> Result<Json<ApiResponse<ContractPayment>>, AppError> {
@@ -198,7 +198,7 @@ pub async fn update_contract_payment_handler(
 ///
 /// Removes a payment milestone from a contract. Returns 404 if not found.
 pub async fn delete_contract_payment_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path((contract_id, payment_id)): Path<(i64, i64)>,
 ) -> Result<axum::response::Response, AppError> {
     ContractService::delete_payment(&pool, contract_id, payment_id).await?;

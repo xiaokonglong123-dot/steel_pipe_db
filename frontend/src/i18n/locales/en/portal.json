@@ -1,0 +1,14 @@
+{
+  "title": "Portal Admin",
+  "newAccount": "New Portal Account",
+  "partyType": "Party Type",
+  "partyId": "Party ID",
+  "username": "Username",
+  "password": "Password",
+  "supplier": "Supplier",
+  "customer": "Customer",
+  "hint": "Portal accounts let suppliers/customers log in, view and confirm their orders.",
+  "saved": "Created",
+  "save": "Save",
+  "cancel": "Cancel"
+}

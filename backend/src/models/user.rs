@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -5,6 +6,8 @@ use sqlx::FromRow;
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: i64,
+    /// Tenant that owns this user account (scoping for multi-tenant RBAC).
+    pub tenant_id: i64,
     /// Login username — must be unique across the system.
     pub username: String,
     /// Argon2 password hash. Nobody gets to see this bad boy.
@@ -19,10 +22,10 @@ pub struct User {
     pub phone: Option<String>,
     /// Whether this account is active. Disabled users can't log in.
     pub is_active: bool,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     /// Soft-delete timestamp. Null means this user is still alive.
-    pub deleted_at: Option<String>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Public user info — safe to share with the frontend. No password hash here.

@@ -1,5 +1,6 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool, Transaction};
+use sqlx::{QueryBuilder, Postgres, PgPool, Transaction};
 
+use crate::domain::date_utils::parse_date;
 use crate::domain::money::from_decimal_opt;
 use crate::dto::common::PaginationParams;
 use crate::dto::sales_dto::{
@@ -15,7 +16,7 @@ impl SalesOrderRepo {
     /// INSERT into `sales_orders` + line items. Status starts as `draft`.
     /// Automatically computes `total_amount` from item prices. Returns the created `SalesOrder`.
     pub async fn create_with_items(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateSalesOrderRequest,
         order_no: &str,
     ) -> Result<SalesOrder, sqlx::Error> {
@@ -24,13 +25,13 @@ impl SalesOrderRepo {
         let order = sqlx::query_as::<_, SalesOrder>(
             "INSERT INTO sales_orders (order_no, customer_id, order_date, status, \
              total_amount, notes) \
-             VALUES (?, ?, ?, 'draft', 0, ?) \
+             VALUES ($1, $2, $3, 'draft', 0, $4) \
              RETURNING id, order_no, customer_id, order_date, status, total_amount, notes, \
                created_by, created_at, updated_at, deleted_at",
         )
         .bind(order_no)
         .bind(dto.customer_id)
-        .bind(&dto.order_date)
+        .bind(parse_date(&dto.order_date))
         .bind(&dto.notes)
         .fetch_one(&mut *tx)
         .await?;
@@ -42,7 +43,7 @@ impl SalesOrderRepo {
         // Recompute total_amount INSIDE the transaction — no window where total = 0
         let total: f64 = Self::sum_item_totals_in_tx(&mut tx, order.id).await?;
         if total > 0.0 {
-            sqlx::query("UPDATE sales_orders SET total_amount = ? WHERE id = ?")
+            sqlx::query("UPDATE sales_orders SET total_amount = $1 WHERE id = $2")
                 .bind(total)
                 .bind(order.id)
                 .execute(&mut *tx)
@@ -58,14 +59,14 @@ impl SalesOrderRepo {
     }
 
     async fn create_item(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         order_id: i64,
         dto: &CreateSalesItemRequest,
     ) -> Result<SalesOrderItem, sqlx::Error> {
         sqlx::query_as::<_, SalesOrderItem>(
             "INSERT INTO sales_order_items (order_id, pipe_type, grade, od, wt, quantity, \
              delivered_quantity, unit_price, total_price, notes) \
-             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8, $9) \
              RETURNING id, order_id, pipe_type, grade, od, wt, quantity, delivered_quantity, \
                unit_price, total_price, notes, created_at",
         )
@@ -82,9 +83,9 @@ impl SalesOrderRepo {
         .await
     }
 
-    async fn sum_item_totals(pool: &SqlitePool, order_id: i64) -> Result<f64, sqlx::Error> {
+    async fn sum_item_totals(pool: &PgPool, order_id: i64) -> Result<f64, sqlx::Error> {
         let row: (Option<f64>,) = sqlx::query_as(
-            "SELECT COALESCE(SUM(total_price), 0) FROM sales_order_items WHERE order_id = ?",
+            "SELECT COALESCE(SUM(total_price), 0) FROM sales_order_items WHERE order_id = $1",
         )
         .bind(order_id)
         .fetch_one(pool)
@@ -93,11 +94,11 @@ impl SalesOrderRepo {
     }
 
     async fn sum_item_totals_in_tx(
-        tx: &mut Transaction<'_, Sqlite>,
+        tx: &mut Transaction<'_, Postgres>,
         order_id: i64,
     ) -> Result<f64, sqlx::Error> {
         let row: (Option<f64>,) = sqlx::query_as(
-            "SELECT COALESCE(SUM(total_price), 0) FROM sales_order_items WHERE order_id = ?",
+            "SELECT COALESCE(SUM(total_price), 0) FROM sales_order_items WHERE order_id = $1",
         )
         .bind(order_id)
         .fetch_one(&mut **tx)
@@ -106,9 +107,9 @@ impl SalesOrderRepo {
     }
 
     /// Recalculate and update the total_amount for a sales order by summing its items.
-    pub async fn recalculate_total(pool: &SqlitePool, order_id: i64) -> Result<(), sqlx::Error> {
+    pub async fn recalculate_total(pool: &PgPool, order_id: i64) -> Result<(), sqlx::Error> {
         let total = Self::sum_item_totals(pool, order_id).await?;
-        sqlx::query("UPDATE sales_orders SET total_amount = ? WHERE id = ?")
+        sqlx::query("UPDATE sales_orders SET total_amount = $1 WHERE id = $2")
             .bind(total)
             .bind(order_id)
             .execute(pool)
@@ -119,16 +120,16 @@ impl SalesOrderRepo {
     /// Dynamic UPDATE of order-level fields (`order_date`, `notes`). Only supplied fields change.
     /// Returns the updated `SalesOrder`.
     pub async fn update_order(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateSalesOrderRequest,
     ) -> Result<SalesOrder, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("UPDATE sales_orders SET updated_at = datetime('now')");
+        let mut builder: QueryBuilder<Postgres> =
+            QueryBuilder::new("UPDATE sales_orders SET updated_at = NOW()");
 
         if let Some(ref val) = dto.order_date {
             builder.push(", order_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.notes {
             builder.push(", notes = ");
@@ -146,11 +147,11 @@ impl SalesOrderRepo {
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
-    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<SalesOrder>, sqlx::Error> {
+    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<SalesOrder>, sqlx::Error> {
         sqlx::query_as::<_, SalesOrder>(
             "SELECT id, order_no, customer_id, order_date, status, total_amount, notes, \
              created_by, created_at, updated_at, deleted_at \
-             FROM sales_orders WHERE id = ? AND deleted_at IS NULL",
+             FROM sales_orders WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -159,13 +160,13 @@ impl SalesOrderRepo {
 
     /// SELECT by unique `order_no`. Returns `None` if soft-deleted or missing.
     pub async fn find_by_order_no(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_no: &str,
     ) -> Result<Option<SalesOrder>, sqlx::Error> {
         sqlx::query_as::<_, SalesOrder>(
             "SELECT id, order_no, customer_id, order_date, status, total_amount, notes, \
              created_by, created_at, updated_at, deleted_at \
-             FROM sales_orders WHERE order_no = ? AND deleted_at IS NULL",
+             FROM sales_orders WHERE order_no = $1 AND deleted_at IS NULL",
         )
         .bind(order_no)
         .fetch_optional(pool)
@@ -174,13 +175,13 @@ impl SalesOrderRepo {
 
     /// SELECT all line items for a sales order, ordered by `id ASC`.
     pub async fn find_items(
-        pool: &SqlitePool,
+        pool: &PgPool,
         order_id: i64,
     ) -> Result<Vec<SalesOrderItem>, sqlx::Error> {
         sqlx::query_as::<_, SalesOrderItem>(
             "SELECT id, order_id, pipe_type, grade, od, wt, quantity, delivered_quantity, \
              unit_price, total_price, notes, created_at \
-             FROM sales_order_items WHERE order_id = ? ORDER BY id ASC",
+             FROM sales_order_items WHERE order_id = $1 ORDER BY id ASC",
         )
         .bind(order_id)
         .fetch_all(pool)
@@ -189,13 +190,13 @@ impl SalesOrderRepo {
 
     /// UPDATE `status` (e.g. `draft` → `confirmed`). Sets `updated_at` timestamp.
     pub async fn update_status(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         status: &str,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE sales_orders SET status = ?, updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE sales_orders SET status = $1, updated_at = NOW() \
+             WHERE id = $2 AND deleted_at IS NULL",
         )
         .bind(status)
         .bind(id)
@@ -205,10 +206,10 @@ impl SalesOrderRepo {
     }
 
     /// Soft-delete: sets `deleted_at`. Sets status to `rejected` and stores reason in `notes`.
-    pub async fn reject(pool: &SqlitePool, id: i64, reason: &str) -> Result<(), sqlx::Error> {
+    pub async fn reject(pool: &PgPool, id: i64, reason: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE sales_orders SET status = 'rejected', notes = ?, updated_at = datetime('now') \
-             WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE sales_orders SET status = 'rejected', notes = $1, updated_at = NOW() \
+             WHERE id = $2 AND deleted_at IS NULL",
         )
         .bind(reason)
         .bind(id)
@@ -218,10 +219,10 @@ impl SalesOrderRepo {
     }
 
     /// Soft-delete: sets `deleted_at` and `updated_at`.
-    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE sales_orders SET deleted_at = datetime('now'), \
-             updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE sales_orders SET deleted_at = NOW(), \
+             updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
@@ -233,7 +234,7 @@ impl SalesOrderRepo {
     /// Supports sorting by order_no, order_date, status, total_amount. JOINs customers for search.
     /// Returns `(items, total)`.
     pub async fn list(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &SalesOrderFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<SalesOrder>, u64), sqlx::Error> {
@@ -245,26 +246,27 @@ impl SalesOrderRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push("(so.order_no LIKE ? OR c.name LIKE ?)".into());
+                let base = bind_values.len() + 1;
+                conditions.push(format!("(so.order_no LIKE ${} OR c.name LIKE ${})", base, base + 1));
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern);
             }
         }
         if let Some(ref status) = filter.status {
-            conditions.push("so.status = ?".into());
+            conditions.push(format!("so.status = ${}", bind_values.len() + 1));
             bind_values.push(status.clone());
         }
         if let Some(customer_id) = filter.customer_id {
-            conditions.push("so.customer_id = ?".into());
+            conditions.push(format!("so.customer_id = ${}", bind_values.len() + 1));
             bind_values.push(customer_id.to_string());
         }
         if let Some(ref from) = filter.order_date_from {
-            conditions.push("so.order_date >= ?".into());
+            conditions.push(format!("so.order_date >= ${}", bind_values.len() + 1));
             bind_values.push(from.clone());
         }
         if let Some(ref to) = filter.order_date_to {
-            conditions.push("so.order_date <= ?".into());
+            conditions.push(format!("so.order_date <= ${}", bind_values.len() + 1));
             bind_values.push(to.clone());
         }
 
@@ -295,8 +297,8 @@ impl SalesOrderRepo {
              so.total_amount, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at \
              FROM sales_orders so \
              LEFT JOIN customers c ON c.id = so.customer_id \
-             WHERE {} ORDER BY {} {} LIMIT ? OFFSET ?",
-            where_clause, sort_by, sort_order
+             WHERE {} ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause, sort_by, sort_order, bind_values.len() + 1, bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, SalesOrder>(&list_sql);
         for val in &bind_values {
@@ -314,11 +316,11 @@ impl SalesOrderRepo {
     /// Dynamic UPDATE of item fields (pipe_type, grade, od, wt, quantity, unit_price, etc.).
     /// Only supplied fields are modified. Returns the updated `SalesOrderItem`.
     pub async fn update_item(
-        pool: &SqlitePool,
+        pool: &PgPool,
         item_id: i64,
         dto: &UpdateSalesItemRequest,
     ) -> Result<SalesOrderItem, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE sales_order_items SET");
+        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE sales_order_items SET");
 
         let mut first = true;
         macro_rules! set_field {
@@ -374,13 +376,13 @@ impl SalesOrderRepo {
         // Recompute total_price server-side: quantity * unit_price
         if dto.quantity.is_some() || dto.unit_price.is_some() {
             let computed_total = item.quantity as f64 * item.unit_price.unwrap_or(0.0);
-            sqlx::query("UPDATE sales_order_items SET total_price = ? WHERE id = ?")
+            sqlx::query("UPDATE sales_order_items SET total_price = $1 WHERE id = $2")
                 .bind(computed_total)
                 .bind(item.id)
                 .execute(pool)
                 .await?;
             return sqlx::query_as::<_, SalesOrderItem>(
-                "SELECT id, order_id, pipe_type, grade, od, wt, quantity, delivered_quantity,                  unit_price, total_price, notes, created_at                  FROM sales_order_items WHERE id = ?"
+                "SELECT id, order_id, pipe_type, grade, od, wt, quantity, delivered_quantity,                  unit_price, total_price, notes, created_at                  FROM sales_order_items WHERE id = $1"
             )
             .bind(item.id)
             .fetch_one(pool)
@@ -391,8 +393,8 @@ impl SalesOrderRepo {
     }
 
     /// Hard DELETE from `sales_order_items` (no soft-delete for items).
-    pub async fn delete_item(pool: &SqlitePool, item_id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM sales_order_items WHERE id = ?")
+    pub async fn delete_item(pool: &PgPool, item_id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM sales_order_items WHERE id = $1")
             .bind(item_id)
             .execute(pool)
             .await?;

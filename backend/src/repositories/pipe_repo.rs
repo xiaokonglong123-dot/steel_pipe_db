@@ -1,5 +1,6 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Postgres, PgPool};
 
+use crate::domain::date_utils::{parse_date, parse_opt_date};
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::{
     CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams, UpdateScreenPipeRequest,
@@ -14,7 +15,7 @@ pub struct SeamlessPipeRepo;
 impl SeamlessPipeRepo {
     /// INSERT into `seamless_pipes`. Returns the newly created row with generated `id`.
     pub async fn create(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateSeamlessPipeRequest,
     ) -> Result<SeamlessPipe, sqlx::Error> {
         sqlx::query_as::<_, SeamlessPipe>(
@@ -22,7 +23,7 @@ impl SeamlessPipeRepo {
              length, weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
              heat_number, serial_number, manufacturer, production_date, cert_number, \
              location_id, notes) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) \
              RETURNING id, pipe_number, batch_number, pipe_type, grade, od, wt, length, \
                weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
                heat_number, serial_number, manufacturer, production_date, cert_number, \
@@ -43,7 +44,7 @@ impl SeamlessPipeRepo {
         .bind(&dto.heat_number)
         .bind(&dto.serial_number)
         .bind(&dto.manufacturer)
-        .bind(&dto.production_date)
+        .bind(parse_opt_date(dto.production_date.as_deref()))
         .bind(&dto.cert_number)
         .bind(None::<i64>)
         .bind(&dto.notes)
@@ -54,12 +55,12 @@ impl SeamlessPipeRepo {
     /// UPDATE `seamless_pipes` by id. All non-None fields in `UpdateSeamlessPipeRequest` are
     /// conditionally set via `COALESCE`. Returns the updated row.
     pub async fn update(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateSeamlessPipeRequest,
     ) -> Result<SeamlessPipe, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("UPDATE seamless_pipes SET updated_at = datetime('now')");
+        let mut builder: QueryBuilder<Postgres> =
+            QueryBuilder::new("UPDATE seamless_pipes SET updated_at = NOW()");
 
         if let Some(ref val) = dto.batch_number {
             builder.push(", batch_number = ");
@@ -119,7 +120,7 @@ impl SeamlessPipeRepo {
         }
         if let Some(ref val) = dto.production_date {
             builder.push(", production_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.cert_number {
             builder.push(", cert_number = ");
@@ -148,7 +149,7 @@ impl SeamlessPipeRepo {
 
     /// SELECT by primary key from `seamless_pipes`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_id(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<Option<SeamlessPipe>, sqlx::Error> {
         sqlx::query_as::<_, SeamlessPipe>(
@@ -156,7 +157,7 @@ impl SeamlessPipeRepo {
              weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
              heat_number, serial_number, manufacturer, production_date, cert_number, \
              location_id, status, notes, created_at, updated_at, deleted_at \
-             FROM seamless_pipes WHERE id = ? AND deleted_at IS NULL",
+             FROM seamless_pipes WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -166,13 +167,13 @@ impl SeamlessPipeRepo {
     /// SELECT multiple rows by a list of primary keys. Returns only non-deleted rows.
     /// If `ids` is empty, returns an empty `Vec` without hitting the DB.
     pub async fn find_by_ids(
-        pool: &SqlitePool,
+        pool: &PgPool,
         ids: &[i64],
     ) -> Result<Vec<SeamlessPipe>, sqlx::Error> {
         if ids.is_empty() {
             return Ok(vec![]);
         }
-        let placeholders: Vec<String> = ids.iter().map(|_| "?".to_string()).collect();
+        let placeholders: Vec<String> = ids.iter().enumerate().map(|(i, _)| format!("${}", i + 1)).collect();
         let query = format!(
             "SELECT id, pipe_number, batch_number, pipe_type, grade, od, wt, length, \
              weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
@@ -190,7 +191,7 @@ impl SeamlessPipeRepo {
 
     /// SELECT by unique `pipe_number`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_pipe_number(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_number: &str,
     ) -> Result<Option<SeamlessPipe>, sqlx::Error> {
         sqlx::query_as::<_, SeamlessPipe>(
@@ -198,7 +199,7 @@ impl SeamlessPipeRepo {
              weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
              heat_number, serial_number, manufacturer, production_date, cert_number, \
              location_id, status, notes, created_at, updated_at, deleted_at \
-             FROM seamless_pipes WHERE pipe_number = ? AND deleted_at IS NULL",
+             FROM seamless_pipes WHERE pipe_number = $1 AND deleted_at IS NULL",
         )
         .bind(pipe_number)
         .fetch_optional(pool)
@@ -206,10 +207,10 @@ impl SeamlessPipeRepo {
     }
 
     /// Soft-delete by setting `deleted_at` timestamp. No-op if already deleted.
-    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE seamless_pipes SET deleted_at = datetime('now'), \
-             updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE seamless_pipes SET deleted_at = NOW(), \
+             updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
@@ -220,7 +221,7 @@ impl SeamlessPipeRepo {
     /// Paginated SELECT with optional filters (`pipe_type`, `grade`, `status`, keyword search
     /// across `pipe_number`/`batch_number`/`heat_number`/`serial_number`). Returns `(items, total)`.
     pub async fn list(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &PipeFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<SeamlessPipe>, u64), sqlx::Error> {
@@ -233,8 +234,9 @@ impl SeamlessPipeRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
+                let base = bind_values.len() + 1;
                 conditions
-                    .push("(pipe_number LIKE ? OR batch_number LIKE ? OR grade LIKE ?)".into());
+                    .push(format!("(pipe_number LIKE ${} OR batch_number LIKE ${} OR grade LIKE ${})", base, base + 1, base + 2));
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern.clone());
@@ -242,39 +244,39 @@ impl SeamlessPipeRepo {
             }
         }
         if let Some(ref grade) = filter.grade {
-            conditions.push("grade = ?".into());
+            conditions.push(format!("grade = ${}", bind_values.len() + 1));
             bind_values.push(grade.clone());
         }
         if let Some(ref pipe_type) = filter.pipe_type {
-            conditions.push("pipe_type = ?".into());
+            conditions.push(format!("pipe_type = ${}", bind_values.len() + 1));
             bind_values.push(pipe_type.clone());
         }
         if let Some(ref status) = filter.status {
-            conditions.push("status = ?".into());
+            conditions.push(format!("status = ${}", bind_values.len() + 1));
             bind_values.push(status.clone());
         }
         if let Some(od_min) = filter.od_min {
-            conditions.push("od >= ?".into());
+            conditions.push(format!("od >= ${}", bind_values.len() + 1));
             bind_values.push(od_min.to_string());
         }
         if let Some(od_max) = filter.od_max {
-            conditions.push("od <= ?".into());
+            conditions.push(format!("od <= ${}", bind_values.len() + 1));
             bind_values.push(od_max.to_string());
         }
         if let Some(wt_min) = filter.wt_min {
-            conditions.push("wt >= ?".into());
+            conditions.push(format!("wt >= ${}", bind_values.len() + 1));
             bind_values.push(wt_min.to_string());
         }
         if let Some(wt_max) = filter.wt_max {
-            conditions.push("wt <= ?".into());
+            conditions.push(format!("wt <= ${}", bind_values.len() + 1));
             bind_values.push(wt_max.to_string());
         }
         if let Some(location_id) = filter.location_id {
-            conditions.push("location_id = ?".into());
+            conditions.push(format!("location_id = ${}", bind_values.len() + 1));
             bind_values.push(location_id.to_string());
         }
         if let Some(ref manufacturer) = filter.manufacturer {
-            conditions.push("manufacturer = ?".into());
+            conditions.push(format!("manufacturer = ${}", bind_values.len() + 1));
             bind_values.push(manufacturer.clone());
         }
 
@@ -311,8 +313,12 @@ impl SeamlessPipeRepo {
              heat_number, serial_number, manufacturer, production_date, cert_number, \
              location_id, status, notes, created_at, updated_at, deleted_at \
              FROM seamless_pipes WHERE {} \
-             ORDER BY {} {} LIMIT ? OFFSET ?",
-            where_clause, sort_by, sort_order
+             ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause,
+            sort_by,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, SeamlessPipe>(&list_sql);
         for val in &bind_values {
@@ -329,7 +335,7 @@ impl SeamlessPipeRepo {
 
     /// SELECT seamless pipes by heat number. Returns only non-deleted rows.
     pub async fn find_by_heat_number(
-        pool: &SqlitePool,
+        pool: &PgPool,
         heat_number: &str,
     ) -> Result<Vec<SeamlessPipe>, sqlx::Error> {
         sqlx::query_as::<_, SeamlessPipe>(
@@ -337,7 +343,7 @@ impl SeamlessPipeRepo {
              weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
              heat_number, serial_number, manufacturer, production_date, cert_number, \
              location_id, status, notes, created_at, updated_at, deleted_at \
-             FROM seamless_pipes WHERE heat_number = ? AND deleted_at IS NULL",
+             FROM seamless_pipes WHERE heat_number = $1 AND deleted_at IS NULL",
         )
         .bind(heat_number)
         .fetch_all(pool)
@@ -345,7 +351,7 @@ impl SeamlessPipeRepo {
     }
 
     /// Full-text LIKE search across `pipe_number` and `batch_number`. Returns up to 50 results.
-    pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<SeamlessPipe>, sqlx::Error> {
+    pub async fn search(pool: &PgPool, query: &str) -> Result<Vec<SeamlessPipe>, sqlx::Error> {
         let like = format!("%{}%", query);
         sqlx::query_as::<_, SeamlessPipe>(
             "SELECT id, pipe_number, batch_number, pipe_type, grade, od, wt, length, \
@@ -353,7 +359,7 @@ impl SeamlessPipeRepo {
              heat_number, serial_number, manufacturer, production_date, cert_number, \
              location_id, status, notes, created_at, updated_at, deleted_at \
              FROM seamless_pipes \
-             WHERE deleted_at IS NULL AND (pipe_number LIKE ? OR batch_number LIKE ?) \
+             WHERE deleted_at IS NULL AND (pipe_number LIKE $1 OR batch_number LIKE $2) \
              ORDER BY created_at DESC LIMIT 50",
         )
         .bind(&like)
@@ -369,7 +375,7 @@ pub struct ScreenPipeRepo;
 impl ScreenPipeRepo {
     /// INSERT into `screen_pipes`. Returns the newly created row with generated `id`.
     pub async fn create(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateScreenPipeRequest,
     ) -> Result<ScreenPipe, sqlx::Error> {
         sqlx::query_as::<_, ScreenPipe>(
@@ -377,7 +383,7 @@ impl ScreenPipeRepo {
              filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
              weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
              cert_number, location_id, notes) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
              RETURNING id, pipe_number, batch_number, screen_type, slot_size, \
                filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
                weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
@@ -397,7 +403,7 @@ impl ScreenPipeRepo {
         .bind(&dto.heat_number)
         .bind(&dto.serial_number)
         .bind(&dto.manufacturer)
-        .bind(&dto.production_date)
+        .bind(parse_opt_date(dto.production_date.as_deref()))
         .bind(&dto.cert_number)
         .bind(None::<i64>)
         .bind(&dto.notes)
@@ -408,12 +414,12 @@ impl ScreenPipeRepo {
     /// UPDATE `screen_pipes` by id. All non-None fields in `UpdateScreenPipeRequest` are
     /// conditionally set via `QueryBuilder`. Returns the updated row.
     pub async fn update(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateScreenPipeRequest,
     ) -> Result<ScreenPipe, sqlx::Error> {
-        let mut builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("UPDATE screen_pipes SET updated_at = datetime('now')");
+        let mut builder: QueryBuilder<Postgres> =
+            QueryBuilder::new("UPDATE screen_pipes SET updated_at = NOW()");
 
         if let Some(ref val) = dto.batch_number {
             builder.push(", batch_number = ");
@@ -469,7 +475,7 @@ impl ScreenPipeRepo {
         }
         if let Some(ref val) = dto.production_date {
             builder.push(", production_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.cert_number {
             builder.push(", cert_number = ");
@@ -494,13 +500,13 @@ impl ScreenPipeRepo {
     }
 
     /// SELECT by primary key from `screen_pipes`. Returns `None` if not found or soft-deleted.
-    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<ScreenPipe>, sqlx::Error> {
+    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<ScreenPipe>, sqlx::Error> {
         sqlx::query_as::<_, ScreenPipe>(
             "SELECT id, pipe_number, batch_number, screen_type, slot_size, \
              filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
              weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
              cert_number, location_id, status, notes, created_at, updated_at, deleted_at \
-             FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
+             FROM screen_pipes WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -510,13 +516,13 @@ impl ScreenPipeRepo {
     /// SELECT multiple rows by a list of primary keys. Returns only non-deleted rows.
     /// If `ids` is empty, returns an empty `Vec` without hitting the DB.
     pub async fn find_by_ids(
-        pool: &SqlitePool,
+        pool: &PgPool,
         ids: &[i64],
     ) -> Result<Vec<ScreenPipe>, sqlx::Error> {
         if ids.is_empty() {
             return Ok(vec![]);
         }
-        let placeholders: Vec<String> = ids.iter().map(|_| "?".to_string()).collect();
+        let placeholders: Vec<String> = ids.iter().enumerate().map(|(i, _)| format!("${}", i + 1)).collect();
         let query = format!(
             "SELECT id, pipe_number, batch_number, screen_type, slot_size, \
              filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
@@ -534,7 +540,7 @@ impl ScreenPipeRepo {
 
     /// SELECT by unique `pipe_number`. Returns `None` if not found or soft-deleted.
     pub async fn find_by_pipe_number(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_number: &str,
     ) -> Result<Option<ScreenPipe>, sqlx::Error> {
         sqlx::query_as::<_, ScreenPipe>(
@@ -542,7 +548,7 @@ impl ScreenPipeRepo {
              filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
              weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
              cert_number, location_id, status, notes, created_at, updated_at, deleted_at \
-             FROM screen_pipes WHERE pipe_number = ? AND deleted_at IS NULL",
+             FROM screen_pipes WHERE pipe_number = $1 AND deleted_at IS NULL",
         )
         .bind(pipe_number)
         .fetch_optional(pool)
@@ -550,10 +556,10 @@ impl ScreenPipeRepo {
     }
 
     /// Soft-delete by setting `deleted_at` timestamp. No-op if already deleted.
-    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE screen_pipes SET deleted_at = datetime('now'), \
-             updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE screen_pipes SET deleted_at = NOW(), \
+             updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
@@ -565,7 +571,7 @@ impl ScreenPipeRepo {
     /// `status`, `od_min`/`od_max` → `base_od`, `wt_min`/`wt_max` → `base_wt`, `location_id`, `manufacturer`).
     /// Returns `(items, total)`.
     pub async fn list(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &PipeFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<ScreenPipe>, u64), sqlx::Error> {
@@ -577,8 +583,9 @@ impl ScreenPipeRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
+                let base = bind_values.len() + 1;
                 conditions.push(
-                    "(pipe_number LIKE ? OR batch_number LIKE ? OR base_grade LIKE ?)".into(),
+                    format!("(pipe_number LIKE ${} OR batch_number LIKE ${} OR base_grade LIKE ${})", base, base + 1, base + 2),
                 );
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
@@ -588,40 +595,40 @@ impl ScreenPipeRepo {
         }
         if let Some(ref grade) = filter.grade {
             // For screen pipes, grade filters base_grade
-            conditions.push("base_grade = ?".into());
+            conditions.push(format!("base_grade = ${}", bind_values.len() + 1));
             bind_values.push(grade.clone());
         }
         if let Some(ref pipe_type) = filter.pipe_type {
             // For screen pipes, pipe_type filters screen_type
-            conditions.push("screen_type = ?".into());
+            conditions.push(format!("screen_type = ${}", bind_values.len() + 1));
             bind_values.push(pipe_type.clone());
         }
         if let Some(ref status) = filter.status {
-            conditions.push("status = ?".into());
+            conditions.push(format!("status = ${}", bind_values.len() + 1));
             bind_values.push(status.clone());
         }
         if let Some(od_min) = filter.od_min {
-            conditions.push("base_od >= ?".into());
+            conditions.push(format!("base_od >= ${}", bind_values.len() + 1));
             bind_values.push(od_min.to_string());
         }
         if let Some(od_max) = filter.od_max {
-            conditions.push("base_od <= ?".into());
+            conditions.push(format!("base_od <= ${}", bind_values.len() + 1));
             bind_values.push(od_max.to_string());
         }
         if let Some(wt_min) = filter.wt_min {
-            conditions.push("base_wt >= ?".into());
+            conditions.push(format!("base_wt >= ${}", bind_values.len() + 1));
             bind_values.push(wt_min.to_string());
         }
         if let Some(wt_max) = filter.wt_max {
-            conditions.push("base_wt <= ?".into());
+            conditions.push(format!("base_wt <= ${}", bind_values.len() + 1));
             bind_values.push(wt_max.to_string());
         }
         if let Some(location_id) = filter.location_id {
-            conditions.push("location_id = ?".into());
+            conditions.push(format!("location_id = ${}", bind_values.len() + 1));
             bind_values.push(location_id.to_string());
         }
         if let Some(ref manufacturer) = filter.manufacturer {
-            conditions.push("manufacturer = ?".into());
+            conditions.push(format!("manufacturer = ${}", bind_values.len() + 1));
             bind_values.push(manufacturer.clone());
         }
 
@@ -655,8 +662,12 @@ impl ScreenPipeRepo {
              weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
              cert_number, location_id, status, notes, created_at, updated_at, deleted_at \
              FROM screen_pipes WHERE {} \
-             ORDER BY {} {} LIMIT ? OFFSET ?",
-            where_clause, sort_by, sort_order
+             ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause,
+            sort_by,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, ScreenPipe>(&list_sql);
         for val in &bind_values {
@@ -673,7 +684,7 @@ impl ScreenPipeRepo {
 
     /// SELECT screen pipes by heat number. Returns only non-deleted rows.
     pub async fn find_by_heat_number(
-        pool: &SqlitePool,
+        pool: &PgPool,
         heat_number: &str,
     ) -> Result<Vec<ScreenPipe>, sqlx::Error> {
         sqlx::query_as::<_, ScreenPipe>(
@@ -681,7 +692,7 @@ impl ScreenPipeRepo {
              filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
              weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
              cert_number, location_id, status, notes, created_at, updated_at, deleted_at \
-             FROM screen_pipes WHERE heat_number = ? AND deleted_at IS NULL",
+             FROM screen_pipes WHERE heat_number = $1 AND deleted_at IS NULL",
         )
         .bind(heat_number)
         .fetch_all(pool)
@@ -689,7 +700,7 @@ impl ScreenPipeRepo {
     }
 
     /// Full-text LIKE search across `pipe_number` and `batch_number`. Returns up to 50 results.
-    pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<ScreenPipe>, sqlx::Error> {
+    pub async fn search(pool: &PgPool, query: &str) -> Result<Vec<ScreenPipe>, sqlx::Error> {
         let like = format!("%{}%", query);
         sqlx::query_as::<_, ScreenPipe>(
             "SELECT id, pipe_number, batch_number, screen_type, slot_size, \
@@ -697,7 +708,7 @@ impl ScreenPipeRepo {
              weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
              cert_number, location_id, status, notes, created_at, updated_at, deleted_at \
              FROM screen_pipes \
-             WHERE deleted_at IS NULL AND (pipe_number LIKE ? OR batch_number LIKE ?) \
+             WHERE deleted_at IS NULL AND (pipe_number LIKE $1 OR batch_number LIKE $2) \
              ORDER BY created_at DESC LIMIT 50",
         )
         .bind(&like)

@@ -11,4 +11,9 @@ export const pipeQueryKeys = {
     list: (params?: PipeFilterParams) => [...pipeQueryKeys.screen.all, params] as const,
     detail: (id: number) => ['screen-pipe', id] as const,
   },
+  welded: {
+    all: ['welded-pipes'] as const,
+    list: (params?: PipeFilterParams) => [...pipeQueryKeys.welded.all, params] as const,
+    detail: (id: number) => ['welded-pipe', id] as const,
+  },
 };

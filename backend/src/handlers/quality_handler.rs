@@ -5,7 +5,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use validator::Validate;
 
@@ -38,7 +38,7 @@ pub struct GradeQuery {
 ///
 /// Supports filtering by pipe type, cert number, date range, etc.
 pub async fn list_certs_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(filter): Query<QualityCertFilterParams>,
 ) -> Result<Json<PaginatedResponse<QualityCert>>, AppError> {
     let pagination = PaginationParams {
@@ -60,7 +60,7 @@ pub async fn list_certs_handler(
 /// Creates a new quality certificate with test results.
 /// Validates request body. Returns the created cert.
 pub async fn create_cert_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Json(req): Json<CreateQualityCertRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()
@@ -73,7 +73,7 @@ pub async fn create_cert_handler(
 ///
 /// Returns a single quality certificate by ID. Returns 404 if not found.
 pub async fn get_cert_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<QualityCert>>, AppError> {
     let cert = QualityService::get_cert(&pool, id).await?;
@@ -85,7 +85,7 @@ pub async fn get_cert_handler(
 /// Updates an existing quality certificate. Validates request body.
 /// Returns 404 if not found.
 pub async fn update_cert_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateQualityCertRequest>,
 ) -> Result<Json<ApiResponse<QualityCert>>, AppError> {
@@ -99,7 +99,7 @@ pub async fn update_cert_handler(
 ///
 /// Soft-deletes a quality certificate. Returns 404 if not found.
 pub async fn delete_cert_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
     QualityService::delete_cert(&pool, id).await?;
@@ -112,7 +112,7 @@ pub async fn delete_cert_handler(
 ///
 /// Returns the reference data for a specific API 5CT steel grade.
 pub async fn get_grade_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(query): Query<GradeQuery>,
 ) -> Result<Json<ApiResponse<Api5ctGradeRef>>, AppError> {
     let grade = QualityService::get_grade(&pool, &query.grade).await?;
@@ -123,7 +123,7 @@ pub async fn get_grade_handler(
 ///
 /// Returns all available API 5CT steel grade reference data.
 pub async fn list_grades_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Extension(cache): Extension<CacheManager>,
 ) -> Result<Json<ApiResponse<Vec<Api5ctGradeRef>>>, AppError> {
     let cache_key = "all_grades";
@@ -144,7 +144,7 @@ pub async fn list_grades_handler(
 /// Attaches a file or document to a pipe or certificate.
 /// Validates request body. Returns the created attachment.
 pub async fn create_attachment_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Json(req): Json<CreateAttachmentRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()
@@ -157,7 +157,7 @@ pub async fn create_attachment_handler(
 ///
 /// Removes an attachment by ID. Returns 404 if not found.
 pub async fn delete_attachment_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
     QualityService::delete_attachment(&pool, id).await?;
@@ -169,7 +169,7 @@ pub async fn delete_attachment_handler(
 /// Lists all attachments for a given pipe or certificate. Requires either `cert_id` or both `pipe_type` + `pipe_id`.
 /// Returns 400 if neither identifier is provided.
 pub async fn list_attachments_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
     Query(query): Query<AttachmentListQuery>,
 ) -> Result<Json<ApiResponse<Vec<PipeAttachment>>>, AppError> {
     let (pipe_type, pipe_id) = if let Some(cert_id) = query.cert_id {

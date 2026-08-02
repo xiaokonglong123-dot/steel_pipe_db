@@ -7,7 +7,7 @@ use std::time::Instant;
 use axum::{extract::Extension, Json};
 use chrono::Utc;
 use serde::Serialize;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 use crate::error::AppError;
 use crate::response::ApiResponse;
@@ -44,7 +44,7 @@ pub struct ReadinessStatus {
 /// Used by Kubernetes/Docker for liveness probes.
 /// Does NOT require authentication.
 pub async fn health_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
 ) -> Json<ApiResponse<HealthStatus>> {
     let db_status = match sqlx::query("SELECT 1").execute(&pool).await {
         Ok(_) => "ok".to_string(),
@@ -71,7 +71,7 @@ pub async fn health_handler(
 /// Returns 503 if the database is unreachable.
 /// Used by Kubernetes for readiness probes.
 pub async fn readiness_handler(
-    Extension(pool): Extension<SqlitePool>,
+    Extension(pool): Extension<PgPool>,
 ) -> Result<Json<ApiResponse<ReadinessStatus>>, AppError> {
     sqlx::query("SELECT 1")
         .execute(&pool)
