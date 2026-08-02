@@ -37,32 +37,41 @@ impl InventoryQueryService {
 
         let mut seamless_conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
         let mut screen_conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
+        let mut welded_conditions: Vec<String> = vec!["deleted_at IS NULL".into()];
         let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref grade) = filter.grade {
             seamless_conditions.push("grade = ?".into());
             screen_conditions.push("base_grade = ?".into());
+            welded_conditions.push("grade = ?".into());
             bind_values.push(grade.clone());
         }
         if let Some(location_id) = filter.location_id {
             seamless_conditions.push("location_id = ?".into());
             screen_conditions.push("location_id = ?".into());
+            welded_conditions.push("location_id = ?".into());
             bind_values.push(location_id.to_string());
         }
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
                 seamless_conditions.push("pipe_number LIKE ?".into());
                 screen_conditions.push("pipe_number LIKE ?".into());
+                welded_conditions.push("pipe_number LIKE ?".into());
                 bind_values.push(format!("%{}%", q));
             }
         }
 
         let seamless_where = seamless_conditions.join(" AND ");
         let screen_where = screen_conditions.join(" AND ");
+        let welded_where = welded_conditions.join(" AND ");
         let pipe_type_filter = filter.pipe_type.clone();
-        let is_single_table = pipe_type_filter
+        let bind_multiplier = match pipe_type_filter
             .as_deref()
-            .is_some_and(|pt| PipeType::from_pipe_type_str(pt).is_some());
+            .and_then(PipeType::from_pipe_type_str)
+        {
+            Some(_) => 1,
+            None => 3,
+        };
 
         let count_sql = match pipe_type_filter
             .as_deref()
@@ -80,21 +89,24 @@ impl InventoryQueryService {
                     screen_where
                 )
             }
+            Some(PipeType::Welded) => {
+                format!(
+                    "SELECT COUNT(*) as cnt FROM welded_pipes WHERE {}",
+                    welded_where
+                )
+            }
             _ => {
                 format!(
                     "SELECT (SELECT COUNT(*) FROM seamless_pipes WHERE {}) + \
-                     (SELECT COUNT(*) FROM screen_pipes WHERE {}) as cnt",
-                    seamless_where, screen_where
+                     (SELECT COUNT(*) FROM screen_pipes WHERE {}) + \
+                     (SELECT COUNT(*) FROM welded_pipes WHERE {}) as cnt",
+                    seamless_where, screen_where, welded_where
                 )
             }
         };
 
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
-        for val in &bind_values {
-            count_q = count_q.bind(val.as_str());
-        }
-        if !is_single_table {
-            // Double-bind for UNION ALL (two subqueries)
+        for _ in 0..bind_multiplier {
             for val in &bind_values {
                 count_q = count_q.bind(val.as_str());
             }
@@ -122,6 +134,14 @@ impl InventoryQueryService {
                     screen_where
                 )
             }
+            Some(PipeType::Welded) => {
+                format!(
+                    "SELECT id, pipe_number, grade, od, wt, pipe_type, status, location_id, \
+                     created_at, updated_at FROM welded_pipes WHERE {} \
+                     ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    welded_where
+                )
+            }
             _ => {
                 format!(
                     "SELECT id, pipe_number, grade, od, wt, pipe_type, status, location_id, \
@@ -130,8 +150,11 @@ impl InventoryQueryService {
                      SELECT id, pipe_number, base_grade as grade, base_od as od, base_wt as wt, \
                      screen_type as pipe_type, status, location_id, created_at, updated_at \
                      FROM screen_pipes WHERE {} \
+                     UNION ALL \
+                     SELECT id, pipe_number, grade, od, wt, pipe_type, status, location_id, \
+                     created_at, updated_at FROM welded_pipes WHERE {} \
                      ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                    seamless_where, screen_where
+                    seamless_where, screen_where, welded_where
                 )
             }
         };
@@ -151,10 +174,7 @@ impl InventoryQueryService {
                 String,
             ),
         >(&list_sql);
-        for val in &bind_values {
-            list_q = list_q.bind(val.as_str());
-        }
-        if !is_single_table {
+        for _ in 0..bind_multiplier {
             for val in &bind_values {
                 list_q = list_q.bind(val.as_str());
             }

@@ -106,7 +106,7 @@ impl InventoryRepo {
             .await
     }
 
-    /// Sums `COUNT(*)` of `in_stock` pipes from both `seamless_pipes` and `screen_pipes`.
+    /// Sums `COUNT(*)` of `in_stock` pipes from `seamless_pipes`, `screen_pipes`, and `welded_pipes`.
     pub async fn get_total_in_stock(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
         let (seamless,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM seamless_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
@@ -120,7 +120,13 @@ impl InventoryRepo {
         .fetch_one(pool)
         .await?;
 
-        Ok(seamless + screen)
+        let (welded,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM welded_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
+        )
+        .fetch_one(pool)
+        .await?;
+
+        Ok(seamless + screen + welded)
     }
 
     /// GROUP BY `grade`/`base_grade` across both pipe tables. Returns typed structs.
@@ -139,6 +145,13 @@ impl InventoryRepo {
         .fetch_all(pool)
         .await?;
 
+        let welded: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT grade, COUNT(*) as cnt FROM welded_pipes \
+             WHERE status = 'in_stock' AND deleted_at IS NULL GROUP BY grade ORDER BY grade",
+        )
+        .fetch_all(pool)
+        .await?;
+
         let mut result = Vec::new();
         for (grade, count) in seamless {
             result.push(GradeCount {
@@ -152,6 +165,13 @@ impl InventoryRepo {
                 grade,
                 count,
                 pipe_type: "screen".to_string(),
+            });
+        }
+        for (grade, count) in welded {
+            result.push(GradeCount {
+                grade,
+                count,
+                pipe_type: "welded".to_string(),
             });
         }
         Ok(result)
@@ -175,6 +195,13 @@ impl InventoryRepo {
         .fetch_all(pool)
         .await?;
 
+        let welded: Vec<(Option<i64>, i64)> = sqlx::query_as(
+            "SELECT location_id, COUNT(*) as cnt FROM welded_pipes \
+             WHERE status = 'in_stock' AND deleted_at IS NULL GROUP BY location_id",
+        )
+        .fetch_all(pool)
+        .await?;
+
         let mut result = Vec::new();
         for (location_id, count) in seamless {
             result.push(LocationCount {
@@ -188,6 +215,13 @@ impl InventoryRepo {
                 location_id,
                 count,
                 pipe_type: "screen".to_string(),
+            });
+        }
+        for (location_id, count) in welded {
+            result.push(LocationCount {
+                location_id,
+                count,
+                pipe_type: "welded".to_string(),
             });
         }
         Ok(result)
@@ -307,24 +341,47 @@ impl InventoryRepo {
         }
     }
 
-    /// Returns IDs of all `in_stock` pipes (both seamless and screen).
-    /// Returns a tuple `(seamless_ids, screen_ids)`.
-    pub async fn find_in_stock_pipe_ids(pool: &SqlitePool) -> Result<(Vec<i64>, Vec<i64>), sqlx::Error> {
+    /// Returns IDs of all `in_stock` pipes (seamless, screen, and welded).
+    /// Returns a tuple `(seamless_ids, screen_ids, welded_ids)`.
+    /// When `location_id` is `Some`, only pipes at that location are returned.
+    pub async fn find_in_stock_pipe_ids(
+        pool: &SqlitePool,
+        location_id: Option<i64>,
+    ) -> Result<(Vec<i64>, Vec<i64>, Vec<i64>), sqlx::Error> {
         let seamless: Vec<(i64,)> = sqlx::query_as(
-            "SELECT id FROM seamless_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
+            "SELECT id FROM seamless_pipes \
+             WHERE status = 'in_stock' AND deleted_at IS NULL \
+             AND (? IS NULL OR location_id = ?)",
         )
+        .bind(location_id)
+        .bind(location_id)
         .fetch_all(pool)
         .await?;
 
         let screen: Vec<(i64,)> = sqlx::query_as(
-            "SELECT id FROM screen_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
+            "SELECT id FROM screen_pipes \
+             WHERE status = 'in_stock' AND deleted_at IS NULL \
+             AND (? IS NULL OR location_id = ?)",
         )
+        .bind(location_id)
+        .bind(location_id)
+        .fetch_all(pool)
+        .await?;
+
+        let welded: Vec<(i64,)> = sqlx::query_as(
+            "SELECT id FROM welded_pipes \
+             WHERE status = 'in_stock' AND deleted_at IS NULL \
+             AND (? IS NULL OR location_id = ?)",
+        )
+        .bind(location_id)
+        .bind(location_id)
         .fetch_all(pool)
         .await?;
 
         let seamless_ids: Vec<i64> = seamless.into_iter().map(|(id,)| id).collect();
         let screen_ids: Vec<i64> = screen.into_iter().map(|(id,)| id).collect();
-        Ok((seamless_ids, screen_ids))
+        let welded_ids: Vec<i64> = welded.into_iter().map(|(id,)| id).collect();
+        Ok((seamless_ids, screen_ids, welded_ids))
     }
 
     /// Updates pipe status WITHOUT a stock guard.
@@ -359,31 +416,28 @@ impl InventoryRepo {
         Ok(result.rows_affected())
     }
 
-    /// Checks whether a pipe number is unique across both seamless and screen pipes.
-    /// Returns `true` if the pipe number does NOT exist in either table (i.e., it's unique).
+    /// Checks whether a pipe number is unique across seamless, screen, and welded pipes.
+    /// Returns `true` if the pipe number does NOT exist in any table (i.e., it's unique).
     pub async fn check_pipe_number_unique(
         pool: &SqlitePool,
         pipe_number: &str,
     ) -> Result<bool, sqlx::Error> {
-        let seamless_exists: Option<(i64,)> = sqlx::query_as(
-            "SELECT id FROM seamless_pipes WHERE pipe_number = ? AND deleted_at IS NULL",
+        let row: Option<(i64,)> = sqlx::query_as(
+            "SELECT id FROM (
+                SELECT id FROM seamless_pipes WHERE pipe_number = ? AND deleted_at IS NULL
+                UNION ALL
+                SELECT id FROM screen_pipes WHERE pipe_number = ? AND deleted_at IS NULL
+                UNION ALL
+                SELECT id FROM welded_pipes WHERE pipe_number = ? AND deleted_at IS NULL
+            ) LIMIT 1",
         )
+        .bind(pipe_number)
+        .bind(pipe_number)
         .bind(pipe_number)
         .fetch_optional(pool)
         .await?;
 
-        if seamless_exists.is_some() {
-            return Ok(false);
-        }
-
-        let screen_exists: Option<(i64,)> = sqlx::query_as(
-            "SELECT id FROM screen_pipes WHERE pipe_number = ? AND deleted_at IS NULL",
-        )
-        .bind(pipe_number)
-        .fetch_optional(pool)
-        .await?;
-
-        Ok(screen_exists.is_none())
+        Ok(row.is_none())
     }
 
     /// Returns `location_id` for a given pipe (seamless, screen, or welded). Returns `None` if not found.

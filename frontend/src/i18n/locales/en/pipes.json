@@ -30,10 +30,19 @@
   "slot_size": "Slot Size",
   "filtration_grade": "Filtration Grade",
   "base_end_type": "Base End Type",
+  "seam_type": "Seam Type",
+  "welded_pipes": "Welded Pipes",
+  "menu.seamless_pipes": "Seamless",
+  "menu.screen_pipes": "Screen",
+  "menu.welded_pipes": "Welded",
+  "nav.seamless_pipes": "Seamless",
+  "nav.screen_pipes": "Screen",
+  "nav.welded_pipes": "Welded",
   "type.casing": "Casing",
   "type.tubing": "Tubing",
   "type.coupling": "Coupling",
   "type.accessory": "Accessory",
   "type.seamless": "Seamless",
-  "type.screen": "Screen"
+  "type.screen": "Screen",
+  "type.welded": "Welded"
 }

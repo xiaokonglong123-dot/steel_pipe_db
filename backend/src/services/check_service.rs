@@ -22,9 +22,10 @@ impl CheckService {
 
         let mut items: Vec<CheckInitItem> = Vec::new();
 
-        let (seamless_ids, screen_ids) = InventoryRepo::find_in_stock_pipe_ids(pool)
-            .await
-            .map_err(AppError::from)?;
+        let (seamless_ids, screen_ids, welded_ids) =
+            InventoryRepo::find_in_stock_pipe_ids(pool, dto.location_id)
+                .await
+                .map_err(AppError::from)?;
 
         for id in seamless_ids {
             items.push(CheckInitItem {
@@ -37,6 +38,14 @@ impl CheckService {
         for id in screen_ids {
             items.push(CheckInitItem {
                 pipe_type: "screen".into(),
+                pipe_id: id,
+                expected_status: "in_stock".into(),
+            });
+        }
+
+        for id in welded_ids {
+            items.push(CheckInitItem {
+                pipe_type: "welded".into(),
                 pipe_id: id,
                 expected_status: "in_stock".into(),
             });
@@ -100,7 +109,13 @@ impl CheckService {
 
         CheckRepo::update_item_result(pool, check_id, item_id, &dto.found_status, &dto.notes)
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?
+            .ok_or_else(|| {
+                AppError::NotFound(format!(
+                    "Check item id={} not found in check id={}",
+                    item_id, check_id
+                ))
+            })
     }
 
     /// Completes a check — sets status to `completed` and returns the mismatch count. Only for `in_progress` checks.

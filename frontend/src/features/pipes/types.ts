@@ -1,4 +1,4 @@
-import type { SeamlessPipe, ScreenPipe } from '@/types';
+import type { SeamlessPipe, ScreenPipe, WeldedPipe } from '@/types';
 
 export interface CreateSeamlessPipeData {
   pipe_number?: string;
@@ -41,6 +41,25 @@ export interface CreateScreenPipeData {
   notes?: string;
 }
 
+export interface CreateWeldedPipeData {
+  pipe_number?: string;
+  batch_number?: string;
+  pipe_type: string;
+  grade: string;
+  od: number;
+  wt: number;
+  length?: number;
+  weight_per_unit?: number;
+  end_type?: string;
+  seam_type?: string;
+  heat_number?: string;
+  serial_number?: string;
+  manufacturer?: string;
+  production_date?: string;
+  cert_number?: string;
+  notes?: string;
+}
+
 export interface PipeFilterParams {
   q?: string;
   grade?: string;
@@ -58,4 +77,4 @@ export interface PipeFilterParams {
   sort_order?: string;
 }
 
-export type { SeamlessPipe, ScreenPipe };
+export type { SeamlessPipe, ScreenPipe, WeldedPipe };

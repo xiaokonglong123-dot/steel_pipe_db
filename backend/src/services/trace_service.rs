@@ -87,6 +87,33 @@ impl TraceService {
                     }
                 }
             }
+            "welded" => {
+                let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
+                    "SELECT pipe_number, grade, od, wt, status, location_id \
+                     FROM welded_pipes WHERE id = ? AND deleted_at IS NULL",
+                )
+                .bind(pipe_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(AppError::from)?;
+                match row {
+                    Some((pn, grade, od, wt, status, loc)) => serde_json::json!({
+                        "pipe_type": pipe_type,
+                        "pipe_number": pn,
+                        "grade": grade,
+                        "od": od,
+                        "wt": wt,
+                        "current_status": status,
+                        "current_location_id": loc,
+                    }),
+                    None => {
+                        return Err(AppError::NotFound(format!(
+                            "Pipe {} id={} not found",
+                            pipe_type, pipe_id
+                        )))
+                    }
+                }
+            }
             _ => {
                 return Err(AppError::Validation(format!(
                     "Unknown pipe_type: {}",
@@ -153,6 +180,26 @@ impl TraceService {
                 "grade": p.base_grade,
                 "status": p.status,
                 "location_id": p.location_id,
+            }));
+        }
+
+        let welded: Vec<(i64, String, String, String, Option<i64>)> = sqlx::query_as(
+            "SELECT id, pipe_number, grade, status, location_id \
+             FROM welded_pipes WHERE heat_number = ? AND deleted_at IS NULL",
+        )
+        .bind(heat_number)
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::from)?;
+
+        for (id, pn, grade, status, loc) in welded {
+            results.push(serde_json::json!({
+                "pipe_type": "welded",
+                "pipe_id": id,
+                "pipe_number": pn,
+                "grade": grade,
+                "status": status,
+                "location_id": loc,
             }));
         }
 

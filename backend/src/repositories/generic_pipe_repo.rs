@@ -2,7 +2,7 @@ use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::PipeFilterParams;
-use crate::domain::pipe::{PipeModel, PipeStatus};
+use crate::domain::pipe::{PipeModel, PipeStatus, PipeType};
 use crate::error::AppError;
 
 pub struct GenericPipeRepo<P: PipeModel> {
@@ -125,8 +125,15 @@ impl<P: PipeModel> GenericPipeRepo<P> {
         }
 
         if let Some(ref pipe_type) = filter.pipe_type {
-            conditions.push(format!("{} = ?", P::PIPE_TYPE_COLUMN));
-            bind_values.push(pipe_type.clone());
+            // Skip the filter when the value names the pipe class itself
+            // (e.g. "seamless" against seamless_pipes): the sub-type column
+            // (pipe_type/screen_type) stores sub-types like casing/tubing,
+            // not classes. Only real sub-types become column filters.
+            let is_class = PipeType::from_pipe_type_str(pipe_type) == Some(P::PIPE_TYPE);
+            if !is_class {
+                conditions.push(format!("{} = ?", P::PIPE_TYPE_COLUMN));
+                bind_values.push(pipe_type.clone());
+            }
         }
 
         if let Some(ref status) = filter.status {

@@ -8,6 +8,7 @@ use crate::error::AppError;
 use crate::models::inventory::{OutboundItem, OutboundRecord};
 use crate::models::screen_pipe::ScreenPipe;
 use crate::models::seamless_pipe::SeamlessPipe;
+use crate::models::welded_pipe::WeldedPipe;
 use crate::repositories::generic_pipe_repo::GenericPipeRepo;
 use crate::repositories::inventory_log_repo::InventoryLogRepo;
 use crate::repositories::inventory_repo::{CreateInventoryLog, InventoryRepo};
@@ -78,14 +79,23 @@ impl OutboundService {
             .filter(|item| PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Screen))
             .map(|item| item.pipe_id)
             .collect();
+        let welded_ids: Vec<i64> = dto
+            .pipes
+            .iter()
+            .filter(|item| PipeType::from_pipe_type_str(&item.pipe_type) == Some(PipeType::Welded))
+            .map(|item| item.pipe_id)
+            .collect();
 
         let seamless_pipes = GenericPipeRepo::<SeamlessPipe>::find_by_ids(pool, &seamless_ids).await?;
         let screen_pipes = GenericPipeRepo::<ScreenPipe>::find_by_ids(pool, &screen_ids).await?;
+        let welded_pipes = GenericPipeRepo::<WeldedPipe>::find_by_ids(pool, &welded_ids).await?;
 
         let seamless_map: std::collections::HashMap<i64, _> =
             seamless_pipes.iter().map(|p| (p.id, &p.status)).collect();
         let screen_map: std::collections::HashMap<i64, _> =
             screen_pipes.iter().map(|p| (p.id, &p.status)).collect();
+        let welded_map: std::collections::HashMap<i64, _> =
+            welded_pipes.iter().map(|p| (p.id, &p.status)).collect();
 
         for item in &dto.pipes {
             let pipe_type = PipeType::from_pipe_type_str(&item.pipe_type).ok_or_else(|| {
@@ -110,9 +120,12 @@ impl OutboundService {
                     }
                 }
                 PipeType::Welded => {
-                    return Err(AppError::Validation(
-                        "Outbound not yet supported for welded pipes".into(),
-                    ));
+                    let status = welded_map.get(&item.pipe_id).ok_or_else(|| {
+                        AppError::NotFound(format!("Welded pipe id={} not found", item.pipe_id))
+                    })?;
+                    if status.as_str() != "in_stock" {
+                        return Err(AppError::InsufficientStock("Insufficient stock".into()));
+                    }
                 }
             }
         }
@@ -153,7 +166,7 @@ impl OutboundService {
             })?;
 
             match pipe_type {
-                PipeType::Seamless | PipeType::Screen => {
+                PipeType::Seamless | PipeType::Screen | PipeType::Welded => {
                     let affected = InventoryRepo::update_pipe_status_with_stock_check(
                         &mut *tx,
                         &item.pipe_type,
@@ -165,11 +178,6 @@ impl OutboundService {
                     if affected == 0 {
                         return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
-                }
-                PipeType::Welded => {
-                    return Err(AppError::Validation(
-                        "Outbound not yet supported for welded pipes".into(),
-                    ));
                 }
             }
 
@@ -255,7 +263,7 @@ impl OutboundService {
             })?;
 
             match pipe_type {
-                PipeType::Seamless | PipeType::Screen => {
+                PipeType::Seamless | PipeType::Screen | PipeType::Welded => {
                     let affected = InventoryRepo::update_pipe_status_with_stock_check(
                         &mut *tx,
                         &item.pipe_type,
@@ -267,11 +275,6 @@ impl OutboundService {
                     if affected == 0 {
                         return Err(AppError::InsufficientStock("Insufficient stock".into()));
                     }
-                }
-                PipeType::Welded => {
-                    return Err(AppError::Validation(
-                        "Outbound execution not yet supported for welded pipes".into(),
-                    ));
                 }
             }
 

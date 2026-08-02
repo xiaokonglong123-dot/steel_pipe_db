@@ -38,8 +38,15 @@ impl LabelService {
                     .ok_or_else(|| AppError::PipeNotFound(format!("Screen pipe id={}", pipe_id)))?;
                 Ok(Self::screen_barcode_html(&pipe))
             }
+            "welded" => {
+                let pipe = LabelRepo::find_welded_pipe(pool, pipe_id)
+                    .await
+                    .map_err(AppError::from)?
+                    .ok_or_else(|| AppError::PipeNotFound(format!("Welded pipe id={}", pipe_id)))?;
+                Ok(Self::welded_barcode_html(&pipe))
+            }
             _ => Err(AppError::Validation(format!(
-                "Invalid pipe_type '{}'. Must be 'seamless' or 'screen'",
+                "Invalid pipe_type '{}'. Must be 'seamless', 'screen', or 'welded'",
                 pipe_type
             ))),
         }
@@ -76,6 +83,15 @@ impl LabelService {
                             AppError::PipeNotFound(format!("Screen pipe id={}", pid.pipe_id))
                         })?;
                     Self::screen_barcode_html(&pipe)
+                }
+                "welded" => {
+                    let pipe = LabelRepo::find_welded_pipe(pool, pid.pipe_id)
+                        .await
+                        .map_err(AppError::from)?
+                        .ok_or_else(|| {
+                            AppError::PipeNotFound(format!("Welded pipe id={}", pid.pipe_id))
+                        })?;
+                    Self::welded_barcode_html(&pipe)
                 }
                 _ => {
                     return Err(AppError::Validation(format!(
@@ -119,6 +135,15 @@ impl LabelService {
                         AppError::PipeNotFound(format!("Screen pipe id={}", cert.pipe_id))
                     })?;
                 (pipe.pipe_number, pipe.base_grade)
+            }
+            "welded" => {
+                let pipe = LabelRepo::find_welded_pipe(pool, cert.pipe_id)
+                    .await
+                    .map_err(AppError::from)?
+                    .ok_or_else(|| {
+                        AppError::PipeNotFound(format!("Welded pipe id={}", cert.pipe_id))
+                    })?;
+                (pipe.pipe_number, pipe.grade)
             }
             _ => {
                 return Err(AppError::Validation(format!(
@@ -178,8 +203,26 @@ impl LabelService {
                     req,
                 ))
             }
+            "welded" => {
+                let pipe = LabelRepo::find_welded_pipe(pool, req.pipe_id)
+                    .await
+                    .map_err(AppError::from)?
+                    .ok_or_else(|| {
+                        AppError::PipeNotFound(format!("Welded pipe id={}", req.pipe_id))
+                    })?;
+                Ok(Self::shipping_html(
+                    &pipe.pipe_number,
+                    &pipe.grade,
+                    pipe.od,
+                    pipe.wt,
+                    pipe.length,
+                    pipe.heat_number.as_deref(),
+                    pipe.serial_number.as_deref(),
+                    req,
+                ))
+            }
             _ => Err(AppError::Validation(format!(
-                "Invalid pipe_type '{}'. Must be 'seamless' or 'screen'",
+                "Invalid pipe_type '{}'. Must be 'seamless', 'screen', or 'welded'",
                 req.pipe_type
             ))),
         }
@@ -254,6 +297,40 @@ impl LabelService {
             wt = pipe.base_wt,
             stype = pipe.screen_type,
             slot = pipe.slot_size.map(|v| v.to_string()).unwrap_or_default(),
+            len = pipe.length.map(|v| v.to_string()).unwrap_or_default(),
+            heat = pipe.heat_number.as_deref().unwrap_or(""),
+            serial = pipe.serial_number.as_deref().unwrap_or(""),
+            date = pipe.production_date.as_deref().unwrap_or(""),
+            batch = pipe.batch_number.as_deref().unwrap_or(""),
+        )
+    }
+
+    fn welded_barcode_html(pipe: &crate::models::welded_pipe::WeldedPipe) -> String {
+        format!(
+            r#"<!DOCTYPE html><html><head><meta charset="utf-8">{style}</head><body>
+<div class="label-page">
+<div style="width:4in;padding:0.15in;font-family:Arial,Helvetica,sans-serif;border:2px solid #000;margin:auto">
+  <div style="font-size:22pt;font-weight:bold;text-align:center;letter-spacing:3px;font-family:'Courier New',monospace;border-bottom:2px solid #000;padding-bottom:4px;margin-bottom:6px">{pn}</div>
+  <table style="width:100%;font-size:9pt;border-collapse:collapse">
+    <tr><td style="padding:2px 4px;font-weight:bold;width:35%">Grade</td><td style="padding:2px 4px">{grade}</td></tr>
+    <tr><td style="padding:2px 4px;font-weight:bold">OD x WT</td><td style="padding:2px 4px">{od} x {wt}</td></tr>
+    <tr><td style="padding:2px 4px;font-weight:bold">Pipe Type</td><td style="padding:2px 4px">{ptype}</td></tr>
+    <tr><td style="padding:2px 4px;font-weight:bold">Seam Type</td><td style="padding:2px 4px">{seam}</td></tr>
+    <tr><td style="padding:2px 4px;font-weight:bold">Length</td><td style="padding:2px 4px">{len}</td></tr>
+    <tr><td style="padding:2px 4px;font-weight:bold">Heat #</td><td style="padding:2px 4px">{heat}</td></tr>
+    <tr><td style="padding:2px 4px;font-weight:bold">Serial #</td><td style="padding:2px 4px">{serial}</td></tr>
+    <tr><td style="padding:2px 4px;font-weight:bold">Date</td><td style="padding:2px 4px">{date}</td></tr>
+    <tr><td style="padding:2px 4px;font-weight:bold">Batch</td><td style="padding:2px 4px">{batch}</td></tr>
+  </table>
+</div>
+</div></body></html>"#,
+            style = Self::page_style(),
+            pn = pipe.pipe_number,
+            grade = pipe.grade,
+            od = pipe.od,
+            wt = pipe.wt,
+            ptype = pipe.pipe_type,
+            seam = pipe.seam_type.as_deref().unwrap_or(""),
             len = pipe.length.map(|v| v.to_string()).unwrap_or_default(),
             heat = pipe.heat_number.as_deref().unwrap_or(""),
             serial = pipe.serial_number.as_deref().unwrap_or(""),

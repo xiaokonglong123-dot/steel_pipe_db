@@ -136,23 +136,31 @@ impl CheckRepo {
     }
 
     /// UPDATE a single check item's `found_status` and compute `is_match`. Returns the updated item.
+    /// Returns `None` if the item doesn't exist or doesn't belong to the check.
     pub async fn update_item_result(
         pool: &SqlitePool,
         check_id: i64,
         item_id: i64,
         found_status: &str,
         notes: &Option<String>,
-    ) -> Result<InventoryCheckItem, sqlx::Error> {
+    ) -> Result<Option<InventoryCheckItem>, sqlx::Error> {
         // Fetch expected_status to compute is_match correctly
-        let existing: (String,) = sqlx::query_as(
+        let existing: Option<(String,)> = sqlx::query_as(
             "SELECT expected_status FROM inventory_check_items WHERE id = ? AND check_id = ?",
         )
         .bind(item_id)
         .bind(check_id)
-        .fetch_one(pool)
+        .fetch_optional(pool)
         .await?;
-        let is_match = (found_status == existing.0.as_str()) as i64;
-        sqlx::query_as::<_, InventoryCheckItem>(
+
+        let Some((expected_status,)) = existing else {
+            return Ok(None);
+        };
+
+        // A pipe counts as a match when the checker confirms it as `found`,
+        // or when the submitted status equals the expected one.
+        let is_match = (found_status == "found" || found_status == expected_status.as_str()) as i64;
+        let updated = sqlx::query_as::<_, InventoryCheckItem>(
             "UPDATE inventory_check_items SET found_status = ?, is_match = ?, notes = ? \
              WHERE id = ? AND check_id = ? \
              RETURNING id, check_id, pipe_type, pipe_id, expected_status, found_status, \
@@ -163,7 +171,9 @@ impl CheckRepo {
         .bind(notes)
         .bind(item_id)
         .bind(check_id)
-        .fetch_one(pool)
-        .await
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(updated)
     }
 }

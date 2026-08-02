@@ -19,9 +19,13 @@ impl LocationRepo {
              ) + (
                  SELECT COUNT(*) FROM screen_pipes
                  WHERE location_id = ? AND status = 'in_stock' AND deleted_at IS NULL
+             ) + (
+                 SELECT COUNT(*) FROM welded_pipes
+                 WHERE location_id = ? AND status = 'in_stock' AND deleted_at IS NULL
              ), updated_at = datetime('now')
              WHERE id = ? AND deleted_at IS NULL",
         )
+        .bind(location_id)
         .bind(location_id)
         .bind(location_id)
         .bind(location_id)

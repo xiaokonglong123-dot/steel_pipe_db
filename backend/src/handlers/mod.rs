@@ -17,3 +17,4 @@ pub mod quality_handler;
 pub mod report_handler;
 pub mod sales_handler;
 pub mod supplier_handler;
+pub mod welded_pipe;

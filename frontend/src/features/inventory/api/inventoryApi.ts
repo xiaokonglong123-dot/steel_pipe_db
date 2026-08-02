@@ -224,7 +224,7 @@ export interface CheckFilter {
 
 export const inboundApi = {
   list: async (params?: InboundFilter) => {
-    const res = await apiClient.get<PaginatedResponse<InboundRecord>>('/inbound-records', { params });
+    const res = await apiClient.get<PaginatedResponse<InboundRecord>>('/inbound-records', params);
     return validateResponse(paginatedDataSchema(inboundRecordSchema), res.data);
   },
 
@@ -262,7 +262,7 @@ export const inboundApi = {
 
 export const outboundApi = {
   list: async (params?: OutboundFilter) => {
-    const res = await apiClient.get<PaginatedResponse<OutboundRecord>>('/outbound-records', { params });
+    const res = await apiClient.get<PaginatedResponse<OutboundRecord>>('/outbound-records', params);
     return validateResponse(paginatedDataSchema(outboundRecordSchema), res.data);
   },
 
@@ -300,12 +300,12 @@ export const outboundApi = {
 
 export const inventoryApi = {
   queryStock: async (params?: StockFilter) => {
-    const res = await apiClient.get<PaginatedResponse<Record<string, unknown>>>('/inventory', { params });
+    const res = await apiClient.get<PaginatedResponse<Record<string, unknown>>>('/inventory', params);
     return validateResponse(paginatedDataSchema(stockItemSchema), res.data);
   },
 
   queryLogs: async (params?: StockFilter) => {
-    const res = await apiClient.get<PaginatedResponse<InventoryLog>>('/inventory/logs', { params });
+    const res = await apiClient.get<PaginatedResponse<InventoryLog>>('/inventory/logs', params);
     return validateResponse(paginatedDataSchema(inventoryLogSchema), res.data);
   },
 
@@ -329,7 +329,7 @@ export const inventoryApi = {
 
 export const locationApi = {
   list: async (params?: LocationFilter) => {
-    const res = await apiClient.get<PaginatedResponse<Location>>('/locations', { params });
+    const res = await apiClient.get<PaginatedResponse<Location>>('/locations', params);
     return validateResponse(paginatedDataSchema(locationSchema), res.data);
   },
 
@@ -357,7 +357,7 @@ export const locationApi = {
 
 export const checkApi = {
   list: async (params?: CheckFilter) => {
-    const res = await apiClient.get<PaginatedResponse<InventoryCheckRecord>>('/inventory/checks', { params });
+    const res = await apiClient.get<PaginatedResponse<InventoryCheckRecord>>('/inventory/checks', params);
     return validateResponse(paginatedDataSchema(inventoryCheckRecordSchema), res.data);
   },
 
@@ -395,7 +395,7 @@ export interface PipeSearchResult {
 
 export const pipeSearchApi = {
   search: async (params?: { q?: string; pipe_type?: string; status?: string; limit?: number }) => {
-    const res = await apiClient.get<ApiResponse<PipeSearchResult[]>>('/pipes/search', { params });
+    const res = await apiClient.get<ApiResponse<PipeSearchResult[]>>('/pipes/search', params);
     return validateResponse(z.array(pipeSearchResultSchema), res.data);
   },
 };

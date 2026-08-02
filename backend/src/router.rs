@@ -77,6 +77,7 @@ use crate::handlers::quality_handler;
 use crate::handlers::report_handler;
 use crate::handlers::sales_handler;
 use crate::handlers::supplier_handler;
+use crate::handlers::welded_pipe;
 
 // Helper functions for route groups with role-protected write operations
 // Each returns a Router with auth_middleware + require_role on all endpoints.
@@ -467,6 +468,14 @@ pub fn create_app(
             "/api/v1/pipes/search",
             axum::routing::get(pipe_handler::search_pipes_handler),
         )
+        .route(
+            "/api/v1/welded-pipes",
+            axum::routing::get(welded_pipe::list_welded_pipes_handler),
+        )
+        .route(
+            "/api/v1/welded-pipes/{id}",
+            axum::routing::get(welded_pipe::get_welded_pipe_handler),
+        )
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
         ));
@@ -494,6 +503,15 @@ pub fn create_app(
         .route(
             "/api/v1/pipes/batch",
             axum::routing::post(pipe_handler::batch_create_pipes_handler),
+        )
+        .route(
+            "/api/v1/welded-pipes",
+            axum::routing::post(welded_pipe::create_welded_pipe_handler),
+        )
+        .route(
+            "/api/v1/welded-pipes/{id}",
+            axum::routing::put(welded_pipe::update_welded_pipe_handler)
+                .delete(welded_pipe::delete_welded_pipe_handler),
         )
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse"])

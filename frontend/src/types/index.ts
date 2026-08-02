@@ -106,3 +106,29 @@ export interface ScreenPipe {
   updated_at: string;
   deleted_at?: string | null;
 }
+
+/** API 5L welded pipe (ERW/SAW/HFI) — matches `welded_pipes` table. */
+export interface WeldedPipe {
+  id: number;
+  pipe_number: string;
+  batch_number?: string | null;
+  pipe_type: string;
+  grade: string;
+  od: number;
+  wt: number;
+  length?: number | null;
+  weight_per_unit?: number | null;
+  end_type?: string | null;
+  seam_type?: string | null;
+  heat_number?: string | null;
+  serial_number?: string | null;
+  manufacturer?: string | null;
+  production_date?: string | null;
+  cert_number?: string | null;
+  location_id?: number | null;
+  status: string;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}

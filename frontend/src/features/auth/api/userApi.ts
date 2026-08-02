@@ -34,7 +34,7 @@ export interface UserFilterParams {
 
 export const userApi = {
   list: async (params?: UserFilterParams) => {
-    const res = await apiClient.get<PaginatedResponse<UserInfo>>('/users', { params });
+    const res = await apiClient.get<PaginatedResponse<UserInfo>>('/users', params);
     return validateResponse(paginatedDataSchema(userInfoSchema), res.data);
   },
 

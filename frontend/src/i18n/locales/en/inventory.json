@@ -74,5 +74,8 @@
   "found_status.found": "Found",
   "found_status.missing": "Missing",
   "found_status.damaged": "Damaged",
-  "found_status.wrong_location": "Wrong Location"
+  "found_status.wrong_location": "Wrong Location",
+  "complete": "Complete Check",
+  "complete_confirm_title": "Confirm Check Completion",
+  "complete_confirm_content": "Checking results cannot be changed after completion. Confirm completion?"
 }

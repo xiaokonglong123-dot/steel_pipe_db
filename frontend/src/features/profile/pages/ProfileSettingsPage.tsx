@@ -22,7 +22,6 @@ export default function ProfileSettingsPage() {
       const values = await profileForm.validateFields();
       setProfileLoading(true);
       await updateProfile.mutateAsync({
-        id: user.id,
         display_name: values.display_name,
         email: values.email || undefined,
         phone: values.phone || undefined,

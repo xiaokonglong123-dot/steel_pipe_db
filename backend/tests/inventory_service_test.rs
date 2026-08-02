@@ -481,6 +481,14 @@ async fn create_and_submit_check_record() {
         .await
         .unwrap();
 
+    // Place the pipe in the seeded location so the location-scoped check can find it
+    sqlx::query("UPDATE seamless_pipes SET location_id = ? WHERE id = ?")
+        .bind(location_id)
+        .bind(pipe_id)
+        .execute(&pool)
+        .await
+        .expect("assign pipe to location must succeed");
+
     // Create a check record — auto-scans in_stock pipes
     let dto = CreateCheckRequest {
         location_id: Some(location_id),

@@ -46,7 +46,6 @@ pub struct UpdateSeamlessPipeRequest {
     pub cert_number: Option<String>,
     pub notes: Option<String>,
     pub location_id: Option<i64>,
-    pub status: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
@@ -92,7 +91,6 @@ pub struct UpdateScreenPipeRequest {
     pub cert_number: Option<String>,
     pub notes: Option<String>,
     pub location_id: Option<i64>,
-    pub status: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
@@ -136,7 +134,6 @@ pub struct UpdateWeldedPipeRequest {
     pub cert_number: Option<String>,
     pub notes: Option<String>,
     pub location_id: Option<i64>,
-    pub status: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

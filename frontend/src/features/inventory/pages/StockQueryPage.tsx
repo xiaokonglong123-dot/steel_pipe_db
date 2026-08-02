@@ -4,9 +4,10 @@ import { Table, Space, Tag, Input, Select } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useStockQuery, useLocations } from '../hooks/useInventory';
+import { DETAILED_PIPE_TYPES } from '@/shared/constants';
 import type { Location } from '../api/inventoryApi';
 
-const PIPE_TYPE_OPTIONS = ['seamless', 'casing', 'tubing', 'line_pipe', 'screen'];
+const PIPE_TYPE_OPTIONS = DETAILED_PIPE_TYPES as unknown as string[];
 const GRADE_OPTIONS = ['H40', 'J55', 'K55', 'N80', 'L80', 'C90', 'T95', 'P110', 'Q125'];
 
 export default function StockQueryPage() {

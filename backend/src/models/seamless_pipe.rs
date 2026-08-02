@@ -223,5 +223,9 @@ impl PipeModel for SeamlessPipe {
             if !first { builder.push(", "); }
             builder.push("notes = ").push_bind(v);
         }
+        if let Some(v) = dto.location_id {
+            if !first { builder.push(", "); }
+            builder.push("location_id = ").push_bind(v);
+        }
     }
 }

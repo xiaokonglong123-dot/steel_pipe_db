@@ -73,13 +73,22 @@ impl InboundService {
 
         let inbound_no = utils::generate_no("IN");
 
-        let record = InboundRepo::create_with_items(pool, dto, &inbound_no)
+        // Header + items + (auto-approved) stock changes all in ONE transaction:
+        // no orphan record is left behind if execution fails, and the guarded
+        // status update prevents concurrent double-inbound of the same pipe.
+        let mut tx = pool.begin().await.map_err(AppError::from)?;
+
+        let record = InboundRepo::create_inner(&mut tx, dto, &inbound_no)
             .await
             .map_err(AppError::from)?;
 
         if record.approval_status == "auto_approved" {
-            Self::execute_inbound_batch(pool, record.id, &dto.pipes).await?;
+            Self::execute_inbound_batch_inner(&mut tx, record.id, &dto.pipes).await?;
         }
+
+        tx.commit().await.map_err(AppError::from)?;
+
+        refresh_inbound_locations(pool, &dto.pipes).await?;
 
         Ok(record)
     }
@@ -90,17 +99,33 @@ impl InboundService {
         items: &[crate::dto::inventory_dto::InboundPipeItem],
     ) -> Result<(), AppError> {
         for item in items {
-            let affected = InventoryRepo::update_pipe_status(
-                &mut **tx,
-                &item.pipe_type,
-                item.pipe_id,
-                "in_stock",
-            )
-            .await
-            .map_err(AppError::from)?;
-            if affected == 0 {
-                return Err(AppError::NotFound(format!(
-                    "Pipe id={} (type={}) not found during status update",
+            let table = match PipeType::from_pipe_type_str(&item.pipe_type) {
+                Some(PipeType::Seamless) => "seamless_pipes",
+                Some(PipeType::Screen) => "screen_pipes",
+                Some(PipeType::Welded) => "welded_pipes",
+                None => {
+                    return Err(AppError::Validation(format!(
+                        "Unknown pipe_type: {}",
+                        item.pipe_type
+                    )));
+                }
+            };
+            // Guarded update: a pipe already `in_stock` cannot be inbound again.
+            // `affected == 0` means the pipe was deleted or its status changed
+            // concurrently — roll back instead of double-counting stock.
+            let sql = format!(
+                "UPDATE {} SET status = 'in_stock', updated_at = datetime('now') \
+                 WHERE id = ? AND deleted_at IS NULL AND status != 'in_stock'",
+                table
+            );
+            let result = sqlx::query(&sql)
+                .bind(item.pipe_id)
+                .execute(&mut **tx)
+                .await
+                .map_err(AppError::from)?;
+            if result.rows_affected() == 0 {
+                return Err(AppError::PipeStatusConflict(format!(
+                    "Pipe id={} (type={}) status changed concurrently, expected non-in_stock status not matched",
                     item.pipe_id, item.pipe_type
                 )));
             }
@@ -123,18 +148,6 @@ impl InboundService {
             .map_err(AppError::from)?;
         }
 
-        Ok(())
-    }
-
-    async fn execute_inbound_batch(
-        pool: &SqlitePool,
-        record_id: i64,
-        items: &[InboundPipeItem],
-    ) -> Result<(), AppError> {
-        let mut tx = pool.begin().await.map_err(AppError::from)?;
-        Self::execute_inbound_batch_inner(&mut tx, record_id, items).await?;
-        tx.commit().await.map_err(AppError::from)?;
-        refresh_inbound_locations(pool, items).await?;
         Ok(())
     }
 

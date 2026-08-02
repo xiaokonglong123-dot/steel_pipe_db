@@ -4,15 +4,18 @@ use uuid::Uuid;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::{
-    BatchCreatePipeRequest, CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams,
-    PipeSearchResult, UpdateScreenPipeRequest, UpdateSeamlessPipeRequest,
+    BatchCreatePipeRequest, CreateScreenPipeRequest, CreateSeamlessPipeRequest,
+    CreateWeldedPipeRequest, PipeFilterParams, PipeSearchResult, UpdateScreenPipeRequest,
+    UpdateSeamlessPipeRequest, UpdateWeldedPipeRequest,
 };
 use crate::error::AppError;
 use crate::models::screen_pipe::ScreenPipe;
 use crate::models::seamless_pipe::SeamlessPipe;
+use crate::models::welded_pipe::WeldedPipe;
 use crate::domain::pipe::PipeModel;
 use crate::repositories::generic_pipe_repo::GenericPipeRepo;
 use crate::repositories::inventory_repo::InventoryRepo;
+use crate::repositories::location_repo::LocationRepo;
 
 /// Pipe master-data service — CRUD and search for seamless and screen pipes.
 /// Kicks off with pipe-number uniqueness checks and enforces soft-delete / status gates on mutations.
@@ -38,11 +41,32 @@ impl PipeService {
         Ok(())
     }
 
+    /// Validates a sub-type value against the DB CHECK-constraint value set.
+    /// Returns `AppError::Validation` (10002) instead of a raw 50001 DB error.
+    fn validate_subtype(field: &str, value: Option<&str>, allowed: &[&str]) -> Result<(), AppError> {
+        match value {
+            None => Ok(()),
+            Some(v) if allowed.contains(&v) => Ok(()),
+            Some(v) => Err(AppError::Validation(format!(
+                "{} '{}' is invalid. Allowed: {}",
+                field,
+                v,
+                allowed.join(", ")
+            ))),
+        }
+    }
+
     pub async fn create_seamless_pipe<C: CacheInvalidate>(
         pool: &SqlitePool,
         cache: &C,
         dto: &CreateSeamlessPipeRequest,
     ) -> Result<SeamlessPipe, AppError> {
+        Self::validate_subtype(
+            "pipe_type",
+            dto.pipe_type.as_deref(),
+            &["casing", "tubing"],
+        )?;
+
         let pipe_number = match &dto.pipe_number {
             Some(pn) if !pn.is_empty() => {
                 Self::validate_pipe_number_unique(pool, pn).await?;
@@ -91,6 +115,20 @@ impl PipeService {
     ///
     /// # Errors
     /// - `AppError::PipeNotFound` — pipe ID not found or has been soft-deleted
+    /// Ensures the referenced location exists when one is provided.
+    async fn validate_location(
+        pool: &SqlitePool,
+        location_id: Option<i64>,
+    ) -> Result<(), AppError> {
+        if let Some(loc_id) = location_id {
+            LocationRepo::find_by_id(pool, loc_id)
+                .await
+                .map_err(AppError::from)?
+                .ok_or_else(|| AppError::LocationNotFound(format!("Location id={} not found", loc_id)))?;
+        }
+        Ok(())
+    }
+
     pub async fn update_seamless_pipe<C: CacheInvalidate>(
         pool: &SqlitePool,
         cache: &C,
@@ -108,6 +146,9 @@ impl PipeService {
                 id
             )));
         }
+
+        Self::validate_location(pool, dto.location_id).await?;
+        Self::validate_subtype("pipe_type", dto.pipe_type.as_deref(), &["casing", "tubing"])?;
 
         let pipe = GenericPipeRepo::<SeamlessPipe>::update(pool, id, dto)
             .await
@@ -128,9 +169,9 @@ impl PipeService {
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::PipeNotFound(format!("Seamless pipe id={} not found", id)))?;
 
-        if existing.status() != "in_stock" {
+        if existing.status() != "in_stock" && existing.status() != "new" {
             return Err(AppError::PipeStatusConflict(format!(
-                "Cannot delete pipe with status '{}'. Only 'in_stock' pipes can be deleted.",
+                "Cannot delete pipe with status '{}'. Only 'in_stock' and 'new' pipes can be deleted.",
                 existing.status()
             )));
         }
@@ -173,6 +214,12 @@ impl PipeService {
         cache: &C,
         dto: &CreateScreenPipeRequest,
     ) -> Result<ScreenPipe, AppError> {
+        Self::validate_subtype(
+            "screen_type",
+            dto.screen_type.as_deref(),
+            &["wire_wrapped", "slotted", "punched", "metal_felt"],
+        )?;
+
         let pipe_number = match &dto.pipe_number {
             Some(pn) if !pn.is_empty() => {
                 Self::validate_pipe_number_unique(pool, pn).await?;
@@ -237,6 +284,13 @@ impl PipeService {
             )));
         }
 
+        Self::validate_location(pool, dto.location_id).await?;
+        Self::validate_subtype(
+            "screen_type",
+            dto.screen_type.as_deref(),
+            &["wire_wrapped", "slotted", "punched", "metal_felt"],
+        )?;
+
         let pipe = GenericPipeRepo::<ScreenPipe>::update(pool, id, dto)
             .await
             .map_err(AppError::from)?;
@@ -256,9 +310,9 @@ impl PipeService {
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::PipeNotFound(format!("Screen pipe id={} not found", id)))?;
 
-        if existing.status() != "in_stock" {
+        if existing.status() != "in_stock" && existing.status() != "new" {
             return Err(AppError::PipeStatusConflict(format!(
-                "Cannot delete pipe with status '{}'. Only 'in_stock' pipes can be deleted.",
+                "Cannot delete pipe with status '{}'. Only 'in_stock' and 'new' pipes can be deleted.",
                 existing.status()
             )));
         }
@@ -294,6 +348,136 @@ impl PipeService {
             .map_err(AppError::from)
     }
 
+    // ━━━ Welded Pipe ━━━
+
+    pub async fn create_welded_pipe<C: CacheInvalidate>(
+        pool: &SqlitePool,
+        cache: &C,
+        dto: &CreateWeldedPipeRequest,
+    ) -> Result<WeldedPipe, AppError> {
+        Self::validate_subtype("pipe_type", dto.pipe_type.as_deref(), &["erw", "saw", "hfi"])?;
+
+        let pipe_number = match &dto.pipe_number {
+            Some(pn) if !pn.is_empty() => {
+                Self::validate_pipe_number_unique(pool, pn).await?;
+                pn.clone()
+            }
+            _ => {
+                let mut pn = Self::generate_pipe_number("WP", &dto.grade, dto.od, dto.wt);
+                while !InventoryRepo::check_pipe_number_unique(pool, &pn).await.map_err(AppError::from)? {
+                    pn = Self::generate_pipe_number("WP", &dto.grade, dto.od, dto.wt);
+                }
+                pn
+            }
+        };
+
+        let adjusted = CreateWeldedPipeRequest {
+            pipe_number: Some(pipe_number),
+            batch_number: dto.batch_number.clone(),
+            pipe_type: dto.pipe_type.clone(),
+            grade: dto.grade.clone(),
+            od: dto.od,
+            wt: dto.wt,
+            length: dto.length,
+            weight_per_unit: dto.weight_per_unit,
+            end_type: dto.end_type.clone(),
+            seam_type: dto.seam_type.clone(),
+            heat_number: dto.heat_number.clone(),
+            serial_number: dto.serial_number.clone(),
+            manufacturer: dto.manufacturer.clone(),
+            production_date: dto.production_date.clone(),
+            cert_number: dto.cert_number.clone(),
+            notes: dto.notes.clone(),
+        };
+
+        let pipe = GenericPipeRepo::<WeldedPipe>::create(pool, &adjusted)
+            .await
+            .map_err(AppError::from)?;
+
+        cache.invalidate_pipes()?;
+        Ok(pipe)
+    }
+
+    /// Updates welded pipe fields. Won't touch soft-deleted records.
+    pub async fn update_welded_pipe<C: CacheInvalidate>(
+        pool: &SqlitePool,
+        cache: &C,
+        id: i64,
+        dto: &UpdateWeldedPipeRequest,
+    ) -> Result<WeldedPipe, AppError> {
+        let existing = GenericPipeRepo::<WeldedPipe>::find_by_id(pool, id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::PipeNotFound(format!("Welded pipe id={} not found", id)))?;
+
+        if existing.is_deleted() {
+            return Err(AppError::PipeNotFound(format!(
+                "Welded pipe id={} has been deleted",
+                id
+            )));
+        }
+
+        Self::validate_location(pool, dto.location_id).await?;
+        Self::validate_subtype("pipe_type", dto.pipe_type.as_deref(), &["erw", "saw", "hfi"])?;
+
+        let pipe = GenericPipeRepo::<WeldedPipe>::update(pool, id, dto)
+            .await
+            .map_err(AppError::from)?;
+
+        cache.invalidate_pipes()?;
+        Ok(pipe)
+    }
+
+    /// Gets a single welded pipe by ID.
+    pub async fn get_welded_pipe(pool: &SqlitePool, id: i64) -> Result<WeldedPipe, AppError> {
+        GenericPipeRepo::<WeldedPipe>::find_by_id(pool, id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::PipeNotFound(format!("Welded pipe id={} not found", id)))
+    }
+
+    /// Soft-deletes a welded pipe. Only pipes with `in_stock` status get the axe.
+    ///
+    /// # Errors
+    /// - `AppError::PipeNotFound` — ID doesn't exist
+    /// - `AppError::PipeStatusConflict` — current status says nope
+    pub async fn delete_welded_pipe<C: CacheInvalidate>(
+        pool: &SqlitePool,
+        cache: &C,
+        id: i64,
+    ) -> Result<(), AppError> {
+        let existing = GenericPipeRepo::<WeldedPipe>::find_by_id(pool, id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::PipeNotFound(format!("Welded pipe id={} not found", id)))?;
+
+        if existing.status() != "in_stock" && existing.status() != "new" {
+            return Err(AppError::PipeStatusConflict(format!(
+                "Cannot delete pipe with status '{}'. Only 'in_stock' and 'new' pipes can be deleted.",
+                existing.status()
+            )));
+        }
+
+        GenericPipeRepo::<WeldedPipe>::delete(pool, id)
+            .await
+            .map_err(AppError::from)?;
+
+        cache.invalidate_pipes()?;
+        Ok(())
+    }
+
+    /// Paginated list of welded pipes — filter by spec, grade, whatever.
+    /// Returns `(items, total_count)`.
+    pub async fn list_welded_pipes(
+        pool: &SqlitePool,
+        filter: &PipeFilterParams,
+        params: &PaginationParams,
+    ) -> Result<(Vec<WeldedPipe>, u64), AppError> {
+        GenericPipeRepo::<WeldedPipe>::list(pool, filter, params)
+            .await
+            .map_err(AppError::from)
+    }
+
     pub async fn batch_create_pipes<C: CacheInvalidate>(
         pool: &SqlitePool,
         cache: &C,
@@ -305,6 +489,7 @@ impl PipeService {
             let prefix = match dto.pipe_type.as_str() {
                 "seamless" | "casing" | "tubing" => "SP",
                 "screen" => "SCP",
+                "welded" => "WP",
                 _ => "P",
             };
 
@@ -323,7 +508,7 @@ impl PipeService {
                     let req = CreateSeamlessPipeRequest {
                         pipe_number: Some(pipe_number),
                         batch_number: dto.batch_number.clone(),
-                        pipe_type: Some(dto.pipe_type.clone()),
+                        pipe_type: Some(if dto.pipe_type == "tubing" { "tubing".into() } else { "casing".into() }),
                         grade: dto.grade.clone(),
                         od: dto.od,
                         wt: dto.wt,
@@ -347,7 +532,7 @@ impl PipeService {
                     let req = CreateScreenPipeRequest {
                         pipe_number: Some(pipe_number),
                         batch_number: dto.batch_number.clone(),
-                        screen_type: None,
+                        screen_type: Some("wire_wrapped".into()),
                         slot_size: None,
                         filtration_grade: None,
                         base_od: dto.od,
@@ -364,6 +549,28 @@ impl PipeService {
                         notes: dto.notes.clone(),
                     };
                     let pipe = Self::create_screen_pipe(pool, cache, &req).await?;
+                    pipe_ids.push(pipe.id);
+                }
+                "welded" => {
+                    let req = CreateWeldedPipeRequest {
+                        pipe_number: Some(pipe_number),
+                        batch_number: dto.batch_number.clone(),
+                        pipe_type: Some("erw".into()),
+                        grade: dto.grade.clone(),
+                        od: dto.od,
+                        wt: dto.wt,
+                        length: dto.length,
+                        weight_per_unit: None,
+                        end_type: dto.end_type.clone(),
+                        seam_type: None,
+                        heat_number: dto.heat_number.clone(),
+                        serial_number: None,
+                        manufacturer: dto.manufacturer.clone(),
+                        production_date: None,
+                        cert_number: None,
+                        notes: dto.notes.clone(),
+                    };
+                    let pipe = Self::create_welded_pipe(pool, cache, &req).await?;
                     pipe_ids.push(pipe.id);
                 }
                 _ => {
@@ -390,6 +597,10 @@ impl PipeService {
                 .map_err(AppError::from)?;
             
             let screen = GenericPipeRepo::<ScreenPipe>::search(pool, query)
+                .await
+                .map_err(AppError::from)?;
+
+            let welded = GenericPipeRepo::<WeldedPipe>::search(pool, query)
                 .await
                 .map_err(AppError::from)?;
             
@@ -424,13 +635,28 @@ impl PipeService {
                     });
                 }
             }
+
+            if let PipeMarker::Welded | PipeMarker::All = marker {
+                for pipe in welded {
+                    results.push(PipeSearchResult {
+                        id: pipe.id,
+                        pipe_type: "welded".into(),
+                        pipe_number: pipe.pipe_number,
+                        grade: pipe.grade,
+                        od: pipe.od,
+                        wt: pipe.wt,
+                        status: pipe.status,
+                        location_id: pipe.location_id,
+                    });
+                }
+            }
             
             Ok(results)
         }
 
-        /// Searches across both pipe types and combines the results.
+        /// Searches across all pipe types and combines the results.
         ///
-        /// Each hit is tagged `pipe_type: "seamless"` or `"screen"`.
+        /// Each hit is tagged `pipe_type: "seamless"`, `"screen"`, or `"welded"`.
         pub async fn search_pipes(
             pool: &SqlitePool,
             query: &str,
@@ -550,6 +776,8 @@ pub(crate) enum PipeMarker {
     Seamless,
     /// Include only screen pipes
     Screen,
+    /// Include only welded pipes
+    Welded,
     /// Include all pipe types
     All,
 }
@@ -559,6 +787,7 @@ impl From<String> for PipeMarker {
         match s.as_str() {
             "seamless" => PipeMarker::Seamless,
             "screen" => PipeMarker::Screen,
+            "welded" => PipeMarker::Welded,
             _ => PipeMarker::All,
         }
     }

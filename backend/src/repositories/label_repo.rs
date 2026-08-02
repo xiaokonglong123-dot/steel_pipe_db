@@ -3,6 +3,7 @@ use sqlx::SqlitePool;
 use crate::models::quality::QualityCert;
 use crate::models::screen_pipe::ScreenPipe;
 use crate::models::seamless_pipe::SeamlessPipe;
+use crate::models::welded_pipe::WeldedPipe;
 
 /// Label data queries: reads pipe details and quality certs for label generation.
 pub struct LabelRepo;
@@ -36,6 +37,22 @@ impl LabelRepo {
              weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
              cert_number, location_id, status, notes, created_at, updated_at, deleted_at \
              FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+    }
+
+    /// SELECT a welded pipe by id (used for label data). Returns `None` if soft-deleted.
+    pub async fn find_welded_pipe(
+        pool: &SqlitePool,
+        id: i64,
+    ) -> Result<Option<WeldedPipe>, sqlx::Error> {
+        sqlx::query_as::<_, WeldedPipe>(
+            "SELECT id, pipe_number, batch_number, pipe_type, grade, od, wt, length, \
+             weight_per_unit, end_type, seam_type, heat_number, serial_number, manufacturer, \
+             production_date, cert_number, location_id, status, notes, created_at, updated_at, \
+             deleted_at FROM welded_pipes WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)

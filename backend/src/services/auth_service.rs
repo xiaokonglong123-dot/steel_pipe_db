@@ -215,11 +215,14 @@ impl AuthService {
             .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
         if current_user_role != "admin" {
+            let old_password = req.old_password.as_deref().ok_or_else(|| {
+                AppError::Validation("old_password is required for self-service password change".into())
+            })?;
             let parsed_hash = PasswordHash::new(&user.password_hash)
                 .map_err(AppError::from)?;
 
             Argon2::default()
-                .verify_password(req.old_password.as_bytes(), &parsed_hash)
+                .verify_password(old_password.as_bytes(), &parsed_hash)
                 .map_err(|_| AppError::Unauthorized("Current password is incorrect".into()))?;
         }
 

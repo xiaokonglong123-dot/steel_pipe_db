@@ -6,13 +6,13 @@ export const API_5CT_GRADES = [
 ] as const;
 
 /** Pipe classification types */
-export const PIPE_TYPES = ['seamless', 'screen'] as const;
+export const PIPE_TYPES = ['seamless', 'screen', 'welded'] as const;
 
 /** Pipe category types (includes sub-categories) */
-export const PIPE_CATEGORIES = ['seamless', 'casing', 'tubing', 'screen'] as const;
+export const PIPE_CATEGORIES = ['seamless', 'casing', 'tubing', 'screen', 'welded'] as const;
 
 /** Detailed pipe types (includes all sub-categories) */
-export const DETAILED_PIPE_TYPES = ['seamless', 'casing', 'tubing', 'line_pipe', 'screen'] as const;
+export const DETAILED_PIPE_TYPES = ['seamless', 'casing', 'tubing', 'line_pipe', 'screen', 'welded'] as const;
 
 /** Inbound order types */
 export const INBOUND_TYPES = ['purchase', 'production', 'return'] as const;
@@ -33,7 +33,7 @@ export const CHECK_RESULTS = ['pass', 'fail', 'pending'] as const;
 export const ORDER_STATUSES = ['draft', 'confirmed', 'completed', 'cancelled'] as const;
 
 /** User roles */
-export const USER_ROLES = ['admin', 'warehouse', 'quality', 'sales'] as const;
+export const USER_ROLES = ['admin', 'warehouse', 'qc', 'sales'] as const;
 
 /** Location types */
 export const LOCATION_TYPES = ['warehouse', 'yard', 'dock'] as const;
@@ -42,10 +42,13 @@ export const LOCATION_TYPES = ['warehouse', 'yard', 'dock'] as const;
 export const CHECK_LIST_STATUSES = ['draft', 'in_progress', 'completed'] as const;
 
 /** Seamless pipe sub-types */
-export const SEAMLESS_PIPE_TYPES = ['casing', 'tubing', 'coupling', 'accessory'] as const;
+export const SEAMLESS_PIPE_TYPES = ['casing', 'tubing'] as const;
 
 /** Screen pipe types */
-export const SCREEN_PIPE_TYPES = ['wire_wrapped', 'pre_packed', 'slotted_liner', 'mesh'] as const;
+export const SCREEN_PIPE_TYPES = ['wire_wrapped', 'slotted', 'punched', 'metal_felt'] as const;
+
+/** Welded pipe sub-types (API 5L manufacturing process) */
+export const WELDED_PIPE_TYPES = ['erw', 'saw', 'hfi'] as const;
 
 /** Pipe end types */
 export const END_TYPES = ['plain_end', 'threaded', 'threaded_coupled', 'upset'] as const;

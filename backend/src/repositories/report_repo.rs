@@ -38,6 +38,19 @@ impl ReportRepo {
             result.push(serde_json::json!({"status": format!("screen_{}", status), "count": cnt}));
         }
 
+        let welded_rows: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT status, COUNT(*) as cnt FROM welded_pipes \
+             WHERE deleted_at IS NULL GROUP BY status ORDER BY cnt DESC",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::from)?;
+
+        let welded_total: i64 = welded_rows.iter().map(|(_, cnt)| cnt).sum();
+        for (status, cnt) in welded_rows {
+            result.push(serde_json::json!({"status": format!("welded_{}", status), "count": cnt}));
+        }
+
         result.insert(
             0,
             serde_json::json!({"status": "total_seamless", "count": seamless_total}),
@@ -45,6 +58,10 @@ impl ReportRepo {
         result.insert(
             1,
             serde_json::json!({"status": "total_screen", "count": screen_total}),
+        );
+        result.insert(
+            2,
+            serde_json::json!({"status": "total_welded", "count": welded_total}),
         );
 
         Ok(result)
@@ -68,12 +85,23 @@ impl ReportRepo {
         .await
         .map_err(AppError::from)?;
 
+        let welded_rows: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT grade, COUNT(*) as cnt FROM welded_pipes \
+             WHERE deleted_at IS NULL GROUP BY grade ORDER BY cnt DESC",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::from)?;
+
         let mut result: Vec<serde_json::Value> = Vec::new();
         for (grade, cnt) in rows {
             result.push(serde_json::json!({"grade": grade, "count": cnt, "pipe_type": "seamless"}));
         }
         for (grade, cnt) in screen_rows {
             result.push(serde_json::json!({"grade": grade, "count": cnt, "pipe_type": "screen"}));
+        }
+        for (grade, cnt) in welded_rows {
+            result.push(serde_json::json!({"grade": grade, "count": cnt, "pipe_type": "welded"}));
         }
         Ok(result)
     }
@@ -94,12 +122,23 @@ impl ReportRepo {
                 .await
                 .map_err(AppError::from)?;
 
+        let welded_rows: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT pipe_type, COUNT(*) as cnt FROM welded_pipes \
+             WHERE deleted_at IS NULL GROUP BY pipe_type ORDER BY cnt DESC",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::from)?;
+
         let mut result: Vec<serde_json::Value> = Vec::new();
         for (pt, cnt) in rows {
             result.push(serde_json::json!({"pipe_type": pt, "count": cnt}));
         }
         if screen_cnt.0 > 0 {
             result.push(serde_json::json!({"pipe_type": "screen", "count": screen_cnt.0}));
+        }
+        for (pt, cnt) in welded_rows {
+            result.push(serde_json::json!({"pipe_type": pt, "count": cnt}));
         }
         Ok(result)
     }

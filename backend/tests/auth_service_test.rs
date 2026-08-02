@@ -431,7 +431,7 @@ async fn change_password_with_correct_old_password_succeeds() {
         .unwrap();
 
     let req = ChangePasswordRequest {
-        old_password: "password123".into(),
+        old_password: Some("password123".to_string()).into(),
         new_password: "NewSecure1Pass".into(),
     };
 
@@ -465,7 +465,7 @@ async fn change_password_with_wrong_old_password_returns_unauthorized() {
         .unwrap();
 
     let req = ChangePasswordRequest {
-        old_password: "wrongOldPassword".into(),
+        old_password: Some("wrongOldPassword".to_string()).into(),
         new_password: "NewSecure1Pass".into(),
     };
 
@@ -489,7 +489,7 @@ async fn change_password_admin_bypasses_old_password_check() {
 
     // Admin can change any user's password without knowing the old one
     let req = ChangePasswordRequest {
-        old_password: "does_not_matter".into(),
+        old_password: Some("does_not_matter".to_string()).into(),
         new_password: "AdminSetPass1".into(),
     };
 

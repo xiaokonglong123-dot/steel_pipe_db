@@ -74,5 +74,8 @@
   "found_status.found": "已找到",
   "found_status.missing": "缺失",
   "found_status.damaged": "损坏",
-  "found_status.wrong_location": "位置错误"
+  "found_status.wrong_location": "位置错误",
+  "complete": "完成盘点",
+  "complete_confirm_title": "确认完成盘点",
+  "complete_confirm_content": "盘点完成后将无法修改实盘状态，是确认完成吗？"
 }

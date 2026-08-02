@@ -30,10 +30,19 @@
   "slot_size": "缝宽",
   "filtration_grade": "过滤精度",
   "base_end_type": "基管端部类型",
+  "seam_type": "焊缝类型",
+  "welded_pipes": "焊接钢管",
+  "menu.seamless_pipes": "无缝钢管",
+  "menu.screen_pipes": "筛管",
+  "menu.welded_pipes": "焊接钢管",
+  "nav.seamless_pipes": "无缝钢管",
+  "nav.screen_pipes": "筛管",
+  "nav.welded_pipes": "焊接钢管",
   "type.casing": "套管",
   "type.tubing": "油管",
   "type.coupling": "接箍",
   "type.accessory": "配件",
   "type.seamless": "无缝钢管",
-  "type.screen": "筛管"
+  "type.screen": "筛管",
+  "type.welded": "焊接钢管"
 }
