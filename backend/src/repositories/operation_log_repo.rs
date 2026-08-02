@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::{FromRow, PgPool};
 
 use crate::dto::common::PaginationParams;
 
@@ -45,12 +45,12 @@ pub struct OperationLogRepo;
 impl OperationLogRepo {
     /// INSERT a log entry and return the created `OperationLog`.
     pub async fn create(
-        pool: &SqlitePool,
+        pool: &PgPool,
         log: &CreateOperationLog,
     ) -> Result<OperationLog, sqlx::Error> {
         sqlx::query_as::<_, OperationLog>(
             "INSERT INTO operation_logs (user_id, username, action, entity_type, entity_id, details, ip_address)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
              RETURNING id, user_id, username, action, entity_type, entity_id, details, ip_address, created_at",
         )
         .bind(log.user_id)
@@ -67,7 +67,7 @@ impl OperationLogRepo {
     /// Paginated log list with dynamic filters (user_id, username, action, entity_type, entity_id).
     /// Ordered by `created_at DESC`. Returns `(items, total)`.
     pub async fn list(
-        pool: &SqlitePool,
+        pool: &PgPool,
         params: &PaginationParams,
         filter: &OperationLogFilter,
     ) -> Result<(Vec<OperationLog>, u64), sqlx::Error> {
@@ -79,23 +79,23 @@ impl OperationLogRepo {
 
         if let Some(ref user_id) = filter.user_id {
             bind_values.push(user_id.to_string());
-            where_clauses.push(format!("user_id = ?{}", bind_values.len()));
+            where_clauses.push(format!("user_id = ${}", bind_values.len()));
         }
         if let Some(ref username) = filter.username {
             bind_values.push(username.clone());
-            where_clauses.push(format!("username = ?{}", bind_values.len()));
+            where_clauses.push(format!("username = ${}", bind_values.len()));
         }
         if let Some(ref action) = filter.action {
             bind_values.push(action.clone());
-            where_clauses.push(format!("action = ?{}", bind_values.len()));
+            where_clauses.push(format!("action = ${}", bind_values.len()));
         }
         if let Some(ref entity_type) = filter.entity_type {
             bind_values.push(entity_type.clone());
-            where_clauses.push(format!("entity_type = ?{}", bind_values.len()));
+            where_clauses.push(format!("entity_type = ${}", bind_values.len()));
         }
         if let Some(ref entity_id) = filter.entity_id {
             bind_values.push(entity_id.to_string());
-            where_clauses.push(format!("entity_id = ?{}", bind_values.len()));
+            where_clauses.push(format!("entity_id = ${}", bind_values.len()));
         }
 
         let where_sql = if where_clauses.is_empty() {
@@ -111,7 +111,7 @@ impl OperationLogRepo {
         let list_sql = format!(
             "SELECT id, user_id, username, action, entity_type, entity_id, details, ip_address, created_at
              FROM operation_logs WHERE {}
-             ORDER BY created_at DESC LIMIT ?{} OFFSET ?{}",
+             ORDER BY created_at DESC LIMIT ${} OFFSET ${}",
             where_sql,
             bind_values.len() + 1,
             bind_values.len() + 2,

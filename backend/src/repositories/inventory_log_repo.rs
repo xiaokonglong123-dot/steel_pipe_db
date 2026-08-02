@@ -1,5 +1,5 @@
-use sqlx::sqlite::Sqlite;
-use sqlx::{SqlitePool, Transaction};
+use sqlx::postgres::Sqlite;
+use sqlx::{PgPool, Transaction};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::InventoryFilter;
@@ -19,7 +19,7 @@ impl InventoryLogRepo {
         sqlx::query_as::<_, InventoryLog>(
             "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
              from_location_id, to_location_id, notes, created_by) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
              RETURNING id, pipe_type, pipe_id, change_type, ref_type, ref_id, \
                from_location_id, to_location_id, notes, created_by, created_at",
         )
@@ -38,13 +38,13 @@ impl InventoryLogRepo {
 
     /// INSERT a row into `inventory_logs`. Returns the newly created log entry with generated `id`.
     pub async fn create(
-        pool: &SqlitePool,
+        pool: &PgPool,
         log: &CreateInventoryLog,
     ) -> Result<InventoryLog, sqlx::Error> {
         sqlx::query_as::<_, InventoryLog>(
             "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, \
              from_location_id, to_location_id, notes, created_by) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
              RETURNING id, pipe_type, pipe_id, change_type, ref_type, ref_id, \
                from_location_id, to_location_id, notes, created_by, created_at",
         )
@@ -64,14 +64,14 @@ impl InventoryLogRepo {
     /// SELECT inventory logs for a specific pipe, ordered by time ascending.
     /// Used by trace service for full lifecycle audit trail.
     pub async fn find_by_pipe(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<Vec<InventoryLog>, sqlx::Error> {
         sqlx::query_as::<_, InventoryLog>(
             "SELECT id, pipe_type, pipe_id, change_type, ref_type, ref_id, \
              from_location_id, to_location_id, notes, created_by, created_at \
-             FROM inventory_logs WHERE pipe_type = ? AND pipe_id = ? \
+             FROM inventory_logs WHERE pipe_type = $1 AND pipe_id = $2 \
              ORDER BY created_at ASC",
         )
         .bind(pipe_type)
@@ -83,7 +83,7 @@ impl InventoryLogRepo {
     /// Paginated SELECT from `inventory_logs` with optional filters (`pipe_type`, `location_id`).
     /// Returns `(items, total)`.
     pub async fn list(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &InventoryFilter,
     ) -> Result<(Vec<InventoryLog>, u64), sqlx::Error> {
         let pagination = PaginationParams {
@@ -99,11 +99,12 @@ impl InventoryLogRepo {
         let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref pipe_type) = filter.pipe_type {
-            conditions.push("pipe_type = ?".into());
+            conditions.push(format!("pipe_type = ${}", bind_values.len() + 1));
             bind_values.push(pipe_type.clone());
         }
         if let Some(location_id) = filter.location_id {
-            conditions.push("(from_location_id = ? OR to_location_id = ?)".into());
+            let base = bind_values.len() + 1;
+            conditions.push(format!("(from_location_id = ${} OR to_location_id = ${})", base, base + 1));
             bind_values.push(location_id.to_string());
             bind_values.push(location_id.to_string());
         }
@@ -128,7 +129,7 @@ impl InventoryLogRepo {
             "SELECT id, pipe_type, pipe_id, change_type, ref_type, ref_id, \
              from_location_id, to_location_id, notes, created_by, created_at \
              FROM inventory_logs WHERE {} \
-             ORDER BY created_at DESC LIMIT ? OFFSET ?",
+             ORDER BY created_at DESC LIMIT $1 OFFSET $2",
             where_clause
         );
         let mut list_q = sqlx::query_as::<_, InventoryLog>(&list_sql);

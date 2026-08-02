@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Sqlite, PgPool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::quality_dto::{
@@ -13,13 +13,13 @@ pub struct QualityCertRepo;
 impl QualityCertRepo {
     /// INSERT a new quality certificate. Returns the created `QualityCert`.
     pub async fn create(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateQualityCertRequest,
     ) -> Result<QualityCert, sqlx::Error> {
         sqlx::query_as::<_, QualityCert>(
             "INSERT INTO quality_certs (cert_number, pipe_type, pipe_id, cert_date, result, \
              inspector, inspection_body, notes) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
              RETURNING id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, \
                inspection_body, notes, created_at, updated_at, deleted_at",
         )
@@ -38,12 +38,12 @@ impl QualityCertRepo {
     /// Dynamic UPDATE of cert fields (cert_date, result, inspector, etc.). Only supplied fields change.
     /// Returns the updated `QualityCert`.
     pub async fn update(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         dto: &UpdateQualityCertRequest,
     ) -> Result<QualityCert, sqlx::Error> {
         let mut builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("UPDATE quality_certs SET updated_at = datetime('now')");
+            QueryBuilder::new("UPDATE quality_certs SET updated_at = NOW()");
 
         if let Some(ref val) = dto.cert_date {
             builder.push(", cert_date = ");
@@ -82,13 +82,13 @@ impl QualityCertRepo {
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
     pub async fn find_by_id(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<Option<QualityCert>, sqlx::Error> {
         sqlx::query_as::<_, QualityCert>(
             "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, \
              inspection_body, notes, created_at, updated_at, deleted_at \
-             FROM quality_certs WHERE id = ? AND deleted_at IS NULL",
+             FROM quality_certs WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -98,7 +98,7 @@ impl QualityCertRepo {
     /// Find an active (non-deleted) cert by pipe type and ID.
     /// Returns `Some(QualityCert)` if one exists, `None` otherwise.
     pub async fn find_active_by_pipe(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<Option<QualityCert>, sqlx::Error> {
@@ -106,7 +106,7 @@ impl QualityCertRepo {
             "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, \
              inspection_body, notes, created_at, updated_at, deleted_at \
              FROM quality_certs \
-             WHERE pipe_type = ? AND pipe_id = ? AND deleted_at IS NULL \
+             WHERE pipe_type = $1 AND pipe_id = $2 AND deleted_at IS NULL \
              LIMIT 1",
         )
         .bind(pipe_type)
@@ -116,10 +116,10 @@ impl QualityCertRepo {
     }
 
     /// Soft-delete: sets `deleted_at` and `updated_at`.
-    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE quality_certs SET deleted_at = datetime('now'), \
-             updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE quality_certs SET deleted_at = NOW(), \
+             updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
@@ -130,7 +130,7 @@ impl QualityCertRepo {
     /// Paginated SELECT with dynamic filters (pipe_type, pipe_id, result).
     /// Supports sorting by cert_number, pipe_type, result, cert_date, inspector. Returns `(items, total)`.
     pub async fn list(
-        pool: &SqlitePool,
+        pool: &PgPool,
         filter: &QualityCertFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<QualityCert>, u64), sqlx::Error> {
@@ -141,15 +141,15 @@ impl QualityCertRepo {
         let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref pipe_type) = filter.pipe_type {
-            conditions.push("pipe_type = ?".into());
+            conditions.push(format!("pipe_type = ${}", bind_values.len() + 1));
             bind_values.push(pipe_type.clone());
         }
         if let Some(pipe_id) = filter.pipe_id {
-            conditions.push("pipe_id = ?".into());
+            conditions.push(format!("pipe_id = ${}", bind_values.len() + 1));
             bind_values.push(pipe_id.to_string());
         }
         if let Some(ref result) = filter.result {
-            conditions.push("result = ?".into());
+            conditions.push(format!("result = ${}", bind_values.len() + 1));
             bind_values.push(result.clone());
         }
 
@@ -179,7 +179,7 @@ impl QualityCertRepo {
             "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, \
              inspection_body, notes, created_at, updated_at, deleted_at \
              FROM quality_certs WHERE {} \
-             ORDER BY {} {} LIMIT ? OFFSET ?",
+             ORDER BY {} {} LIMIT $1 OFFSET $2",
             where_clause, sort_by, sort_order
         );
         let mut list_q = sqlx::query_as::<_, QualityCert>(&list_sql);
@@ -202,14 +202,14 @@ pub struct Api5ctGradeRefRepo;
 impl Api5ctGradeRefRepo {
     /// SELECT a grade by its name. Returns `None` if not found.
     pub async fn find_by_grade(
-        pool: &SqlitePool,
+        pool: &PgPool,
         grade: &str,
     ) -> Result<Option<Api5ctGradeRef>, sqlx::Error> {
         sqlx::query_as::<_, Api5ctGradeRef>(
             "SELECT id, grade, yield_strength_min, yield_strength_max, tensile_strength_min, \
              hardness_max, carbon_content_max, manganese_content_max, phosphorus_content_max, \
              sulfur_content_max, notes \
-             FROM api_5ct_grade_ref WHERE grade = ?",
+             FROM api_5ct_grade_ref WHERE grade = $1",
         )
         .bind(grade)
         .fetch_optional(pool)
@@ -217,7 +217,7 @@ impl Api5ctGradeRefRepo {
     }
 
     /// SELECT all grades ordered by `grade` name.
-    pub async fn list_all(pool: &SqlitePool) -> Result<Vec<Api5ctGradeRef>, sqlx::Error> {
+    pub async fn list_all(pool: &PgPool) -> Result<Vec<Api5ctGradeRef>, sqlx::Error> {
         sqlx::query_as::<_, Api5ctGradeRef>(
             "SELECT id, grade, yield_strength_min, yield_strength_max, tensile_strength_min, \
              hardness_max, carbon_content_max, manganese_content_max, phosphorus_content_max, \
@@ -232,12 +232,12 @@ impl Api5ctGradeRefRepo {
 /// UPDATE `cert_number` on a quality certificate. Used after creation to set the final cert number.
 impl QualityCertRepo {
     pub async fn update_cert_number(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
         cert_number: &str,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE quality_certs SET cert_number = ? WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE quality_certs SET cert_number = $1 WHERE id = $2 AND deleted_at IS NULL",
         )
         .bind(cert_number)
         .bind(id)
@@ -253,13 +253,13 @@ pub struct PipeAttachmentRepo;
 impl PipeAttachmentRepo {
     /// INSERT a new attachment record. Returns the created `PipeAttachment`.
     pub async fn create(
-        pool: &SqlitePool,
+        pool: &PgPool,
         dto: &CreateAttachmentRequest,
     ) -> Result<PipeAttachment, sqlx::Error> {
         sqlx::query_as::<_, PipeAttachment>(
             "INSERT INTO pipe_attachments (pipe_type, pipe_id, file_name, file_path, \
              file_size, content_type, uploaded_by) \
-             VALUES (?, ?, ?, ?, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7) \
              RETURNING id, pipe_type, pipe_id, file_name, file_path, file_size, content_type, \
                uploaded_by, created_at",
         )
@@ -276,13 +276,13 @@ impl PipeAttachmentRepo {
 
     /// SELECT by primary key. Returns `None` if not found.
     pub async fn find_by_id(
-        pool: &SqlitePool,
+        pool: &PgPool,
         id: i64,
     ) -> Result<Option<PipeAttachment>, sqlx::Error> {
         sqlx::query_as::<_, PipeAttachment>(
             "SELECT id, pipe_type, pipe_id, file_name, file_path, file_size, content_type, \
              uploaded_by, created_at \
-             FROM pipe_attachments WHERE id = ?",
+             FROM pipe_attachments WHERE id = $1",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -290,8 +290,8 @@ impl PipeAttachmentRepo {
     }
 
     /// Hard DELETE from `pipe_attachments`.
-    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM pipe_attachments WHERE id = ?")
+    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM pipe_attachments WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;
@@ -300,14 +300,14 @@ impl PipeAttachmentRepo {
 
     /// SELECT attachments for a pipe (by `pipe_type` + `pipe_id`), newest first.
     pub async fn list_by_pipe(
-        pool: &SqlitePool,
+        pool: &PgPool,
         pipe_type: &str,
         pipe_id: i64,
     ) -> Result<Vec<PipeAttachment>, sqlx::Error> {
         sqlx::query_as::<_, PipeAttachment>(
             "SELECT id, pipe_type, pipe_id, file_name, file_path, file_size, content_type, \
              uploaded_by, created_at \
-             FROM pipe_attachments WHERE pipe_type = ? AND pipe_id = ? \
+             FROM pipe_attachments WHERE pipe_type = $1 AND pipe_id = $2 \
              ORDER BY created_at DESC",
         )
         .bind(pipe_type)
