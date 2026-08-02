@@ -48,6 +48,8 @@ steel-pipe-db/
 │       ├── domain/         ← 5 files, enums/domain types
 │       ├── middleware/     ← 4 files, auth.rs + rbac.rs + rate_limit.rs
 │       ├── auth/           ← RBAC: repos.rs + services.rs (IdentityService) + handlers.rs (roles/permissions/departments/tenants)
+│       ├── workflow/       ← approval engine: repos.rs + services.rs (WorkflowService) + handlers.rs (definitions/instances/tasks)
+│       ├── hr/             ← HR: repos.rs + services.rs (HrService) + handlers.rs (employees/attendance/salaries/contracts)
 │       ├── config.rs       ← Env-based config (DATABASE_URL, JWT_SECRET, etc.)
 │       ├── error.rs        ← AppError enum, numeric error codes; ApiErrorResponse with success+request_id
 │       └── response.rs     ← ApiResponse<T>, PaginatedResponse<T>, Meta struct, request_id (uuid v4), ::created(), no_content()
