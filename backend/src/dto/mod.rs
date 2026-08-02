@@ -12,3 +12,7 @@ pub mod report_dto;
 pub mod sales_dto;
 pub mod supplier_dto;
 pub mod rbac_dto;
+
+
+pub mod workflow_dto;
+pub mod hr_dto;

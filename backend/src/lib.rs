@@ -7,6 +7,8 @@
 pub mod cache;
 pub mod cache_invalidator;
 pub mod auth;
+pub mod workflow;
+pub mod hr;
 pub mod config;
 pub mod domain;
 pub mod dto;

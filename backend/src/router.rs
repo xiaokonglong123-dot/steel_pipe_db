@@ -484,6 +484,105 @@ pub fn create_app(
             crate::middleware::auth::auth_middleware,
         ));
 
+    // Workflow definition management (admin) + task operations (any authenticated user)
+    let workflow_routes = Router::new()
+        .route(
+            "/api/v1/workflows/definitions",
+            axum::routing::get(crate::workflow::handlers::list_definitions)
+                .post(crate::workflow::handlers::create_definition),
+        )
+        .route(
+            "/api/v1/workflows/definitions/{id}",
+            axum::routing::get(crate::workflow::handlers::get_definition)
+                .put(crate::workflow::handlers::update_definition)
+                .delete(crate::workflow::handlers::delete_definition),
+        )
+        .route(
+            "/api/v1/workflows/instances",
+            axum::routing::post(crate::workflow::handlers::start_instance),
+        )
+        .route(
+            "/api/v1/workflows/my-tasks",
+            axum::routing::get(crate::workflow::handlers::my_tasks),
+        )
+        .route(
+            "/api/v1/workflows/tasks/{node_id}",
+            axum::routing::get(crate::workflow::handlers::get_task),
+        )
+        .route(
+            "/api/v1/workflows/tasks/{node_id}/approve",
+            axum::routing::post(crate::workflow::handlers::approve_task),
+        )
+        .route(
+            "/api/v1/workflows/tasks/{node_id}/reject",
+            axum::routing::post(crate::workflow::handlers::reject_task),
+        )
+        .route(
+            "/api/v1/workflows/delegations",
+            axum::routing::post(crate::workflow::handlers::delegate_task),
+        )
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // HR module (admin)
+    let hr_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/hr/employees",
+            axum::routing::get(crate::hr::handlers::list_employees)
+                .post(crate::hr::handlers::create_employee),
+        )
+        .route(
+            "/api/v1/hr/employees/{id}",
+            axum::routing::get(crate::hr::handlers::get_employee)
+                .put(crate::hr::handlers::update_employee)
+                .delete(crate::hr::handlers::delete_employee),
+        )
+        .route(
+            "/api/v1/hr/employees/{id}/terminate",
+            axum::routing::post(crate::hr::handlers::terminate_employee),
+        )
+        .route(
+            "/api/v1/hr/employees/{id}/contracts",
+            axum::routing::get(crate::hr::handlers::list_contracts),
+        )
+        .route(
+            "/api/v1/hr/contracts",
+            axum::routing::post(crate::hr::handlers::create_contract),
+        )
+        .route(
+            "/api/v1/hr/positions",
+            axum::routing::get(crate::hr::handlers::list_positions)
+                .post(crate::hr::handlers::create_position),
+        )
+        .route(
+            "/api/v1/hr/attendance",
+            axum::routing::get(crate::hr::handlers::list_attendance),
+        )
+        .route(
+            "/api/v1/hr/attendance/check-in",
+            axum::routing::post(crate::hr::handlers::check_in),
+        )
+        .route(
+            "/api/v1/hr/attendance/rules",
+            axum::routing::get(crate::hr::handlers::list_rules),
+        )
+        .route(
+            "/api/v1/hr/salaries",
+            axum::routing::get(crate::hr::handlers::list_salaries)
+                .post(crate::hr::handlers::generate_salaries),
+        )
+        .route(
+            "/api/v1/hr/salaries/{id}",
+            axum::routing::get(crate::hr::handlers::get_salary),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
     // Admin read-only (GET user list)
     let admin_read = Router::new()
         .route(
@@ -853,6 +952,10 @@ pub fn create_app(
         .merge(authenticated)
         // RBAC admin (roles, permissions, departments, user-role binding)
         .merge(rbac_routes)
+        // Workflow (definitions admin, tasks any authenticated)
+        .merge(workflow_routes)
+        // HR module (admin)
+        .merge(hr_routes)
         // Admin read
         .merge(admin_read)
         // Business read-only (all authenticated users)

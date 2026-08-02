@@ -11,6 +11,8 @@ use crate::services::auth_service::AuthService;
 
 mod auth;
 mod cache;
+mod workflow;
+mod hr;
 mod cache_invalidator;
 mod config;
 mod domain;
