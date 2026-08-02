@@ -1,0 +1,20 @@
+{
+  "title": "Fixed Assets",
+  "newAsset": "New Asset",
+  "assetNo": "Asset No",
+  "name": "Name",
+  "category": "Category",
+  "purchaseCost": "Cost",
+  "currentValue": "Net Value",
+  "status": "Status",
+  "actions": "Actions",
+  "depreciate": "Depreciate",
+  "dispose": "Dispose",
+  "purchaseDate": "Purchase Date",
+  "lifeMonths": "Life (months)",
+  "saved": "Saved",
+  "depreciated": "Depreciated",
+  "disposed": "Disposed",
+  "save": "Save",
+  "cancel": "Cancel"
+}

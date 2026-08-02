@@ -65,6 +65,10 @@ const InventoryAtpPage = lazy(() => import('@/features/inventory_atp/pages/Inven
 const ManufacturingPage = lazy(() => import('@/features/manufacturing/pages/ManufacturingPage'));
 const ThreadingPage = lazy(() => import('@/features/threading/pages/ThreadingPage'));
 const ProjectPage = lazy(() => import('@/features/project/pages/ProjectPage'));
+const AssetsPage = lazy(() => import('@/features/assets/pages/AssetsPage'));
+const NotificationsPage = lazy(() => import('@/features/notification/pages/NotificationsPage'));
+const BiDashboardPage = lazy(() => import('@/features/bi/pages/DashboardPage'));
+const PortalAdminPage = lazy(() => import('@/features/portal/pages/PortalAdminPage'));
 const DataImportPage = lazy(() => import('@/features/data-io/pages/DataImportPage'));
 const DataExportPage = lazy(() => import('@/features/data-io/pages/DataExportPage'));
 const OperationLogPage = lazy(() => import('@/features/data-io/pages/OperationLogPage'));
@@ -178,6 +182,14 @@ export const router = createBrowserRouter([
       { path: 'threading', element: route(<ThreadingPage />), handle: { roles: ['admin'] } },
       // Projects
       { path: 'projects', element: route(<ProjectPage />), handle: { roles: ['admin'] } },
+      // Assets
+      { path: 'assets', element: route(<AssetsPage />), handle: { roles: ['admin'] } },
+      // Notifications
+      { path: 'notifications', element: route(<NotificationsPage />) },
+      // BI Dashboard
+      { path: 'bi', element: route(<BiDashboardPage />), handle: { roles: ['admin'] } },
+      // Portal admin
+      { path: 'portal', element: route(<PortalAdminPage />), handle: { roles: ['admin'] } },
       // Search & profile
       { path: 'search', element: route(<SearchPage />) },
       { path: 'profile/settings', element: route(<ProfileSettingsPage />) },

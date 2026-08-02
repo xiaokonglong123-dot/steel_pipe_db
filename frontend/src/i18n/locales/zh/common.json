@@ -510,5 +510,13 @@
   "menu.manufacturing_overview": "制造管理",
   "menu.threading": "螺纹工程",
   "menu.projects": "项目管理",
-  "menu.projects_overview": "项目列表"
+  "menu.projects_overview": "项目列表",
+  "menu.bi": "分析",
+  "menu.bi_dashboard": "BI 仪表盘",
+  "menu.assets": "资产",
+  "menu.assets_overview": "固定资产",
+  "menu.notifications": "通知",
+  "menu.notifications_inbox": "消息中心",
+  "menu.portal": "门户",
+  "menu.portal_admin": "门户管理"
 }

@@ -1,0 +1,15 @@
+{
+  "title": "BI Dashboard",
+  "postedEntries": "Posted Entries",
+  "openAr": "Open AR",
+  "openAp": "Open AP",
+  "sales12m": "12m Sales",
+  "inventoryValue": "Inventory",
+  "salesTrend": "Sales Trend",
+  "pipeType": "Pipe Type",
+  "onHand": "On Hand",
+  "month": "Month",
+  "status": "Status",
+  "orders": "Orders",
+  "amount": "Amount"
+}

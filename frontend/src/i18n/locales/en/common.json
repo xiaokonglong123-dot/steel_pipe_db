@@ -509,5 +509,13 @@
   "menu.manufacturing_overview": "Manufacturing",
   "menu.threading": "Threading",
   "menu.projects": "Projects",
-  "menu.projects_overview": "Projects"
+  "menu.projects_overview": "Projects",
+  "menu.bi": "Analytics",
+  "menu.bi_dashboard": "BI Dashboard",
+  "menu.assets": "Assets",
+  "menu.assets_overview": "Fixed Assets",
+  "menu.notifications": "Notifications",
+  "menu.notifications_inbox": "Inbox",
+  "menu.portal": "Portal",
+  "menu.portal_admin": "Portal Admin"
 }

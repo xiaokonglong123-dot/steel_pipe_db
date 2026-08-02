@@ -1,0 +1,14 @@
+{
+  "title": "门户管理",
+  "newAccount": "新建门户账号",
+  "partyType": "账号类型",
+  "partyId": "往来单位 ID",
+  "username": "用户名",
+  "password": "密码",
+  "supplier": "供应商",
+  "customer": "客户",
+  "hint": "门户账号用于供应商/客户自助登录，确认采购订单或销售订单。",
+  "saved": "已创建",
+  "save": "保存",
+  "cancel": "取消"
+}

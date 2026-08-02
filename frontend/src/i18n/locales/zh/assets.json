@@ -1,0 +1,20 @@
+{
+  "title": "固定资产",
+  "newAsset": "新建资产",
+  "assetNo": "资产编号",
+  "name": "名称",
+  "category": "类别",
+  "purchaseCost": "原值",
+  "currentValue": "净值",
+  "status": "状态",
+  "actions": "操作",
+  "depreciate": "折旧",
+  "dispose": "处置",
+  "purchaseDate": "购置日期",
+  "lifeMonths": "使用年限(月)",
+  "saved": "已保存",
+  "depreciated": "已折旧",
+  "disposed": "已处置",
+  "save": "保存",
+  "cancel": "取消"
+}
