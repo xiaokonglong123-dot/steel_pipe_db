@@ -1,5 +1,6 @@
 use sqlx::{QueryBuilder, Postgres, PgPool};
 
+use crate::domain::date_utils::{parse_date, parse_opt_date};
 use crate::dto::common::PaginationParams;
 use crate::dto::quality_dto::{
     CreateAttachmentRequest, CreateQualityCertRequest, QualityCertFilterParams,
@@ -26,7 +27,7 @@ impl QualityCertRepo {
         .bind(&dto.cert_number)
         .bind(&dto.pipe_type)
         .bind(dto.pipe_id)
-        .bind(&dto.cert_date)
+        .bind(parse_opt_date(dto.cert_date.as_deref()))
         .bind(&dto.result)
         .bind(&dto.inspector)
         .bind(&dto.inspection_body)
@@ -47,7 +48,7 @@ impl QualityCertRepo {
 
         if let Some(ref val) = dto.cert_date {
             builder.push(", cert_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.result {
             builder.push(", result = ");
@@ -145,8 +146,10 @@ impl QualityCertRepo {
             bind_values.push(pipe_type.clone());
         }
         if let Some(pipe_id) = filter.pipe_id {
-            conditions.push(format!("pipe_id = ${}", bind_values.len() + 1));
-            bind_values.push(pipe_id.to_string());
+            // pipe_id is a numeric filter (i64), inlined as a literal to keep
+            // the string-typed bind_values loop consistent (text binds cannot
+            // match a BIGINT column).
+            conditions.push(format!("pipe_id = {pipe_id}"));
         }
         if let Some(ref result) = filter.result {
             conditions.push(format!("result = ${}", bind_values.len() + 1));
@@ -179,8 +182,8 @@ impl QualityCertRepo {
             "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, \
              inspection_body, notes, created_at, updated_at, deleted_at \
              FROM quality_certs WHERE {} \
-             ORDER BY {} {} LIMIT $1 OFFSET $2",
-            where_clause, sort_by, sort_order
+             ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause, sort_by, sort_order, bind_values.len() + 1, bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, QualityCert>(&list_sql);
         for val in &bind_values {

@@ -192,8 +192,13 @@ impl<P: PipeModel> GenericPipeRepo<P> {
         let total: (i64,) = count_q.fetch_one(pool).await?;
 
         let list_sql = format!(
-            "SELECT * FROM {} WHERE {} ORDER BY {} {} LIMIT $1 OFFSET $2",
-            P::TABLE_NAME, where_clause, sort_col, sort_order
+            "SELECT * FROM {} WHERE {} ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            P::TABLE_NAME,
+            where_clause,
+            sort_col,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, P>(&list_sql);
         for val in &bind_values {

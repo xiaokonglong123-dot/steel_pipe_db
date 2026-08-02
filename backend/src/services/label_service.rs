@@ -266,7 +266,7 @@ impl LabelService {
             len = pipe.length.map(|v| v.to_string()).unwrap_or_default(),
             heat = pipe.heat_number.as_deref().unwrap_or(""),
             serial = pipe.serial_number.as_deref().unwrap_or(""),
-            date = pipe.production_date.as_deref().unwrap_or(""),
+            date = pipe.production_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default(),
             batch = pipe.batch_number.as_deref().unwrap_or(""),
         )
     }
@@ -300,7 +300,7 @@ impl LabelService {
             len = pipe.length.map(|v| v.to_string()).unwrap_or_default(),
             heat = pipe.heat_number.as_deref().unwrap_or(""),
             serial = pipe.serial_number.as_deref().unwrap_or(""),
-            date = pipe.production_date.as_deref().unwrap_or(""),
+            date = pipe.production_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default(),
             batch = pipe.batch_number.as_deref().unwrap_or(""),
         )
     }
@@ -334,7 +334,7 @@ impl LabelService {
             len = pipe.length.map(|v| v.to_string()).unwrap_or_default(),
             heat = pipe.heat_number.as_deref().unwrap_or(""),
             serial = pipe.serial_number.as_deref().unwrap_or(""),
-            date = pipe.production_date.as_deref().unwrap_or(""),
+            date = pipe.production_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default(),
             batch = pipe.batch_number.as_deref().unwrap_or(""),
         )
     }
@@ -370,7 +370,7 @@ impl LabelService {
                 "#cc0000"
             },
             inspector = cert.inspector.as_deref().unwrap_or(""),
-            date = cert.cert_date.as_deref().unwrap_or(""),
+            date = cert.cert_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default(),
         )
     }
 

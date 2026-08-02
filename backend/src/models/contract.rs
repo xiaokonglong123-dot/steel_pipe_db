@@ -20,11 +20,11 @@ pub struct Contract {
     /// Party B name.
     pub party_b: String,
     /// Signing date.
-    pub sign_date: Option<String>,
+    pub sign_date: Option<DateTime<Utc>>,
     /// Contract effective date.
-    pub start_date: Option<String>,
+    pub start_date: Option<DateTime<Utc>>,
     /// Contract expiry date.
-    pub end_date: Option<String>,
+    pub end_date: Option<DateTime<Utc>>,
     /// Total contract amount.
     pub total_amount: Option<f64>,
     /// Status: draft / active / completed / terminated / cancelled.
@@ -35,7 +35,7 @@ pub struct Contract {
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub deleted_at: Option<String>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Contract {
@@ -104,7 +104,7 @@ pub struct ContractPayment {
     /// Whether paid.
     pub is_paid: bool,
     /// Actual payment date.
-    pub paid_date: Option<String>,
+    pub paid_date: Option<DateTime<Utc>>,
     /// Free-form notes.
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,

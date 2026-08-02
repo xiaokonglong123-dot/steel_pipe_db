@@ -51,7 +51,7 @@ async fn create_cert_success() {
     assert_eq!(cert.inspector.as_deref(), Some("John"));
     assert_eq!(cert.inspection_body.as_deref(), Some("API Lab"));
     assert_eq!(cert.notes.as_deref(), Some("standard mill cert"));
-    assert_eq!(cert.cert_date.as_deref(), Some("2025-06-01"));
+    assert_eq!(cert.cert_date.map(|d| d.date_naive().to_string()).as_deref(), Some("2025-06-01"));
     assert!(cert.deleted_at.is_none());
 }
 
@@ -139,7 +139,7 @@ async fn update_cert_fields() {
     assert_eq!(updated.inspector.as_deref(), Some("Jane"));
     assert_eq!(updated.inspection_body.as_deref(), Some("Third Party Lab"));
     assert_eq!(updated.notes.as_deref(), Some("updated notes"));
-    assert_eq!(updated.cert_date.as_deref(), Some("2025-07-15"));
+    assert_eq!(updated.cert_date.map(|d| d.date_naive().to_string()).as_deref(), Some("2025-07-15"));
 }
 
 #[tokio::test]

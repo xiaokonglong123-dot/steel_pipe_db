@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 
 use crate::error::AppError;
@@ -146,10 +147,10 @@ impl ReportRepo {
     /// Location occupancy stats — full_code, max_capacity, current_usage, available, occupancy_pct.
     pub async fn location_occupancy(pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, i64, i64, i64, i64)> = sqlx::query_as(
-            "SELECT l.full_code, l.capacity, l.used_count, \
-             (l.capacity - l.used_count) as available, \
+            "SELECT l.full_code, COALESCE(l.capacity, 0) as capacity, l.used_count, \
+             (COALESCE(l.capacity, 0) - l.used_count) as available, \
              CASE WHEN l.capacity > 0 THEN \
-             CAST(ROUND(l.used_count * 100.0 / l.capacity) AS INTEGER) \
+             CAST(ROUND(l.used_count * 100.0 / l.capacity) AS BIGINT) \
              ELSE 0 END as occupancy_pct \
              FROM locations l              WHERE l.is_active = TRUE AND l.deleted_at IS NULL ORDER BY l.full_code",
         )
@@ -593,7 +594,7 @@ impl ReportRepo {
         pool: &PgPool,
         limit: i64,
     ) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows: Vec<(String, String, i64, String, String)> = sqlx::query_as(
+        let rows: Vec<(String, String, i64, DateTime<Utc>, Option<String>)> = sqlx::query_as(
             "SELECT qc.cert_number, qc.pipe_type, qc.pipe_id, qc.cert_date, qc.notes \
              FROM quality_certs qc \
              WHERE qc.result = 'fail' AND qc.deleted_at IS NULL \

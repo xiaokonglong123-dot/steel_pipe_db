@@ -127,7 +127,7 @@ impl CheckRepo {
     pub async fn get_mismatch_count(pool: &PgPool, check_id: i64) -> Result<i64, sqlx::Error> {
         let (cnt,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM inventory_check_items \
-             WHERE check_id = $1 AND (is_match IS NULL OR is_match = 0)",
+             WHERE check_id = $1 AND (is_match IS NULL OR is_match = FALSE)",
         )
         .bind(check_id)
         .fetch_one(pool)
@@ -159,7 +159,7 @@ impl CheckRepo {
 
         // A pipe counts as a match when the checker confirms it as `found`,
         // or when the submitted status equals the expected one.
-        let is_match = (found_status == "found" || found_status == expected_status.as_str()) as i64;
+        let is_match = found_status == "found" || found_status == expected_status.as_str();
         let updated = sqlx::query_as::<_, InventoryCheckItem>(
             "UPDATE inventory_check_items SET found_status = $1, is_match = $2, notes = $3 \
              WHERE id = $4 AND check_id = $5 \

@@ -14,5 +14,5 @@ pub struct RefreshToken {
     pub expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     /// Non-null if this token has been revoked (used, expired, or logged out).
-    pub revoked_at: Option<String>,
+    pub revoked_at: Option<DateTime<Utc>>,
 }

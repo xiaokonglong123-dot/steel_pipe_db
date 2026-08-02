@@ -129,8 +129,10 @@ impl InventoryLogRepo {
             "SELECT id, pipe_type, pipe_id, change_type, ref_type, ref_id, \
              from_location_id, to_location_id, notes, created_by, created_at \
              FROM inventory_logs WHERE {} \
-             ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-            where_clause
+             ORDER BY created_at DESC LIMIT ${} OFFSET ${}",
+            where_clause,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, InventoryLog>(&list_sql);
         for val in &bind_values {

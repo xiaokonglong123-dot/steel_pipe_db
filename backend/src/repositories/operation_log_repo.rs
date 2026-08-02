@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 
@@ -14,7 +15,7 @@ pub struct OperationLog {
     pub entity_id: Option<i64>,
     pub details: Option<String>,
     pub ip_address: Option<String>,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }
 
 /// Input struct for inserting a new operation log entry.

@@ -5,7 +5,9 @@
 //! - Pool setup helpers
 //! - Seed data helpers for common test fixtures
 
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use sqlx::postgres::{PgConnectOptions, PgPool, PgPoolOptions};
 
 /// JWT secret used in tests.
 pub const TEST_JWT_SECRET: &str = "test-jwt-secret-for-integration-tests";
@@ -17,25 +19,48 @@ pub const TEST_REFRESH_TOKEN_EXPIRY_DAYS: i64 = 30;
 /// Test database URL (local PostgreSQL 18.4 instance via /tmp socket).
 pub const TEST_DATABASE_URL: &str = "postgres://postgres@localhost:5432/steel_pipe_test";
 
+/// Monotonic counter for unique per-test schema names.
+static SCHEMA_SEQ: AtomicU64 = AtomicU64::new(0);
+
 /// Create a test database pool against the local PostgreSQL test database.
-/// Resets the `public` schema, runs all migrations from `./migrations` and
-/// returns the pool.
+///
+/// Each call creates a **dedicated schema** (e.g. `test_0`, `test_1`, ...) and
+/// scopes the pool to it via `search_path`. This gives every test an isolated
+/// database, matching the per-test temp-file semantics the SQLite version had.
+/// Parallel tests never share state, so they cannot clobber each other.
 ///
 /// ## Panics
 /// Panics if pool creation or migration fails.
 pub async fn test_pool() -> PgPool {
+    let schema = format!(
+        "test_{}_{}",
+        std::process::id(),
+        SCHEMA_SEQ.fetch_add(1, Ordering::Relaxed)
+    );
+
+    // Create the schema via a short-lived admin connection.
+    let admin = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(TEST_DATABASE_URL)
+        .await
+        .expect("failed to connect to admin test database");
+    sqlx::query(&format!("CREATE SCHEMA {schema}"))
+        .execute(&admin)
+        .await
+        .expect("failed to create test schema");
+    admin.close().await;
+
+    // Connect with search_path scoped to this test's schema.
+    let opts: PgConnectOptions = TEST_DATABASE_URL
+        .parse::<PgConnectOptions>()
+        .expect("invalid test database url")
+        .options([("search_path", schema.as_str())]);
     let pool = PgPoolOptions::new()
         .max_connections(20)
         .min_connections(1)
-        .connect(TEST_DATABASE_URL)
+        .connect_with(opts)
         .await
         .expect("failed to connect to test database");
-
-    // Reset the schema so every test run starts from a clean state.
-    sqlx::query("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
-        .execute(&pool)
-        .await
-        .expect("failed to reset test schema");
 
     let migrator = sqlx::migrate!("./migrations");
     migrator.run(&pool).await.expect("failed to run migrations");

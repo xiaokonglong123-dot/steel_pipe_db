@@ -305,9 +305,9 @@ impl OutboundService {
             }
             for (pipe_type, count) in count_by_type {
                 sqlx::query(
-                    "UPDATE sales_order_items SET delivered_quantity = delivered_quantity + ? \
+                    "UPDATE sales_order_items SET delivered_quantity = delivered_quantity + $1 \
                      WHERE id = (SELECT id FROM sales_order_items \
-                      WHERE order_id = ? AND pipe_type = ? AND delivered_quantity < quantity LIMIT 1)",
+                      WHERE order_id = $2 AND pipe_type = $3 AND delivered_quantity < quantity LIMIT 1)",
                 )
                 .bind(count)
                 .bind(order_id)

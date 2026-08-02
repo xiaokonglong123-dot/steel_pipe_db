@@ -57,7 +57,7 @@ impl InventoryRepo {
         location_id: &Option<i64>,
     ) -> Result<Vec<(String, String, i64, Option<i64>)>, sqlx::Error> {
         let mut builder: QueryBuilder<Postgres> = QueryBuilder::new(
-            "SELECT pipe_type, grade, SUM(cnt) as quantity, location_id FROM ( \
+            "SELECT pipe_type, grade, SUM(cnt)::bigint as quantity, location_id FROM ( \
              SELECT pipe_type, grade, COUNT(*) as cnt, location_id \
              FROM seamless_pipes WHERE status = 'in_stock' AND deleted_at IS NULL",
         );
@@ -281,7 +281,7 @@ impl InventoryRepo {
         pipe_id: i64,
         new_status: &str,
     ) -> Result<u64, sqlx::Error> {
-        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Utc::now();
         let (table, _) = match PipeType::from_pipe_type_str(pipe_type) {
             Some(PipeType::Seamless) => ("seamless_pipes", "status"),
             Some(PipeType::Screen) => ("screen_pipes", "status"),
@@ -394,7 +394,7 @@ impl InventoryRepo {
         pipe_id: i64,
         new_status: &str,
     ) -> Result<u64, sqlx::Error> {
-        let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Utc::now();
         let table = match PipeType::from_pipe_type_str(pipe_type) {
             Some(PipeType::Seamless) => "seamless_pipes",
             Some(PipeType::Screen) => "screen_pipes",

@@ -1,5 +1,6 @@
 use sqlx::{postgres::PgConnection, QueryBuilder, Postgres, PgPool};
 
+use crate::domain::date_utils::{parse_date, parse_opt_date};
 use crate::domain::money::{from_decimal, from_decimal_opt};
 use crate::dto::common::PaginationParams;
 use crate::dto::contract_dto::{
@@ -65,9 +66,9 @@ impl ContractRepo {
         .bind(&dto.title)
         .bind(&dto.party_a)
         .bind(&dto.party_b)
-        .bind(&dto.sign_date)
-        .bind(&dto.start_date)
-        .bind(&dto.end_date)
+        .bind(parse_opt_date(dto.sign_date.as_deref()))
+        .bind(parse_opt_date(dto.start_date.as_deref()))
+        .bind(parse_opt_date(dto.end_date.as_deref()))
         .bind(&dto.notes)
         .fetch_one(pool)
         .await
@@ -97,15 +98,15 @@ impl ContractRepo {
         }
         if let Some(ref val) = dto.sign_date {
             builder.push(", sign_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.start_date {
             builder.push(", start_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.end_date {
             builder.push(", end_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.notes {
             builder.push(", notes = ");
@@ -197,11 +198,15 @@ impl ContractRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                conditions.push(
-                    "(c.contract_no LIKE ? OR c.title LIKE ? \
-                 OR c.party_a LIKE ? OR c.party_b LIKE ?)"
-                        .into(),
-                );
+                let base = bind_values.len() + 1;
+                conditions.push(format!(
+                    "(c.contract_no LIKE ${} OR c.title LIKE ${} \
+                 OR c.party_a LIKE ${} OR c.party_b LIKE ${})",
+                    base,
+                    base + 1,
+                    base + 2,
+                    base + 3
+                ));
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern.clone());
@@ -254,8 +259,12 @@ impl ContractRepo {
              c.sign_date, c.start_date, c.end_date, c.total_amount, c.status, c.notes, \
              c.created_by, c.created_at, c.updated_at, c.deleted_at \
              FROM contracts c WHERE {} \
-             ORDER BY {} {} LIMIT $1 OFFSET $2",
-            where_clause, sort_by, sort_order
+             ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause,
+            sort_by,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, Contract>(&list_sql);
         for val in &bind_values {
@@ -473,7 +482,7 @@ impl ContractRepo {
                notes, created_at",
         )
         .bind(contract_id)
-        .bind(&dto.due_date)
+        .bind(parse_date(&dto.due_date))
         .bind(from_decimal(dto.amount))
         .bind(&dto.payment_type)
         .bind(&dto.notes)
@@ -496,7 +505,7 @@ impl ContractRepo {
                 builder.push(", ");
             }
             builder.push(" due_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
             sep = true;
         }
         if let Some(val) = dto.amount {
@@ -528,7 +537,7 @@ impl ContractRepo {
                 builder.push(", ");
             }
             builder.push(" paid_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
             sep = true;
         }
         if let Some(ref val) = dto.notes {
@@ -646,9 +655,9 @@ impl ContractRepo {
         .bind(&dto.title)
         .bind(&dto.party_a)
         .bind(&dto.party_b)
-        .bind(&dto.sign_date)
-        .bind(&dto.start_date)
-        .bind(&dto.end_date)
+        .bind(parse_opt_date(dto.sign_date.as_deref()))
+        .bind(parse_opt_date(dto.start_date.as_deref()))
+        .bind(parse_opt_date(dto.end_date.as_deref()))
         .bind(&dto.notes)
         .fetch_one(&mut *executor)
         .await
@@ -751,15 +760,15 @@ impl ContractRepo {
         }
         if let Some(ref val) = dto.sign_date {
             builder.push(", sign_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.start_date {
             builder.push(", start_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.end_date {
             builder.push(", end_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.notes {
             builder.push(", notes = ");

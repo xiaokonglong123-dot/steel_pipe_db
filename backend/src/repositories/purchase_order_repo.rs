@@ -1,5 +1,6 @@
 use sqlx::{postgres::PgConnection, QueryBuilder, Postgres, PgPool, Transaction};
 
+use crate::domain::date_utils::parse_date;
 use crate::domain::money::from_decimal_opt;
 use crate::dto::common::PaginationParams;
 use crate::dto::purchase_dto::{
@@ -31,7 +32,7 @@ impl PurchaseOrderRepo {
         )
         .bind(order_no)
         .bind(dto.supplier_id)
-        .bind(&dto.order_date)
+        .bind(parse_date(&dto.order_date))
         .bind(&dto.notes)
         .fetch_one(&mut *tx)
         .await?;
@@ -129,7 +130,7 @@ impl PurchaseOrderRepo {
 
         if let Some(ref val) = dto.order_date {
             builder.push(", order_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.notes {
             builder.push(", notes = ");
@@ -303,8 +304,8 @@ impl PurchaseOrderRepo {
              po.total_amount, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at \
              FROM purchase_orders po \
              LEFT JOIN suppliers s ON s.id = po.supplier_id \
-             WHERE {} ORDER BY {} {} LIMIT $1 OFFSET $2",
-            where_clause, sort_by, sort_order
+             WHERE {} ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause, sort_by, sort_order, bind_values.len() + 1, bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, PurchaseOrder>(&list_sql);
         for val in &bind_values {
@@ -423,7 +424,7 @@ impl PurchaseOrderRepo {
 
         if let Some(ref val) = dto.order_date {
             builder.push(", order_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.notes {
             builder.push(", notes = ");

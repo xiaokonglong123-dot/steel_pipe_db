@@ -11,7 +11,7 @@ impl RefreshTokenRepo {
         pool: &PgPool,
         user_id: i64,
         token_hash: &str,
-        expires_at: &str,
+        expires_at: &chrono::DateTime<chrono::Utc>,
     ) -> Result<RefreshToken, sqlx::Error> {
         sqlx::query_as::<_, RefreshToken>(
             "INSERT INTO refresh_tokens (user_id, token_hash, expires_at)

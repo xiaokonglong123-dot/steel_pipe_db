@@ -146,8 +146,8 @@ impl SalesService {
         }
 
         let rows_affected = match sqlx::query(
-            "UPDATE sales_orders SET status = ?, updated_at = NOW() \
-             WHERE id = ? AND status = ? AND deleted_at IS NULL",
+            "UPDATE sales_orders SET status = $1, updated_at = NOW() \
+             WHERE id = $2 AND status = $3 AND deleted_at IS NULL",
         )
         .bind(&dto.status)
         .bind(id)
@@ -386,7 +386,7 @@ impl SalesService {
 
         let rows_affected = match sqlx::query(
             "UPDATE sales_orders SET status = 'approved', updated_at = NOW() \
-             WHERE id = ? AND status = 'pending' AND deleted_at IS NULL",
+             WHERE id = $1 AND status = 'pending' AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(&mut *conn)
@@ -457,8 +457,8 @@ impl SalesService {
         }
 
         let rows_affected = match sqlx::query(
-            "UPDATE sales_orders SET status = 'rejected', notes = ?, updated_at = NOW() \
-             WHERE id = ? AND status = 'pending' AND deleted_at IS NULL",
+            "UPDATE sales_orders SET status = 'rejected', notes = $1, updated_at = NOW() \
+             WHERE id = $2 AND status = 'pending' AND deleted_at IS NULL",
         )
         .bind(&dto.reason)
         .bind(id)
@@ -519,8 +519,8 @@ impl SalesService {
 
         // Link the outbound record to this sales order
         if let Err(e) = sqlx::query(
-            "UPDATE outbound_records SET order_id = ?, updated_at = NOW() \
-             WHERE id = ? AND deleted_at IS NULL",
+            "UPDATE outbound_records SET order_id = $1, updated_at = NOW() \
+             WHERE id = $2 AND deleted_at IS NULL",
         )
         .bind(order_id)
         .bind(outbound_id)
@@ -535,7 +535,7 @@ impl SalesService {
         let items = match sqlx::query_as::<_, SalesOrderItem>(
             "SELECT id, order_id, pipe_type, grade, od, wt, quantity, delivered_quantity, \
              unit_price, total_price, notes, created_at \
-             FROM sales_order_items WHERE order_id = ? ORDER BY id ASC",
+             FROM sales_order_items WHERE order_id = $1 ORDER BY id ASC",
         )
         .bind(order_id)
         .fetch_all(&mut *conn)
@@ -552,7 +552,7 @@ impl SalesService {
         if all_delivered {
             if let Err(e) = sqlx::query(
                 "UPDATE sales_orders SET status = 'completed', updated_at = NOW() \
-                 WHERE id = ? AND deleted_at IS NULL",
+                 WHERE id = $1 AND deleted_at IS NULL",
             )
             .bind(order_id)
             .execute(&mut *conn)

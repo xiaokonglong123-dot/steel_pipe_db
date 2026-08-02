@@ -115,7 +115,7 @@ impl InboundService {
             // concurrently — roll back instead of double-counting stock.
             let sql = format!(
                 "UPDATE {} SET status = 'in_stock', updated_at = NOW() \
-                 WHERE id = ? AND deleted_at IS NULL AND status != 'in_stock'",
+                 WHERE id = $1 AND deleted_at IS NULL AND status != 'in_stock'",
                 table
             );
             let result = sqlx::query(&sql)
@@ -228,7 +228,7 @@ impl InboundService {
             };
             let sql = format!(
                 "UPDATE {} SET status = 'in_stock', updated_at = NOW() \
-                 WHERE id = ? AND deleted_at IS NULL AND status != 'in_stock'",
+                 WHERE id = $1 AND deleted_at IS NULL AND status != 'in_stock'",
                 table
             );
             let result = sqlx::query(&sql)
@@ -270,9 +270,9 @@ impl InboundService {
             }
             for (pipe_type, count) in count_by_type {
                 sqlx::query(
-                    "UPDATE purchase_order_items SET received_quantity = received_quantity + ? \
+                    "UPDATE purchase_order_items SET received_quantity = received_quantity + $1 \
                      WHERE id = (SELECT id FROM purchase_order_items \
-                      WHERE order_id = ? AND pipe_type = ? AND received_quantity < quantity LIMIT 1)",
+                      WHERE order_id = $2 AND pipe_type = $3 AND received_quantity < quantity LIMIT 1)",
                 )
                 .bind(count)
                 .bind(order_id)

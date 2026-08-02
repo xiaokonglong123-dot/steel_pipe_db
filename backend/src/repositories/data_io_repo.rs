@@ -1,5 +1,7 @@
+use chrono::{DateTime, Utc};
 use sqlx::{Row, PgPool};
 
+use crate::domain::date_utils::parse_opt_date;
 use crate::error::AppError;
 
 type InventoryExportRow = (
@@ -17,7 +19,7 @@ type OrderExportRow = (
     i64,
     String,
     i64,
-    String,
+    DateTime<Utc>,
     String,
     Option<f64>,
     Option<String>,
@@ -28,7 +30,7 @@ type QualityCertExportRow = (
     String,
     String,
     i64,
-    Option<String>,
+    Option<DateTime<Utc>>,
     String,
     Option<String>,
     Option<String>,
@@ -73,7 +75,8 @@ impl DataIORepo {
                     "heat_number": r.get::<Option<String>, _>("heat_number"),
                     "serial_number": r.get::<Option<String>, _>("serial_number"),
                     "manufacturer": r.get::<Option<String>, _>("manufacturer"),
-                    "production_date": r.get::<Option<String>, _>("production_date"),
+                    "production_date": r.get::<Option<DateTime<Utc>>, _>("production_date")
+                        .map(|d| d.format("%Y-%m-%d").to_string()),
                     "cert_number": r.get::<Option<String>, _>("cert_number"),
                     "location_id": r.get::<Option<i64>, _>("location_id"),
                     "status": r.get::<String, _>("status"),
@@ -116,7 +119,8 @@ impl DataIORepo {
                     "heat_number": r.get::<Option<String>, _>("heat_number"),
                     "serial_number": r.get::<Option<String>, _>("serial_number"),
                     "manufacturer": r.get::<Option<String>, _>("manufacturer"),
-                    "production_date": r.get::<Option<String>, _>("production_date"),
+                    "production_date": r.get::<Option<DateTime<Utc>>, _>("production_date")
+                        .map(|d| d.format("%Y-%m-%d").to_string()),
                     "cert_number": r.get::<Option<String>, _>("cert_number"),
                     "location_id": r.get::<Option<i64>, _>("location_id"),
                     "status": r.get::<String, _>("status"),
@@ -333,7 +337,7 @@ impl DataIORepo {
             .bind(row.get("heat_number").and_then(|v| v.as_str()))
             .bind(row.get("serial_number").and_then(|v| v.as_str()))
             .bind(row.get("manufacturer").and_then(|v| v.as_str()))
-            .bind(row.get("production_date").and_then(|v| v.as_str()))
+            .bind(parse_opt_date(row.get("production_date").and_then(|v| v.as_str())))
             .bind(row.get("cert_number").and_then(|v| v.as_str()))
             .bind(status)
             .bind(row.get("notes").and_then(|v| v.as_str()))
@@ -413,7 +417,7 @@ impl DataIORepo {
             .bind(row.get("heat_number").and_then(|v| v.as_str()))
             .bind(row.get("serial_number").and_then(|v| v.as_str()))
             .bind(row.get("manufacturer").and_then(|v| v.as_str()))
-            .bind(row.get("production_date").and_then(|v| v.as_str()))
+            .bind(parse_opt_date(row.get("production_date").and_then(|v| v.as_str())))
             .bind(row.get("cert_number").and_then(|v| v.as_str()))
             .bind(status)
             .bind(row.get("notes").and_then(|v| v.as_str()))

@@ -24,7 +24,7 @@ pub struct Location {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub deleted_at: Option<String>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Inbound record DB row. Covers purchase receipts, production returns, and transfers.
@@ -50,10 +50,10 @@ pub struct InboundRecord {
     /// User ID of the handler / operator.
     pub handled_by: Option<i64>,
     /// When the handling happened.
-    pub handled_at: Option<String>,
+    pub handled_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub deleted_at: Option<String>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Inbound item DB row. The actual pipes in an inbound shipment.
@@ -92,10 +92,10 @@ pub struct OutboundRecord {
     /// User ID of the handler.
     pub handled_by: Option<i64>,
     /// When the handling happened.
-    pub handled_at: Option<String>,
+    pub handled_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub deleted_at: Option<String>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Outbound item DB row. Individual pipes going out the door.
@@ -152,7 +152,7 @@ pub struct InventoryCheckRecord {
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub deleted_at: Option<String>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Inventory check item DB row. One row = one pipe being verified.

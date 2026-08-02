@@ -19,7 +19,7 @@ impl SupplierRepo {
         sqlx::query_as::<_, Supplier>(
             "INSERT INTO suppliers (supplier_code, name, contact_person, phone, email, address, \
              is_active, notes) \
-             VALUES ($1, $2, $3, $4, $5, $6, 1, $7) \
+             VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7) \
              RETURNING id, supplier_code, name, contact_person, phone, email, address, \
                is_active, notes, created_at, updated_at, deleted_at",
         )
@@ -150,8 +150,11 @@ impl SupplierRepo {
             }
         }
         if let Some(val) = filter.is_active {
-            conditions.push(format!("is_active = ${}", bind_values.len() + 1));
-            bind_values.push(if val { "1" } else { "0" }.into());
+            conditions.push(if val {
+                "is_active = TRUE".to_string()
+            } else {
+                "is_active = FALSE".to_string()
+            });
         }
 
         let where_clause = conditions.join(" AND ");
@@ -177,8 +180,12 @@ impl SupplierRepo {
         let list_sql = format!(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
-             FROM suppliers WHERE {} ORDER BY {} {} LIMIT $1 OFFSET $2",
-            where_clause, sort_by, sort_order
+             FROM suppliers WHERE {} ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause,
+            sort_by,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, Supplier>(&list_sql);
         for val in &bind_values {

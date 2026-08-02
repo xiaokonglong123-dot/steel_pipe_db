@@ -27,7 +27,7 @@ pub struct SalesOrder {
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub deleted_at: Option<String>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl SalesOrder {

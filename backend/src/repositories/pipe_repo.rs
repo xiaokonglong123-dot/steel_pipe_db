@@ -1,5 +1,6 @@
 use sqlx::{QueryBuilder, Postgres, PgPool};
 
+use crate::domain::date_utils::{parse_date, parse_opt_date};
 use crate::dto::common::PaginationParams;
 use crate::dto::pipe_dto::{
     CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams, UpdateScreenPipeRequest,
@@ -43,7 +44,7 @@ impl SeamlessPipeRepo {
         .bind(&dto.heat_number)
         .bind(&dto.serial_number)
         .bind(&dto.manufacturer)
-        .bind(&dto.production_date)
+        .bind(parse_opt_date(dto.production_date.as_deref()))
         .bind(&dto.cert_number)
         .bind(None::<i64>)
         .bind(&dto.notes)
@@ -119,7 +120,7 @@ impl SeamlessPipeRepo {
         }
         if let Some(ref val) = dto.production_date {
             builder.push(", production_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.cert_number {
             builder.push(", cert_number = ");
@@ -312,8 +313,12 @@ impl SeamlessPipeRepo {
              heat_number, serial_number, manufacturer, production_date, cert_number, \
              location_id, status, notes, created_at, updated_at, deleted_at \
              FROM seamless_pipes WHERE {} \
-             ORDER BY {} {} LIMIT $1 OFFSET $2",
-            where_clause, sort_by, sort_order
+             ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause,
+            sort_by,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, SeamlessPipe>(&list_sql);
         for val in &bind_values {
@@ -398,7 +403,7 @@ impl ScreenPipeRepo {
         .bind(&dto.heat_number)
         .bind(&dto.serial_number)
         .bind(&dto.manufacturer)
-        .bind(&dto.production_date)
+        .bind(parse_opt_date(dto.production_date.as_deref()))
         .bind(&dto.cert_number)
         .bind(None::<i64>)
         .bind(&dto.notes)
@@ -470,7 +475,7 @@ impl ScreenPipeRepo {
         }
         if let Some(ref val) = dto.production_date {
             builder.push(", production_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.cert_number {
             builder.push(", cert_number = ");
@@ -657,8 +662,12 @@ impl ScreenPipeRepo {
              weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
              cert_number, location_id, status, notes, created_at, updated_at, deleted_at \
              FROM screen_pipes WHERE {} \
-             ORDER BY {} {} LIMIT $1 OFFSET $2",
-            where_clause, sort_by, sort_order
+             ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause,
+            sort_by,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, ScreenPipe>(&list_sql);
         for val in &bind_values {

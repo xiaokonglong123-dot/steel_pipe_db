@@ -1,5 +1,6 @@
 use sqlx::{QueryBuilder, Postgres, PgPool, Transaction};
 
+use crate::domain::date_utils::parse_date;
 use crate::domain::money::from_decimal_opt;
 use crate::dto::common::PaginationParams;
 use crate::dto::sales_dto::{
@@ -30,7 +31,7 @@ impl SalesOrderRepo {
         )
         .bind(order_no)
         .bind(dto.customer_id)
-        .bind(&dto.order_date)
+        .bind(parse_date(&dto.order_date))
         .bind(&dto.notes)
         .fetch_one(&mut *tx)
         .await?;
@@ -128,7 +129,7 @@ impl SalesOrderRepo {
 
         if let Some(ref val) = dto.order_date {
             builder.push(", order_date = ");
-            builder.push_bind(val);
+            builder.push_bind(parse_date(val));
         }
         if let Some(ref val) = dto.notes {
             builder.push(", notes = ");
@@ -296,8 +297,8 @@ impl SalesOrderRepo {
              so.total_amount, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at \
              FROM sales_orders so \
              LEFT JOIN customers c ON c.id = so.customer_id \
-             WHERE {} ORDER BY {} {} LIMIT $1 OFFSET $2",
-            where_clause, sort_by, sort_order
+             WHERE {} ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause, sort_by, sort_order, bind_values.len() + 1, bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, SalesOrder>(&list_sql);
         for val in &bind_values {

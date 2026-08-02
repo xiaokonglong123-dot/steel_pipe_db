@@ -23,7 +23,7 @@ pub struct User {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     /// Soft-delete timestamp. Null means this user is still alive.
-    pub deleted_at: Option<String>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Public user info — safe to share with the frontend. No password hash here.

@@ -86,9 +86,11 @@ impl UserRepo {
             updates.push(format!("phone = ${}", params.len()));
         }
         if let Some(is_active) = dto.is_active {
-            let val = if is_active { "1" } else { "0" };
-            params.push(val.to_string());
-            updates.push(format!("is_active = ${}", params.len()));
+            updates.push(if is_active {
+                "is_active = TRUE".to_string()
+            } else {
+                "is_active = FALSE".to_string()
+            });
         }
 
         let set_clause = updates.join(", ");

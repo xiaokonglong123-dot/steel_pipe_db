@@ -57,9 +57,7 @@ impl AuthService {
             .checked_add_signed(chrono::Duration::days(refresh_token_expiry_days))
             .unwrap_or_else(|| {
                 chrono::Utc::now() + chrono::Duration::days(refresh_token_expiry_days)
-            })
-            .format("%Y-%m-%dT%H:%M:%SZ")
-            .to_string();
+            });
 
         RefreshTokenRepo::create(pool, user.id, &refresh_token_hash, &expires_at)
             .await
@@ -123,9 +121,7 @@ impl AuthService {
             .checked_add_signed(chrono::Duration::days(refresh_token_expiry_days))
             .unwrap_or_else(|| {
                 chrono::Utc::now() + chrono::Duration::days(refresh_token_expiry_days)
-            })
-            .format("%Y-%m-%dT%H:%M:%SZ")
-            .to_string();
+            });
 
         RefreshTokenRepo::create(pool, user.id, &new_refresh_token_hash, &expires_at)
             .await

@@ -10,6 +10,7 @@
 
 mod common;
 
+use chrono::{DateTime, Utc};
 use steel_pipe_db::dto::common::PaginationParams;
 use steel_pipe_db::dto::pipe_dto::{
     CreateScreenPipeRequest, CreateSeamlessPipeRequest, PipeFilterParams, UpdateScreenPipeRequest,
@@ -291,8 +292,8 @@ async fn delete_seamless_pipe_soft_deletes() {
     );
 
     // Check deleted_at is set directly in DB
-    let deleted_at: (Option<String>,) =
-        sqlx::query_as("SELECT deleted_at FROM seamless_pipes WHERE id = ?")
+    let deleted_at: (Option<DateTime<Utc>>,) =
+        sqlx::query_as("SELECT deleted_at FROM seamless_pipes WHERE id = $1")
             .bind(pipe_id)
             .fetch_one(&pool)
             .await
@@ -838,8 +839,8 @@ async fn delete_screen_pipe_soft_deletes() {
     );
 
     // Verify deleted_at is set in DB
-    let deleted_at: (Option<String>,) =
-        sqlx::query_as("SELECT deleted_at FROM screen_pipes WHERE id = ?")
+    let deleted_at: (Option<DateTime<Utc>>,) =
+        sqlx::query_as("SELECT deleted_at FROM screen_pipes WHERE id = $1")
             .bind(pipe_id)
             .fetch_one(&pool)
             .await

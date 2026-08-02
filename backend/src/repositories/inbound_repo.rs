@@ -204,8 +204,12 @@ impl InboundRepo {
             "SELECT id, inbound_no, inbound_type, order_id, supplier_id, notes, approval_status, \
              rejection_reason, approval_reason, handled_by, handled_at, created_at, updated_at, deleted_at \
              FROM inbound_records WHERE {} \
-             ORDER BY {} {} LIMIT $1 OFFSET $2",
-            where_clause, sort_by, sort_order
+             ORDER BY {} {} LIMIT ${} OFFSET ${}",
+            where_clause,
+            sort_by,
+            sort_order,
+            bind_values.len() + 1,
+            bind_values.len() + 2
         );
         let mut list_q = sqlx::query_as::<_, InboundRecord>(&list_sql);
         for val in &bind_values {

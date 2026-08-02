@@ -36,7 +36,7 @@ impl TraceService {
             "seamless" | "casing" | "tubing" => {
                 let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
                     "SELECT pipe_number, grade, od, wt, status, location_id \
-                     FROM seamless_pipes WHERE id = ? AND deleted_at IS NULL",
+                     FROM seamless_pipes WHERE id = $1 AND deleted_at IS NULL",
                 )
                 .bind(pipe_id)
                 .fetch_optional(pool)
@@ -63,7 +63,7 @@ impl TraceService {
             "screen" | "screened" => {
                 let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
                     "SELECT pipe_number, base_grade, base_od, base_wt, status, location_id \
-                     FROM screen_pipes WHERE id = ? AND deleted_at IS NULL",
+                     FROM screen_pipes WHERE id = $1 AND deleted_at IS NULL",
                 )
                 .bind(pipe_id)
                 .fetch_optional(pool)
@@ -90,7 +90,7 @@ impl TraceService {
             "welded" => {
                 let row = sqlx::query_as::<_, (String, String, f64, f64, String, Option<i64>)>(
                     "SELECT pipe_number, grade, od, wt, status, location_id \
-                     FROM welded_pipes WHERE id = ? AND deleted_at IS NULL",
+                     FROM welded_pipes WHERE id = $1 AND deleted_at IS NULL",
                 )
                 .bind(pipe_id)
                 .fetch_optional(pool)
@@ -185,7 +185,7 @@ impl TraceService {
 
         let welded: Vec<(i64, String, String, String, Option<i64>)> = sqlx::query_as(
             "SELECT id, pipe_number, grade, status, location_id \
-             FROM welded_pipes WHERE heat_number = ? AND deleted_at IS NULL",
+             FROM welded_pipes WHERE heat_number = $1 AND deleted_at IS NULL",
         )
         .bind(heat_number)
         .fetch_all(pool)

@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use crate::domain::date_utils::{parse_date, parse_opt_date};
 use crate::domain::pipe::{PipeModel, PipeType};
 use crate::dto::pipe_dto::{CreateWeldedPipeRequest, UpdateWeldedPipeRequest, PipeFilterParams, PipeSearchResult};
 use serde::{Deserialize, Serialize};
@@ -21,7 +22,7 @@ pub struct WeldedPipe {
     pub heat_number: Option<String>,
     pub serial_number: Option<String>,
     pub manufacturer: Option<String>,
-    pub production_date: Option<String>,
+    pub production_date: Option<DateTime<Utc>>,
     pub cert_number: Option<String>,
     pub location_id: Option<i64>,
     pub status: String,
@@ -111,7 +112,7 @@ impl PipeModel for WeldedPipe {
             .push_bind(dto.heat_number.as_deref())
             .push_bind(dto.serial_number.as_deref())
             .push_bind(dto.manufacturer.as_deref())
-            .push_bind(dto.production_date.as_deref())
+            .push_bind(parse_opt_date(dto.production_date.as_deref()))
             .push_bind(dto.cert_number.as_deref())
             .push_bind(None::<i64>) // location_id
             .push_bind(dto.notes.as_deref())
@@ -182,7 +183,7 @@ impl PipeModel for WeldedPipe {
         }
         if let Some(ref v) = dto.production_date {
             if !first { builder.push(", "); }
-            builder.push("production_date = ").push_bind(v);
+            builder.push("production_date = ").push_bind(parse_date(v));
             first = false;
         }
         if let Some(ref v) = dto.cert_number {
