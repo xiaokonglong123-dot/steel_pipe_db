@@ -1,7 +1,8 @@
+use chrono::{DateTime, Utc};
 use crate::domain::pipe::{PipeModel, PipeType};
 use crate::dto::pipe_dto::{CreateWeldedPipeRequest, UpdateWeldedPipeRequest, PipeFilterParams, PipeSearchResult};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, QueryBuilder, Sqlite};
+use sqlx::{FromRow, QueryBuilder, Postgres};
 
 /// Welded pipe DB row. API 5L standard welded pipes.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -25,8 +26,8 @@ pub struct WeldedPipe {
     pub location_id: Option<i64>,
     pub status: String,
     pub notes: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<String>,
 }
 
@@ -90,7 +91,7 @@ impl PipeModel for WeldedPipe {
         }
     }
 
-    fn build_create_query<'a>(builder: &mut QueryBuilder<'a, Sqlite>, dto: &'a Self::CreateDto) {
+    fn build_create_query<'a>(builder: &mut QueryBuilder<'a, Postgres>, dto: &'a Self::CreateDto) {
         builder
             .push(", pipe_type, grade, od, wt, length, weight_per_unit, end_type, \
                   seam_type, heat_number, serial_number, manufacturer, \
@@ -117,7 +118,7 @@ impl PipeModel for WeldedPipe {
             .push_bind("new"); // status
     }
 
-    fn build_update_query<'a>(builder: &mut QueryBuilder<'a, Sqlite>, dto: &'a Self::UpdateDto) {
+    fn build_update_query<'a>(builder: &mut QueryBuilder<'a, Postgres>, dto: &'a Self::UpdateDto) {
         let mut first = true;
         if let Some(ref v) = dto.batch_number {
             if !first { builder.push(", "); }

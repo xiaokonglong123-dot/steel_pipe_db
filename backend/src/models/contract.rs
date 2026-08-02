@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -32,8 +33,8 @@ pub struct Contract {
     pub notes: Option<String>,
     /// User ID who created this contract.
     pub created_by: Option<i64>,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<String>,
 }
 
@@ -85,7 +86,7 @@ pub struct ContractItem {
     pub total_price: Option<f64>,
     /// Free-form notes.
     pub notes: Option<String>,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }
 
 /// Contract payment milestone DB row. Payment schedule — when and how much.
@@ -95,7 +96,7 @@ pub struct ContractPayment {
     /// FK back to the contract.
     pub contract_id: i64,
     /// Payment due date.
-    pub due_date: String,
+    pub due_date: DateTime<Utc>,
     /// Payment amount.
     pub amount: f64,
     /// Payment type: deposit / progress / final / retention.
@@ -106,5 +107,5 @@ pub struct ContractPayment {
     pub paid_date: Option<String>,
     /// Free-form notes.
     pub notes: Option<String>,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }

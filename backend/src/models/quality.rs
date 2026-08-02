@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -21,8 +22,8 @@ pub struct QualityCert {
     pub inspection_body: Option<String>,
     /// Free-form notes.
     pub notes: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<String>,
 }
 
@@ -70,5 +71,5 @@ pub struct PipeAttachment {
     pub content_type: Option<String>,
     /// User ID of whoever uploaded this.
     pub uploaded_by: Option<i64>,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }

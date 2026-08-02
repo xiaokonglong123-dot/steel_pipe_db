@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -19,8 +20,8 @@ pub struct User {
     pub phone: Option<String>,
     /// Whether this account is active. Disabled users can't log in.
     pub is_active: bool,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     /// Soft-delete timestamp. Null means this user is still alive.
     pub deleted_at: Option<String>,
 }
