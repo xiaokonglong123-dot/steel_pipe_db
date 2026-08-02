@@ -20,3 +20,6 @@ pub mod inventory_atp;
 pub mod manufacturing;
 pub mod threading;
 pub mod project;
+pub mod assets;
+pub mod notification;
+pub mod portal;

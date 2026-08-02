@@ -868,6 +868,126 @@ pub fn create_app(
             crate::middleware::auth::auth_middleware,
         ));
 
+    // Fixed assets (admin): registration, depreciation, disposal
+    let assets_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/assets",
+            axum::routing::get(crate::assets::handlers::list_assets)
+                .post(crate::assets::handlers::create_asset),
+        )
+        .route(
+            "/api/v1/assets/{id}",
+            axum::routing::get(crate::assets::handlers::get_asset)
+                .put(crate::assets::handlers::update_asset),
+        )
+        .route(
+            "/api/v1/assets/{id}/depreciate",
+            axum::routing::post(crate::assets::handlers::depreciate),
+        )
+        .route(
+            "/api/v1/assets/{id}/dispose",
+            axum::routing::post(crate::assets::handlers::dispose_asset),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Notifications (any authenticated user): own inbox + preferences
+    let notification_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/notifications",
+            axum::routing::get(crate::notification::handlers::list_notifications)
+                .post(crate::notification::handlers::send_notification),
+        )
+        .route(
+            "/api/v1/notifications/unread-count",
+            axum::routing::get(crate::notification::handlers::unread_count),
+        )
+        .route(
+            "/api/v1/notifications/{id}/read",
+            axum::routing::post(crate::notification::handlers::mark_read),
+        )
+        .route(
+            "/api/v1/notifications/preferences",
+            axum::routing::get(crate::notification::handlers::list_preferences)
+                .put(crate::notification::handlers::update_preference),
+        )
+        .route(
+            "/api/v1/notifications/templates",
+            axum::routing::post(crate::notification::handlers::create_template),
+        )
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Portal admin (admin): create portal accounts
+    let portal_admin_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/portal/accounts",
+            axum::routing::post(crate::portal::handlers::create_account),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
+    // Portal API (portal JWT, no internal auth)
+    let portal_api_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/portal-api/login",
+            axum::routing::post(crate::portal::handlers::portal_login),
+        )
+        .route(
+            "/api/v1/portal-api/purchases",
+            axum::routing::get(crate::portal::handlers::portal_purchases),
+        )
+        .route(
+            "/api/v1/portal-api/purchases/{id}/accept",
+            axum::routing::post(crate::portal::handlers::portal_accept_purchase),
+        )
+        .route(
+            "/api/v1/portal-api/sales",
+            axum::routing::get(crate::portal::handlers::portal_sales),
+        )
+        .route(
+            "/api/v1/portal-api/sales/{id}/acknowledge",
+            axum::routing::post(crate::portal::handlers::portal_acknowledge_sales),
+        )
+        .route(
+            "/api/v1/portal-api/events",
+            axum::routing::get(crate::portal::handlers::portal_events),
+        );
+
+    // BI analytics (admin)
+    let bi_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/bi/sales-trend",
+            axum::routing::get(crate::bi::handlers::sales_trend),
+        )
+        .route(
+            "/api/v1/bi/inventory-value",
+            axum::routing::get(crate::bi::handlers::inventory_value),
+        )
+        .route(
+            "/api/v1/bi/finance-summary",
+            axum::routing::get(crate::bi::handlers::finance_summary),
+        )
+        .route(
+            "/api/v1/bi/supplier-performance",
+            axum::routing::get(crate::bi::handlers::supplier_performance),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
     // Admin read-only (GET user list)
     let admin_read = Router::new()
         .route(
@@ -1255,6 +1375,16 @@ pub fn create_app(
         .merge(threading_routes)
         // Project management (admin): projects, WBS, budget transactions
         .merge(project_routes)
+        // Fixed assets (admin)
+        .merge(assets_routes)
+        // Notifications (any authenticated user)
+        .merge(notification_routes)
+        // Portal admin (admin): create portal accounts
+        .merge(portal_admin_routes)
+        // BI analytics (admin)
+        .merge(bi_routes)
+        // Portal API (portal JWT — no internal auth)
+        .merge(portal_api_routes)
         // Admin read
         .merge(admin_read)
         // Business read-only (all authenticated users)

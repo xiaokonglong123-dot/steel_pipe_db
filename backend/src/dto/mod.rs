@@ -23,3 +23,6 @@ pub mod inventory_atp_dto;
 pub mod manufacturing_dto;
 pub mod threading_dto;
 pub mod project_dto;
+pub mod assets_dto;
+pub mod notification_dto;
+pub mod portal_dto;

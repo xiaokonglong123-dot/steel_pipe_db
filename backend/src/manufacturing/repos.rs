@@ -1,6 +1,6 @@
 //! Manufacturing repositories.
 
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::PgPool;
 use crate::models::manufacturing::{Bom, BomItem, Inspection, Ncr, WorkOrder, WorkOrderStep};
 
 pub struct BomRepo;

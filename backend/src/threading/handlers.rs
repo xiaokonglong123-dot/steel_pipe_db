@@ -1,6 +1,6 @@
 //! Threading HTTP handlers.
 
-use axum::extract::{Extension, Path, Query};
+use axum::extract::{Extension, Query};
 use axum::Json;
 use serde::Deserialize;
 use sqlx::PgPool;
