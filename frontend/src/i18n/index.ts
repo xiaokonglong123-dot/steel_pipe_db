@@ -45,6 +45,8 @@ const ZH_LOADERS = {
   search: () => import('./locales/zh/search.json'),
   system: () => import('./locales/zh/system.json'),
   auth: () => import('./locales/zh/auth.json'),
+  workflow: () => import('./locales/zh/workflow.json'),
+  hr: () => import('./locales/zh/hr.json'),
   validation: () => import('./locales/zh/validation.json'),
 } satisfies Record<string, TranslationLoader>;
 
@@ -69,6 +71,8 @@ const EN_LOADERS = {
   search: () => import('./locales/en/search.json'),
   system: () => import('./locales/en/system.json'),
   auth: () => import('./locales/en/auth.json'),
+  workflow: () => import('./locales/en/workflow.json'),
+  hr: () => import('./locales/en/hr.json'),
   validation: () => import('./locales/en/validation.json'),
 } satisfies Record<keyof typeof ZH_LOADERS, TranslationLoader>;
 

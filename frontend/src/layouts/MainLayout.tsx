@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useLocation, useMatches, Navigate } from 'react-ro
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
 import {
   TeamOutlined,
+  AuditOutlined,
   ShopOutlined,
   ShoppingCartOutlined,
   DollarOutlined,
@@ -147,6 +148,24 @@ export default function MainLayout() {
           roles: ['admin', 'warehouse', 'sales'],
         },
         { key: '/data-io/logs', label: t('menu.operation_log'), roles: ['admin'] },
+      ],
+    },
+    {
+      key: 'workflow',
+      icon: <AuditOutlined />,
+      label: t('menu.workflow'),
+      children: [
+        { key: '/workflow/my-tasks', label: t('menu.workflow_tasks') },
+        { key: '/workflow/definitions', label: t('menu.workflow_definitions'), roles: ['admin'] },
+      ],
+    },
+    {
+      key: 'hr',
+      icon: <TeamOutlined />,
+      label: t('menu.hr'),
+      children: [
+        { key: '/hr/employees', label: t('menu.hr_employees'), roles: ['admin'] },
+        { key: '/hr/salaries', label: t('menu.hr_salaries'), roles: ['admin'] },
       ],
     },
     {

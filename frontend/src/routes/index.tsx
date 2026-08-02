@@ -54,6 +54,10 @@ const SearchPage = lazy(() => import('@/features/search/pages/SearchPage'));
 const UserManagementPage = lazy(() => import('@/features/auth/pages/UserManagementPage'));
 const RoleManagementPage = lazy(() => import('@/features/auth/pages/RoleManagementPage'));
 const DepartmentPage = lazy(() => import('@/features/auth/pages/DepartmentPage'));
+const WorkflowListPage = lazy(() => import('@/features/workflow/pages/WorkflowListPage'));
+const MyTasksPage = lazy(() => import('@/features/workflow/pages/MyTasksPage'));
+const EmployeeListPage = lazy(() => import('@/features/hr/pages/EmployeeListPage'));
+const SalaryPage = lazy(() => import('@/features/hr/pages/SalaryPage'));
 const DataImportPage = lazy(() => import('@/features/data-io/pages/DataImportPage'));
 const DataExportPage = lazy(() => import('@/features/data-io/pages/DataExportPage'));
 const OperationLogPage = lazy(() => import('@/features/data-io/pages/OperationLogPage'));
@@ -147,6 +151,12 @@ export const router = createBrowserRouter([
       { path: 'system/users', element: route(<UserManagementPage />), handle: { roles: ['admin'] } },
       { path: 'system/roles', element: route(<RoleManagementPage />), handle: { roles: ['admin'] } },
       { path: 'system/departments', element: route(<DepartmentPage />), handle: { roles: ['admin'] } },
+      // Workflow
+      { path: 'workflow/definitions', element: route(<WorkflowListPage />), handle: { roles: ['admin'] } },
+      { path: 'workflow/my-tasks', element: route(<MyTasksPage />) },
+      // HR
+      { path: 'hr/employees', element: route(<EmployeeListPage />), handle: { roles: ['admin'] } },
+      { path: 'hr/salaries', element: route(<SalaryPage />), handle: { roles: ['admin'] } },
       // Search & profile
       { path: 'search', element: route(<SearchPage />) },
       { path: 'profile/settings', element: route(<ProfileSettingsPage />) },

@@ -492,5 +492,11 @@
   "pagination.total": "共 {{total}} 条",
   "pagination.range": "第 {{from}}-{{to}} 条，共 {{total}} 条",
   "menu.role_management": "角色管理",
-  "menu.department_management": "部门管理"
+  "menu.department_management": "部门管理",
+  "menu.workflow": "审批",
+  "menu.workflow_tasks": "我的待办",
+  "menu.workflow_definitions": "流程定义",
+  "menu.hr": "人事",
+  "menu.hr_employees": "员工管理",
+  "menu.hr_salaries": "薪资管理"
 }

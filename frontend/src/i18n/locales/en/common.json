@@ -491,5 +491,11 @@
   "pagination.total": "Total {{total}} items",
   "pagination.range": "Showing {{from}}-{{to}} of {{total}} items",
   "menu.role_management": "Role Management",
-  "menu.department_management": "Departments"
+  "menu.department_management": "Departments",
+  "menu.workflow": "Approvals",
+  "menu.workflow_tasks": "My Tasks",
+  "menu.workflow_definitions": "Definitions",
+  "menu.hr": "HR",
+  "menu.hr_employees": "Employees",
+  "menu.hr_salaries": "Payroll"
 }
