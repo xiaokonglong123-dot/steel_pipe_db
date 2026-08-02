@@ -57,6 +57,10 @@ steel-pipe-db/
 │       ├── manufacturing/  ← Manufacturing: repos.rs + services.rs + handlers.rs (BOMs/work orders/inspections/NCRs)
 │       ├── threading/      ← Threading: repos.rs + services.rs + handlers.rs (records + API 5CT engineering calcs)
 │       ├── project/        ← Projects: repos.rs + services.rs + handlers.rs (projects/WBS/budget)
+│       ├── assets/         ← Fixed assets: repos.rs + services.rs + handlers.rs (registration/straight-line depreciation/disposal)
+│       ├── notification/   ← Notifications: repos.rs + services.rs + handlers.rs (inbox/templates/preferences)
+│       ├── portal/         ← Portal: repos.rs + services.rs + handlers.rs (portal accounts/party JWT/PO accept/SO ack)
+│       ├── bi/             ← BI analytics: services.rs + handlers.rs (sales trend/inventory value/finance summary/supplier perf)
 │       ├── config.rs       ← Env-based config (DATABASE_URL, JWT_SECRET, etc.)
 │       ├── error.rs        ← AppError enum, numeric error codes; ApiErrorResponse with success+request_id
 │       └── response.rs     ← ApiResponse<T>, PaginatedResponse<T>, Meta struct, request_id (uuid v4), ::created(), no_content()
