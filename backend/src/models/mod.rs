@@ -10,3 +10,4 @@ pub mod seamless_pipe;
 pub mod supplier;
 pub mod user;
 pub mod welded_pipe;
+pub mod rbac;

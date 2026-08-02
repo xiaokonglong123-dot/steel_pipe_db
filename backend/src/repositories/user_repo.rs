@@ -14,7 +14,7 @@ impl UserRepo {
         username: &str,
     ) -> Result<Option<User>, sqlx::Error> {
         sqlx::query_as::<_, User>(
-            "SELECT id, username, password_hash, display_name, role, email, phone,
+            "SELECT id, tenant_id, username, password_hash, display_name, role, email, phone,
                     is_active, created_at, updated_at, deleted_at
              FROM users WHERE username = $1 AND deleted_at IS NULL",
         )
@@ -26,7 +26,7 @@ impl UserRepo {
     /// SELECT user by primary key. Returns `None` if soft-deleted or missing.
     pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<User>, sqlx::Error> {
         sqlx::query_as::<_, User>(
-            "SELECT id, username, password_hash, display_name, role, email, phone,
+            "SELECT id, tenant_id, username, password_hash, display_name, role, email, phone,
                     is_active, created_at, updated_at, deleted_at
              FROM users WHERE id = $1 AND deleted_at IS NULL",
         )
@@ -44,7 +44,7 @@ impl UserRepo {
         sqlx::query_as::<_, User>(
             "INSERT INTO users (username, password_hash, display_name, role, email, phone)
              VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING id, username, password_hash, display_name, role, email, phone,
+             RETURNING id, tenant_id, username, password_hash, display_name, role, email, phone,
                        is_active, created_at, updated_at, deleted_at",
         )
         .bind(&dto.username)
@@ -96,7 +96,7 @@ impl UserRepo {
         let set_clause = updates.join(", ");
         let sql = format!(
             "UPDATE users SET {} WHERE id = ${} AND deleted_at IS NULL
-             RETURNING id, username, password_hash, display_name, role, email, phone,
+             RETURNING id, tenant_id, username, password_hash, display_name, role, email, phone,
                        is_active, created_at, updated_at, deleted_at",
             set_clause,
             params.len() + 1,
@@ -130,7 +130,7 @@ impl UserRepo {
             .await?;
 
             let items = sqlx::query_as::<_, User>(
-                "SELECT id, username, password_hash, display_name, role, email, phone,
+                "SELECT id, tenant_id, username, password_hash, display_name, role, email, phone,
                         is_active, created_at, updated_at, deleted_at
                  FROM users WHERE deleted_at IS NULL
                    AND (username LIKE $1 OR display_name LIKE $1 OR email LIKE $1 OR phone LIKE $1)
@@ -150,7 +150,7 @@ impl UserRepo {
                     .await?;
 
             let items = sqlx::query_as::<_, User>(
-                "SELECT id, username, password_hash, display_name, role, email, phone,
+                "SELECT id, tenant_id, username, password_hash, display_name, role, email, phone,
                         is_active, created_at, updated_at, deleted_at
                  FROM users WHERE deleted_at IS NULL
                  ORDER BY created_at DESC LIMIT $1 OFFSET $2",
@@ -202,7 +202,7 @@ impl UserRepo {
         sqlx::query_as::<_, User>(
             "UPDATE users SET role = $1, updated_at = NOW()
              WHERE id = $2 AND deleted_at IS NULL
-             RETURNING id, username, password_hash, display_name, role, email, phone,
+             RETURNING id, tenant_id, username, password_hash, display_name, role, email, phone,
                        is_active, created_at, updated_at, deleted_at",
         )
         .bind(role)
@@ -216,7 +216,7 @@ impl UserRepo {
         sqlx::query_as::<_, User>(
             "UPDATE users SET deleted_at = NOW()
              WHERE id = $1 AND deleted_at IS NULL
-             RETURNING id, username, password_hash, display_name, role, email, phone,
+             RETURNING id, tenant_id, username, password_hash, display_name, role, email, phone,
                        is_active, created_at, updated_at, deleted_at",
         )
         .bind(user_id)

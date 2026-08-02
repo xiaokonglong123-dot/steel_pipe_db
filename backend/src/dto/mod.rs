@@ -11,3 +11,4 @@ pub mod quality_dto;
 pub mod report_dto;
 pub mod sales_dto;
 pub mod supplier_dto;
+pub mod rbac_dto;

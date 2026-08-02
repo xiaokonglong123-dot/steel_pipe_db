@@ -6,6 +6,8 @@ use sqlx::FromRow;
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: i64,
+    /// Tenant that owns this user account (scoping for multi-tenant RBAC).
+    pub tenant_id: i64,
     /// Login username — must be unique across the system.
     pub username: String,
     /// Argon2 password hash. Nobody gets to see this bad boy.

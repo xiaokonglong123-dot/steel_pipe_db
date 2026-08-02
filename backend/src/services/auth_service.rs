@@ -50,7 +50,8 @@ impl AuthService {
             .verify_password(req.password.as_bytes(), &parsed_hash)
             .map_err(|_| AppError::Unauthorized("Invalid username or password".into()))?;
 
-        let token = Self::generate_token(&user, jwt_secret, jwt_expiry_hours)?;
+        let permissions = crate::auth::services::IdentityService::user_permission_keys(pool, user.id).await?;
+        let token = Self::generate_token(&user, jwt_secret, jwt_expiry_hours, &permissions)?;
         let (refresh_token, refresh_token_hash) = Self::generate_refresh_token();
 
         let expires_at = chrono::Utc::now()
@@ -114,7 +115,8 @@ impl AuthService {
             return Err(AppError::Forbidden("Account is disabled".into()));
         }
 
-        let token = Self::generate_token(&user, jwt_secret, jwt_expiry_hours)?;
+        let permissions = crate::auth::services::IdentityService::user_permission_keys(pool, user.id).await?;
+        let token = Self::generate_token(&user, jwt_secret, jwt_expiry_hours, &permissions)?;
         let (new_refresh_token, new_refresh_token_hash) = Self::generate_refresh_token();
 
         let expires_at = chrono::Utc::now()
@@ -294,6 +296,7 @@ impl AuthService {
         user: &User,
         jwt_secret: &str,
         jwt_expiry_hours: i64,
+        permissions: &[String],
     ) -> Result<String, AppError> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -302,8 +305,10 @@ impl AuthService {
 
         let claims = Claims {
             sub: user.id,
+            tenant_id: user.tenant_id,
             username: user.username.clone(),
             role: user.role.clone(),
+            permissions: permissions.to_vec(),
             iat: now,
             exp: now + (jwt_expiry_hours as usize * 3600),
         };

@@ -9,6 +9,7 @@ use crate::dto::auth_dto::CreateUserRequest;
 use crate::repositories::user_repo::UserRepo;
 use crate::services::auth_service::AuthService;
 
+mod auth;
 mod cache;
 mod cache_invalidator;
 mod config;

@@ -433,6 +433,57 @@ pub fn create_app(
             crate::middleware::auth::auth_middleware,
         ));
 
+    // RBAC admin (roles, permissions, departments, user-role binding)
+    let rbac_routes: axum::Router = Router::new()
+        .route(
+            "/api/v1/auth/permissions",
+            axum::routing::get(crate::auth::handlers::list_permissions),
+        )
+        .route(
+            "/api/v1/auth/roles",
+            axum::routing::get(crate::auth::handlers::list_roles)
+                .post(crate::auth::handlers::create_role),
+        )
+        .route(
+            "/api/v1/auth/roles/{id}",
+            axum::routing::put(crate::auth::handlers::update_role)
+                .delete(crate::auth::handlers::delete_role),
+        )
+        .route(
+            "/api/v1/auth/roles/{id}/permissions",
+            axum::routing::get(crate::auth::handlers::get_role_permissions)
+                .put(crate::auth::handlers::set_role_permissions),
+        )
+        .route(
+            "/api/v1/auth/departments",
+            axum::routing::get(crate::auth::handlers::list_departments)
+                .post(crate::auth::handlers::create_department),
+        )
+        .route(
+            "/api/v1/auth/departments/{id}",
+            axum::routing::put(crate::auth::handlers::update_department)
+                .delete(crate::auth::handlers::delete_department),
+        )
+        .route(
+            "/api/v1/auth/tenants/{id}",
+            axum::routing::get(crate::auth::handlers::get_tenant),
+        )
+        .route(
+            "/api/v1/auth/users/{user_id}/roles",
+            axum::routing::put(crate::auth::handlers::assign_user_roles)
+                .get(crate::auth::handlers::get_user_roles),
+        )
+        .route(
+            "/api/v1/auth/users/{user_id}/permissions",
+            axum::routing::get(crate::auth::handlers::get_user_permissions),
+        )
+        .route_layer(middleware::from_fn(|req, next| {
+            crate::middleware::rbac::require_role(req, next, &["admin"])
+        }))
+        .route_layer(middleware::from_fn(
+            crate::middleware::auth::auth_middleware,
+        ));
+
     // Admin read-only (GET user list)
     let admin_read = Router::new()
         .route(
@@ -800,6 +851,8 @@ pub fn create_app(
         .merge(public_auth)
         // Authenticated (any role)
         .merge(authenticated)
+        // RBAC admin (roles, permissions, departments, user-role binding)
+        .merge(rbac_routes)
         // Admin read
         .merge(admin_read)
         // Business read-only (all authenticated users)
