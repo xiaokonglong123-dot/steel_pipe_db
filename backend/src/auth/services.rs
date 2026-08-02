@@ -184,11 +184,11 @@ impl IdentityService {
             ));
         }
         if let Some(pid) = parent_id {
-            // Parent must belong to the same tenant.
-            let parent = DepartmentRepo::list(pool, tenant_id, Some(pid))
+            // Parent must exist in the same tenant.
+            let parent = DepartmentRepo::find_by_id(pool, tenant_id, pid)
                 .await
                 .map_err(AppError::from)?;
-            if parent.is_empty() {
+            if parent.is_none() {
                 return Err(AppError::Validation(format!(
                     "Parent department {} not found in this tenant",
                     pid
@@ -214,10 +214,10 @@ impl IdentityService {
                     "Department cannot be its own parent".into(),
                 ));
             }
-            let parent = DepartmentRepo::list(pool, tenant_id, Some(pid))
+            let parent = DepartmentRepo::find_by_id(pool, tenant_id, pid)
                 .await
                 .map_err(AppError::from)?;
-            if parent.is_empty() {
+            if parent.is_none() {
                 return Err(AppError::Validation(format!(
                     "Parent department {} not found in this tenant",
                     pid

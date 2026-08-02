@@ -6,9 +6,9 @@ use sqlx::FromRow;
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Tenant {
     pub id: i64,
+    pub code: String,
     pub name: String,
-    pub domain: String,
-    pub config: Option<serde_json::Value>,
+    pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,

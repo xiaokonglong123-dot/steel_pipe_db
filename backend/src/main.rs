@@ -117,11 +117,29 @@ async fn bootstrap_admin(pool: &sqlx::PgPool, admin_username: &str, admin_passwo
     };
 
     match UserRepo::create(pool, &dto, &password_hash).await {
-        Ok(user) => tracing::info!(
-            "Bootstrapped admin user '{}' (id={})",
-            user.username,
-            user.id
-        ),
+        Ok(user) => {
+            tracing::info!(
+                "Bootstrapped admin user '{}' (id={})",
+                user.username,
+                user.id
+            );
+            // Bind the admin role so the fresh database has working
+            // permissions — migration 022's user_roles seed is a JOIN over
+            // existing users, which is empty on a brand-new install (the
+            // bootstrap runs after migrations).
+            let bound = sqlx::query(
+                "INSERT INTO user_roles (user_id, role_id) \
+                 SELECT $1, id FROM roles \
+                 WHERE name = 'admin' AND tenant_id = 1 AND deleted_at IS NULL \
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(user.id)
+            .execute(pool)
+            .await;
+            if let Err(e) = bound {
+                tracing::error!("Failed to bind admin role: {}", e);
+            }
+        }
         Err(e) => tracing::error!("Failed to bootstrap admin user: {}", e),
     }
 }

@@ -15,7 +15,7 @@ pub struct TenantRepo;
 impl TenantRepo {
     pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<Tenant>, sqlx::Error> {
         sqlx::query_as::<_, Tenant>(
-            "SELECT id, name, domain, config, created_at, updated_at, deleted_at \
+            "SELECT id, code, name, is_active, created_at, updated_at, deleted_at \
              FROM tenants WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
@@ -28,6 +28,21 @@ impl TenantRepo {
 pub struct DepartmentRepo;
 
 impl DepartmentRepo {
+    pub async fn find_by_id(
+        pool: &PgPool,
+        tenant_id: i64,
+        id: i64,
+    ) -> Result<Option<Department>, sqlx::Error> {
+        sqlx::query_as::<_, Department>(
+            "SELECT id, tenant_id, name, parent_id, path, sort_order, created_at, updated_at, deleted_at \
+             FROM departments WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
+        )
+        .bind(tenant_id)
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+    }
+
     pub async fn list(
         pool: &PgPool,
         tenant_id: i64,
