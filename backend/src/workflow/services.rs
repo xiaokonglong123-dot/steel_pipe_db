@@ -235,7 +235,7 @@ impl WorkflowService {
         task_ids.push(user_id);
         let mut tasks = Vec::new();
         for uid in task_ids {
-            let t = ApprovalNodeRepo::pending_for_user(pool, uid, None).await.map_err(AppError::from)?;
+            let t = ApprovalNodeRepo::pending_for_user(pool, uid).await.map_err(AppError::from)?;
             tasks.extend(t);
         }
         // Deduplicate by node id.
@@ -254,6 +254,28 @@ impl WorkflowService {
         Ok((node, instance))
     }
 
+    /// A user may act on a node when the node is assigned to them directly
+    /// (user type) or to a role they hold (role type).
+    async fn user_can_act(pool: &PgPool, node: &ApprovalNode, user_id: i64) -> Result<bool, AppError> {
+        match node.assignee_type.as_str() {
+            "user" => Ok(node.assignee_value.as_deref() == Some(&user_id.to_string())),
+            "role" => {
+                let n = sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM user_roles ur \
+                     JOIN roles r ON r.id = ur.role_id \
+                     WHERE ur.user_id = $1 AND r.name = $2",
+                )
+                .bind(user_id)
+                .bind(node.assignee_value.as_deref().unwrap_or(""))
+                .fetch_one(pool)
+                .await
+                .map_err(AppError::from)?;
+                Ok(n > 0)
+            }
+            _ => Ok(false),
+        }
+    }
+
     /// Approve the current node, then route to the next pending node or
     /// finish the instance as approved.
     pub async fn approve(
@@ -266,7 +288,7 @@ impl WorkflowService {
         if node.status != "pending" {
             return Err(AppError::Validation(format!("Task is not pending (status: {})", node.status)));
         }
-        if node.assignee_value.as_deref() != Some(&approver_id.to_string()) {
+        if !Self::user_can_act(pool, &node, approver_id).await? {
             return Err(AppError::Forbidden("This task is not assigned to you".into()));
         }
 
@@ -308,7 +330,7 @@ impl WorkflowService {
         if node.status != "pending" {
             return Err(AppError::Validation(format!("Task is not pending (status: {})", node.status)));
         }
-        if node.assignee_value.as_deref() != Some(&approver_id.to_string()) {
+        if !Self::user_can_act(pool, &node, approver_id).await? {
             return Err(AppError::Forbidden("This task is not assigned to you".into()));
         }
 

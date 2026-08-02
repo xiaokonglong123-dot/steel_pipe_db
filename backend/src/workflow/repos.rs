@@ -246,11 +246,11 @@ impl ApprovalNodeRepo {
         .await
     }
 
-    /// Nodes pending approval for a user (direct assignee or via delegation).
+    /// Nodes pending approval for a user: direct user-assigned nodes plus
+    /// role-assigned nodes matching the user's roles.
     pub async fn pending_for_user(
         pool: &PgPool,
         user_id: i64,
-        delegated_to: Option<i64>,
     ) -> Result<Vec<ApprovalNode>, sqlx::Error> {
         sqlx::query_as::<_, ApprovalNode>(
             "SELECT n.id, n.instance_id, n.step_index, n.node_key, n.assignee_type, \
@@ -258,11 +258,18 @@ impl ApprovalNodeRepo {
                     n.approval_reason, n.due_date, n.decided_at, n.created_at \
              FROM approval_nodes n \
              WHERE n.status = 'pending' \
-               AND (n.assignee_value = $1::text OR n.assignee_value = $2::text) \
+               AND ( \
+                 (n.assignee_type = 'user' AND n.assignee_value = $1::text) \
+                 OR (n.assignee_type = 'role' AND n.assignee_value IN ( \
+                       SELECT r.name FROM user_roles ur \
+                       JOIN roles r ON r.id = ur.role_id \
+                       WHERE ur.user_id = $2 \
+                     )) \
+               ) \
              ORDER BY n.id DESC",
         )
         .bind(user_id.to_string())
-        .bind(delegated_to.map(|v| v.to_string()))
+        .bind(user_id)
         .fetch_all(pool)
         .await
     }
