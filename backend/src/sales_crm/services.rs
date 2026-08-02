@@ -93,7 +93,7 @@ impl SalesCrmService {
             )));
         }
         let order_no = format!("SO-{}-{}", chrono::Utc::now().format("%Y%m%d"), seq(pool, "sales_orders").await?);
-        let order_id = SalesQuoteRepo::convert_to_order(pool, tenant_id, &quote, &order_no)
+        let order_id = SalesQuoteRepo::convert_to_order(pool, &quote, &order_no)
             .await
             .map_err(AppError::from)?;
         SalesQuoteRepo::update_status(pool, tenant_id, id, "converted")

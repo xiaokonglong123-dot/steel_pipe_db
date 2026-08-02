@@ -17,3 +17,6 @@ pub mod finance;
 pub mod procurement;
 pub mod sales_crm;
 pub mod inventory_atp;
+pub mod manufacturing;
+pub mod threading;
+pub mod project;

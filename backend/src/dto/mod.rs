@@ -20,3 +20,6 @@ pub mod finance_dto;
 pub mod procurement_dto;
 pub mod sales_crm_dto;
 pub mod inventory_atp_dto;
+pub mod manufacturing_dto;
+pub mod threading_dto;
+pub mod project_dto;

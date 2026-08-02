@@ -151,7 +151,6 @@ impl SalesQuoteRepo {
     /// the quote's items. Returns the new order id.
     pub async fn convert_to_order(
         pool: &PgPool,
-        tenant_id: i64,
         quote: &SalesQuote,
         order_no: &str,
     ) -> Result<i64, sqlx::Error> {
