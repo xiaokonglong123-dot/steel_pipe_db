@@ -52,6 +52,8 @@ const LabelPrintPage = lazy(() => import('@/features/labels/pages/LabelPrintPage
 const ProfileSettingsPage = lazy(() => import('@/features/profile/pages/ProfileSettingsPage'));
 const SearchPage = lazy(() => import('@/features/search/pages/SearchPage'));
 const UserManagementPage = lazy(() => import('@/features/auth/pages/UserManagementPage'));
+const RoleManagementPage = lazy(() => import('@/features/auth/pages/RoleManagementPage'));
+const DepartmentPage = lazy(() => import('@/features/auth/pages/DepartmentPage'));
 const DataImportPage = lazy(() => import('@/features/data-io/pages/DataImportPage'));
 const DataExportPage = lazy(() => import('@/features/data-io/pages/DataExportPage'));
 const OperationLogPage = lazy(() => import('@/features/data-io/pages/OperationLogPage'));
@@ -143,6 +145,8 @@ export const router = createBrowserRouter([
       { path: 'data-io/logs', element: route(<OperationLogPage />), handle: { roles: ['admin'] } },
       // System
       { path: 'system/users', element: route(<UserManagementPage />), handle: { roles: ['admin'] } },
+      { path: 'system/roles', element: route(<RoleManagementPage />), handle: { roles: ['admin'] } },
+      { path: 'system/departments', element: route(<DepartmentPage />), handle: { roles: ['admin'] } },
       // Search & profile
       { path: 'search', element: route(<SearchPage />) },
       { path: 'profile/settings', element: route(<ProfileSettingsPage />) },

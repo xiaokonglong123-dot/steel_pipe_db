@@ -44,6 +44,7 @@ const ZH_LOADERS = {
   profile: () => import('./locales/zh/profile.json'),
   search: () => import('./locales/zh/search.json'),
   system: () => import('./locales/zh/system.json'),
+  auth: () => import('./locales/zh/auth.json'),
   validation: () => import('./locales/zh/validation.json'),
 } satisfies Record<string, TranslationLoader>;
 
@@ -67,6 +68,7 @@ const EN_LOADERS = {
   profile: () => import('./locales/en/profile.json'),
   search: () => import('./locales/en/search.json'),
   system: () => import('./locales/en/system.json'),
+  auth: () => import('./locales/en/auth.json'),
   validation: () => import('./locales/en/validation.json'),
 } satisfies Record<keyof typeof ZH_LOADERS, TranslationLoader>;
 

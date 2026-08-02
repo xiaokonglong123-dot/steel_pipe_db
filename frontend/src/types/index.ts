@@ -48,6 +48,8 @@ export interface UserInfo {
   display_name: string;
   /** RBAC role: admin | warehouse | qc | sales */
   role: string;
+  /** Effective RBAC permission keys (from JWT claims) */
+  permissions?: string[];
   email?: string | null;
   phone?: string | null;
 }

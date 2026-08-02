@@ -153,7 +153,11 @@ export default function MainLayout() {
       key: 'system',
       icon: <SettingOutlined />,
       label: t('menu.system'),
-      children: [{ key: '/system/users', label: t('menu.user_management'), roles: ['admin'] }],
+      children: [
+        { key: '/system/users', label: t('menu.user_management'), roles: ['admin'] },
+        { key: '/system/roles', label: t('menu.role_management'), roles: ['admin'] },
+        { key: '/system/departments', label: t('menu.department_management'), roles: ['admin'] },
+      ],
     },
     {
       key: 'profile',
