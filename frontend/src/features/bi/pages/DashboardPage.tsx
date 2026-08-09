@@ -3,14 +3,15 @@ import { Card, Col, Row, Statistic, Table, Tag } from 'antd';
 import { DollarOutlined, FileDoneOutlined, WalletOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { biApi, type SalesTrendRow } from '../api/biApi';
+import { biQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function DashboardPage() {
   const { t } = useTranslation('bi');
 
-  const { data: fin } = useQuery({ queryKey: ['bi-fin'], queryFn: biApi.financeSummary });
-  const { data: inventory } = useQuery({ queryKey: ['bi-inv'], queryFn: biApi.inventoryValue });
-  const { data: trend } = useQuery({ queryKey: ['bi-trend'], queryFn: () => biApi.salesTrend(12) });
+  const { data: fin } = useQuery({ queryKey: biQueryKeys.financeSummary, queryFn: biApi.financeSummary });
+  const { data: inventory } = useQuery({ queryKey: biQueryKeys.inventoryValue, queryFn: biApi.inventoryValue });
+  const { data: trend } = useQuery({ queryKey: biQueryKeys.salesTrend(12), queryFn: () => biApi.salesTrend(12) });
 
   const invColumns = [
     { title: t('pipeType'), dataIndex: 'pipe_type', key: 'pipe_type' },

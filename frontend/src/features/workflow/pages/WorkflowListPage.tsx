@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, messag
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { workflowApi, type WorkflowDefinition } from '../api/workflowApi';
+import { workflowQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function WorkflowListPage() {
@@ -13,11 +14,11 @@ export default function WorkflowListPage() {
   const [creating, setCreating] = useState(false);
 
   const { data: definitions, isLoading } = useQuery<WorkflowDefinition[]>({
-    queryKey: ['workflow-definitions'],
+    queryKey: workflowQueryKeys.definitions,
     queryFn: workflowApi.listDefinitions,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: workflowQueryKeys.definitions });
 
   const createDef = useMutation({
     mutationFn: workflowApi.createDefinition,
@@ -27,6 +28,7 @@ export default function WorkflowListPage() {
       setCreating(false);
       form.resetFields();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const deleteDef = useMutation({
@@ -35,6 +37,7 @@ export default function WorkflowListPage() {
       message.success(t('deleted'));
       invalidate();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleSubmit = async () => {

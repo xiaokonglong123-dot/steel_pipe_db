@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Modal, Select, Space, Table, Tabs, message }
 import { PlusOutlined, PlayCircleOutlined, StepForwardOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { manufacturingApi, type Bom, type WorkOrder } from '../api/manufacturingApi';
+import { manufacturingQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function ManufacturingPage() {
@@ -13,32 +14,39 @@ export default function ManufacturingPage() {
   const [creating, setCreating] = useState<'bom' | 'wo' | 'ncr' | null>(null);
 
   const invalidate = () => {
-    ['mfg-boms', 'mfg-wo', 'mfg-ncrs'].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+    queryClient.invalidateQueries({ queryKey: manufacturingQueryKeys.boms });
+    queryClient.invalidateQueries({ queryKey: manufacturingQueryKeys.workOrders });
+    queryClient.invalidateQueries({ queryKey: manufacturingQueryKeys.ncrs });
   };
 
-  const { data: boms } = useQuery({ queryKey: ['mfg-boms'], queryFn: manufacturingApi.listBoms });
-  const { data: workOrders } = useQuery({ queryKey: ['mfg-wo'], queryFn: manufacturingApi.listWorkOrders });
-  const { data: ncrs } = useQuery({ queryKey: ['mfg-ncrs'], queryFn: manufacturingApi.listNcrs });
+  const { data: boms } = useQuery({ queryKey: manufacturingQueryKeys.boms, queryFn: manufacturingApi.listBoms });
+  const { data: workOrders } = useQuery({ queryKey: manufacturingQueryKeys.workOrders, queryFn: manufacturingApi.listWorkOrders });
+  const { data: ncrs } = useQuery({ queryKey: manufacturingQueryKeys.ncrs, queryFn: manufacturingApi.listNcrs });
 
   const createBom = useMutation({
     mutationFn: manufacturingApi.createBom,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const createWo = useMutation({
     mutationFn: manufacturingApi.createWorkOrder,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const createNcr = useMutation({
     mutationFn: manufacturingApi.createNcr,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const startWo = useMutation({
     mutationFn: manufacturingApi.startWorkOrder,
     onSuccess: () => { message.success(t('started')); invalidate(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const stepWo = useMutation({
     mutationFn: manufacturingApi.completeStep,
     onSuccess: () => { message.success(t('stepDone')); invalidate(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleCreate = async () => {

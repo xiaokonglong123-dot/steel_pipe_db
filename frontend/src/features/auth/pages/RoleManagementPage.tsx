@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { roleApi, type Permission, type Role } from '../api/roleApi';
+import { roleQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 const PERMISSION_MODULES = ['pipe', 'inventory', 'quality', 'purchase', 'sales', 'finance', 'hr', 'manufacturing', 'workflow', 'system'];
@@ -16,20 +17,20 @@ export default function RoleManagementPage() {
   const [form] = Form.useForm();
 
   const { data: roles, isLoading } = useQuery({
-    queryKey: ['roles'],
+    queryKey: roleQueryKeys.roles,
     queryFn: roleApi.listRoles,
   });
   const { data: permissions } = useQuery({
-    queryKey: ['permissions'],
+    queryKey: roleQueryKeys.permissions,
     queryFn: roleApi.listPermissions,
   });
   const { data: rolePermissions } = useQuery({
-    queryKey: ['role-permissions', permTarget?.id],
+    queryKey: roleQueryKeys.rolePermissions(permTarget?.id),
     queryFn: () => roleApi.getRolePermissions(permTarget!.id),
     enabled: !!permTarget,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['roles'] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: roleQueryKeys.roles });
 
   const createRole = useMutation({
     mutationFn: roleApi.createRole,
@@ -39,6 +40,7 @@ export default function RoleManagementPage() {
       setEditing(null);
       form.resetFields();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const updateRole = useMutation({
@@ -50,6 +52,7 @@ export default function RoleManagementPage() {
       setEditing(null);
       form.resetFields();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const deleteRole = useMutation({
@@ -58,6 +61,7 @@ export default function RoleManagementPage() {
       message.success(t('common.operate_success'));
       invalidate();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const savePermissions = useMutation({
@@ -68,6 +72,7 @@ export default function RoleManagementPage() {
       setPermTarget(null);
       invalidate();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const permissionsByModule = useMemo(() => {

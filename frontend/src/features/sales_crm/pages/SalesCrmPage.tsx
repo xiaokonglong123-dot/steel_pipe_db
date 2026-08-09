@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Modal, Space, Table, Tabs, message } from 'a
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { salesCrmApi, type SalesQuote, type Shipment } from '../api/salesCrmApi';
+import { salesCrmQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function SalesCrmPage() {
@@ -13,27 +14,32 @@ export default function SalesCrmPage() {
   const [creating, setCreating] = useState<'quote' | 'shipment' | null>(null);
 
   const invalidate = () => {
-    ['sales-quotes', 'shipments'].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+    queryClient.invalidateQueries({ queryKey: salesCrmQueryKeys.quotes });
+    queryClient.invalidateQueries({ queryKey: salesCrmQueryKeys.shipments });
   };
 
-  const { data: quotes } = useQuery({ queryKey: ['sales-quotes'], queryFn: salesCrmApi.listQuotes });
-  const { data: shipments } = useQuery({ queryKey: ['shipments'], queryFn: salesCrmApi.listShipments });
+  const { data: quotes } = useQuery({ queryKey: salesCrmQueryKeys.quotes, queryFn: salesCrmApi.listQuotes });
+  const { data: shipments } = useQuery({ queryKey: salesCrmQueryKeys.shipments, queryFn: salesCrmApi.listShipments });
 
   const createQuote = useMutation({
     mutationFn: salesCrmApi.createQuote,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const convertQuote = useMutation({
     mutationFn: salesCrmApi.convertQuote,
     onSuccess: (r) => { message.success(`${t('converted')} #${r.order_id}`); invalidate(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const createShipment = useMutation({
     mutationFn: salesCrmApi.createShipment,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const ship = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) => salesCrmApi.updateShipmentStatus(id, status),
     onSuccess: () => { message.success(t('updated')); invalidate(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleCreate = async () => {

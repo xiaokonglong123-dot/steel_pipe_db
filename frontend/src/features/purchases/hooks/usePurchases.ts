@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { message } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { purchaseApi } from '../api/purchaseApi';
 import { purchaseQueryKeys } from '../queryKeys';
 import type {
@@ -24,75 +26,89 @@ export function usePurchase(id: number) {
 
 export function useCreatePurchaseOrder() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (data: CreatePurchaseOrderData) => purchaseApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useUpdatePurchaseOrder(id: number) {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (data: Partial<CreatePurchaseOrderData>) => purchaseApi.update(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.all });
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.detail(id) });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useDeletePurchaseOrder() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (id: number) => purchaseApi.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useTransitionPurchaseOrder(id: number) {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (data: PurchaseOrderStatusTransitionRequest) => purchaseApi.transition(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.all });
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.detail(id) });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useApprovePurchaseOrder(id: number) {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (body?: { notes?: string }) => purchaseApi.approve(id, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.all });
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.detail(id) });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useRejectPurchaseOrder(id: number) {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (body: { reason: string }) => purchaseApi.reject(id, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.all });
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.detail(id) });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useLinkInbound(id: number) {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (inboundRecordId: number) => purchaseApi.linkInbound(id, inboundRecordId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.all });
       qc.invalidateQueries({ queryKey: purchaseQueryKeys.detail(id) });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }

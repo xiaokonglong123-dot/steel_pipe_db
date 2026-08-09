@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Modal, Space, Table, Tag, message } from 'an
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { assetsApi, type FixedAsset } from '../api/assetsApi';
+import { assetQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function AssetsPage() {
@@ -12,21 +13,24 @@ export default function AssetsPage() {
   const [form] = Form.useForm();
   const [creating, setCreating] = useState(false);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['assets'] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: assetQueryKeys.all });
 
-  const { data: assets, isLoading } = useQuery({ queryKey: ['assets'], queryFn: assetsApi.list });
+  const { data: assets, isLoading } = useQuery({ queryKey: assetQueryKeys.all, queryFn: assetsApi.list });
 
   const createAsset = useMutation({
     mutationFn: assetsApi.create,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(false); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const depreciate = useMutation({
     mutationFn: ({ id, period }: { id: number; period: string }) => assetsApi.depreciate(id, period),
     onSuccess: () => { message.success(t('depreciated')); invalidate(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const dispose = useMutation({
     mutationFn: assetsApi.dispose,
     onSuccess: () => { message.success(t('disposed')); invalidate(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleCreate = async () => {

@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, messag
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { hrApi, type HrEmployee } from '../api/hrApi';
+import { hrQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 import { SearchBar } from '@/shared/components/SearchBar';
 
@@ -16,11 +17,11 @@ export default function EmployeeListPage() {
   const [form] = Form.useForm();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['hr-employees', page, keyword],
+    queryKey: hrQueryKeys.employees.list({ page, page_size: 20, q: keyword || undefined }),
     queryFn: () => hrApi.listEmployees({ page, page_size: 20, q: keyword || undefined }),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['hr-employees'] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: hrQueryKeys.employees.all });
 
   const createEmp = useMutation({
     mutationFn: hrApi.createEmployee,
@@ -30,6 +31,7 @@ export default function EmployeeListPage() {
       setCreating(false);
       form.resetFields();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const terminate = useMutation({
@@ -38,6 +40,7 @@ export default function EmployeeListPage() {
       message.success(t('terminated'));
       invalidate();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleSubmit = async () => {

@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Modal, Select, Space, Table, Tabs, message }
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { financeApi, type Account, type FinanceInvoice } from '../api/financeApi';
+import { financeQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function FinancePage() {
@@ -13,36 +14,43 @@ export default function FinancePage() {
   const [creating, setCreating] = useState<'account' | 'entry' | 'invoice' | 'payment' | null>(null);
 
   const invalidate = () => {
-    ['accounts', 'entries', 'invoices', 'payments', 'trial'].forEach((k) =>
-      queryClient.invalidateQueries({ queryKey: [k] }),
-    );
+    queryClient.invalidateQueries({ queryKey: financeQueryKeys.accounts });
+    queryClient.invalidateQueries({ queryKey: financeQueryKeys.entries });
+    queryClient.invalidateQueries({ queryKey: financeQueryKeys.invoices });
+    queryClient.invalidateQueries({ queryKey: financeQueryKeys.payments });
+    queryClient.invalidateQueries({ queryKey: financeQueryKeys.trial });
   };
 
-  const { data: accounts } = useQuery({ queryKey: ['accounts'], queryFn: financeApi.listAccounts });
-  const { data: entries } = useQuery({ queryKey: ['entries'], queryFn: financeApi.listEntries });
-  const { data: invoices } = useQuery({ queryKey: ['invoices'], queryFn: () => financeApi.listInvoices() });
-  const { data: payments } = useQuery({ queryKey: ['payments'], queryFn: financeApi.listPayments });
-  const { data: trial } = useQuery({ queryKey: ['trial'], queryFn: financeApi.trialBalance });
+  const { data: accounts } = useQuery({ queryKey: financeQueryKeys.accounts, queryFn: financeApi.listAccounts });
+  const { data: entries } = useQuery({ queryKey: financeQueryKeys.entries, queryFn: financeApi.listEntries });
+  const { data: invoices } = useQuery({ queryKey: financeQueryKeys.invoices, queryFn: () => financeApi.listInvoices() });
+  const { data: payments } = useQuery({ queryKey: financeQueryKeys.payments, queryFn: financeApi.listPayments });
+  const { data: trial } = useQuery({ queryKey: financeQueryKeys.trial, queryFn: financeApi.trialBalance });
 
   const createAccount = useMutation({
     mutationFn: financeApi.createAccount,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const createEntry = useMutation({
     mutationFn: financeApi.createEntry,
     onSuccess: () => { message.success(t('entryPosted')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const createInvoice = useMutation({
     mutationFn: financeApi.createInvoice,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const createPayment = useMutation({
     mutationFn: financeApi.createPayment,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const confirmInvoice = useMutation({
     mutationFn: financeApi.confirmInvoice,
     onSuccess: () => { message.success(t('confirmed')); invalidate(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleCreate = async () => {

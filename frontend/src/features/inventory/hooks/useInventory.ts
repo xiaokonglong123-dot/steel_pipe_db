@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { message } from 'antd';
+import { useTranslation } from 'react-i18next';
 import {
   inboundApi,
   outboundApi,
@@ -42,27 +44,32 @@ export function useInboundRecord(id: number) {
 
 export function useCreateInbound() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (data: CreateInboundData) => inboundApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useUpdateInbound(id: number) {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (data: CreateInboundData) => inboundApi.update(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all });
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.details });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useApproveInbound() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
       inboundApi.approve(id, reason),
@@ -70,11 +77,13 @@ export function useApproveInbound() {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all });
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.details });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useRejectInbound() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       inboundApi.reject(id, reason),
@@ -82,16 +91,19 @@ export function useRejectInbound() {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all });
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.details });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useDeleteInbound() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (id: number) => inboundApi.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
@@ -114,27 +126,32 @@ export function useOutboundRecord(id: number) {
 
 export function useCreateOutbound() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (data: CreateOutboundData) => outboundApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useUpdateOutbound(id: number) {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (data: CreateOutboundData) => outboundApi.update(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.details });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useApproveOutbound() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
       outboundApi.approve(id, reason),
@@ -142,11 +159,13 @@ export function useApproveOutbound() {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.details });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useRejectOutbound() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       outboundApi.reject(id, reason),
@@ -154,16 +173,19 @@ export function useRejectOutbound() {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.details });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useDeleteOutbound() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (id: number) => outboundApi.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
@@ -227,16 +249,19 @@ export function useLocation(id: number) {
 
 export function useCreateLocation() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (data: CreateLocationData) => locationApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.locations.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useUpdateLocation() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateLocationData }) =>
       locationApi.update(id, data),
@@ -244,16 +269,19 @@ export function useUpdateLocation() {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.locations.all });
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.locations.details });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useDeleteLocation() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (id: number) => locationApi.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.locations.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
@@ -276,16 +304,19 @@ export function useInventoryCheck(id: number) {
 
 export function useCreateCheck() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (data: CreateCheckData) => checkApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.checks.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useSubmitCheckItem() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: ({
       checkId,
@@ -299,6 +330,7 @@ export function useSubmitCheckItem() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.checks.details });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 

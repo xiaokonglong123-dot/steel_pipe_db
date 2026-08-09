@@ -72,6 +72,7 @@ export default function InventoryCheckListPage() {
       message.success(t('common.operate_success'));
       qc.invalidateQueries({ queryKey: inventoryQueryKeys.checks.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const openCreateModal = () => {

@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { message } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { authApi } from '../api/authApi';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -8,6 +10,7 @@ export function useLogin() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
 
   return useMutation({
     mutationFn: authApi.login,
@@ -16,6 +19,7 @@ export function useLogin() {
       const redirect = searchParams.get('redirect') || '/';
       navigate(redirect);
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 

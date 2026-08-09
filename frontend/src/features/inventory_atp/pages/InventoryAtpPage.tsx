@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Modal, Space, Table, Tabs, message } from 'a
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { atpApi } from '../api/atpApi';
+import { atpQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function InventoryAtpPage() {
@@ -13,23 +14,27 @@ export default function InventoryAtpPage() {
   const [creating, setCreating] = useState<'reserve' | 'transfer' | 'template' | null>(null);
 
   const invalidate = () => {
-    ['atp-overview', 'transfers'].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+    queryClient.invalidateQueries({ queryKey: atpQueryKeys.overview });
+    queryClient.invalidateQueries({ queryKey: atpQueryKeys.transfers });
   };
 
-  const { data: overview } = useQuery({ queryKey: ['atp-overview'], queryFn: atpApi.overview });
-  const { data: transfers } = useQuery({ queryKey: ['transfers'], queryFn: atpApi.listTransfers });
+  const { data: overview } = useQuery({ queryKey: atpQueryKeys.overview, queryFn: atpApi.overview });
+  const { data: transfers } = useQuery({ queryKey: atpQueryKeys.transfers, queryFn: atpApi.listTransfers });
 
   const reserve = useMutation({
     mutationFn: atpApi.reserve,
     onSuccess: () => { message.success(t('reserved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const createTransfer = useMutation({
     mutationFn: atpApi.createTransfer,
     onSuccess: () => { message.success(t('transferred')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const createTemplate = useMutation({
     mutationFn: atpApi.createCountTemplate,
     onSuccess: () => { message.success(t('saved')); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleCreate = async () => {

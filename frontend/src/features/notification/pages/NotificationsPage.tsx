@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, Card, List, Tag } from 'antd';
+import { Badge, Button, Card, List, Tag, message } from 'antd';
 import { CheckOutlined, BellOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { notificationApi } from '../api/notificationApi';
+import { notificationQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function NotificationsPage() {
@@ -10,20 +11,21 @@ export default function NotificationsPage() {
   const queryClient = useQueryClient();
 
   const { data: notifications } = useQuery({
-    queryKey: ['notifications'],
+    queryKey: notificationQueryKeys.list,
     queryFn: () => notificationApi.list(),
     refetchInterval: 30000,
   });
-  const { data: unread } = useQuery({ queryKey: ['notif-unread'], queryFn: notificationApi.unreadCount });
+  const { data: unread } = useQuery({ queryKey: notificationQueryKeys.unreadCount, queryFn: notificationApi.unreadCount });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    queryClient.invalidateQueries({ queryKey: ['notif-unread'] });
+    queryClient.invalidateQueries({ queryKey: notificationQueryKeys.list });
+    queryClient.invalidateQueries({ queryKey: notificationQueryKeys.unreadCount });
   };
 
   const markRead = useMutation({
     mutationFn: notificationApi.markRead,
     onSuccess: invalidate,
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const typeColor = (type: string) => {

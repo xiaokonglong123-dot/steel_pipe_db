@@ -4,6 +4,7 @@ import { Button, Card, Descriptions, Form, Input, Modal, Space, Table, message }
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { projectApi, type Project } from '../api/projectApi';
+import { projectQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function ProjectPage() {
@@ -14,19 +15,19 @@ export default function ProjectPage() {
   const [selected, setSelected] = useState<number | null>(null);
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['projects'] });
-    queryClient.invalidateQueries({ queryKey: ['wbs'] });
-    queryClient.invalidateQueries({ queryKey: ['fin'] });
+    queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
+    queryClient.invalidateQueries({ queryKey: projectQueryKeys.wbs.all });
+    queryClient.invalidateQueries({ queryKey: projectQueryKeys.financials.all });
   };
 
-  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: projectApi.listProjects });
+  const { data: projects } = useQuery({ queryKey: projectQueryKeys.all, queryFn: projectApi.listProjects });
   const { data: wbs } = useQuery({
-    queryKey: ['wbs', selected],
+    queryKey: projectQueryKeys.wbs.detail(selected ?? -1),
     queryFn: () => (selected ? projectApi.wbsTree(selected) : Promise.resolve([])),
     enabled: !!selected,
   });
   const { data: fin } = useQuery({
-    queryKey: ['fin', selected],
+    queryKey: projectQueryKeys.financials.detail(selected ?? -1),
     queryFn: () => projectApi.financials(selected!),
     enabled: !!selected,
   });
@@ -34,15 +35,18 @@ export default function ProjectPage() {
   const createProject = useMutation({
     mutationFn: projectApi.createProject,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const createWbs = useMutation({
     mutationFn: ({ projectId, data }: { projectId: number; data: { code: string; name: string; weight_pct?: number } }) =>
       projectApi.createWbs(projectId, data),
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) => projectApi.updateStatus(id, status),
     onSuccess: () => { message.success(t('updated')); invalidate(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleCreate = async () => {

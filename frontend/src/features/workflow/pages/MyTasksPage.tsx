@@ -4,6 +4,7 @@ import { Button, Card, Input, Modal, Space, Table, Tag, message } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { workflowApi, type ApprovalTask } from '../api/workflowApi';
+import { workflowQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function MyTasksPage() {
@@ -13,12 +14,12 @@ export default function MyTasksPage() {
   const [reason, setReason] = useState('');
 
   const { data: tasks, isLoading } = useQuery({
-    queryKey: ['workflow-my-tasks'],
+    queryKey: workflowQueryKeys.myTasks,
     queryFn: workflowApi.myTasks,
     refetchInterval: 15000,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['workflow-my-tasks'] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: workflowQueryKeys.myTasks });
 
   const approve = useMutation({
     mutationFn: (nodeId: number) => workflowApi.approveTask(nodeId),
@@ -26,6 +27,7 @@ export default function MyTasksPage() {
       message.success(t('approved'));
       invalidate();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const reject = useMutation({
@@ -37,6 +39,7 @@ export default function MyTasksPage() {
       setRejectTarget(null);
       setReason('');
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const columns = [

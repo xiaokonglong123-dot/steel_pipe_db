@@ -1,4 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { message } from 'antd';
+import { useTranslation } from 'react-i18next';
 import apiClient from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { userQueryKeys } from '@/features/auth/queryKeys';
@@ -19,6 +21,7 @@ export interface ChangePasswordData {
 export function useUpdateProfile() {
   const qc = useQueryClient();
   const setUser = useAuthStore((s) => s.setUser);
+  const { t } = useTranslation();
 
   return useMutation({
     mutationFn: (data: UpdateProfileData) =>
@@ -33,14 +36,17 @@ export function useUpdateProfile() {
       }
       qc.invalidateQueries({ queryKey: userQueryKeys.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
 
 export function useChangePassword() {
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (data: ChangePasswordData) => {
       const userId = useAuthStore.getState().user?.id;
       return apiClient.post<ApiResponse<string>>(`/users/${userId}/change-password`, data);
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }

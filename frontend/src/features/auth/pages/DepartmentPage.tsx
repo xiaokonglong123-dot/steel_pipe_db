@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Modal, Popconfirm, Space, Table, message } f
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { roleApi, type Department } from '../api/roleApi';
+import { departmentQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function DepartmentPage() {
@@ -13,11 +14,11 @@ export default function DepartmentPage() {
   const [form] = Form.useForm();
 
   const { data: departments, isLoading } = useQuery({
-    queryKey: ['departments'],
+    queryKey: departmentQueryKeys.all,
     queryFn: roleApi.listDepartments,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['departments'] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: departmentQueryKeys.all });
 
   const createDept = useMutation({
     mutationFn: roleApi.createDepartment,
@@ -27,6 +28,7 @@ export default function DepartmentPage() {
       setEditing(null);
       form.resetFields();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const deleteDept = useMutation({
@@ -35,6 +37,7 @@ export default function DepartmentPage() {
       message.success(t('common.operate_success'));
       invalidate();
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleSubmit = async () => {

@@ -4,6 +4,7 @@ import { Button, Card, Input, Space, Table, Tag, message } from 'antd';
 import { DollarOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { hrApi } from '../api/hrApi';
+import { hrQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function SalaryPage() {
@@ -12,7 +13,7 @@ export default function SalaryPage() {
   const [period, setPeriod] = useState('');
 
   const { data: salaries, isLoading } = useQuery({
-    queryKey: ['hr-salaries', period],
+    queryKey: hrQueryKeys.salaries.list(period || undefined),
     queryFn: () => hrApi.listSalaries(period || undefined),
   });
 
@@ -20,8 +21,9 @@ export default function SalaryPage() {
     mutationFn: hrApi.generateSalaries,
     onSuccess: (items) => {
       message.success(`${t('generated')}: ${items.length}`);
-      queryClient.invalidateQueries({ queryKey: ['hr-salaries'] });
+      queryClient.invalidateQueries({ queryKey: hrQueryKeys.salaries.all });
     },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const columns = [

@@ -14,6 +14,7 @@ export default function PortalAdminPage() {
   const createAccount = useMutation({
     mutationFn: portalApi.createAccount,
     onSuccess: () => { message.success(t('saved')); setCreating(false); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleCreate = async () => {

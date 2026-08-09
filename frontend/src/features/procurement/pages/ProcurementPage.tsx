@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Modal, Space, Table, Tabs, message } from 'a
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { procurementApi, type Requisition } from '../api/procurementApi';
+import { procurementQueryKeys } from '../queryKeys';
 import { PageLayout } from '@/shared/components/PageLayout';
 
 export default function ProcurementPage() {
@@ -13,23 +14,27 @@ export default function ProcurementPage() {
   const [creating, setCreating] = useState<'req' | 'quote' | null>(null);
 
   const invalidate = () => {
-    ['reqs', 'quotes'].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+    queryClient.invalidateQueries({ queryKey: procurementQueryKeys.requisitions });
+    queryClient.invalidateQueries({ queryKey: procurementQueryKeys.quotes });
   };
 
-  const { data: reqs } = useQuery({ queryKey: ['reqs'], queryFn: () => procurementApi.listRequisitions() });
-  const { data: quotes } = useQuery({ queryKey: ['quotes'], queryFn: procurementApi.listQuotes });
+  const { data: reqs } = useQuery({ queryKey: procurementQueryKeys.requisitions, queryFn: () => procurementApi.listRequisitions() });
+  const { data: quotes } = useQuery({ queryKey: procurementQueryKeys.quotes, queryFn: procurementApi.listQuotes });
 
   const createReq = useMutation({
     mutationFn: procurementApi.createRequisition,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const createQuote = useMutation({
     mutationFn: procurementApi.createQuote,
     onSuccess: () => { message.success(t('saved')); invalidate(); setCreating(null); form.resetFields(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
   const updateReq = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) => procurementApi.updateRequisitionStatus(id, status),
     onSuccess: () => { message.success(t('updated')); invalidate(); },
+    onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 
   const handleCreate = async () => {
