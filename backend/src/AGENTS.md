@@ -2,16 +2,15 @@
 
 All modules below belong to the single backend crate **`erp-server`** (documented target for the code phase).
 
-This directory is where all the backend source modules get wired together. Don't drop new feature files here — those belong in `handlers/`, `services/`, `repositories/`, or the feature module directories (`workflow/`, `hr/`, `finance/`, `procurement/`, `sales_crm/`, `inventory_atp/`, `manufacturing/`, `project/`, `assets/`, `notification/`, `portal/`, `bi/`, `auth/`).
+This directory is where all the backend source modules get wired together. Don't drop new feature files here — those belong in the feature module directories: resource domains (`items/`, `inventory/`, `orders/`, `contracts/`, `parties/`, `reports/`, `data_io/`) and business domains (`auth/`, `workflow/`, `hr/`, `finance/`, `procurement/`, `sales_crm/`, `inventory_atp/`, `manufacturing/`, `project/`, `assets/`, `notification/`, `portal/`, `bi/`). Top-level single files here: `config.rs`, `error.rs`, `response.rs`, `router.rs`, `macros.rs`, `health.rs`, `utils.rs`, `operation_log.rs`, `cache.rs`.
 
 ## Module Registration
 
 **So you want to add a new module? Here's the drill:**
 
-1. Create the file in the right subdirectory (e.g., `handlers/new_thing_handler.rs`)
-2. Add `pub mod new_thing_handler;` to that subdirectory's `mod.rs`
-3. Wire up the route in `router.rs`
-4. Expose the handler in the handler `mod.rs`
+1. Create the file in the right module directory (e.g., `inventory/handlers.rs` or `orders/services.rs`)
+2. Add the declaration to that module's `mod.rs`
+3. Wire up the route in `router.rs` (import via `use crate::<module>::<file>;`)
 
 Feature modules are self-contained: each has its own `mod.rs` + `handlers.rs` + `repos.rs` + `services.rs` and is registered from `lib.rs` (e.g. `pub mod workflow;`).
 
@@ -44,11 +43,11 @@ Feature modules are self-contained: each has its own `mod.rs` + `handlers.rs` + 
 ## `router.rs` — Route Mounting
 
 ```rust
-pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
+pub fn create_app(pool: SqlitePool, jwt_secret: String, cors_origins: Vec<HeaderValue>, cache_manager: CacheManager) -> Router {
     // ~190 routes (~170 unique paths), grouped by entity via .merge()
     Router::new()
-        .route("/api/v1/auth/login", post(handlers::auth_handler::login))
-        .route("/api/v1/items", get(handlers::item_handler::list))
+        .route("/api/v1/auth/login", post(auth_handler::login))
+        .route("/api/v1/items", get(items::item_handler::list))
         // ...
         .merge(item_routes)
         .merge(inventory_routes)
@@ -98,8 +97,9 @@ Domain breakdown:
 
 ## `middleware/auth.rs` — JWT Middleware
 
-- **`Claims`** struct — JWT payload (`sub` user_id, `username`, `role`, `exp`, `iat`)
-- **`AuthContext`** extractor — pulled from a validated JWT token (contains `user_id`, `username`, `role`)
+- **`Claims`** struct — JWT payload (`sub` user_id, `tenant_id`, `username`, `role`, `permissions`, `exp`, `iat`)
+- **`AuthContext`** — inserted into request extensions by `auth_middleware`; role + permissions are **re-resolved from the DB on every request** (not trusted from the token)
+- **`AuthenticatedUser`** extractor — handler-level wrapper over `AuthContext` (in `middleware/auth.rs`), rejects with 401 when absent
 - **`auth_middleware`** — Axum middleware layer that validates Bearer tokens from the `Authorization` header
   - Reads JWT secret from request extensions
   - Missing `JwtSecret` returns 500 `Authentication is not configured` instead of silently using an empty secret

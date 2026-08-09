@@ -216,12 +216,12 @@ erp/
 │   │   ├── domain/            # Domain enums & constants
 │   │   ├── dto/               # Request/Response DTOs
 │   │   ├── models/            # DB models
-│   │   ├── repositories/      # SQL query layer
-│   │   ├── services/          # Business logic layer
-│   │   ├── handlers/          # Axum request handlers
+│   │   ├── items/ inventory/ orders/ contracts/ parties/ reports/ data_io/
+│   │   │   # Resource-domain modules (handlers.rs + services.rs + repos.rs)
 │   │   ├── auth/ workflow/ hr/ finance/ procurement/ sales_crm/ inventory_atp/ manufacturing/
-│   │   │   project/ assets/ notification/ portal/ bi/   # Module folders (repos + services + handlers)
-│   │   └── middleware/        # Auth + RBAC middleware
+│   │   │   project/ assets/ notification/ portal/ bi/   # Business-domain modules
+│   │   ├── health.rs utils.rs operation_log.rs macros.rs   # Top-level single files
+│   │   └── middleware/        # Auth + RBAC middleware (incl. AuthenticatedUser extractor)
 │   ├── migrations/            # SQLx migrations (rewritten to SQLite syntax)
 │   └── Cargo.toml
 ├── frontend/

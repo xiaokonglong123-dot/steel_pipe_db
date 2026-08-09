@@ -58,15 +58,23 @@ src/
 ├── error.rs             ← AppError 枚举，数字错误码（10001-50001）
 ├── response.rs          ← ApiResponse<T>、PaginatedResponse<T>
 ├── router.rs            ← ~190 个路由（~170 个唯一路径），通过 .merge() 组装
-├── cache.rs             ← 响应缓存 + cache_invalidator.rs
+├── cache.rs             ← 响应缓存（locations）
 ├── domain/              ← 通用领域类型（商品、库存、单据、金额）
 ├── dto/                 ← 请求/响应结构体（每实体一个文件）
 ├── models/              ← 数据库行结构体（sqlx::FromRow）
-├── repositories/        ← 纯 SQL，软删除感知
-├── services/            ← 业务逻辑（unit struct + 静态方法）
-├── handlers/            ← 薄 HTTP 处理器（提取 → 调服务 → 响应）
+├── items/               ← 商品主数据：handlers.rs + services.rs + repos.rs
+├── inventory/           ← 库存、出入库、库位、盘点、追溯、遗留 ATP
+├── orders/              ← 采购与销售订单
+├── contracts/           ← 合同条款与付款
+├── parties/             ← 供应商与客户
+├── reports/             ← 聚合报表与看板
+├── data_io/             ← 导入导出与操作日志
+├── health.rs            ← 健康/就绪端点
+├── utils.rs             ← 单据号生成 + 状态流转校验
+├── operation_log.rs     ← 操作日志仓储
+├── macros.rs            ← party_handler! / party_service!（供应商/客户共用）
 ├── middleware/          ← auth、rbac、rate_limit、security_headers
-├── auth/                ← RBAC：角色 / 权限 / 部门 / 租户
+├── auth/                ← RBAC（角色/权限/部门/租户）+ 遗留登录/用户（handlers_legacy、services_legacy、repos_legacy、refresh_token_repo）
 ├── workflow/            ← 审批引擎：审批流定义 / 实例 / 任务
 ├── hr/                  ← 员工 / 考勤 / 薪资 / 劳动合同
 ├── finance/             ← 会计科目 / 日记账 / 发票 / 付款 / 试算平衡
@@ -81,7 +89,7 @@ src/
 └── bi/                  ← 销售趋势 / 库存价值 / 财务汇总 / 供应商绩效
 ```
 
-每个功能模块（`auth/`、`workflow/`、`hr/`、…）遵循相同的布局：`mod.rs` + `handlers.rs` + `repos.rs` + `services.rs`（`bi/` 无 `repos.rs`——只读分析，复用共享仓储）。
+每个功能模块（`auth/`、`workflow/`、`hr/`、…）遵循相同的布局：`mod.rs` + `handlers.rs` + `repos.rs` + `services.rs`（`bi/` 无 `repos.rs`——只读分析，复用共享仓储；`items/`、`orders/`、`contracts/`、`parties/`、`inventory/`、`reports/`、`data_io/` 布局相同）。
 
 核心分层明细：
 
@@ -93,18 +101,16 @@ src/
 │                          sales_order、contract、customer、supplier、workflow、hr、finance、
 │                          procurement、sales_crm、inventory_atp、manufacturing、project、
 │                          assets、notification、portal
-├── repositories/        ← item_repo、inventory_repo、location_repo、inbound_repo、outbound_repo、
-│                          inventory_log_repo、check_repo、purchase_order_repo、sales_order_repo、
-│                          contract_repo、customer_repo、supplier_repo、report_repo、data_io_repo、
-│                          user_repo、operation_log_repo、refresh_token_repo
-├── services/            ← auth_service、item_service、inbound_service、outbound_service、
-│                          check_service、inventory_query_service、location_service、
-│                          purchase_service、sales_service、contract_service、customer_service、
-│                          supplier_service、report_service、data_io_service
-├── handlers/            ← auth_handler、item_handler、inbound_handler、outbound_handler、
-│                          location_handler、check_handler、inventory_handler、purchase_handler、
-│                          sales_handler、contract_handler、customer_handler、supplier_handler、
-│                          report_handler、data_io_handler、atp_handler、health_handler
+├── items/               ← handlers.rs、services.rs、repos.rs
+├── inventory/           ← atp/check/inbound/inventory/location/outbound 的 handlers+services 与 repos
+├── orders/              ← purchase+sales 的 handlers+services 与 purchase_order/sales_order repos
+├── contracts/           ← contract handler+service 与 contract_repo
+├── parties/             ← customer+supplier 的 handlers+services 与 customer/supplier repos
+├── reports/             ← report handler+service 与 report_repo
+├── data_io/             ← data_io handler+service 与 data_io_repo
+├── health.rs            ← 健康/就绪端点
+├── utils.rs             ← generate_no + validate_status_transition（订单）
+├── operation_log.rs     ← 操作日志仓储
 └── middleware/          ← auth.rs（JWT）、rbac.rs、rate_limit.rs、security_headers.rs
 ```
 

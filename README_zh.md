@@ -211,12 +211,12 @@ erp/
 │   │   ├── domain/            # 领域枚举和常量
 │   │   ├── dto/               # 请求/响应 DTO
 │   │   ├── models/            # 数据库模型
-│   │   ├── repositories/      # SQL 查询层
-│   │   ├── services/          # 业务逻辑层
-│   │   ├── handlers/          # Axum 请求处理器
+│   │   ├── items/ inventory/ orders/ contracts/ parties/ reports/ data_io/
+│   │   │   # 资源域模块（handlers.rs + services.rs + repos.rs）
 │   │   ├── auth/ workflow/ hr/ finance/ procurement/ sales_crm/ inventory_atp/ manufacturing/
-│   │   │   project/ assets/ notification/ portal/ bi/   # 模块目录（repos + services + handlers）
-│   │   └── middleware/        # 认证 + RBAC 中间件
+│   │   │   project/ assets/ notification/ portal/ bi/   # 业务域模块
+│   │   ├── health.rs utils.rs operation_log.rs macros.rs   # 顶层单文件
+│   │   └── middleware/        # 认证 + RBAC 中间件（含 AuthenticatedUser 提取器）
 │   ├── migrations/            # SQLx 迁移文件（重写为 SQLite 语法）
 │   └── Cargo.toml
 ├── frontend/

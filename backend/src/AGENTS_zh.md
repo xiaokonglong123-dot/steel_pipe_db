@@ -2,16 +2,15 @@
 
 以下所有模块都属于单一后端 crate **`erp-server`**（代码阶段实施目标）。
 
-本目录负责把后端所有源码模块装配在一起。不要把新功能文件丢在这里——它们应放在 `handlers/`、`services/`、`repositories/` 或功能模块目录（`workflow/`、`hr/`、`finance/`、`procurement/`、`sales_crm/`、`inventory_atp/`、`manufacturing/`、`project/`、`assets/`、`notification/`、`portal/`、`bi/`、`auth/`）中。
+本目录负责把后端所有源码模块装配在一起。不要把新功能文件丢在这里——它们应放在功能模块目录：资源域（`items/`、`inventory/`、`orders/`、`contracts/`、`parties/`、`reports/`、`data_io/`）与业务域（`auth/`、`workflow/`、`hr/`、`finance/`、`procurement/`、`sales_crm/`、`inventory_atp/`、`manufacturing/`、`project/`、`assets/`、`notification/`、`portal/`、`bi/`）。顶层单文件：`config.rs`、`error.rs`、`response.rs`、`router.rs`、`macros.rs`、`health.rs`、`utils.rs`、`operation_log.rs`、`cache.rs`。
 
 ## 模块注册
 
 **要新增一个模块？步骤如下：**
 
-1. 在正确的子目录创建文件（如 `handlers/new_thing_handler.rs`）
-2. 在该子目录的 `mod.rs` 中添加 `pub mod new_thing_handler;`
-3. 在 `router.rs` 中挂载路由
-4. 在 handler 的 `mod.rs` 中导出 handler
+1. 在正确的模块目录创建文件（如 `inventory/handlers.rs` 或 `orders/services.rs`）
+2. 在该模块的 `mod.rs` 中添加声明
+3. 在 `router.rs` 中挂载路由（`use crate::<模块>::<文件>;`）
 
 功能模块是自包含的：每个模块有自己的 `mod.rs` + `handlers.rs` + `repos.rs` + `services.rs`，并从 `lib.rs` 注册（如 `pub mod workflow;`）。
 

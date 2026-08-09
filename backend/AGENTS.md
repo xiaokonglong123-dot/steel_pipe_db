@@ -58,15 +58,23 @@ src/
 ├── error.rs             ← AppError enum with numeric error codes (10001-50001)
 ├── response.rs          ← ApiResponse<T>, PaginatedResponse<T>
 ├── router.rs            ← ~190 routes (~170 unique paths) assembled via .merge()
-├── cache.rs             ← Response cache + cache_invalidator.rs
+├── cache.rs             ← Response cache (locations)
 ├── domain/              ← Generic domain types (item, inventory, order, money)
 ├── dto/                 ← Request/response structs (one file per entity)
 ├── models/              ← DB row structs (sqlx::FromRow)
-├── repositories/        ← Pure SQL, soft-delete aware
-├── services/            ← Business logic (unit structs, static methods)
-├── handlers/            ← Thin HTTP handlers (extract → call service → respond)
+├── items/               ← Item (商品) master: handlers.rs + services.rs + repos.rs
+├── inventory/           ← Stock, inbound/outbound, locations, checks, trace, legacy ATP
+├── orders/              ← Purchase & sales orders
+├── contracts/           ← Contract terms & payments
+├── parties/             ← Suppliers & customers
+├── reports/             ← Aggregations & dashboards
+├── data_io/             ← Import/export & operation logs
+├── health.rs            ← Health/readiness endpoints
+├── utils.rs             ← Order number generation + status transition validation
+├── operation_log.rs     ← Operation log repo
+├── macros.rs            ← party_handler! / party_service! (suppliers/customers shared)
 ├── middleware/          ← auth, rbac, rate_limit, security_headers
-├── auth/                ← RBAC: roles / permissions / departments / tenants
+├── auth/                ← RBAC (roles/permissions/departments/tenants) + legacy login/users (handlers_legacy, services_legacy, repos_legacy, refresh_token_repo)
 ├── workflow/            ← Approval engine: definitions / instances / tasks
 ├── hr/                  ← Employees / attendance / salaries / labor contracts
 ├── finance/             ← Accounts / journal / invoices / payments / trial balance
@@ -81,7 +89,7 @@ src/
 └── bi/                  ← Sales trend / inventory value / finance summary / supplier perf
 ```
 
-Every feature module (`auth/`, `workflow/`, `hr/`, …) follows the same layout: `mod.rs` + `handlers.rs` + `repos.rs` + `services.rs` (`bi/` has no `repos.rs` — read-only analytics over the shared repositories).
+Every feature module (`auth/`, `workflow/`, `hr/`, …) follows the same layout: `mod.rs` + `handlers.rs` + `repos.rs` + `services.rs` (`bi/` has no `repos.rs` — read-only analytics over the shared repositories; `items/`/`orders/`/`contracts/`/`parties/`/`inventory/`/`reports/`/`data_io/` follow the same layout).
 
 Core layers in detail:
 
@@ -93,19 +101,17 @@ Core layers in detail:
 │                          sales_order, contract, customer, supplier, workflow, hr, finance,
 │                          procurement, sales_crm, inventory_atp, manufacturing, project,
 │                          assets, notification, portal
-├── repositories/        ← item_repo, inventory_repo, location_repo, inbound_repo, outbound_repo,
-│                          inventory_log_repo, check_repo, purchase_order_repo, sales_order_repo,
-│                          contract_repo, customer_repo, supplier_repo, report_repo, data_io_repo,
-│                          user_repo, operation_log_repo, refresh_token_repo
-├── services/            ← auth_service, item_service, inbound_service, outbound_service,
-│                          check_service, inventory_query_service, location_service,
-│                          purchase_service, sales_service, contract_service, customer_service,
-│                          supplier_service, report_service, data_io_service
-├── handlers/            ← auth_handler, item_handler, inbound_handler, outbound_handler,
-│                          location_handler, check_handler, inventory_handler, purchase_handler,
-│                          sales_handler, contract_handler, customer_handler, supplier_handler,
-│                          report_handler, data_io_handler, atp_handler, health_handler
-└── middleware/          ← auth.rs (JWT), rbac.rs, rate_limit.rs, security_headers.rs
+├── items/               ← handlers.rs, services.rs, repos.rs
+├── inventory/           ← atp/check/inbound/inventory/location/outbound handlers+services, repos
+├── orders/              ← purchase+sales handlers+services, purchase_order/sales_order repos
+├── contracts/           ← contract handler+service, contract_repo
+├── parties/             ← customer+supplier handlers+services, customer/supplier repos
+├── reports/             ← report handler+service, report_repo
+├── data_io/             ← data_io handler+service, data_io_repo
+├── health.rs            ← health/readiness endpoints
+├── utils.rs             ← generate_no + validate_status_transition (orders)
+├── operation_log.rs     ← operation log repo
+└── middleware/          ← auth.rs (JWT + AuthenticatedUser extractor), rbac.rs, rate_limit.rs, security_headers.rs
 ```
 
 Inventory is generalized to **商品/SKU**: the item master table carries `sku` / name / category / unit / optional spec — no industry-specific fields. Reservations, transfers, and count sessions live in `inventory_atp/`.
