@@ -207,6 +207,14 @@
 > - ✅ 2f 共享解耦（f0871f0）：AuthenticatedUser 移 middleware、party 宏移 src/macros.rs
 > - ⏳ 2f 搬迁主体（49 文件）：见下方「阶段 2f 搬迁指引」
 
+> **阶段 3 执行记录（2026-08-09）**：
+> - ✅ 3a CI（07d24c4）：backend job 增加 cargo test（report-then-fail）；提交 Cargo.lock（binary 可复现构建）
+> - ✅ 3b 缓存正确性（07d24c4）：location 缓存 key 加入 page/page_size（原翻页命中第 1 页缓存）
+> - ✅ 3c N+1（07d24c4）：trace_service 双循环→批量 stock_on_hand_map；sales approve 逐 item 保留（TOCTOU 刻意）
+> - ✅ 3d queryKeys 工厂（91ae039）：11 个 feature 新建工厂 + auth 补 role/department 工厂，页面内联 queryKey 全部消除
+> - ✅ 3e mutation onError（91ae039）：全库 27 个 useMutation 文件补失败提示
+> - ⚠️ 环境注记：测试期间 /tmp（tmpfs）被 tempfile 残留库撑满致 disk I/O error，非代码问题；已清理并全量复绿
+
 ## 六·附：阶段 2f 搬迁指引（专门任务用）
 
 目标：删除顶层 `handlers/ services/ repositories/` 三兄弟，legacy 资源域文件按如下映射搬入新模块（每模块 `mod.rs` 声明 handlers/repos/services），`dto/ models/ domain/` 保留共享层。
