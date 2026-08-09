@@ -61,22 +61,22 @@ pub fn new_shared_cache<V: Clone + Send + Sync>(ttl: Duration) -> SharedCache<V>
     Arc::new(Cache::new(ttl))
 }
 
-/// Grade cache stores API 5CT grade reference data (all grades list, individual grade lookup).
-/// TTL: 5 minutes — grade definitions rarely change.
-pub type GradeCache = Cache<serde_json::Value>;
+/// Items cache stores 商品 master data (SKU list, item lookups).
+/// TTL: 5 minutes — item definitions rarely change.
+pub type ItemsCache = Cache<serde_json::Value>;
 
 /// Location cache stores warehouse location lists and hierarchy data.
 /// TTL: 2 minutes — locations can be added/removed more frequently.
 pub type LocationCache = Cache<serde_json::Value>;
 
-/// Dashboard cache stores aggregated statistics (pipe counts, order counts, etc.).
+/// Dashboard cache stores aggregated statistics (item counts, order counts, etc.).
 /// TTL: 30 seconds — dashboard is hit frequently but data freshness matters.
 pub type DashboardCache = Cache<serde_json::Value>;
 
 /// Holds all application caches. Created once at startup, injected via Extension layer.
 #[derive(Clone)]
 pub struct CacheManager {
-    pub grades: Arc<GradeCache>,
+    pub items: Arc<ItemsCache>,
     pub locations: Arc<LocationCache>,
     pub dashboard: Arc<DashboardCache>,
 }
@@ -84,7 +84,7 @@ pub struct CacheManager {
 impl CacheManager {
     pub fn new() -> Self {
         Self {
-            grades: Arc::new(Cache::new(Duration::from_secs(300))),   // 5 min
+            items: Arc::new(Cache::new(Duration::from_secs(300))),    // 5 min
             locations: Arc::new(Cache::new(Duration::from_secs(120))), // 2 min
             dashboard: Arc::new(Cache::new(Duration::from_secs(30))),  // 30 sec
         }
@@ -92,14 +92,14 @@ impl CacheManager {
 
     /// Invalidate all caches. Call after data mutations (create/update/delete).
     pub async fn invalidate_all(&self) {
-        self.grades.clear().await;
+        self.items.clear().await;
         self.locations.clear().await;
         self.dashboard.clear().await;
     }
 
-    /// Invalidate grade-related caches.
-    pub async fn invalidate_grades(&self) {
-        self.grades.clear().await;
+    /// Invalidate item-related caches.
+    pub async fn invalidate_items(&self) {
+        self.items.clear().await;
     }
 
     /// Invalidate location-related caches.

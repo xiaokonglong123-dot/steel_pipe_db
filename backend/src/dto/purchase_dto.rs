@@ -56,21 +56,12 @@ pub struct UpdatePurchaseOrderRequest {
 /// Create purchase order item request DTO.
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreatePurchaseItemRequest {
-    /// Pipe type: seamless or screen.
-    #[validate(length(min = 1))]
-    pub pipe_type: String,
-    /// Steel grade.
-    #[validate(length(min = 1))]
-    pub grade: String,
-    /// Outer diameter (mm).
-    #[validate(range(min = 0.0))]
-    pub od: f64,
-    /// Wall thickness (mm).
-    #[validate(range(min = 0.0))]
-    pub wt: f64,
-    /// Quantity ordered.
+    /// Item master ID (`items.id`).
     #[validate(range(min = 1))]
-    pub quantity: i64,
+    pub item_id: i64,
+    /// Quantity ordered.
+    #[validate(range(min = 0.0))]
+    pub quantity: f64,
     /// Unit price.
     pub unit_price: Option<Decimal>,
     /// Total price.
@@ -90,11 +81,10 @@ pub struct CreatePurchaseItemRequest {
 pub struct UpdatePurchaseItemRequest {
     /// Existing item ID for matching during bulk-replace (ignored by dedicated item endpoints).
     pub id: Option<i64>,
-    pub pipe_type: Option<String>,
-    pub grade: Option<String>,
-    pub od: Option<f64>,
-    pub wt: Option<f64>,
-    pub quantity: Option<i64>,
+    /// Item master ID (`items.id`).
+    #[validate(range(min = 1))]
+    pub item_id: Option<i64>,
+    pub quantity: Option<f64>,
     pub unit_price: Option<Decimal>,
     pub notes: Option<String>,
 }

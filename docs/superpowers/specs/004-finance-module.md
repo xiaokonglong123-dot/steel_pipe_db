@@ -9,124 +9,124 @@
 
 ## 1. 目标
 
-实现标准的总账 + 应收应付 + 祥式发票 + 多币种 + 财务扣款核算。
+实现标准的总账 + 应收应付 + 发票 + 多币种 + 财务核算。
 
 ## 2. 功能范围
 
 | 子模块 | 说明 |
-|--------|------|
+| -------- | ------ |
 | 会计科目表 | 完整的科目体系 |
 | 总账 | 日记账分录 (Journal Entry) |
 | 应收款 | Account Receivable (AR) |
 | 应付款 | Account Payable (AP) |
 | 发票 | 销售发票 + 采购发票 + invoice 匹配 |
-| 收/付款 | 收据+ payment confirmation |
+| 收/付款 | 收据 + payment confirmation |
 | 多币种 | 交易币种 + 汇率 |
 | 金融报告 | Trial Balance 利润表 |
 
 ## 3. 数据模型
 
-```sql
--- Schema: finance
+> 数据库为 SQLite3（`sqlite://data/erp.db?mode=rwc`），金额用 REAL，时间用 TEXT。
 
-CREATE TABLE finance.chart_of_accounts (
-    id BIGSERIAL PRIMARY KEY,
-    company_id BIGINT REFERENCES auth.companies(id),
-    account_code VARCHAR(50) NOT NULL UNIQUE,   -- (e.g. 1001 - Cash)
-    account_name VARCHAR(200) NOT NULL,
-    account_type VARCHAR(50) NOT NULL,          -- Expense, Asset, Liability, Revenue, Equity
-    parent_id BIGINT REFERENCES finance.chart_of_accounts(id),
-    is_active BOOLEAN DEFAULT true,
-    opening_balance NUMERIC(18,2) DEFAULT 0,
+```sql
+CREATE TABLE chart_of_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id INTEGER REFERENCES tenants(id),
+    account_code TEXT NOT NULL UNIQUE,   -- e.g. 1001 - Cash
+    account_name TEXT NOT NULL,
+    account_type TEXT NOT NULL,          -- Expense, Asset, Liability, Revenue, Equity
+    parent_id INTEGER REFERENCES chart_of_accounts(id),
+    is_active INTEGER DEFAULT 1,
+    opening_balance REAL DEFAULT 0,
     description TEXT,
     created_at, updated_at, deleted_at
 );
 
-CREATE TABLE finance.journal_entries (
-    id BIGSERIAL PRIMARY KEY,
-    company_id BIGINT NOT NULL,
-    entry_no VARCHAR(100) UNIQUE,   -- like JE-2026-001
-    entry_date DATE NOT NULL,
-    reference_document_type VARCHAR(50),   -- PO, SO, Invoice, payment
-    reference_document_id BIGINT,
+CREATE TABLE journal_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id INTEGER NOT NULL,
+    entry_no TEXT UNIQUE,   -- like JE-2026-001
+    entry_date TEXT NOT NULL,
+    reference_document_type TEXT,   -- PO, SO, Invoice, payment
+    reference_document_id INTEGER,
     description TEXT,
-    total_debits NUMERIC(18,2),
-    total_credits NUMERIC(18,2),
-    is_balanced BOOLEAN NOT NULL,   -- 借贷平衡
-    posted BOOLEAN DEFAULT false
-    created_by BIGINT REFERENCES auth.users(id),
+    total_debits REAL,
+    total_credits REAL,
+    is_balanced INTEGER NOT NULL,   -- 借贷平衡
+    posted INTEGER DEFAULT 0,
+    created_by INTEGER REFERENCES users(id),
     created_at, updated_at
 );
 
-CREATE TABLE finance.journal_entry_details (
-    id BIGSERIAL PRIMARY KEY,
-    journal_entry_id BIGINT REFERENCES finance.journal_entries(id),
-    account_id BIGINT REFERENCES finance.chart_of_accounts(id),
-    amount_debit NUMERIC(18,2) DEFAULT 0,
-    amount_credit NUMERIC(18,2) DEFAULT 0,
+CREATE TABLE journal_entry_details (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    journal_entry_id INTEGER REFERENCES journal_entries(id),
+    account_id INTEGER REFERENCES chart_of_accounts(id),
+    amount_debit REAL DEFAULT 0,
+    amount_credit REAL DEFAULT 0,
     description TEXT,
-    currency VARCHAR(3) DEFAULT 'CNY',
-    exchange_rate NUMERIC(12,6) DEFAULT 1.0,
-    department_id BIGINT,
-    created_at TIMESTAMPTZ
+    currency TEXT DEFAULT 'CNY',
+    exchange_rate REAL DEFAULT 1.0,
+    department_id INTEGER,
+    created_at TEXT DEFAULT (datetime('now'))
 );
 
 -- 应收表 (AR)
-CREATE TABLE finance.invoices (
-    id BIGSERIAL PRIMARY KEY,
-    invoice_type VARCHAR(10) NOT NULL,   -- 'AR' (香菜) or  'AP' (红P)
-    source_document_type VARCHAR(50),-- sales_order, purchase_order
-    source_document_id BIGINT,
-    invoice_no VARCHAR(100) UNIQUE NOT NULL,
-    invoice_number VARCHAR(200) NOT NULL,
-    customer_id_or_supplier_id BIGINT,
-    invoice_date DATE,
-    due_date DATE,
-    total_amount NUMERIC(18,2),
-    tax_amount NUMERIC(18,2),
-    amount_adjusted NUMERIC(18,2) DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'draft',       是 pending/posted/paid/due
-    currency VARCHAR(3) DEFAULT 'CNY',
-    tax_code VARCHAR(20),
+CREATE TABLE invoices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_type TEXT NOT NULL,   -- 'AR' (应收) or 'AP' (应付)
+    source_document_type TEXT,    -- sales_order, purchase_order
+    source_document_id INTEGER,
+    invoice_no TEXT UNIQUE NOT NULL,
+    invoice_number TEXT NOT NULL,
+    customer_id_or_supplier_id INTEGER,
+    invoice_date TEXT,
+    due_date TEXT,
+    total_amount REAL,
+    tax_amount REAL,
+    amount_adjusted REAL DEFAULT 0,
+    status TEXT DEFAULT 'draft',  -- pending/posted/paid/due
+    currency TEXT DEFAULT 'CNY',
+    tax_code TEXT,
     created_at, updated_at, deleted_at
 );
 
-CREATE TABLE finance.invoice_items (
-    id BIGSERIAL PRIMARY KEY,
-    invoice_id BIGINT REFERENCES finance.invoices(id),
+CREATE TABLE invoice_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_id INTEGER REFERENCES invoices(id),
     item_description TEXT,
-    quantity NUMERIC(18,4),
-    unit_price NUMERIC(18,4),
-    total_price NUMERIC(18,2),
-    tax_rate NUMERIC(5,3) DEFAULT 0.0,
-    tax_code VARCHAR(20)
+    quantity REAL,
+    unit_price REAL,
+    total_price REAL,
+    tax_rate REAL DEFAULT 0.0,
+    tax_code TEXT
 );
 
-CREATE TABLE finance.payments (
-    id BIGSERIAL PRIMARY KEY,
-    payment_direction VARCHAR(5) NOT NULL,   -- 'IN' (收款), 'J币'  (付款 = 'OUT')
-    invoice_id BIGINT REFERENCES finance.invoices(id),
-    amount NUMERIC(18,2) NOT NULL,
-    currency VARCHAR(3) DEFAULT 'CNY',
-    payment_method VARCHAR(30),    -- bank_transfer, cash, alipay
-    payment_reference VARCHAR(200),
-    paid_at TIMESTAMPTZ,
-    confirmed_by BIGINT REFERENCES auth.users(id),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_direction TEXT NOT NULL,   -- 'IN' (收款), 'OUT' (付款)
+    invoice_id INTEGER REFERENCES invoices(id),
+    amount REAL NOT NULL,
+    currency TEXT DEFAULT 'CNY',
+    payment_method TEXT,    -- bank_transfer, cash, alipay
+    payment_reference TEXT,
+    paid_at TEXT,
+    confirmed_by INTEGER REFERENCES users(id),
+    created_at TEXT DEFAULT (datetime('now'))
 );
 ```
 
-## 4. 核心业务流程 loop
+## 4. 核心业务流程
 
 ### 采购付款
 
 ```
-PO 批准 → 创建应付款录
-         → 收到币 格 → PO.status = received
-         → 自动创建应付垫款 (AP invoice)
+采购订单批准 → 创建应付记录
+         → 采购收货 → 订单状态 = received
+         → 自动创建应付发票 (AP invoice)
          → 批准后 → 生成 journal entry:
             Debit: Expense 科目 (amount)
- Information: AP Account (amount)
+            Credit: AP Account (amount)
          → 付款申请 → 确认支付 → journal entry:
             Credit: Bank Account (amount)
             Debit: AP Account (amount)
@@ -135,7 +135,7 @@ PO 批准 → 创建应付款录
 ### 销售收款
 
 ```
-SO → AR 发票创建
+销售订单 → AR 发票创建
    → 收到付款确认 → journal entry:
       Debit: Bank Account (amount)
       Credit: AR Account (amount)
@@ -144,7 +144,7 @@ SO → AR 发票创建
 ## 5. API
 
 | Method | Path | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | 科目 | | |
 | GET | `/api/chart-of-accounts` | 会计科目树 |
 | POST | `/api/chart-of-accounts` | 新增科目 |
@@ -152,24 +152,26 @@ SO → AR 发票创建
 | GET | `/api/journal-entries` | 分录列表 |
 | POST | `/api/journal-entries` | 创建分录 |
 | 发票 | | |
-| GET | `/api/invoices` | 纸发票列表 |
+| GET | `/api/invoices` | 发票列表 |
 | POST | `/api/invoices` | 创建发票 |
-| POST | `/api/invoices/:id/confirm` | 确认获发 |
+| POST | `/api/invoices/:id/confirm` | 确认发票 |
 | POST | `/api/invoices/:id/void` | 作废 |
 | 付款 | | |
 | GET | `/api/payments` | 收/付款记录 |
 | POST | `/api/payments` | 登记支付 |
 | 报表 | | |
 | GET | `/api/finance/trial-balance` | 试算平衡表 |
-| GET | `/api/finance/profit-loss` | 利润表 simpl Association) |
+| GET | `/api/finance/profit-loss` | 利润表 |
 
 ## 6. 前后端
 
-**后端** (crates/finance):
-- `finance_service.rs` — AR/AP/GL business logic
-- `finance_repo.rs` — expose query helpers for reporting
+**后端** (`backend/src/finance`):
+
+- `services.rs` — AR/AP/GL business logic
+- `repos.rs` — expose query helpers for reporting
 
 **前端**:
+
 - `features/finance/pages/ChartOfAccounts.tsx`
 - `features/finance/pages/JournalEntryList.tsx`
 - `features/finance/pages/InvoiceList.tsx`

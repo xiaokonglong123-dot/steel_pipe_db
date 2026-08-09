@@ -1,10 +1,12 @@
 # Phase 1 — Frontend: Auth & System Management (P0 MVP)
 
 > Based on: `docs/frontend-design.en.md` §3, §5, §7, §9
+> Architecture: Vite + React 19 + Ant Design 5 + TanStack Query 5 + Zustand 5 + Axios. 路由 `createBrowserRouter` + `ProtectedRoute`；状态分层 = `authStore` (Zustand) + TanStack Query (server state). i18n `react-i18next` (zh-CN 优先, per-feature namespaces). 后端 crate `erp-server`，DB = SQLite3. 术语见 `specs/UBIQUITOUS_LANGUAGE_LATEST.md`.
 
 ## Tasks
 
 ### 1.1 Auth State Management
+
 - [ ] Implement `src/stores/authStore.ts` (Zustand):
   - State: user, token, refreshToken, isAuthenticated
   - Actions: setUser, setToken, logout (pure state ops, no API calls)
@@ -19,8 +21,10 @@
   - `useLogout()` mutation: authStore.logout → redirect to /login
   - `useCurrentUser()` query
 - [ ] Implement `features/auth/types.ts`
+- [ ] Implement `features/auth/queryKeys.ts` (TanStack Query key factory)
 
 ### 1.2 Login Page
+
 - [ ] Implement `LoginPage`:
   - Centered login form (username + password inputs)
   - "Login" button
@@ -30,6 +34,7 @@
   - Auto-redirect if already logged in
 
 ### 1.3 Routing & Layout
+
 - [ ] Implement `src/routes/routes.ts`: route config definitions (with permissions field)
 - [ ] Implement `src/routes/ProtectedRoute.tsx`: unauthenticated → redirect to /login; no permission → 403 page
 - [ ] Implement `src/routes/index.tsx`: route config aggregation + lazy loading
@@ -49,32 +54,38 @@
 - [ ] Implement `layouts/components/UnitSwitch.tsx`
 
 ### 1.4 User Management Page (admin role)
+
 - [ ] Implement `system/pages/UserListPage.tsx`:
   - User table (username, display_name, role, email, last_login, status)
   - Add/edit/enable/disable user
 - [ ] Implement `system/pages/UserFormPage.tsx`:
   - Form: username, display_name, password, email, role select, language pref, unit system
 - [ ] Implement `system/api/userApi.ts`
+- [ ] Implement `system/queryKeys.ts` (TanStack Query key factory)
 - [ ] Implement `system/types.ts`
 - [ ] Implement `system/components/RoleTag.tsx` (colored role badges)
 
 ### 1.5 Operation Log Page (admin role)
+
 - [ ] Implement `system/pages/OperationLogPage.tsx`:
   - Log table (time, user, action type, target, summary, IP)
   - Filters (date range, action type, target type, user)
   - Click to expand change JSON
 
 ### 1.6 Profile Settings Page
+
 - [ ] Implement `system/pages/ProfilePage.tsx`:
   - Change password form (old password + new password + confirm)
   - Language preference
   - Unit system preference
 
 ### 1.7 403 / 404 Pages
+
 - [ ] Implement 403 Forbidden page
 - [ ] Implement 404 Not Found page
 
 ### 1.8 i18n
+
 - [ ] Create `src/i18n/resources/zh/system.json` and `en/system.json`
 
 > **Deps**: Infrastructure (Axios interceptor, i18n)

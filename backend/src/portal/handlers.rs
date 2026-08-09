@@ -4,7 +4,7 @@
 
 use axum::extract::{Extension, Path, Query};
 use axum::Json;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::portal_dto::{AcceptPurchaseRequest, CreatePortalAccountRequest, PortalLoginRequest};
 use crate::error::AppError;
@@ -19,7 +19,7 @@ use crate::response::ApiResponse;
 // ---------------------------------------------------------------------------
 
 pub async fn create_account(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
     Json(p): Json<CreatePortalAccountRequest>,
 ) -> Result<Json<ApiResponse<PortalAccount>>, AppError> {
@@ -59,7 +59,7 @@ fn portal_context(headers: &axum::http::HeaderMap, jwt_secret: &JwtSecret) -> Re
 }
 
 pub async fn portal_login(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Extension(jwt_secret): Extension<JwtSecret>,
     Json(p): Json<PortalLoginRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -73,7 +73,7 @@ pub async fn portal_login(
 }
 
 pub async fn portal_purchases(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Extension(jwt_secret): Extension<JwtSecret>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<ApiResponse<Vec<PortalPurchaseRow>>>, AppError> {
@@ -85,7 +85,7 @@ pub async fn portal_purchases(
 }
 
 pub async fn portal_accept_purchase(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Extension(jwt_secret): Extension<JwtSecret>,
     headers: axum::http::HeaderMap,
     Path(id): Path<i64>,
@@ -99,7 +99,7 @@ pub async fn portal_accept_purchase(
 }
 
 pub async fn portal_sales(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Extension(jwt_secret): Extension<JwtSecret>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<ApiResponse<Vec<PortalSalesRow>>>, AppError> {
@@ -111,7 +111,7 @@ pub async fn portal_sales(
 }
 
 pub async fn portal_acknowledge_sales(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Extension(jwt_secret): Extension<JwtSecret>,
     headers: axum::http::HeaderMap,
     Path(id): Path<i64>,
@@ -124,7 +124,7 @@ pub async fn portal_acknowledge_sales(
 }
 
 pub async fn portal_events(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Extension(jwt_secret): Extension<JwtSecret>,
     headers: axum::http::HeaderMap,
     Query(_f): Query<serde_json::Value>,

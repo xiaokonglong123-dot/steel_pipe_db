@@ -1,7 +1,7 @@
 //! Finance services — accounts, journal entries (with balance validation),
 //! invoices (AR/AP state machine), payments (auto-settle invoices).
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::finance_dto::{
     CreateAccountRequest, CreateInvoiceRequest, CreateJournalEntryRequest, CreatePaymentRequest,
@@ -21,12 +21,12 @@ impl FinanceService {
     // Chart of accounts
     // -----------------------------------------------------------------------
 
-    pub async fn list_accounts(pool: &PgPool, tenant_id: i64) -> Result<Vec<Account>, AppError> {
+    pub async fn list_accounts(pool: &SqlitePool, tenant_id: i64) -> Result<Vec<Account>, AppError> {
         AccountRepo::list(pool, tenant_id).await.map_err(AppError::from)
     }
 
     pub async fn create_account(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreateAccountRequest,
     ) -> Result<Account, AppError> {
@@ -48,7 +48,7 @@ impl FinanceService {
     }
 
     pub async fn update_account(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         dto: &UpdateAccountRequest,
@@ -64,7 +64,7 @@ impl FinanceService {
 
     /// Create a journal entry; validates that debit total == credit total.
     pub async fn create_journal_entry(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreateJournalEntryRequest,
         created_by: Option<i64>,
@@ -72,15 +72,15 @@ impl FinanceService {
         if dto.details.is_empty() {
             return Err(AppError::Validation("Journal entry needs at least one detail line".into()));
         }
-        let mut debit_total = rust_decimal::Decimal::ZERO;
-        let mut credit_total = rust_decimal::Decimal::ZERO;
+        let mut debit_total = 0.0f64;
+        let mut credit_total = 0.0f64;
         for d in &dto.details {
             let debit = d.debit.unwrap_or_default();
             let credit = d.credit.unwrap_or_default();
-            if debit.is_zero() && credit.is_zero() {
+            if debit == 0.0 && credit == 0.0 {
                 return Err(AppError::Validation("Each detail line needs debit or credit".into()));
             }
-            if !debit.is_zero() && !credit.is_zero() {
+            if debit != 0.0 && credit != 0.0 {
                 return Err(AppError::Validation("A detail line cannot have both debit and credit".into()));
             }
             // Account must exist in this tenant.
@@ -124,7 +124,7 @@ impl FinanceService {
     }
 
     pub async fn list_journal_entries(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         from: Option<chrono::NaiveDate>,
         to: Option<chrono::NaiveDate>,
@@ -135,7 +135,7 @@ impl FinanceService {
     }
 
     pub async fn get_journal_entry(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
     ) -> Result<(JournalEntry, Vec<JournalEntryDetail>), AppError> {
@@ -146,7 +146,7 @@ impl FinanceService {
         Ok((entry, details))
     }
 
-    pub async fn trial_balance(pool: &PgPool, tenant_id: i64) -> Result<Vec<TrialBalanceRow>, AppError> {
+    pub async fn trial_balance(pool: &SqlitePool, tenant_id: i64) -> Result<Vec<TrialBalanceRow>, AppError> {
         JournalEntryRepo::trial_balance(pool, tenant_id)
             .await
             .map_err(AppError::from)
@@ -157,7 +157,7 @@ impl FinanceService {
     // -----------------------------------------------------------------------
 
     pub async fn create_invoice(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreateInvoiceRequest,
     ) -> Result<FinanceInvoice, AppError> {
@@ -165,9 +165,9 @@ impl FinanceService {
             return Err(AppError::Validation(format!("Invalid invoice type: {}", dto.invoice_type)));
         }
         // Compute totals from items (amount sum) + tax.
-        let mut amount = rust_decimal::Decimal::ZERO;
+        let mut amount = 0.0f64;
         for item in &dto.items {
-            let qty = item.quantity.unwrap_or_else(|| rust_decimal::Decimal::ONE);
+            let qty = item.quantity.unwrap_or(1.0);
             let unit = item.unit_price.unwrap_or_default();
             amount += qty * unit;
         }
@@ -185,7 +185,7 @@ impl FinanceService {
         .await
         .map_err(AppError::from)?;
         for item in &dto.items {
-            let qty = item.quantity.unwrap_or_else(|| rust_decimal::Decimal::ONE);
+            let qty = item.quantity.unwrap_or(1.0);
             let unit = item.unit_price.unwrap_or_default();
             InvoiceRepo::insert_item(pool, invoice.id, item.description.as_deref(), qty, unit, qty * unit)
                 .await
@@ -195,7 +195,7 @@ impl FinanceService {
     }
 
     pub async fn list_invoices(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         invoice_type: Option<&str>,
         status: Option<&str>,
@@ -206,7 +206,7 @@ impl FinanceService {
     }
 
     pub async fn get_invoice(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
     ) -> Result<(FinanceInvoice, Vec<FinanceInvoiceItem>), AppError> {
@@ -218,7 +218,7 @@ impl FinanceService {
     }
 
     /// Confirm a draft invoice (draft → confirmed).
-    pub async fn confirm_invoice(pool: &PgPool, tenant_id: i64, id: i64) -> Result<FinanceInvoice, AppError> {
+    pub async fn confirm_invoice(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<FinanceInvoice, AppError> {
         let invoice = InvoiceRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Invoice not found: {}", id)))?;
@@ -231,7 +231,7 @@ impl FinanceService {
     }
 
     /// Void an invoice (any non-paid status → void).
-    pub async fn void_invoice(pool: &PgPool, tenant_id: i64, id: i64) -> Result<FinanceInvoice, AppError> {
+    pub async fn void_invoice(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<FinanceInvoice, AppError> {
         let invoice = InvoiceRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Invoice not found: {}", id)))?;
@@ -250,7 +250,7 @@ impl FinanceService {
     /// Register a payment; if tied to an invoice and the invoice is fully
     /// paid, mark it paid.
     pub async fn create_payment(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreatePaymentRequest,
         created_by: Option<i64>,
@@ -272,9 +272,9 @@ impl FinanceService {
             let invoice = InvoiceRepo::find_by_id(pool, tenant_id, invoice_id)
                 .await?
                 .ok_or_else(|| AppError::NotFound(format!("Invoice not found: {}", invoice_id)))?;
-            let paid: rust_decimal::Decimal = sqlx::query_scalar(
-                "SELECT COALESCE(SUM(amount), 0) FROM finance_payments \
-                 WHERE invoice_id = $1 AND direction = $2",
+            let paid: f64 = sqlx::query_scalar(
+                "SELECT CAST(COALESCE(SUM(amount), 0.0) AS REAL) FROM finance_payments \
+                 WHERE invoice_id = ? AND direction = ?",
             )
             .bind(invoice_id)
             .bind(if invoice.invoice_type == "sales" { "in" } else { "out" })
@@ -291,7 +291,7 @@ impl FinanceService {
     }
 
     pub async fn list_payments(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         invoice_id: Option<i64>,
     ) -> Result<Vec<FinancePayment>, AppError> {
@@ -302,7 +302,7 @@ impl FinanceService {
 }
 
 /// Small per-table sequence helper for human-friendly document numbers.
-async fn next_sequence(pool: &PgPool, table: &str) -> Result<i64, AppError> {
+async fn next_sequence(pool: &SqlitePool, table: &str) -> Result<i64, AppError> {
     let n: i64 = sqlx::query_scalar(&format!(
         "SELECT COALESCE(MAX(id), 0) + 1 FROM {}",
         table

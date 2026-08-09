@@ -1,34 +1,34 @@
 # `repositories/` + `models/` — Data Access Layer
 
-## repositories/ (20 files, SQL layer)
+## repositories/ (SQL layer)
 
 ### Pattern
 
 ```rust
-pub struct SeamlessPipeRepo;  // No fields, no constructor
+pub struct ItemRepo;  // No fields, no constructor
 
-impl SeamlessPipeRepo {
+impl ItemRepo {
     pub async fn create(
         pool: &SqlitePool,
-        dto: &CreateSeamlessPipeRequest,
-    ) -> Result<SeamlessPipe, sqlx::Error> {
-        sqlx::query_as::<_, SeamlessPipe>(
-            "INSERT INTO seamless_pipes (...) VALUES (...) RETURNING *"
+        dto: &CreateItemRequest,
+    ) -> Result<Item, sqlx::Error> {
+        sqlx::query_as::<_, Item>(
+            "INSERT INTO items (sku, name, category, unit, spec) VALUES (?, ?, ?, ?, ?) RETURNING *"
         )
-        .bind(&dto.pipe_number)
+        .bind(&dto.sku)
         // ...
         .fetch_one(pool)
         .await
     }
 
-    pub async fn find_by_pipe_number(
+    pub async fn find_by_sku(
         pool: &SqlitePool,
-        pipe_number: &str,
-    ) -> Result<Option<SeamlessPipe>, sqlx::Error> {
-        sqlx::query_as::<_, SeamlessPipe>(
-            "SELECT * FROM seamless_pipes WHERE pipe_number = ? AND deleted_at IS NULL"
+        sku: &str,
+    ) -> Result<Option<Item>, sqlx::Error> {
+        sqlx::query_as::<_, Item>(
+            "SELECT * FROM items WHERE sku = ? AND deleted_at IS NULL"
         )
-        .bind(pipe_number)
+        .bind(sku)
         .fetch_optional(pool)
         .await
     }
@@ -42,29 +42,29 @@ Key facts:
 - **No constructor**, **no DI pattern** — you won't find `pub fn new(db)` anywhere
 - Returns `Result<T, sqlx::Error>` — the caller converts to AppError
 
-### File List (20 files)
+### File List
 
 | File | Entity | Description |
-|------|--------|-------------|
-| `inventory_repo.rs` | Inventory (ATP) | ATP queries, stock counting, pipe location |
+| ------ | -------- | ------------- |
+| `inventory_repo.rs` | Inventory (ATP) | ATP queries, stock counting, item locations |
 | `location_repo.rs` | Locations | warehouse location CRUD |
-| `inbound_repo.rs` | Inbound | inbound record CRUD |
-| `outbound_repo.rs` | Outbound | outbound record CRUD |
-| `inventory_log_repo.rs` | Inventory Logs | pipe movement audit trail |
-| `check_repo.rs` | Inventory Checks | inventory check records and items |
+| `inbound_repo.rs` | Inbound | inbound (入库) record CRUD |
+| `outbound_repo.rs` | Outbound | outbound (出库) record CRUD |
+| `inventory_log_repo.rs` | Inventory Logs | item movement audit trail |
+| `check_repo.rs` | Inventory Checks | count session (盘点) records and items |
 | `report_repo.rs` | Reports | aggregation queries, date ranges |
-| `pipe_repo.rs` | Pipe specs | CRUD + filtered + paginated |
-| `purchase_order_repo.rs` | Purchase Orders | PO CRUD + status |
-| `sales_order_repo.rs` | Sales Orders | SO CRUD + ATP queries |
+| `item_repo.rs` | Items | 商品/SKU master data CRUD + filtered + paginated |
+| `purchase_order_repo.rs` | Purchase Orders | 采购订单 CRUD + status |
+| `sales_order_repo.rs` | Sales Orders | 销售订单 CRUD + ATP queries |
 | `contract_repo.rs` | Contracts | CRUD + status queries |
-| `quality_repo.rs` | Quality | certs + test results |
 | `customer_repo.rs` | Customers | CRUD |
 | `supplier_repo.rs` | Suppliers | CRUD |
-| `label_repo.rs` | Labels | label data queries |
 | `data_io_repo.rs` | Data IO | bulk read/write |
 | `user_repo.rs` | Users | auth queries |
 | `operation_log_repo.rs` | Audit logs | insert + query |
 | `refresh_token_repo.rs` | Refresh Tokens | token management |
+
+Feature modules ship their own repos inside the module (`workflow/repos.rs`, `hr/repos.rs`, `finance/repos.rs`, `procurement/repos.rs`, `sales_crm/repos.rs`, `inventory_atp/repos.rs`, `manufacturing/repos.rs`, `project/repos.rs`, `assets/repos.rs`, `notification/repos.rs`, `portal/repos.rs`, `auth/repos.rs`). `bi/` has no repos — read-only analytics reuse the shared repositories.
 
 ### Repository Conventions
 
@@ -85,25 +85,22 @@ Key facts:
 - **Pagination**: Always return total count via `SELECT COUNT(*)` in the same method
 - **Transactions**: Repo methods can accept `&mut Transaction<'_, Sqlite>` when they're part of a transaction
 
-## models/ (10 files — DB row structs)
-
-> **Note**: `inventory.rs` got a new field recently, but we're still at 10 model files.
+## models/ (DB row structs)
 
 ### Pattern
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct SeamlessPipe {
+pub struct Item {
     pub id: i64,
-    pub pipe_number: String,
-    pub grade: String,
-    pub od: f64,              // NOT rust_decimal::Decimal
-    pub wt: f64,              // NOT rust_decimal::Decimal
-    pub length: Option<f64>,  // NOT rust_decimal::Decimal
-    pub weight_per_unit: Option<f64>,
+    pub sku: String,             // 商品唯一业务编码
+    pub name: String,
+    pub category: Option<String>,
+    pub unit: Option<String>,
+    pub spec: Option<String>,    // 可选规格，无行业强制字段
     pub status: String,
     pub notes: Option<String>,
-    pub created_at: String,   // ISO 8601 text, NOT chrono::NaiveDateTime
+    pub created_at: String,      // ISO 8601 text, NOT chrono::NaiveDateTime
     pub updated_at: String,
     pub deleted_at: Option<String>,
 }
@@ -126,4 +123,4 @@ pub struct SeamlessPipe {
 
 ### File List
 
-`user.rs`, `seamless_pipe.rs`, `screen_pipe.rs`, `inventory.rs`, `purchase_order.rs`, `sales_order.rs`, `quality.rs`, `contract.rs`, `customer.rs`, `supplier.rs`
+`user.rs`, `rbac.rs`, `item.rs`, `inventory.rs`, `purchase_order.rs`, `sales_order.rs`, `contract.rs`, `customer.rs`, `supplier.rs` — plus feature models: `workflow.rs`, `hr.rs`, `finance.rs`, `procurement.rs`, `sales_crm.rs`, `inventory_atp.rs`, `manufacturing.rs`, `project.rs`, `assets.rs`, `notification.rs`, `portal.rs`

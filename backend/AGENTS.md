@@ -1,15 +1,17 @@
-# Backend — Rust Package (steel-pipe-db)
+# Backend — Rust Package (erp-server)
+
+> 历史沿革 / History: This system was refactored from a steel-pipe industry system; all legacy modules and terminology are deprecated.
 
 ## Tech
 
 - **Rust** nightly-2024-02-08, edition 2021
-- **Single crate** `steel-pipe-db` (no workspace, no monorepo nonsense)
-- **SQLx** 0.8 with SQLite (runtime-tokio-rustls), migrations auto-run on startup
+- **Single crate** `erp-server` (no workspace, no monorepo nonsense)
+- **SQLx** 0.8 with SQLite (runtime-tokio), migrations auto-run on startup
 
 ## Key Dependencies (from Cargo.toml)
 
 - `axum` 0.8 — HTTP routing (macros + multipart features)
-- `sqlx` 0.8 — SQL (sqlite, runtime-tokio-rustls, chrono features)
+- `sqlx` 0.8 — SQL (sqlite, runtime-tokio, chrono features)
 - `serde` / `serde_json` — JSON
 - `jsonwebtoken` 9 — JWT auth
 - `argon2` 0.5 — Password hashing (NOT bcrypt)
@@ -40,8 +42,8 @@ cargo test           # Run all tests
 
 ## Database
 
-- **SQLite** file at path from `DATABASE_URL` env var (defaults to `./data/steel_pipe.db`)
-- **Migrations**: `backend/migrations/` — SQLx timestamp-prefixed files
+- **SQLite** file at `sqlite://data/erp.db?mode=rwc` (`DATABASE_URL` env var; the file is created on first run)
+- **Migrations**: `backend/migrations/` — SQLx timestamp-prefixed files. The 37 legacy migration files are being rewritten to SQLite syntax, and the legacy pipe tables are dropped.
 - Auto-migrate on startup via `sqlx::migrate!("./migrations")`
 - No external DB server needed — it's just a file
 - WAL mode enabled, soft deletes via `deleted_at` column
@@ -55,128 +57,85 @@ src/
 ├── config.rs            ← Env-based Config (DATABASE_URL, JWT_SECRET, etc.)
 ├── error.rs             ← AppError enum with numeric error codes (10001-50001)
 ├── response.rs          ← ApiResponse<T>, PaginatedResponse<T>
-├── router.rs            ← ~70 endpoints assembled via .merge()
-├── domain/              ← 3 files (pipe.rs, inventory.rs, order.rs) — enums/domain types
-│   └── mod.rs
-├── dto/                 ← 14 files, request/response structs
-│   ├── mod.rs
-│   ├── auth_dto.rs
-│   ├── pipe_dto.rs
-│   ├── inventory_dto.rs
-│   ├── purchase_dto.rs
-│   ├── sales_dto.rs
-│   ├── quality_dto.rs
-│   ├── contract_dto.rs
-│   ├── customer_dto.rs
-│   ├── supplier_dto.rs
-│   ├── label_dto.rs
-│   ├── report_dto.rs
-│   ├── data_io_dto.rs
-│   └── common.rs
-├── models/              ← 11 files, DB row structs (sqlx::FromRow)
-│   ├── mod.rs
-│   ├── user.rs
-│   ├── seamless_pipe.rs
-│   ├── screen_pipe.rs
-│   ├── inventory.rs
-│   ├── purchase_order.rs
-│   ├── sales_order.rs
-│   ├── quality.rs
-│   ├── contract.rs
-│   ├── customer.rs
-│   └── supplier.rs
-├── repositories/        ← 20 files, pure SQL, soft-delete aware
-│   ├── mod.rs
-│   ├── pipe_repo.rs
-│   ├── inventory_repo.rs          ← ATP queries, stock counting
-│   ├── location_repo.rs           ← warehouse location CRUD
-│   ├── inbound_repo.rs            ← inbound record CRUD
-│   ├── outbound_repo.rs           ← outbound record CRUD
-│   ├── inventory_log_repo.rs      ← pipe movement audit trail
-│   ├── check_repo.rs              ← inventory check records and items
-│   ├── purchase_order_repo.rs
-│   ├── sales_order_repo.rs
-│   ├── quality_repo.rs
-│   ├── contract_repo.rs
-│   ├── customer_repo.rs
-│   ├── supplier_repo.rs
-│   ├── label_repo.rs
-│   ├── report_repo.rs
-│   ├── data_io_repo.rs
-│   ├── user_repo.rs
-│   ├── operation_log_repo.rs
-│   └── refresh_token_repo.rs
-├── services/            ← 19 files, business logic (unit structs, static methods)
-│   ├── mod.rs
-│   ├── auth_service.rs
-│   ├── pipe_service.rs
-│   ├── inbound_service.rs       ← Inbound (create/approve/execute/query)
-│   ├── outbound_service.rs      ← Outbound (create/approve/execute/query)
-│   ├── check_service.rs         ← Inventory checks (create/submit/complete)
-│   ├── inventory_query_service.rs ← Read-only inventory queries (list/stats)
-│   ├── location_service.rs      ← Warehouse locations (CRUD/assign/transfer)
-│   ├── purchase_service.rs      ← Purchase order lifecycle
-│   ├── sales_service.rs         ← Sales order lifecycle + ATP validation
-│   ├── quality_service.rs
-│   ├── contract_service.rs
-│   ├── customer_service.rs
-│   ├── supplier_service.rs
-│   ├── label_service.rs
-│   ├── report_service.rs
-│   ├── data_io_service.rs
-│   └── trace_service.rs         ← Full-lifecycle pipe tracing
-├── handlers/            ← 16 files, thin handlers (extract → call service → respond)
-│   ├── mod.rs
-│   ├── auth_handler.rs
-│   ├── pipe_handler.rs
-│   ├── inbound_handler.rs
-│   ├── outbound_handler.rs
-│   ├── location_handler.rs
-│   ├── check_handler.rs
-│   ├── inventory_handler.rs
-│   ├── purchase_handler.rs
-│   ├── sales_handler.rs
-│   ├── quality_handler.rs
-│   ├── contract_handler.rs
-│   ├── customer_handler.rs
-│   ├── supplier_handler.rs
-│   ├── report_handler.rs
-│   ├── label_handler.rs
-│   ├── data_io_handler.rs
-│   └── atp_handler.rs
-└── middleware/          ← 4 files, auth + RBAC + rate limiting
-    ├── mod.rs
-    ├── auth.rs          ← JWT verification, Claims, AuthContext, auth_middleware
-    ├── rbac.rs          ← Role-based access control helpers
-    └── rate_limit.rs    ← Per-IP rate limiting (e.g. 5 req/min on login/refresh)
+├── router.rs            ← ~200 endpoints assembled via .merge()
+├── cache.rs             ← Response cache + cache_invalidator.rs
+├── domain/              ← Generic domain types (item, inventory, order, money)
+├── dto/                 ← Request/response structs (one file per entity)
+├── models/              ← DB row structs (sqlx::FromRow)
+├── repositories/        ← Pure SQL, soft-delete aware
+├── services/            ← Business logic (unit structs, static methods)
+├── handlers/            ← Thin HTTP handlers (extract → call service → respond)
+├── middleware/          ← auth, rbac, rate_limit, security_headers
+├── auth/                ← RBAC: roles / permissions / departments / tenants
+├── workflow/            ← Approval engine: definitions / instances / tasks
+├── hr/                  ← Employees / attendance / salaries / labor contracts
+├── finance/             ← Accounts / journal / invoices / payments / trial balance
+├── procurement/         ← Requisitions / receipts / quotes / scorecard
+├── sales_crm/           ← Shipments / quotes / customer credit
+├── inventory_atp/       ← 商品/SKU inventory: reservations / transfers / count sessions
+├── manufacturing/       ← BOMs / work orders / inspections / NCRs
+├── project/             ← Projects / WBS / budget
+├── assets/              ← Fixed assets: registration / depreciation / disposal
+├── notification/        ← Inbox / templates / preferences
+├── portal/              ← Portal accounts / party JWT / PO accept / SO ack
+└── bi/                  ← Sales trend / inventory value / finance summary / supplier perf
 ```
+
+Every feature module (`auth/`, `workflow/`, `hr/`, …) follows the same layout: `mod.rs` + `handlers.rs` + `repos.rs` + `services.rs` (`bi/` has no `repos.rs` — read-only analytics over the shared repositories).
+
+Core layers in detail:
+
+```
+├── domain/              ← Generic domain types (item, inventory, order, money)
+├── dto/                 ← auth_dto, item_dto, inventory_dto, purchase_dto, sales_dto,
+│                          contract_dto, customer_dto, supplier_dto, report_dto, data_io_dto, common, …
+├── models/              ← DB row structs: user, rbac, item, inventory, purchase_order,
+│                          sales_order, contract, customer, supplier, workflow, hr, finance,
+│                          procurement, sales_crm, inventory_atp, manufacturing, project,
+│                          assets, notification, portal
+├── repositories/        ← item_repo, inventory_repo, location_repo, inbound_repo, outbound_repo,
+│                          inventory_log_repo, check_repo, purchase_order_repo, sales_order_repo,
+│                          contract_repo, customer_repo, supplier_repo, report_repo, data_io_repo,
+│                          user_repo, operation_log_repo, refresh_token_repo
+├── services/            ← auth_service, item_service, inbound_service, outbound_service,
+│                          check_service, inventory_query_service, location_service,
+│                          purchase_service, sales_service, contract_service, customer_service,
+│                          supplier_service, report_service, data_io_service
+├── handlers/            ← auth_handler, item_handler, inbound_handler, outbound_handler,
+│                          location_handler, check_handler, inventory_handler, purchase_handler,
+│                          sales_handler, contract_handler, customer_handler, supplier_handler,
+│                          report_handler, data_io_handler, atp_handler, health_handler
+└── middleware/          ← auth.rs (JWT), rbac.rs, rate_limit.rs, security_headers.rs
+```
+
+Inventory is generalized to **商品/SKU**: the item master table carries `sku` / name / category / unit / optional spec — no industry-specific fields. Reservations, transfers, and count sessions live in `inventory_atp/`.
 
 ## Key Files
 
-- `Cargo.toml` — Package manifest
+- `Cargo.toml` — Package manifest (crate `erp-server`)
 - `.env.example` — Environment template (DATABASE_URL, JWT_SECRET, etc.)
-- `migrations/` — SQLx timestamp-prefixed migration files (11 files, including `011_add_rejection_reason.sql`)
+- `migrations/` — SQLx timestamp-prefixed migration files (rewritten to SQLite syntax; pipe tables dropped)
 
 ## Rust Conventions
 
 - `snake_case` for functions/variables, `PascalCase` for types
 - `use` statements follow `use crate::{handlers, models, ...}` pattern
-- `mod.rs` files re-export public items: `pub use pipe_handler::*;`
+- `mod.rs` files re-export public items: `pub use item_handler::*;`
 - Public API functions are `pub async fn` with explicit return types
 - Internal helpers are `pub(crate) fn` or `async fn`
 - **All handlers return `Result<Json<...>, AppError>`** (NOT `impl IntoResponse`)
-- Services are **unit structs with static methods** (no constructor DI): `PipeService::list(...)`
+- Services are **unit structs with static methods** (no constructor DI): `ItemService::list(...)`
 - Services return `Result<T, AppError>`
   - Repositories accept `&SqlitePool` and return `Result<Vec<T>, sqlx::Error>`
-- `inventory_service.rs` has been split into focused modules:
-  - `inbound_service.rs` — inbound record creation, approval, batch execution
-  - `outbound_service.rs` — outbound record creation, approval, stock deduction
-  - `check_service.rs` — inventory check (盘点) creation, item submission, completion
+- The inventory service layer is split into focused modules:
+  - `inbound_service.rs` — inbound (入库) record creation, approval, batch execution
+  - `outbound_service.rs` — outbound (出库) record creation, approval, stock deduction
+  - `check_service.rs` — inventory count session (盘点) creation, item submission, completion
   - `inventory_query_service.rs` — read-only queries (list, statistics)
   - `location_service.rs` — warehouse location CRUD, assign, transfer
-- `purchase_sales_service.rs` has been split into:
-  - `purchase_service.rs` — purchase order lifecycle, approval, rejection
-  - `sales_service.rs` — sales order lifecycle, ATP validation, approval
+- Purchase and sales are split into:
+  - `purchase_service.rs` — purchase order (采购订单) lifecycle, approval, rejection
+  - `sales_service.rs` — sales order (销售订单) lifecycle, ATP validation, approval
 - ATP calculation lives in `sales_service.rs` and `atp_handler.rs`
 
 ## DI Pattern: Extension layers, NOT State<Arc<AppState>>
@@ -189,10 +148,10 @@ src/
 .layer(Extension(JwtSecret(jwt_secret))) // Extension<JwtSecret>
 
 // Handler extracts:
-pub async fn list_pipes(
+pub async fn list_items(
     Extension(pool): Extension<SqlitePool>,
-    Query(filter): Query<PipeFilterParams>,
-) -> Result<Json<PaginatedResponse<Pipe>>, AppError> {
+    Query(filter): Query<ItemFilterParams>,
+) -> Result<Json<PaginatedResponse<Item>>, AppError> {
 ```
 
 No `AppState` struct. The DB pool is injected directly; the JWT secret is wrapped in `JwtSecret` so it is type-safe, has redacted `Debug`, and cannot be confused with arbitrary string extensions.
@@ -210,13 +169,13 @@ No `AppState` struct. The DB pool is injected directly; the JWT secret is wrappe
 ## Error Codes (numeric, domain-prefixed)
 
 | Range | Domain |
-|-------|--------|
+| ------- | -------- |
 | 100xx | General (Internal, Validation, NotFound) |
 | 110xx | Auth (Unauthorized, TokenExpired, Forbidden) |
-| 120xx | Pipe (NotFound, Duplicate, StatusConflict) |
-| 130xx | Inventory (InsufficientStock, LocationFull) |
+| 120xx | Item 商品 (NotFound, Duplicate, StatusConflict) |
+| 130xx | Inventory (InsufficientStock, LocationNotFound) |
 | 140xx | Orders (CannotModify, NotFound) |
-| 150xx | Quality (CertNotFound, AttachmentNotFound) |
+| 150xx | Inspection 质检 (NotFound, StatusConflict) |
 | 160xx | Supplier (NotFound, CodeDuplicate) |
 | 170xx | Customer (NotFound, CodeDuplicate) |
 | 180xx | Data IO (ImportError, ExportError) |

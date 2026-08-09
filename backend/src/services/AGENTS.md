@@ -1,18 +1,18 @@
-# `services/` — Business Logic Layer (19 files)
+# `services/` — Business Logic Layer
 
 This is where the real work happens — business rules, cross-entity orchestration, transaction management. Services get called by handlers and in turn call repositories.
 
 ## Pattern
 
 ```rust
-pub struct PipeService;  // No fields, no constructor, no DI
+pub struct ItemService;  // No fields, no constructor, no DI
 
-impl PipeService {
-    pub async fn list_seamless_pipes(
+impl ItemService {
+    pub async fn list_items(
         pool: &SqlitePool,
-        params: &PipeFilterParams,
+        params: &ItemFilterParams,
         pagination: &PaginationParams,
-    ) -> Result<(Vec<SeamlessPipe>, i64), AppError> {
+    ) -> Result<(Vec<Item>, i64), AppError> {
         // 1. Validate business rules
         // 2. Call repository
         // 3. Transform/aggregate results
@@ -24,24 +24,23 @@ impl PipeService {
 ## Service File List
 
 | File | Entity | Description |
-|------|--------|-------------|
+| ------ | -------- | ------------- |
 | `auth_service.rs` | Auth | login, token refresh, password verify |
-| `pipe_service.rs` | Pipes | pipe CRUD, steel grade/heat treatment validation |
-| `inbound_service.rs` | Inbound | inbound record creation, approval, batch execution |
-| `outbound_service.rs` | Outbound | outbound record creation, approval, stock deduction |
-| `check_service.rs` | Inventory checks | inventory check (盘点) creation, item submission, completion |
+| `item_service.rs` | Items | 商品/SKU master data CRUD, code uniqueness |
+| `inbound_service.rs` | Inbound | inbound (入库) record creation, approval, batch execution |
+| `outbound_service.rs` | Outbound | outbound (出库) record creation, approval, stock deduction |
+| `check_service.rs` | Inventory checks | count session (盘点) creation, item submission, completion |
 | `inventory_query_service.rs` | Inventory (read) | read-only inventory queries (list, statistics) |
 | `location_service.rs` | Locations | warehouse location CRUD, assign, transfer |
-| `purchase_service.rs` | Purchase Orders | PO lifecycle, approval workflow, rejection reason |
-| `sales_service.rs` | Sales Orders | SO lifecycle, approval workflow, ATP validation |
-| `quality_service.rs` | Quality | cert creation, mechanical/NDT test entry |
+| `purchase_service.rs` | Purchase Orders | 采购订单 lifecycle, approval workflow, rejection reason |
+| `sales_service.rs` | Sales Orders | 销售订单 lifecycle, approval workflow, ATP validation |
 | `contract_service.rs` | Contracts | contract CRUD, milestone tracking |
 | `customer_service.rs` | Customers | customer CRUD, code uniqueness |
 | `supplier_service.rs` | Suppliers | supplier CRUD, qualification |
-| `label_service.rs` | Labels | label content generation |
 | `report_service.rs` | Reports | dashboard aggregation, statistical reports |
 | `data_io_service.rs` | Data IO | Excel/CSV import parsing, export formatting |
-| `trace_service.rs` | Trace | full-lifecycle pipe tracing / inventory movement audit trail |
+
+Feature modules ship their own services inside the module: `auth/services.rs` (roles/permissions/departments/tenants), `workflow/services.rs` (approval engine), `hr/services.rs` (employees/attendance/salaries/labor contracts), `finance/services.rs` (accounts/journal/invoices/payments/trial balance), `procurement/services.rs` (requisitions/receipts/quotes/scorecard), `sales_crm/services.rs` (shipments/quotes/customer credit), `inventory_atp/services.rs` (reservations/transfers/count sessions), `manufacturing/services.rs` (BOMs/work orders/inspections/NCRs), `project/services.rs`, `assets/services.rs` (depreciation/disposal), `notification/services.rs`, `portal/services.rs`, `bi/services.rs` (analytics). They follow the same unit-struct pattern.
 
 ## Service Conventions
 
@@ -55,15 +54,15 @@ impl PipeService {
 
 ## Inventory services — split by responsibility
 
-The old monolithic `inventory_service.rs` has been split into focused modules:
+The inventory service layer is split into focused modules:
 
-- `inbound_service.rs` — stock-in record creation, approval, batch execution
-- `outbound_service.rs` — stock-out record creation, approval, stock deduction
-- `check_service.rs` — inventory check (盘点) creation, item submission, completion
+- `inbound_service.rs` — stock-in (入库) record creation, approval, batch execution
+- `outbound_service.rs` — stock-out (出库) record creation, approval, stock deduction
+- `check_service.rs` — inventory count session (盘点) creation, item submission, completion
 - `inventory_query_service.rs` — read-only queries (list, statistics, filters)
 - `location_service.rs` — warehouse location CRUD, assign, transfer
 
-ATP (Available-to-Promise) calculation lives in `sales_service.rs` (ATP check before sales order approval) and `atp_handler.rs`. Sales-order fulfillment checks read ATP before approval.
+ATP (Available-to-Promise) calculation lives in `sales_service.rs` (ATP check before sales order approval) and `atp_handler.rs`. Sales-order fulfillment checks read ATP before approval. Reservations and transfers are managed by `inventory_atp/services.rs`.
 
 ## Adding a New Service
 

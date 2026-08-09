@@ -1,53 +1,12 @@
-# Phase 2 — Frontend: Quality Management Module (P1)
+# Phase 2 — Frontend: Quality Management Module (P1) — **ARCHIVED**
 
-> Based on: `docs/frontend-design.en.md` §4.1, §4.2
+> **状态：模块已删除** — 已被通用制造质检 (Inspection) 取代。
+> 历史沿革：本系统由钢管行业系统重构而来，本任务文档对应的管材质检证书前端页面在 ERP 重构中已下线。
 
-## Tasks
+## 删除说明
 
-### 1.1 Shared Types & API
-- [ ] Define `features/quality/types.ts`: QualityCert, Api5ctGradeRef, PipeAttachment etc.
-- [ ] Define `features/quality/api/qualityApi.ts`:
-  - `getQualityCerts(filter, page, pageSize)` / `getQualityCert(id)` / `createQualityCert(data)` / `updateQualityCert(id, data)`
-  - `traceByHeatNumber(heatNo)` / `traceByPipeNumber(pipeNo)`
-  - `getApi5ctGrades()` / `getApi5ctGrade(grade)`
-  - `uploadAttachment(pipeType, pipeId, file)` / `deleteAttachment(id)`
-
-### 1.2 Quality Cert Pages
-- [ ] Implement `QualityCertListPage`:
-  - Filters: pipe number, grade, test result, test date range
-  - Cert table (cert number, pipe number, test date, test lab, result, actions)
-  - Row actions: view detail, edit, delete
-  - +New quality cert button
-- [ ] Implement `QualityCertFormPage`:
-  - Select linked pipe (pipe search selector)
-  - Fill test info (cert number, test date, test lab, inspector)
-  - Test result select (Pass / Fail / Pending)
-  - Dynamic test item add component (name + result + standard value)
-  - File upload (inspection report PDF / image)
-- [ ] Implement `QualityCertDetailPage` (could be Modal or standalone page):
-  - Show all quality cert fields
-  - Linked pipe info card
-  - Attachment list (download / preview)
-
-### 1.3 Quality Traceability Page
-- [ ] Implement `QualityTracePage`:
-  - Choose input method: by heat number OR by pipe number
-  - Input search criteria → show trace results
-  - Results: pipe info + timeline (all quality records + inbound/outbound records)
-  - Use Ant Design Timeline for display
-
-### 1.4 API 5CT Standard Reference Page
-- [ ] Implement `Api5ctRefPage`:
-  - Grade list table (grade, group, min yield strength, max yield strength, min tensile strength, hardness, description)
-  - Grade filter / search
-  - Click row to expand grade detail info
-
-### 1.5 Shared Components
-- [ ] Implement `CertFileUploader`: quality file upload component (preview + drag-and-drop)
-- [ ] Implement `TraceTimeline`: trace timeline component (different event types get different icons/colors)
-- [ ] Implement `GradeCompareTable`: comparison table for test results vs API 5CT standard values
-
-### 1.6 i18n
-- [ ] Create `src/i18n/resources/zh/quality.json` and `en/quality.json`
-
-> **Deps**: Pipe management frontend module (pipe search selector)
+- 旧 `features/quality/` 前端目录（质证书列表/表单/详情/追溯/参考数据页面）已移除。
+- 旧证书文件上传组件与管材专用追溯组件已删除；通用版随制造 (manufacturing) 模块提供。
+- 行业标准参考页已删除；行业参考数据不再保留。
+- 路由表移除 `/quality/*`；制造质检统一走 `/manufacturing/inspections` 路由。
+- 详见 `docs/superpowers/specs/008-manufacturing.md` 与 `specs/UBIQUITOUS_LANGUAGE_LATEST.md` 术语表。

@@ -1,6 +1,6 @@
 //! Notification services — send, list, mark read, preferences.
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::notification_dto::{
     CreateTemplateRequest, SendNotificationRequest, UpdatePreferenceRequest,
@@ -13,7 +13,7 @@ pub struct NotificationService;
 
 impl NotificationService {
     pub async fn send(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &SendNotificationRequest,
     ) -> Result<Notification, AppError> {
@@ -28,7 +28,7 @@ impl NotificationService {
 
     /// Send via template: render {placeholders} with values.
     pub async fn send_from_template(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         user_id: i64,
         template_code: &str,
@@ -36,7 +36,7 @@ impl NotificationService {
     ) -> Result<Notification, AppError> {
         let template = sqlx::query_as::<_, NotificationTemplate>(
             "SELECT id, tenant_id, code, title, content_template, channel, created_at \
-             FROM notification_templates WHERE tenant_id = $1 AND code = $2",
+             FROM notification_templates WHERE tenant_id = ? AND code = ?",
         )
         .bind(tenant_id)
         .bind(template_code)
@@ -54,34 +54,34 @@ impl NotificationService {
             .map_err(AppError::from)
     }
 
-    pub async fn list(pool: &PgPool, tenant_id: i64, user_id: i64, unread_only: bool) -> Result<Vec<Notification>, AppError> {
+    pub async fn list(pool: &SqlitePool, tenant_id: i64, user_id: i64, unread_only: bool) -> Result<Vec<Notification>, AppError> {
         NotificationRepo::list(pool, tenant_id, user_id, unread_only, 100)
             .await
             .map_err(AppError::from)
     }
 
-    pub async fn mark_read(pool: &PgPool, tenant_id: i64, user_id: i64, id: i64) -> Result<Notification, AppError> {
+    pub async fn mark_read(pool: &SqlitePool, tenant_id: i64, user_id: i64, id: i64) -> Result<Notification, AppError> {
         NotificationRepo::mark_read(pool, tenant_id, user_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Notification not found: {}", id)))
     }
 
-    pub async fn unread_count(pool: &PgPool, tenant_id: i64, user_id: i64) -> Result<i64, AppError> {
+    pub async fn unread_count(pool: &SqlitePool, tenant_id: i64, user_id: i64) -> Result<i64, AppError> {
         NotificationRepo::unread_count(pool, tenant_id, user_id).await.map_err(AppError::from)
     }
 
-    pub async fn list_preferences(pool: &PgPool, user_id: i64) -> Result<Vec<NotificationPreference>, AppError> {
+    pub async fn list_preferences(pool: &SqlitePool, user_id: i64) -> Result<Vec<NotificationPreference>, AppError> {
         PreferenceRepo::list(pool, user_id).await.map_err(AppError::from)
     }
 
-    pub async fn update_preference(pool: &PgPool, user_id: i64, dto: &UpdatePreferenceRequest) -> Result<NotificationPreference, AppError> {
+    pub async fn update_preference(pool: &SqlitePool, user_id: i64, dto: &UpdatePreferenceRequest) -> Result<NotificationPreference, AppError> {
         let channel = dto.channel.clone().unwrap_or_else(|| "in_app".into());
         PreferenceRepo::upsert(pool, user_id, &dto.notify_type, &channel, dto.enabled)
             .await
             .map_err(AppError::from)
     }
 
-    pub async fn create_template(pool: &PgPool, tenant_id: i64, dto: &CreateTemplateRequest) -> Result<NotificationTemplate, AppError> {
+    pub async fn create_template(pool: &SqlitePool, tenant_id: i64, dto: &CreateTemplateRequest) -> Result<NotificationTemplate, AppError> {
         if dto.code.trim().is_empty() || dto.title.trim().is_empty() {
             return Err(AppError::Validation("Template code and title are required".into()));
         }

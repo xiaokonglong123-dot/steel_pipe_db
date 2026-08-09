@@ -1,6 +1,6 @@
 //! HR repositories — pure SQL, static methods, soft-delete aware.
 
-use sqlx::{PgPool, QueryBuilder, Postgres};
+use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use crate::models::hr::{
     HrAttendance, HrAttendanceRule, HrContract, HrEmployee, HrPosition, HrSalary,
 };
@@ -10,7 +10,7 @@ pub struct HrEmployeeRepo;
 impl HrEmployeeRepo {
     #[allow(clippy::too_many_arguments)]
     pub async fn list(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         department_id: Option<i64>,
         status: Option<&str>,
@@ -18,24 +18,21 @@ impl HrEmployeeRepo {
         page: i64,
         page_size: i64,
     ) -> Result<(Vec<HrEmployee>, i64), sqlx::Error> {
-        // Count query (plain query — hand-written $N is fine).
+        // Count query (plain query — hand-written ? placeholders in bind order).
         let mut count_sql = String::from(
-            "SELECT COUNT(*) FROM hr_employees WHERE tenant_id = $1 AND deleted_at IS NULL",
+            "SELECT COUNT(*) FROM hr_employees WHERE tenant_id = ? AND deleted_at IS NULL",
         );
         let mut binds: Vec<String> = Vec::new();
-        let mut n = 2;
         if let Some(dept) = department_id {
-            count_sql.push_str(&format!(" AND department_id = ${}", n));
-            n += 1;
+            count_sql.push_str(" AND department_id = ?");
             binds.push(dept.to_string());
         }
         if let Some(st) = status {
-            count_sql.push_str(&format!(" AND status = ${}", n));
-            n += 1;
+            count_sql.push_str(" AND status = ?");
             binds.push(st.to_string());
         }
         if let Some(kw) = keyword {
-            count_sql.push_str(&format!(" AND (name ILIKE ${} OR employee_no ILIKE ${})", n, n + 1));
+            count_sql.push_str(" AND (name LIKE ? OR employee_no LIKE ?)");
             binds.push(format!("%{}%", kw));
             binds.push(format!("%{}%", kw));
         }
@@ -45,10 +42,10 @@ impl HrEmployeeRepo {
         }
         let total: i64 = count_q.fetch_one(pool).await?;
 
-        // Page query — QueryBuilder's push_bind auto-numbers $1..$N in call
+        // Page query — QueryBuilder's push_bind auto-numbers ?..? in call
         // order, so the filter is chained push()+push_bind() with NO
         // hand-written placeholders.
-        let mut qb = QueryBuilder::<Postgres>::new(
+        let mut qb = QueryBuilder::<Sqlite>::new(
             "SELECT id, tenant_id, employee_no, user_id, name, gender, birth_date, id_card, \
                     phone, email, department_id, position_id, hire_date, probation_end, status, \
                     base_salary, notes, created_at, updated_at, deleted_at \
@@ -65,9 +62,9 @@ impl HrEmployeeRepo {
             qb.push_bind(st);
         }
         if let Some(kw) = keyword {
-            qb.push(" AND (name ILIKE ");
+            qb.push(" AND (name LIKE ");
             qb.push_bind(format!("%{}%", kw));
-            qb.push(" OR employee_no ILIKE ");
+            qb.push(" OR employee_no LIKE ");
             qb.push_bind(format!("%{}%", kw));
             qb.push(")");
         }
@@ -79,12 +76,12 @@ impl HrEmployeeRepo {
         Ok((items, total))
     }
 
-    pub async fn find_by_id(pool: &PgPool, tenant_id: i64, id: i64) -> Result<Option<HrEmployee>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<Option<HrEmployee>, sqlx::Error> {
         sqlx::query_as::<_, HrEmployee>(
             "SELECT id, tenant_id, employee_no, user_id, name, gender, birth_date, id_card, \
                     phone, email, department_id, position_id, hire_date, probation_end, status, \
                     base_salary, notes, created_at, updated_at, deleted_at \
-             FROM hr_employees WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
+             FROM hr_employees WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(id)
@@ -92,12 +89,12 @@ impl HrEmployeeRepo {
         .await
     }
 
-    pub async fn create(pool: &PgPool, e: &HrEmployee) -> Result<HrEmployee, sqlx::Error> {
+    pub async fn create(pool: &SqlitePool, e: &HrEmployee) -> Result<HrEmployee, sqlx::Error> {
         sqlx::query_as::<_, HrEmployee>(
             "INSERT INTO hr_employees \
              (tenant_id, employee_no, user_id, name, gender, birth_date, id_card, phone, email, \
               department_id, position_id, hire_date, probation_end, status, base_salary, notes) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
              RETURNING id, tenant_id, employee_no, user_id, name, gender, birth_date, id_card, \
                        phone, email, department_id, position_id, hire_date, probation_end, status, \
                        base_salary, notes, created_at, updated_at, deleted_at",
@@ -123,15 +120,14 @@ impl HrEmployeeRepo {
     }
 
     pub async fn update(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         fields: &[(&str, String)],
     ) -> Result<Option<HrEmployee>, sqlx::Error> {
-        // Typed UPDATE: numeric/date columns must NOT be bound as text
-        // (PG rejects text → bigint/date). Each supported column is
-        // explicitly cast from the text payload.
-        let mut qb = QueryBuilder::<Postgres>::new("UPDATE hr_employees SET ");
+        // Typed UPDATE: numeric/date columns must NOT be bound as text.
+        // Each supported column is explicitly parsed from the text payload.
+        let mut qb = QueryBuilder::<Sqlite>::new("UPDATE hr_employees SET ");
         let mut first = true;
         for (col, val) in fields {
             if !first {
@@ -156,7 +152,7 @@ impl HrEmployeeRepo {
                 "base_salary" => {
                     qb.push(col);
                     qb.push(" = ");
-                    qb.push_bind(val.as_str().parse::<rust_decimal::Decimal>().unwrap_or_default());
+                    qb.push_bind(val.as_str().parse::<f64>().unwrap_or_default());
                 }
                 _ => {
                     qb.push(col);
@@ -166,7 +162,7 @@ impl HrEmployeeRepo {
             }
             first = false;
         }
-        qb.push(", updated_at = NOW() WHERE tenant_id = ");
+        qb.push(", updated_at = datetime('now') WHERE tenant_id = ");
         qb.push_bind(tenant_id);
         qb.push(" AND id = ");
         qb.push_bind(id);
@@ -174,8 +170,8 @@ impl HrEmployeeRepo {
         qb.build_query_as::<HrEmployee>().fetch_optional(pool).await
     }
 
-    pub async fn delete(pool: &PgPool, tenant_id: i64, id: i64) -> Result<bool, sqlx::Error> {
-        sqlx::query("UPDATE hr_employees SET deleted_at = NOW() WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL")
+    pub async fn delete(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<bool, sqlx::Error> {
+        sqlx::query("UPDATE hr_employees SET deleted_at = datetime('now') WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL")
             .bind(tenant_id)
             .bind(id)
             .execute(pool)
@@ -187,21 +183,21 @@ impl HrEmployeeRepo {
 pub struct HrPositionRepo;
 
 impl HrPositionRepo {
-    pub async fn list(pool: &PgPool, tenant_id: i64) -> Result<Vec<HrPosition>, sqlx::Error> {
+    pub async fn list(pool: &SqlitePool, tenant_id: i64) -> Result<Vec<HrPosition>, sqlx::Error> {
         sqlx::query_as::<_, HrPosition>(
             "SELECT id, tenant_id, department_id, title, level, description, is_active, \
                     created_at, updated_at, deleted_at \
-             FROM hr_positions WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY title",
+             FROM hr_positions WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY title",
         )
         .bind(tenant_id)
         .fetch_all(pool)
         .await
     }
 
-    pub async fn create(pool: &PgPool, tenant_id: i64, title: &str, department_id: Option<i64>, level: Option<&str>, description: Option<&str>) -> Result<HrPosition, sqlx::Error> {
+    pub async fn create(pool: &SqlitePool, tenant_id: i64, title: &str, department_id: Option<i64>, level: Option<&str>, description: Option<&str>) -> Result<HrPosition, sqlx::Error> {
         sqlx::query_as::<_, HrPosition>(
             "INSERT INTO hr_positions (tenant_id, department_id, title, level, description) \
-             VALUES ($1, $2, $3, $4, $5) \
+             VALUES (?, ?, ?, ?, ?) \
              RETURNING id, tenant_id, department_id, title, level, description, is_active, \
                        created_at, updated_at, deleted_at",
         )
@@ -219,15 +215,15 @@ pub struct HrAttendanceRepo;
 
 impl HrAttendanceRepo {
     pub async fn list(
-        pool: &PgPool,
+        pool: &SqlitePool,
         employee_id: Option<i64>,
         from: Option<chrono::NaiveDate>,
         to: Option<chrono::NaiveDate>,
         limit: i64,
     ) -> Result<Vec<HrAttendance>, sqlx::Error> {
-        // QueryBuilder's push_bind auto-numbers $1..$N in call order, so we
+        // QueryBuilder's push_bind auto-numbers ?..? in call order, so we
         // must NOT hand-write placeholders — chain push()+push_bind() instead.
-        let mut qb = QueryBuilder::<Postgres>::new(
+        let mut qb = QueryBuilder::<Sqlite>::new(
             "SELECT id, employee_id, work_date, check_in, check_out, status, remark, created_at \
              FROM hr_attendances WHERE ",
         );
@@ -254,7 +250,7 @@ impl HrAttendanceRepo {
             first = false;
         }
         if first {
-            qb.push("TRUE");
+            qb.push("1");
         }
         qb.push(" ORDER BY work_date DESC LIMIT ");
         qb.push_bind(limit);
@@ -262,7 +258,7 @@ impl HrAttendanceRepo {
     }
 
     pub async fn upsert_check_in(
-        pool: &PgPool,
+        pool: &SqlitePool,
         employee_id: i64,
         work_date: chrono::NaiveDate,
         check_in: Option<chrono::DateTime<chrono::Utc>>,
@@ -271,11 +267,11 @@ impl HrAttendanceRepo {
     ) -> Result<HrAttendance, sqlx::Error> {
         sqlx::query_as::<_, HrAttendance>(
             "INSERT INTO hr_attendances (employee_id, work_date, check_in, check_out, remark) \
-             VALUES ($1, $2, $3, $4, $5) \
+             VALUES (?, ?, ?, ?, ?) \
              ON CONFLICT (employee_id, work_date) DO UPDATE SET \
-               check_in = COALESCE(EXCLUDED.check_in, hr_attendances.check_in), \
-               check_out = COALESCE(EXCLUDED.check_out, hr_attendances.check_out), \
-               remark = COALESCE(EXCLUDED.remark, hr_attendances.remark) \
+               check_in = COALESCE(excluded.check_in, hr_attendances.check_in), \
+               check_out = COALESCE(excluded.check_out, hr_attendances.check_out), \
+               remark = COALESCE(excluded.remark, hr_attendances.remark) \
              RETURNING id, employee_id, work_date, check_in, check_out, status, remark, created_at",
         )
         .bind(employee_id)
@@ -291,24 +287,25 @@ impl HrAttendanceRepo {
 pub struct HrSalaryRepo;
 
 impl HrSalaryRepo {
-    pub async fn list(pool: &PgPool, tenant_id: i64, period: Option<&str>) -> Result<Vec<HrSalary>, sqlx::Error> {
+    pub async fn list(pool: &SqlitePool, tenant_id: i64, period: Option<&str>) -> Result<Vec<HrSalary>, sqlx::Error> {
         sqlx::query_as::<_, HrSalary>(
             "SELECT id, tenant_id, employee_id, period, base_salary, allowance, commission, \
                     deduction, social_security, gross, net, status, created_at \
-             FROM hr_salaries WHERE tenant_id = $1 AND ($2::text IS NULL OR period = $2) \
+             FROM hr_salaries WHERE tenant_id = ? AND (? IS NULL OR period = ?) \
              ORDER BY period DESC, id",
         )
         .bind(tenant_id)
+        .bind(period)
         .bind(period)
         .fetch_all(pool)
         .await
     }
 
-    pub async fn find_by_id(pool: &PgPool, tenant_id: i64, id: i64) -> Result<Option<HrSalary>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<Option<HrSalary>, sqlx::Error> {
         sqlx::query_as::<_, HrSalary>(
             "SELECT id, tenant_id, employee_id, period, base_salary, allowance, commission, \
                     deduction, social_security, gross, net, status, created_at \
-             FROM hr_salaries WHERE tenant_id = $1 AND id = $2",
+             FROM hr_salaries WHERE tenant_id = ? AND id = ?",
         )
         .bind(tenant_id)
         .bind(id)
@@ -319,25 +316,27 @@ impl HrSalaryRepo {
     /// Generate a payroll row for one employee for a period from their
     /// base_salary (v1: no allowances/deductions beyond base).
     pub async fn upsert_for_employee(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         employee_id: i64,
         period: &str,
-        base_salary: rust_decimal::Decimal,
+        base_salary: f64,
     ) -> Result<HrSalary, sqlx::Error> {
         sqlx::query_as::<_, HrSalary>(
             "INSERT INTO hr_salaries \
              (tenant_id, employee_id, period, base_salary, allowance, commission, deduction, \
               social_security, gross, net) \
-             VALUES ($1, $2, $3, $4, 0, 0, 0, 0, $4, $4) \
+             VALUES (?, ?, ?, ?, 0, 0, 0, 0, ?, ?) \
              ON CONFLICT (employee_id, period) DO UPDATE SET \
-               base_salary = EXCLUDED.base_salary, gross = EXCLUDED.gross, net = EXCLUDED.net \
+               base_salary = excluded.base_salary, gross = excluded.gross, net = excluded.net \
              RETURNING id, tenant_id, employee_id, period, base_salary, allowance, commission, \
                        deduction, social_security, gross, net, status, created_at",
         )
         .bind(tenant_id)
         .bind(employee_id)
         .bind(period)
+        .bind(base_salary)
+        .bind(base_salary)
         .bind(base_salary)
         .fetch_one(pool)
         .await
@@ -348,7 +347,7 @@ pub struct HrContractRepo;
 
 impl HrContractRepo {
     pub async fn create(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         employee_id: i64,
         contract_no: &str,
@@ -359,7 +358,7 @@ impl HrContractRepo {
         sqlx::query_as::<_, HrContract>(
             "INSERT INTO hr_contracts \
              (tenant_id, employee_id, contract_no, contract_type, start_date, end_date) \
-             VALUES ($1, $2, $3, $4, $5, $6) \
+             VALUES (?, ?, ?, ?, ?, ?) \
              RETURNING id, tenant_id, employee_id, contract_no, contract_type, start_date, \
                        end_date, status, created_at, updated_at",
         )
@@ -373,11 +372,11 @@ impl HrContractRepo {
         .await
     }
 
-    pub async fn list_for_employee(pool: &PgPool, employee_id: i64) -> Result<Vec<HrContract>, sqlx::Error> {
+    pub async fn list_for_employee(pool: &SqlitePool, employee_id: i64) -> Result<Vec<HrContract>, sqlx::Error> {
         sqlx::query_as::<_, HrContract>(
             "SELECT id, tenant_id, employee_id, contract_no, contract_type, start_date, \
                     end_date, status, created_at, updated_at \
-             FROM hr_contracts WHERE employee_id = $1 ORDER BY start_date DESC",
+             FROM hr_contracts WHERE employee_id = ? ORDER BY start_date DESC",
         )
         .bind(employee_id)
         .fetch_all(pool)
@@ -388,11 +387,11 @@ impl HrContractRepo {
 pub struct HrAttendanceRuleRepo;
 
 impl HrAttendanceRuleRepo {
-    pub async fn list(pool: &PgPool, tenant_id: i64) -> Result<Vec<HrAttendanceRule>, sqlx::Error> {
+    pub async fn list(pool: &SqlitePool, tenant_id: i64) -> Result<Vec<HrAttendanceRule>, sqlx::Error> {
         sqlx::query_as::<_, HrAttendanceRule>(
             "SELECT id, tenant_id, name, department_id, work_start_time, work_end_time, \
                     grace_minutes, is_active, created_at \
-             FROM hr_attendance_rules WHERE tenant_id = $1 AND is_active = TRUE ORDER BY id",
+             FROM hr_attendance_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY id",
         )
         .bind(tenant_id)
         .fetch_all(pool)

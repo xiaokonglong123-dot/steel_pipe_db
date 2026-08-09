@@ -2,10 +2,11 @@
 //! acceptance events. Reuses the same JWT secret as the main auth.
 
 use argon2::{
-    password_hash::{rand_core::OsRng, SaltString, PasswordHash, PasswordHasher, PasswordVerifier},
+    password_hash::{SaltString, PasswordHash, PasswordHasher, PasswordVerifier},
     Argon2,
 };
-use sqlx::PgPool;
+use sqlx::SqlitePool;
+use uuid::Uuid;
 
 use crate::dto::portal_dto::{AcceptPurchaseRequest, CreatePortalAccountRequest, PortalLoginRequest};
 use crate::error::AppError;
@@ -17,7 +18,7 @@ pub struct PortalService;
 
 impl PortalService {
     pub async fn create_account(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreatePortalAccountRequest,
     ) -> Result<PortalAccount, AppError> {
@@ -27,7 +28,8 @@ impl PortalService {
         if PortalAccountRepo::find_by_username(pool, &dto.username).await?.is_some() {
             return Err(AppError::Validation(format!("Username '{}' already exists", dto.username)));
         }
-        let salt = SaltString::generate(&mut OsRng);
+        let salt = SaltString::encode_b64(Uuid::new_v4().as_bytes())
+            .map_err(|_| AppError::Internal("Password hashing failed".into()))?;
         let hash = Argon2::default()
             .hash_password(dto.password.as_bytes(), &salt)
             .map_err(|_| AppError::Internal("Password hashing failed".into()))?
@@ -39,7 +41,7 @@ impl PortalService {
 
     /// Portal login: verify Argon2, issue a JWT with party claims.
     pub async fn login(
-        pool: &PgPool,
+        pool: &SqlitePool,
         dto: &PortalLoginRequest,
         jwt_secret: &JwtSecret,
     ) -> Result<(String, PortalAccount), AppError> {
@@ -74,10 +76,10 @@ impl PortalService {
     }
 
     /// Purchase orders visible to a supplier portal account.
-    pub async fn supplier_purchases(pool: &PgPool, _tenant_id: i64, supplier_id: i64) -> Result<Vec<PortalPurchaseRow>, AppError> {
+    pub async fn supplier_purchases(pool: &SqlitePool, _tenant_id: i64, supplier_id: i64) -> Result<Vec<PortalPurchaseRow>, AppError> {
         sqlx::query_as::<_, PortalPurchaseRow>(
             "SELECT id, order_no, order_date, status, total_amount, notes \
-             FROM purchase_orders WHERE supplier_id = $1 AND deleted_at IS NULL \
+             FROM purchase_orders WHERE supplier_id = ? AND deleted_at IS NULL \
              ORDER BY id DESC LIMIT 200",
         )
         .bind(supplier_id)
@@ -88,7 +90,7 @@ impl PortalService {
 
     /// Supplier accepts a PO (records portal_event; updates PO status to approved).
     pub async fn accept_purchase(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         supplier_id: i64,
         purchase_order_id: i64,
@@ -96,7 +98,7 @@ impl PortalService {
     ) -> Result<PortalEvent, AppError> {
         // PO must belong to this supplier and be pending.
         let owned: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM purchase_orders WHERE id = $1 AND supplier_id = $2 AND deleted_at IS NULL",
+            "SELECT COUNT(*) FROM purchase_orders WHERE id = ? AND supplier_id = ? AND deleted_at IS NULL",
         )
         .bind(purchase_order_id)
         .bind(supplier_id)
@@ -106,7 +108,7 @@ impl PortalService {
         if owned == 0 {
             return Err(AppError::NotFound(format!("Purchase order not found for this supplier: {}", purchase_order_id)));
         }
-        sqlx::query("UPDATE purchase_orders SET status = 'approved', updated_at = NOW() WHERE id = $1")
+        sqlx::query("UPDATE purchase_orders SET status = 'approved', updated_at = datetime('now') WHERE id = ?")
             .bind(purchase_order_id)
             .execute(pool)
             .await
@@ -117,10 +119,10 @@ impl PortalService {
     }
 
     /// Sales orders visible to a customer portal account.
-    pub async fn customer_sales(pool: &PgPool, _tenant_id: i64, customer_id: i64) -> Result<Vec<PortalSalesRow>, AppError> {
+    pub async fn customer_sales(pool: &SqlitePool, _tenant_id: i64, customer_id: i64) -> Result<Vec<PortalSalesRow>, AppError> {
         sqlx::query_as::<_, PortalSalesRow>(
             "SELECT id, order_no, order_date, status, total_amount, notes \
-             FROM sales_orders WHERE customer_id = $1 AND deleted_at IS NULL \
+             FROM sales_orders WHERE customer_id = ? AND deleted_at IS NULL \
              ORDER BY id DESC LIMIT 200",
         )
         .bind(customer_id)
@@ -131,13 +133,13 @@ impl PortalService {
 
     /// Customer acknowledges a sales order (records event).
     pub async fn acknowledge_sales(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         customer_id: i64,
         sales_order_id: i64,
     ) -> Result<PortalEvent, AppError> {
         let owned: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM sales_orders WHERE id = $1 AND customer_id = $2 AND deleted_at IS NULL",
+            "SELECT COUNT(*) FROM sales_orders WHERE id = ? AND customer_id = ? AND deleted_at IS NULL",
         )
         .bind(sales_order_id)
         .bind(customer_id)
@@ -152,7 +154,7 @@ impl PortalService {
             .map_err(AppError::from)
     }
 
-    pub async fn events(pool: &PgPool, tenant_id: i64, party_type: &str, party_id: i64) -> Result<Vec<PortalEvent>, AppError> {
+    pub async fn events(pool: &SqlitePool, tenant_id: i64, party_type: &str, party_id: i64) -> Result<Vec<PortalEvent>, AppError> {
         PortalEventRepo::list(pool, tenant_id, party_type, party_id).await.map_err(AppError::from)
     }
 }

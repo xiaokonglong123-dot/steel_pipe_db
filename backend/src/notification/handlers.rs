@@ -3,7 +3,7 @@
 use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::notification_dto::{
     CreateTemplateRequest, SendNotificationRequest, UpdatePreferenceRequest,
@@ -20,7 +20,7 @@ pub struct UnreadFilter {
 }
 
 pub async fn list_notifications(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<UnreadFilter>,
 ) -> Result<Json<ApiResponse<Vec<Notification>>>, AppError> {
@@ -28,7 +28,7 @@ pub async fn list_notifications(
 }
 
 pub async fn unread_count(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let n = NotificationService::unread_count(&pool, user.0.tenant_id, user.0.user_id).await?;
@@ -36,7 +36,7 @@ pub async fn unread_count(
 }
 
 pub async fn mark_read(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Notification>>, AppError> {
@@ -44,7 +44,7 @@ pub async fn mark_read(
 }
 
 pub async fn send_notification(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<SendNotificationRequest>,
 ) -> Result<Json<ApiResponse<Notification>>, AppError> {
@@ -56,14 +56,14 @@ pub async fn send_notification(
 }
 
 pub async fn list_preferences(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<NotificationPreference>>>, AppError> {
     Ok(ApiResponse::ok(NotificationService::list_preferences(&pool, user.0.user_id).await?))
 }
 
 pub async fn update_preference(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<UpdatePreferenceRequest>,
 ) -> Result<Json<ApiResponse<NotificationPreference>>, AppError> {
@@ -71,7 +71,7 @@ pub async fn update_preference(
 }
 
 pub async fn create_template(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateTemplateRequest>,
 ) -> Result<Json<ApiResponse<NotificationTemplate>>, AppError> {

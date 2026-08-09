@@ -1,29 +1,33 @@
-# `backend/src/` — Module Wiring & Router
+# `backend/src/` — 模块装配与路由
 
-This directory is where all the backend source modules get wired together. Don't drop new feature files here — those belong in `handlers/`, `services/`, `repositories/`, etc.
+以下所有模块都属于单一后端 crate **`erp-server`**（代码阶段实施目标）。
 
-## Module Registration
+本目录负责把后端所有源码模块装配在一起。不要把新功能文件丢在这里——它们应放在 `handlers/`、`services/`、`repositories/` 或功能模块目录（`workflow/`、`hr/`、`finance/`、`procurement/`、`sales_crm/`、`inventory_atp/`、`manufacturing/`、`project/`、`assets/`、`notification/`、`portal/`、`bi/`、`auth/`）中。
 
-**So you want to add a new module? Here's the drill:**
+## 模块注册
 
-1. Create the file in the right subdirectory (e.g., `handlers/new_thing_handler.rs`)
-2. Add `pub mod new_thing_handler;` to that subdirectory's `mod.rs`
-3. Wire up the route in `router.rs`
-4. Expose the handler in the handler `mod.rs`
+**要新增一个模块？步骤如下：**
 
-## `main.rs` — Entry Point
+1. 在正确的子目录创建文件（如 `handlers/new_thing_handler.rs`）
+2. 在该子目录的 `mod.rs` 中添加 `pub mod new_thing_handler;`
+3. 在 `router.rs` 中挂载路由
+4. 在 handler 的 `mod.rs` 中导出 handler
 
-- **File**: `src/main.rs` (NOT `src/bin/main.rs` — don't overthink it)
-- `#![allow(dead_code)]` lives at the crate root (keeps the compiler quiet about legit unused stuff)
-- `#[tokio::main]` async entry point
-- Initializes: tracing (logging), DB pool (SqlitePool), Config from env vars
-- Calls `router::create_app(pool, jwt_secret)` to build the router
-- Binds `0.0.0.0:3000`, starts serving
-- **No `AppState` struct** — we use `Extension<>` layers for DI
+功能模块是自包含的：每个模块有自己的 `mod.rs` + `handlers.rs` + `repos.rs` + `services.rs`，并从 `lib.rs` 注册（如 `pub mod workflow;`）。
 
-## Shared State Pattern — `Extension<>` not `State<>`
+## `main.rs` — 入口点
 
-**This project rocks Axum `Extension<>` layers for dependency injection, not `State<Arc<AppState>>`.**
+- **文件**：`src/main.rs`（不是 `src/bin/main.rs`）
+- `#![allow(dead_code)]` 位于 crate 根（压制合理的未用代码警告）
+- `#[tokio::main]` 异步入口
+- 初始化：tracing（日志）、DB 连接池（SqlitePool）、从环境变量读取 Config
+- 调用 `router::create_app(pool, jwt_secret)` 构建路由
+- 绑定 `0.0.0.0:3000` 开始服务
+- **没有 `AppState` 结构体** — 使用 `Extension<>` 层做 DI
+
+## 共享状态模式 — `Extension<>` 而非 `State<>`
+
+**本项目使用 Axum `Extension<>` 层做依赖注入，而非 `State<Arc<AppState>>`。**
 
 ```rust
 // router.rs
@@ -33,20 +37,20 @@ This directory is where all the backend source modules get wired together. Don't
 .layer(Extension(JwtSecret(jwt_secret)))
 ```
 
-- `Extension(SqlitePool)` — raw pool, no wrapper struct
-- `Extension(JwtSecret)` — JWT secret newtype with redacted `Debug`; missing extension fails closed instead of using an empty fallback
-- Handlers grab what they need via `Extension(pool): Extension<SqlitePool>`
+- `Extension(SqlitePool)` — 裸连接池，无包装结构体
+- `Extension(JwtSecret)` — JWT 密钥 newtype，`Debug` 输出脱敏；缺少该 Extension 时直接失败关闭，而不是用空回退
+- handler 通过 `Extension(pool): Extension<SqlitePool>` 取所需依赖
 
-## `router.rs` — Route Mounting
+## `router.rs` — 路由挂载
 
 ```rust
 pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
-    // ~70 endpoints, grouped by entity via .merge()
+    // ~200 个端点，按实体分组并通过 .merge() 组装
     Router::new()
         .route("/api/v1/auth/login", post(handlers::auth_handler::login))
-        .route("/api/v1/pipes", get(handlers::pipe_handler::list))
+        .route("/api/v1/items", get(handlers::item_handler::list))
         // ...
-        .merge(pipe_routes)
+        .merge(item_routes)
         .merge(inventory_routes)
         // ...
         .layer(CorsLayer::permissive())
@@ -55,51 +59,69 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
 }
 ```
 
-- The router function **creates** routes fresh — doesn't accept pre-built services
-- Handlers get DI through `Extension<SqlitePool>` and auth handlers use `Extension<JwtSecret>`
-- Auth middleware wraps individual sub-routers, not the whole app
-- Request ID middleware sets/propagates `x-request-id`; CORS exposes that header to the browser
+- 路由函数**现场创建**路由——不接受预构建的服务
+- handler 通过 `Extension<SqlitePool>` 获得 DI，认证 handler 使用 `Extension<JwtSecret>`
+- 认证中间件包裹单个子路由，而非整个应用
+- Request ID 中间件设置/透传 `x-request-id`；CORS 向浏览器暴露该头
+- 路由按域分组：auth、商品（商品/SKU）、库存（入库/出库/库位/盘点/ATP）、采购（采购订单）、销售（销售订单）、合同、客户、供应商、审批流、HR、财务、采购管理、销售 CRM、制造、项目、固定资产、通知、门户、BI、data-io
 
-## `error.rs` — Error Handling (Numeric Error Codes)
+## `error.rs` — 错误处理（数字错误码）
 
-- `AppError` enum has **~20 variants** grouped by domain prefix (100xx–50001)
-- Each variant maps to a **numeric `error_code()`** (e.g., `Validation` → 10002) and an **HTTP `status_code()`**
-- Uses `thiserror::Error` for `Display` derive
-- Implements `IntoResponse` to serialize into `ApiErrorResponse { success: false, code, request_id, message, details }`
-- `From<sqlx::Error>` impl converts DB errors to `AppError::Database`
-- Service errors convert via `?` operator with `From` impls — clean and simple
+- `AppError` 枚举有 **约 20 个变体**，按域前缀分组（100xx–50001）
+- 每个变体映射到**数字 `error_code()`**（如 `Validation` → 10002）和 **HTTP `status_code()`**
+- 使用 `thiserror::Error` 派生 `Display`
+- 实现 `IntoResponse`，序列化为 `ApiErrorResponse { success: false, code, request_id, message, details }`
+- `From<sqlx::Error>` 将 DB 错误转换为 `AppError::Database`
+- 服务错误通过 `?` 操作符 + `From` 实现转换——干净简单
 
-Domain breakdown:
+域划分：
 
-| Range   | Domain       |
-|---------|--------------|
-| 100xx   | General (Internal, Validation, NotFound, BadRequest) |
-| 110xx   | Auth (Unauthorized, TokenExpired, Forbidden) |
-| 120xx   | Pipe (NotFound, Duplicate, StatusConflict) |
-| 130xx   | Inventory (InsufficientStock, LocationFull) |
-| 140xx   | Orders (CannotModify, NotFound) |
-| 150xx   | Quality (CertNotFound, AttachmentNotFound) |
-| 160xx   | Supplier (NotFound, CodeDuplicate) |
-| 170xx   | Customer (NotFound, CodeDuplicate) |
-| 180xx   | Data IO (ImportError, ExportError) |
-| 50001   | Database |
+| 范围 | 域 |
+| --------- | -------------- |
+| 100xx | General（Internal、Validation、NotFound、BadRequest） |
+| 110xx | Auth（Unauthorized、TokenExpired、Forbidden） |
+| 120xx | Item 商品（NotFound、Duplicate、StatusConflict） |
+| 130xx | Inventory（InsufficientStock、LocationNotFound） |
+| 140xx | Orders（CannotModify、NotFound） |
+| 150xx | Inspection 质检（NotFound、StatusConflict） |
+| 160xx | Supplier（NotFound、CodeDuplicate） |
+| 170xx | Customer（NotFound、CodeDuplicate） |
+| 180xx | Data IO（ImportError、ExportError） |
+| 50001 | Database |
 
-## `response.rs` — Response Types
+## `response.rs` — 响应类型
 
-- `ApiResponse<T>` has `success: bool`, `request_id: String`, `data: T`
-- `PaginatedResponse<T>` has `success`, `request_id`, `meta: Meta`, `data: PaginatedData<T>`
-- `ApiResponse::created(data)` returns 201
-- `no_content()` returns 204
+- `ApiResponse<T>` 包含 `success: bool`、`request_id: String`、`data: T`
+- `PaginatedResponse<T>` 包含 `success`、`request_id`、`meta: Meta`、`data: PaginatedData<T>`
+- `ApiResponse::created(data)` 返回 201
+- `no_content()` 返回 204
 
-## `middleware/auth.rs` — JWT Middleware
+## `middleware/auth.rs` — JWT 中间件
 
-- **`Claims`** struct — JWT payload (`sub` user_id, `username`, `role`, `exp`, `iat`)
-- **`AuthContext`** extractor — pulled from a validated JWT token (contains `user_id`, `username`, `role`)
-- **`auth_middleware`** — Axum middleware layer that validates Bearer tokens from the `Authorization` header
-  - Reads JWT secret from request extensions
-  - Missing `JwtSecret` returns 500 `Authentication is not configured` instead of silently using an empty secret
-  - Decodes the token with HS256 via `jsonwebtoken`
-  - On success: injects `AuthContext` into request extensions
-  - On failure: returns 401 with `ApiErrorResponse` (includes `success: false`, `request_id`, numeric error code 11001/11002)
-- Middleware wraps individual sub-routers (not the whole app)
-- Token generation lives in the **handler/service layer**, not in middleware
+- **`Claims`** 结构体 — JWT 载荷（`sub` user_id、`username`、`role`、`exp`、`iat`）
+- **`AuthContext`** 提取器 — 从已验证的 JWT 令牌中提取（包含 `user_id`、`username`、`role`）
+- **`auth_middleware`** — 校验 `Authorization` 头 Bearer 令牌的 Axum 中间件层
+  - 从请求扩展中读取 JWT 密钥
+  - 缺少 `JwtSecret` 返回 500 `Authentication is not configured`，而不是静默使用空密钥
+  - 通过 `jsonwebtoken` 以 HS256 解码令牌
+  - 成功：将 `AuthContext` 注入请求扩展
+  - 失败：返回 401 + `ApiErrorResponse`（含 `success: false`、`request_id`、数字错误码 11001/11002）
+- 中间件包裹单个子路由（而非整个应用）
+- 令牌生成在 **handler/service 层**，不在中间件中
+
+## RBAC 速查（`router.rs` 中的路由分组）
+
+| 域     | 读（任意已认证） | 写（角色）                    |
+|------------|:---------------:|----------------------------------|
+| Users      | admin           | admin                            |
+| Items      | ✅              | admin、warehouse                 |
+| Inbound    | ✅              | admin、warehouse                 |
+| Outbound   | ✅              | admin、warehouse                 |
+| Inventory  | ✅              | admin、warehouse                 |
+| Sales      | ✅              | admin、sales                     |
+| Purchases  | ✅              | admin、warehouse、sales          |
+| Suppliers  | ✅              | admin、warehouse、sales          |
+| Customers  | ✅              | admin、warehouse、sales          |
+| Contracts  | ✅              | admin、warehouse、sales          |
+| Data IO    | templates       | admin（导入/日志）、admin/warehouse/sales（导出） |
+| Reports    | ✅              | —（只读）                    |

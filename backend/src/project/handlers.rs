@@ -3,7 +3,7 @@
 use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::project_dto::{
     CreateProjectRequest, CreateTransactionRequest, CreateWbsRequest, UpdateWbsProgressRequest,
@@ -20,7 +20,7 @@ pub struct StatusFilter {
 }
 
 pub async fn list_projects(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<StatusFilter>,
 ) -> Result<Json<ApiResponse<Vec<Project>>>, AppError> {
@@ -28,7 +28,7 @@ pub async fn list_projects(
 }
 
 pub async fn get_project(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Project>>, AppError> {
@@ -36,7 +36,7 @@ pub async fn get_project(
 }
 
 pub async fn create_project(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateProjectRequest>,
 ) -> Result<Json<ApiResponse<Project>>, AppError> {
@@ -44,7 +44,7 @@ pub async fn create_project(
 }
 
 pub async fn update_project_status(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(p): Json<StatusFilter>,
@@ -54,7 +54,7 @@ pub async fn update_project_status(
 }
 
 pub async fn wbs_tree(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
     Path(project_id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<WbsElement>>>, AppError> {
@@ -62,7 +62,7 @@ pub async fn wbs_tree(
 }
 
 pub async fn create_wbs(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(project_id): Path<i64>,
     Json(p): Json<CreateWbsRequest>,
@@ -71,7 +71,7 @@ pub async fn create_wbs(
 }
 
 pub async fn update_wbs_progress(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
     Path((project_id, id)): Path<(i64, i64)>,
     Json(p): Json<UpdateWbsProgressRequest>,
@@ -80,7 +80,7 @@ pub async fn update_wbs_progress(
 }
 
 pub async fn financials(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(project_id): Path<i64>,
 ) -> Result<Json<ApiResponse<ProjectFinancials>>, AppError> {
@@ -88,7 +88,7 @@ pub async fn financials(
 }
 
 pub async fn list_transactions(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
     Path(project_id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<ProjectTransaction>>>, AppError> {
@@ -96,7 +96,7 @@ pub async fn list_transactions(
 }
 
 pub async fn create_transaction(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(project_id): Path<i64>,
     Json(p): Json<CreateTransactionRequest>,

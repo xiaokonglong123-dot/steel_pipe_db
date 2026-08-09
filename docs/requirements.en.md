@@ -1,10 +1,10 @@
-# Seamless Steel Pipe & Screen Pipe Management System — PRD
+# ERP (Enterprise Resource Planning) System — PRD
 
-> **Version**: v1.0
-> **Date**: 2026-05-19
-> **Standard**: API 5CT (10th Edition / ISO 11960)
-> **Stack**: Rust + React
+> **Version**: v1.1 (general-purpose ERP rewrite)
+> **Date**: 2026-08
+> **Stack**: Rust (Axum, backend crate `erp-server`) + React
 > **Type**: Web App (Frontend/Backend split)
+> **History**: This system was refactored from a steel-pipe industry system; all legacy pipe terminology is deprecated.
 
 ---
 
@@ -12,7 +12,8 @@
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
-| v1.0 | 2026-05-19 | Initial version | - |
+| v1.1 | 2026-08 | General-purpose ERP rewrite: Item/SKU master data, removed pipe/threading/labels/quality-cert modules, migrated to SQLite3, added workflow/HR/finance/manufacturing/project/assets/notification/portal/BI modules | — |
+| v1.0 | 2026-05-19 | Initial version (legacy steel-pipe system era) | — |
 
 ---
 
@@ -20,22 +21,23 @@
 
 ### 1.1 Background
 
-Seamless steel pipes (Casing / Tubing) and screen pipes are the backbone of oil & gas well construction — both governed by the **API 5CT** standard. Right now there's no integrated system that tracks the full lifecycle of these pipes: procurement, inbound, warehouse storage, sales outbound, and quality traceability. Everything's scattered across spreadsheets and paper forms.
+Procurement, sales, inventory, manufacturing, finance, and HR all run as separate silos, with documents scattered across spreadsheets and paper forms. There is no integrated system tying them together — from purchase order, to arrival and inbound, to stock management, to sales outbound, to accounting and management reporting. Everything depends on experience and manual reconciliation, which produces errors and inconsistent numbers.
 
 ### 1.2 Objective
 
-Build a Rust-based web system that handles **procurement + sales + inventory + quality** for seamless steel pipes and screen pipes in one place. Full traceability from the moment a pipe arrives until it ships out.
+Build a Rust-based general-purpose ERP system (backend crate `erp-server`) that handles **Item (Item+SKU) master data, inventory, procurement, sales, manufacturing inspection, finance, HR, projects, fixed assets, and workflow approvals** in one place. One system to run the business — from order to ledger, from warehouse to dashboard.
 
 ---
 
 ## 2. Target Users & Roles
 
 | Role | What They Do | Key Concerns |
-|------|-------------|--------------|
-| **Warehouse Operator** | Inbound, outbound, transfer, stock count, label printing | Stock levels, bin locations, speed |
-| **Quality Inspector** | QC data entry, cert management, cert-to-pipe linking | Grade/spec consistency, heat/lot traceability, cert docs |
-| **Sales/Procurement Staff** | PO/SO management, supplier/customer management | ATP stock, order status, contract info |
-| **Management** | Dashboards, reports, decisions | Inventory turns, stock value, biz metrics |
+| ------ | ------------- | -------------- |
+| **Warehouse Operator** | Receiving, outbound, transfer, stock count, inventory query | Stock levels, bin locations, speed |
+| **Procurement / Sales Staff** | Purchase orders, sales orders, supplier/customer management | ATP stock, document status, contract info |
+| **Finance / HR Staff** | Accounting, invoicing, payments, payroll | Accounts, journal entries, invoices, attendance and salaries |
+| **Manufacturing / QC Staff** | Work order execution, inspection records, NCR handling | BOM, work order status, inspection results, NCR closure |
+| **Management** | Dashboards, BI analytics, decisions | Inventory turns, sales trends, finance summary, supplier performance |
 
 System is **multi-user**, role-based access (RBAC).
 
@@ -43,133 +45,191 @@ System is **multi-user**, role-based access (RBAC).
 
 ## 3. Functional Requirements
 
-### 3.1 Pipe Information Management (P0 — Must Have)
+### 3.1 Item Master Data (P0 — Must Have)
 
-**FR-PIPE-001: Pipe Master Data Management**
-- **Description**: CRUD for both seamless steel pipe and screen pipe types
-- **Seamless Pipe Fields**:
-  - Pipe number (unique across the system)
-  - Product type: Casing / Tubing
-  - Grade: H40, J55, K55, N80, L80, C90, T95, P110, Q125, etc.
-  - Dimensions: OD, WT, Length, Unit Weight
-  - End type: SC, LC, BC, Extreme Line, etc.
-  - Coupling: type, OD, length
-  - Heat number / Lot number
-  - Pipe body serial number
-- **Screen Pipe Specific Fields**:
-  - Screen type: Wire-wrapped, Slotted, Punched, Metal mesh, etc.
-  - Base pipe params: OD, WT, grade (the base pipe is itself a seamless pipe)
-  - Slot width / aperture
-  - Filtration rating (e.g., 150μm, 250μm)
-  - Screen pipe length and connection type
-- **Common Fields**: Manufacturer, prod date, QC cert number, attachments (PDF scans, etc.)
+**FR-ITEM-001: Item Master Data Management**
+
+- **Description**: CRUD for the Item entity — the single business object of the whole system
+- **Fields**:
+  - SKU (globally unique; system-assigned or manual)
+  - Name (item name)
+  - Category (raw material / semi-finished / finished goods / spare parts, etc.)
+  - Unit (kg / m / pc / piece, etc.)
+  - Spec (descriptive attribute, optional, carries no industry-mandated fields)
+  - Status (draft / active / disabled)
+  - Notes, attachments (images, manuals, etc.)
 - **Acceptance Criteria**:
   - Full CRUD
-  - Pipe number globally unique
+  - SKU globally unique — no collisions
   - Search by any combination of fields
-  - Screen and seamless managed separately but searchable from one place
+  - Single item table — no per-industry-type table splitting
 
 ### 3.2 Inventory Management (P0 — Must Have)
 
 **FR-INV-001: Inbound Management**
-- Multiple inbound types: purchase, production return, customer return, etc.
-- Each record: inbound order number, date, pipe details (number/qty/batch), supplier/source, operator
+
+- Multiple inbound types: purchase receipt, production completion, return, etc.
+- Each record: inbound number, date, item details (qty/batch), supplier/source, operator
 - Auto-update stock on inbound
 
 **FR-INV-002: Outbound Management**
+
 - Sales outbound, internal requisition, transfer outbound, etc.
-- Each record: outbound order number, date, customer/destination, pipe details, operator
-- Batch or single-piece outbound (precise by pipe number)
+- Each record: outbound number, date, customer/destination, item details, operator
+- Batch or per-SKU outbound
 
 **FR-INV-003: Stock Query & Count**
-- Real-time stock by pipe type, grade, spec, location, etc.
-- Movement ledger — full inbound/outbound history per pipe
+
+- Real-time stock by item, category, location, warehouse
+- Movement ledger — full inbound/outbound history per item
 - Stock count: generate count sheets, enter counts, produce variance reports
 
 **FR-INV-004: Location Management**
-- Multi-level locations: zone / rack / shelf
-- Bind pipes to locations, support moves
 
-### 3.3 Quality Management (P1 — Should Have)
+- Multi-level locations: warehouse → location
+- Bind items to locations, support moves
 
-**FR-QA-001: QC Info Management**
-- Link QC reports/certs to individual pipes
-- Fields: test items, results, date, agency, inspector
-- File uploads (PDF/images)
+**FR-INV-005: Reservation / ATP**
 
-**FR-QA-002: Quality Traceability**
-- Trace by heat number → production batch
-- Trace by pipe number → full quality history
-- Reference API 5CT grade mechanical properties and chemical composition for comparison
+- Reserve available stock for sales orders (or work orders)
+- Available-to-Promise (ATP) visibility
 
-### 3.4 Procurement Management (P1 — Should Have)
+### 3.3 Manufacturing & Inspection (P1 — Should Have)
+
+**FR-MFG-001: BOM & Work Orders**
+
+- Maintain item BOMs (bill of materials)
+- Release work orders from BOMs, track progress; work orders consume items per BOM
+
+**FR-MFG-002: Inspection & NCR**
+
+- Work orders link to inspection records: test items, results, date, inspector
+- Create NCR (Non-Conformance Report) when inspection fails; track corrective closure
+
+### 3.4 Procurement & Sales (P1 — Should Have)
 
 **FR-PUR-001: Procurement Management**
+
 - PO creation, approval flow, tracking
 - Supplier info management (name, contact, qualifications, etc.)
-- Purchase arrival links to inbound
+- Purchase receipt links to inbound
+
+**FR-PUR-002: Requisitions & Supplier Quotes**
+
+- Internal purchase requisitions flowing through the system
+- Supplier quote records and comparison
 
 **FR-SALE-001: Sales Management**
+
 - SO creation, approval flow, tracking
 - Customer info management
 - Sales outbound deducts inventory
 - Available-to-promise (ATP) stock visibility
 
+**FR-SALE-002: Customer Quotes & Customer Credit**
+
+- Customer quotes issued to clients
+- Customer credit limit management
+
 **FR-CONTRACT-001: Contract Management**
-- Basic contract info for procurement and sales
+
+- Purchase / sales contract basic info
 - Link contracts to orders
 
-### 3.5 Data Import/Export (P1 — Should Have)
+### 3.5 Workflow Approvals (P1 — Should Have)
+
+**FR-WF-001: Workflow Engine**
+
+- Workflow definitions (node/condition configuration)
+- Workflow instances and workflow tasks (todos)
+- Purchase orders, sales orders, requisitions, etc. run through workflows
+
+### 3.6 Data Import/Export (P1 — Should Have)
 
 **FR-IO-001: Data Import**
-- Excel/CSV batch import for pipe data
+
+- Excel/CSV batch import for item data
 - Validate format and required fields during import
 - Import result report (success/fail counts + reasons)
 
 **FR-IO-002: Data Export**
-- Export query results to Excel/CSV
-- Standard reports: inventory, inbound/outbound details, quality reports, etc.
 
-### 3.6 Search & Filter (P0 — Must Have)
+- Export query results to Excel/CSV
+- Standard reports: inventory summary, inbound/outbound details, etc.
+
+### 3.7 Search & Filter (P0 — Must Have)
 
 **FR-SEARCH-001: Multi-dimensional Search**
-- Combined queries: pipe number, type, grade, spec (OD/WT), status, location, etc.
-- Fuzzy search (partial pipe number, grade name, etc.)
+
+- Combined queries: SKU, name, category, unit, spec, status, location, etc.
+- Fuzzy search (partial SKU, name, etc.)
 - Paginated results
 
-### 3.7 Reports & Statistics (P2 — Could Have)
-
-**FR-RPT-001: Inventory Reports**
-- Current stock summary (grouped by type/grade/spec)
-- Monthly/quarterly movement reports
-
-**FR-RPT-002: Business Reports**
-- Inbound/outbound charts
-- Inventory turnover analysis
-- Procurement/sales trend analysis
-
-### 3.8 Label Printing (P2 — Could Have)
-
-**FR-LABEL-001: Barcode/QR Code Labels**
-- Generate barcode or QR code labels from pipe data
-- Batch printing
-- Configurable templates (fields, layout)
-
-### 3.9 History Traceability (P0 — Must Have)
+### 3.8 History Traceability (P0 — Must Have)
 
 **FR-TRACE-001: Full Lifecycle Traceability**
-- Every operation on every pipe logged — from inbound to outbound
-- Every change tracked: who, when, what fields
-- View full lifecycle by pipe number
 
-### 3.10 System Management (P1 — Should Have)
+- Every operation on every item logged — from inbound to outbound
+- Every change tracked: who, when, what fields
+- View full lifecycle by SKU
+
+### 3.9 HR Management (P1 — Should Have)
+
+**FR-HR-001: Employees & Departments**
+
+- Employee profiles, department structure
+
+**FR-HR-002: Attendance / Salary / Labor Contracts**
+
+- Attendance records, salary payments, labor contract management
+
+### 3.10 Finance Management (P1 — Should Have)
+
+**FR-FIN-001: Accounts & Journal Entries**
+
+- Chart of accounts, journal entry records
+
+**FR-FIN-002: Invoices & Payments**
+
+- Invoice (issued/received) records, outgoing payment records
+
+**FR-FIN-003: Trial Balance**
+
+- Financial statement validating debit/credit balance
+
+### 3.11 Projects & Fixed Assets (P2 — Could Have)
+
+**FR-PROJ-001: Projects & WBS**
+
+- Project maintenance, WBS breakdown, budget management
+
+**FR-ASSET-001: Fixed Assets**
+
+- Fixed asset registration, straight-line depreciation, disposal
+
+### 3.12 Notifications & Portal (P2 — Could Have)
+
+**FR-NOTIF-001: Notifications**
+
+- Notification inbox, templates, preferences
+
+**FR-PORTAL-001: Portal**
+
+- Portal account (Party) management: customer/supplier identities in the portal
+
+### 3.13 BI Analytics & System Management (P1 — Should Have)
+
+**FR-BI-001: BI Analytics**
+
+- Aggregated reports: sales trend, inventory value, finance summary, supplier performance
 
 **FR-SYS-001: User & Permission Management**
-- User management
-- RBAC with 4 roles: Warehouse, QC, Sales/Procurement, Admin
+
+- User management, RBAC (roles + permissions + departments, optional tenants)
 - Menus and buttons adapt to role
 
 **FR-SYS-002: Operation Logs**
+
 - Log key user actions: login, data changes, etc.
 - Queryable and exportable
 
@@ -180,7 +240,7 @@ System is **multi-user**, role-based access (RBAC).
 ### 4.1 Performance
 
 | Metric | Target |
-|--------|--------|
+| -------- | -------- |
 | Single page query response | ≤ 2s (within 100K records) |
 | Data import | ≤ 60s for 100K records |
 | Concurrent users | ≥ 20 simultaneous |
@@ -188,17 +248,17 @@ System is **multi-user**, role-based access (RBAC).
 
 ### 4.2 Data Scale
 
-- Pipe master data: 100K+ records
+- Item master data: 100K+ SKUs
 - Inventory movement logs: millions of records
-- Storage: SQLite (WAL mode, well-indexed)
+- Storage: SQLite3 (connection string `sqlite://data/erp.db?mode=rwc`, WAL mode, well-indexed)
 
-> **Note**: SQLite handles single-machine / small-scale concurrency fine. WAL mode + connection pool are key for a web app. If concurrency grows beyond that, PostgreSQL is an easy migration path.
+> **Note**: SQLite3 handles single-machine / small-scale concurrency fine. WAL mode + a properly configured connection pool are key for a web app. The connection string is fixed at `sqlite://data/erp.db?mode=rwc`; the DB file lives at `data/erp.db`.
 
 ### 4.3 Internationalization & Units
 
 - **UI Language**: Chinese + English, switchable at runtime
-- **Unit System**: Metric (mm, kg/m, m) and Imperial (in, lb/ft, ft) — toggle on the fly
-- Internal storage unified (metric) with unit metadata
+- **Unit System**: items carry a `unit` field (kg / m / pc / etc.); unit conversion is handled by the frontend unitStore
+- Storage stays consistent with the item's unit field
 
 ### 4.4 Security
 
@@ -217,61 +277,50 @@ System is **multi-user**, role-based access (RBAC).
 ### 4.6 System Architecture & Technology Stack
 
 | Layer | Technology | Why |
-|-------|-----------|-----|
-| **Backend** | Rust + Axum 0.8 + SQLx 0.8 | Axum is the most ergonomic async web framework in Rust right now. SQLx gives us compile-time checked SQL. No ORM overhead. |
-| **Database** | SQLite (WAL mode) | Zero config, file-level, perfect for this scale. WAL handles concurrent reads fine. |
-| **Frontend** | React 19 + TypeScript (strict) + Vite | React 19 is the latest stable. Vite is insanely fast for dev. TypeScript strict catches nulls and bad types. |
+| ------- | ----------- | ----- |
+| **Backend** | Rust + Axum 0.8 + SQLx 0.8 (crate `erp-server`) | Axum is the most ergonomic async web framework in Rust right now. SQLx gives compile-time checked SQL with native SQLite support via its `sqlite` feature. No ORM overhead. |
+| **Database** | SQLite3 (`sqlite://data/erp.db?mode=rwc`, WAL) | Zero config, file-level, perfect for this scale. The 37 legacy migration files will be rewritten to SQLite syntax minus the pipe tables. |
+| **Frontend** | React 19 + TypeScript (strict) + Vite + Ant Design 5 + TanStack Query 5 + Zustand 5 | React 19 is the latest stable. Vite is insanely fast for dev. TypeScript strict catches nulls and bad types. |
 | **API** | JSON REST | Standard RESTful — easy to integrate, debug with curl, works with any frontend. |
 
 ---
 
-## 5. API 5CT Standard Reference
+## 5. Item Master Data Reference
 
-> API 5CT (Specification for Casing and Tubing) is *the* standard for oilfield pipe. Here's the reference data that drives the system's field design.
+> The Item is the single business entity of the system, and the SKU is its unique business code. This section defines the generic master-data conventions, replacing the industry-specific fields of the legacy pipe era.
 
-### 5.1 Grade Classification
+### 5.1 SKU Numbering Rules
 
-| Group | Grade | Type | Key Characteristics |
-|-------|-------|------|---------------------|
-| **H** | H40 | Casing/Tubing | Lowest strength, non-critical wells |
-| **J/K** | J55, K55 | Casing/Tubing | Medium strength, medium-depth wells |
-| **N** | N80 | Casing/Tubing | Higher strength, two heat treatments (N80-1 normalized, N80-Q quenched+tempered) |
-| **L** | L80 | Casing/Tubing | Corrosion resistant, Cr content, for H₂S environments |
-| **C** | C90, C95 | Casing/Tubing | Corrosion resistant, sour service |
-| **T** | T95 | Casing | High collapse resistance, sour service |
-| **P** | P110 | Casing/Tubing | High strength, deep wells |
-| **Q** | Q125 | Casing | Ultra-high strength, ultra-deep wells |
+| Rule | Description | Example |
+| ------ | ------------- | --------- |
+| Auto-generated | System generates `{category-code}-{yyyymm}-{seq}` | `FG-202608-0001` |
+| Manual | Manual entry allowed, but must be globally unique | Company-specific codes |
+| Uniqueness | Globally unique, no collisions | — |
 
-### 5.2 End Types
+### 5.2 Categories
 
-- **SC** (Short Round Thread) — Shallower wells
-- **LC** (Long Round Thread) — Higher connection strength than SC
-- **BC** (Buttress Thread) — High connection strength
-- **X** (Extreme Line) — Special operating conditions
+| Category | Description |
+| ---------- | ------------- |
+| Raw material | Inbound raw materials for production |
+| Semi-finished | Intermediate products in manufacturing |
+| Finished goods | Final items ready for sale |
+| Spare parts | Maintenance and consumable items |
 
 ### 5.3 Units
 
-API 5CT is imperial by default:
+`kg` / `m` / `pc` / `piece` / `box` / `L` — units are maintained per category; cross-unit conversion is handled by the frontend unitStore.
 
-| Parameter | Imperial | Metric |
-|-----------|----------|--------|
-| OD | inch (in) | millimeter (mm) |
-| WT | inch (in) | millimeter (mm) |
-| Length | foot (ft) | meter (m) |
-| Unit Weight | lb/ft | kg/m |
-| Yield Strength | psi | MPa |
+### 5.4 Spec
 
-### 5.4 Standard Size Reference
+Spec is a descriptive free-text attribute (e.g. dimensions, material, model) and **carries no industry-mandated fields**.
 
-| OD (in) | WT (in) | Unit Weight (lb/ft) | Common Grades |
-|---------|---------|-------------------|---------------|
-| 4½ | 0.250 ~ 0.337 | 11.60 ~ 15.10 | J55, N80, L80 |
-| 5½ | 0.304 ~ 0.415 | 17.00 ~ 23.00 | J55, N80, L80, P110 |
-| 7 | 0.317 ~ 0.582 | 23.00 ~ 41.00 | J55, N80, L80, P110 |
-| 9⅝ | 0.395 ~ 0.595 | 40.00 ~ 59.20 | J55, N80, L80, P110 |
-| 13⅜ | 0.514 ~ 0.672 | 72.00 ~ 92.50 | H40, J55, K55 |
+### 5.5 Item Status
 
-*(Partial — full reference table is seeded in the DB via migration 010)*
+| Status | Description |
+| -------- | ------------- |
+| draft | Draft, not tradable |
+| active | Enabled, available for procurement/sales |
+| disabled | Disabled, no longer traded |
 
 ---
 
@@ -280,52 +329,63 @@ API 5CT is imperial by default:
 ### 6.1 Core Entity Relationships
 
 ```
-                      ┌──────────────────────┐
-                      │   SeamlessPipe        │  ← Seamless pipe (own table)
-                       │   (Seamless Pipe)       │
-                      └────────┬─────────────┘
+                    ┌──────────────────────┐
+                    │     Item (商品/SKU)    │  ← Single business entity, one table
+                    └──────────┬───────────┘
                                │
-Supplier ──→ PurchaseOrder ──→ InboundRecord ──→ SeamlessPipe/ScreenPipe ──→ OutboundRecord ──→ Customer
-                     ↑                                                          │
-                Contract                                                   SalesOrder
-                     │                                                          ↑
-                     └──────────────────────────────────────────────────────────┘
+Supplier ──→ PurchaseOrder ──→ InboundRecord ──→ Item ──→ OutboundRecord ──→ Customer
+                     ↑                                              │
+                Contract(purchase)                              SalesOrder
+                     │                                              ↑
+                     └──────────────────────────────────────────────┘
 
-                      ┌──────────────────────┐
-                      │   ScreenPipe           │  ← Screen pipe (own table)
-                       │   (Screen Pipe)         │
-                      └──────────────────────┘
+Item ──N:1── Location (warehouse → location)
+Item ──N:1── InventoryLog (movement audit)
+WorkOrder ──N:1── Item (BOM consumption) ──1:N── Inspection ── NCR
+Supplier ──1:N── PortalAccount
 ```
-
-> SeamlessPipe and ScreenPipe are **two independent tables** — their field sets are different enough that sharing a table would be more trouble than it's worth.
 
 ### 6.2 Main Data Entities
 
 | Entity | Description | Core Fields |
-|--------|-------------|-------------|
-| **SeamlessPipe** | Seamless steel pipe | id, pipe_number, pipe_type(casing/tubing), grade, od, wt, length, weight, end_type, coupling_type, coupling_od, coupling_length, heat_number, serial_number, manufacturer, prod_date, cert_number, location_id, status, created_at, updated_at |
-| **ScreenPipe** | Screen pipe | id, pipe_number, screen_type(wire-wrapped/slotted/punched), slot_size, filtration_grade, base_od, base_wt, base_grade, base_end_type, length, weight, heat_number, serial_number, manufacturer, prod_date, cert_number, location_id, status, created_at, updated_at |
-| **Location** | Storage spot | id, zone_code, shelf_code, level_code, description |
-| **Supplier** | Supplier | id, name, contact, phone, address, qual_cert |
-| **Customer** | Customer | id, name, contact, phone, address |
-| **PurchaseOrder** | Purchase order | id, order_no, supplier_id, order_date, status, total_amount |
-| **SalesOrder** | Sales order | id, order_no, customer_id, order_date, status, total_amount |
-| **InboundRecord** | Inbound record | id, record_no, type, pipe_type(seamless/screen), pipe_id, qty, date, order_id, operator, remark |
-| **OutboundRecord** | Outbound record | id, record_no, type, pipe_type(seamless/screen), pipe_id, qty, date, order_id, operator, remark |
-| **InventoryLog** | Movement log | id, pipe_type, pipe_id, change_type, qty_before, qty_after, operation, operator, timestamp |
-| **QualityCert** | QC certificate | id, pipe_type, pipe_id, cert_no, inspect_date, inspector, agency, file_url, result, remark |
-| **User** | System user | id, username, password_hash, role, name, email, language_pref, unit_system |
-| **OperationLog** | Audit log | id, user_id, action, target_type, target_id, detail, ip_address, timestamp |
+| -------- | ------------- | ------------- |
+| **Item** | Item master data | id, sku(unique), name, category, unit, spec, status, notes, attachments, created_at, updated_at, deleted_at |
+| **Location / Warehouse** | Storage spot / warehouse | id, warehouse_id, code, description, max_capacity, current_usage |
+| **Supplier** | Supplier | id, code, name, contact_person, phone, email, address, qualification, score |
+| **Customer** | Customer | id, code, name, contact_person, phone, email, address, credit_limit |
+| **PurchaseOrder** | PO header | id, order_no, supplier_id, order_date, status, total_amount, currency, contract_id |
+| **PurchaseOrderItem** | PO line item | id, order_id, item_id, quantity, received_quantity, unit_price |
+| **SalesOrder** | SO header | id, order_no, customer_id, order_date, status, total_amount, currency, contract_id |
+| **SalesOrderItem** | SO line item | id, order_id, item_id, quantity, delivered_quantity, unit_price |
+| **InboundRecord / Item** | Inbound header/items | id, record_no, inbound_type(purchase/production/return), order_id, supplier_id, approval_status, items[] |
+| **OutboundRecord / Item** | Outbound header/items | id, record_no, outbound_type(sales/transfer/scrapped), order_id, customer_id, approval_status, items[] |
+| **InventoryLog** | Movement log | id, item_id, change_type, reference_id, operator_id, operator_name, remark, created_at |
+| **Reservation** | ATP reservation | id, item_id, sales_order_id / work_order_id, quantity, status |
+| **WorkOrder** | Work order | id, work_order_no, item_id (product), bom_id, quantity, status, start_date, due_date |
+| **Inspection** | Inspection record | id, work_order_id, inspect_date, inspector, result(pass/fail/pending), test_items, file_url |
+| **NCR** | Non-conformance report | id, inspection_id, description, corrective_action, status |
+| **WorkflowDefinition** | Workflow template | id, name, nodes(JSON), conditions(JSON), is_active |
+| **WorkflowInstance** | Workflow instance | id, definition_id, business_type, business_id, status |
+| **WorkflowTask** | Approval task | id, instance_id, node_key, assignee_id, status, comment |
+| **Employee** | Employee | id, employee_no, name, department_id, position, phone, email, hire_date |
+| **Attendance / Salary / LaborContract** | Attendance / salary / labor contract | separate tables, linked via employee_id |
+| **Account / JournalEntry / Invoice / Payment** | Finance core | separate tables |
+| **Project / WBS / BudgetItem** | Project / WBS / budget | separate tables, linked via project_id |
+| **FixedAsset / Depreciation / Disposal** | Fixed assets | separate tables, linked via asset_id |
+| **Notification** | Notification | id, user_id, title, content, read_at, template_id |
+| **PortalAccount** | Portal identity | id, party_type(customer/supplier), party_id, username, password_hash |
+| **User / Role / Permission** | RBAC | separate tables |
+| **OperationLog** | Audit log | id, user_id, username, action, target_type, target_id, detail(JSON), ip_address, created_at |
 
 ---
 
 ## 7. Priority Roadmap
 
 | Phase | Scope | Priority |
-|-------|-------|----------|
-| **Phase 1 (MVP)** | Pipe CRUD, Inventory (inbound/outbound/query), Multi-dimensional search, User permissions, History traceability | P0 |
-| **Phase 2** | Quality management, Procurement/Sales management, Data import/export (Excel/CSV) | P1 |
-| **Phase 3** | Reports & dashboards, Label printing, Contract management, i18n (zh/en + unit switch) | P2 |
+| ------- | ------- | ---------- |
+| **Phase 1 (MVP)** | Item master data, Inventory (inbound/outbound/query/count), Multi-dimensional search, Auth & RBAC, History traceability | P0 |
+| **Phase 2** | Procurement/Sales/Contracts, Workflow approvals, Manufacturing & Inspection (BOM/work orders/Inspection/NCR), Data import/export | P1 |
+| **Phase 3** | Finance, HR, Projects & Fixed Assets, Notifications & Portal, BI analytics, i18n & unit switching | P2 |
 
 ---
 
@@ -334,18 +394,28 @@ Supplier ──→ PurchaseOrder ──→ InboundRecord ──→ SeamlessPipe/
 ### 8.1 Glossary
 
 | Term | English | What It Is |
-|------|---------|------------|
-| 无缝钢管 | Seamless Pipe | Steel pipe made by piercing — used as casing or tubing |
-| 筛管 | Screen Pipe | Filter pipe with slots or wire wrap over a base pipe |
-| 套管 | Casing | Pipe string that supports the wellbore |
-| 油管 | Tubing | Pipe inside casing that carries oil/gas up |
-| API 5CT | API Specification 5CT | The governing spec for casing and tubing |
-| 钢级 | Grade | Strength rating of the pipe |
-| 炉批号 | Heat Number | Steel furnace batch ID — key for traceability |
-| 接箍 | Coupling | Connector that joins two pipe joints together |
+| ------ | --------- | ------------ |
+| 商品 | Item | The tradable business object, the single entity of the system |
+| SKU | SKU | Unique business code of an item |
+| 规格 | Spec | Descriptive attribute of an item (optional) |
+| 库存 | Inventory | Stock records of items at locations |
+| 入库 | Inbound | Business action of items entering inventory |
+| 出库 | Outbound | Business action of items leaving inventory |
+| 盘点 | Count Session | Periodic reconciliation of book vs. physical inventory |
+| 采购订单 | Purchase Order | Formal purchase document issued to a supplier |
+| 销售订单 | Sales Order | Formal sales document from a customer |
+| 采购收货 | Receipt | Confirmation of supplier arrival and inbound |
+| 发货 | Shipment | Confirmation of sales outbound to a customer |
+| 审批流 | Workflow | Approval engine for business documents |
+| 工单 | Work Order | Execution document for production/processing tasks |
+| 质检 | Inspection | Quality inspection record in manufacturing (not the legacy "quality certificate") |
+| 不合格品单 | NCR | Correction record when inspection fails |
+| 固定资产 | Fixed Asset | Long-held depreciable asset |
+| 门户账户 | Party | Customer/supplier identity in the portal |
+| BI 分析 | Analytics | Decision-oriented aggregated reporting |
 
 ### 8.2 Related Documents
 
-- API 5CT: Specification for Casing and Tubing (ISO 11960)
-- Detailed design: DB schema, API endpoints, architecture
-- Frontend design: Component tree, routing, state management
+- Terminology canon: `specs/UBIQUITOUS_LANGUAGE_LATEST.md` (authoritative term list; all docs must follow it)
+- Detailed design: `docs/detailed-design.en.md` (DB schema, API endpoints, architecture)
+- Frontend design: `docs/frontend-design.en.md` (component tree, routing, state management)

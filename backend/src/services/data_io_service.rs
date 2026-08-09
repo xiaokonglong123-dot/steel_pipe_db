@@ -4,7 +4,7 @@ use std::io::Cursor;
 use calamine::{open_workbook_from_rs, Data, Reader, Xlsx};
 use csv::Trim;
 use rust_xlsxwriter::*;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::data_io_dto::*;
@@ -15,8 +15,11 @@ use crate::repositories::operation_log_repo::{
 };
 
 /// Data import/export service — supports Excel/CSV export, template download, and
-/// batch import for seamless pipes, screen pipes, inventory, orders, and QC certs.
-/// Also handles operation-log recording and queries.
+/// batch import for items, inventory, and orders. Also handles operation-log
+/// recording and queries.
+///
+/// The former seamless/screen pipe and quality-cert entities were removed with the
+/// dropped pipe tables; imports/exports now point at the generic `items` master.
 pub struct DataIOService;
 
 impl DataIOService {
@@ -30,57 +33,20 @@ impl DataIOService {
 
     fn get_columns(entity_type: &str) -> Vec<(&'static str, &'static str)> {
         match entity_type {
-            ENTITY_SEAMLESS_PIPES => vec![
-                ("pipe_number", "Pipe Number"),
-                ("batch_number", "Batch Number"),
-                ("pipe_type", "Pipe Type"),
-                ("grade", "Grade"),
-                ("od", "OD (mm)"),
-                ("wt", "WT (mm)"),
-                ("length", "Length (m)"),
-                ("weight_per_unit", "Weight/Unit (kg)"),
-                ("end_type", "End Type"),
-                ("coupling_type", "Coupling Type"),
-                ("coupling_od", "Coupling OD (mm)"),
-                ("coupling_length", "Coupling Length (mm)"),
-                ("heat_number", "Heat Number"),
-                ("serial_number", "Serial Number"),
-                ("manufacturer", "Manufacturer"),
-                ("production_date", "Production Date"),
-                ("cert_number", "Cert Number"),
+            ENTITY_ITEMS => vec![
+                ("sku", "SKU"),
+                ("name", "Name"),
+                ("category", "Category"),
+                ("unit", "Unit"),
+                ("spec", "Spec"),
+                ("price", "Price"),
                 ("status", "Status"),
-                ("notes", "Notes"),
-            ],
-            ENTITY_SCREEN_PIPES => vec![
-                ("pipe_number", "Pipe Number"),
-                ("batch_number", "Batch Number"),
-                ("screen_type", "Screen Type"),
-                ("slot_size", "Slot Size (mm)"),
-                ("filtration_grade", "Filtration Grade"),
-                ("base_od", "Base OD (mm)"),
-                ("base_wt", "Base WT (mm)"),
-                ("base_grade", "Base Grade"),
-                ("base_end_type", "Base End Type"),
-                ("length", "Length (m)"),
-                ("weight_per_unit", "Weight/Unit (kg)"),
-                ("heat_number", "Heat Number"),
-                ("serial_number", "Serial Number"),
-                ("manufacturer", "Manufacturer"),
-                ("production_date", "Production Date"),
-                ("cert_number", "Cert Number"),
-                ("status", "Status"),
-                ("notes", "Notes"),
             ],
             ENTITY_INVENTORY => vec![
-                ("pipe_id", "Pipe ID"),
-                ("pipe_number", "Pipe Number"),
-                ("pipe_type", "Pipe Type"),
-                ("grade", "Grade"),
-                ("od", "OD (mm)"),
-                ("wt", "WT (mm)"),
-                ("status", "Status"),
-                ("location_id", "Location ID"),
-                ("heat_number", "Heat Number"),
+                ("item_id", "Item ID"),
+                ("sku", "SKU"),
+                ("name", "Name"),
+                ("stock", "Stock"),
             ],
             ENTITY_PURCHASE_ORDERS => vec![
                 ("order_no", "Order No"),
@@ -98,16 +64,6 @@ impl DataIOService {
                 ("status", "Status"),
                 ("total_amount", "Total Amount"),
                 ("items_count", "Items Count"),
-                ("notes", "Notes"),
-            ],
-            ENTITY_QUALITY_CERTS => vec![
-                ("cert_number", "Cert Number"),
-                ("pipe_type", "Pipe Type"),
-                ("pipe_id", "Pipe ID"),
-                ("cert_date", "Cert Date"),
-                ("result", "Result"),
-                ("inspector", "Inspector"),
-                ("inspection_body", "Inspection Body"),
                 ("notes", "Notes"),
             ],
             _ => vec![],
@@ -129,16 +85,14 @@ impl DataIOService {
     }
 
     async fn fetch_export_data(
-        pool: &PgPool,
+        pool: &SqlitePool,
         entity_type: &str,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         match entity_type {
-            ENTITY_SEAMLESS_PIPES => DataIORepo::export_seamless_pipes(pool).await,
-            ENTITY_SCREEN_PIPES => DataIORepo::export_screen_pipes(pool).await,
+            ENTITY_ITEMS => DataIORepo::export_items(pool).await,
             ENTITY_INVENTORY => DataIORepo::export_inventory(pool).await,
             ENTITY_PURCHASE_ORDERS => DataIORepo::export_purchase_orders(pool).await,
             ENTITY_SALES_ORDERS => DataIORepo::export_sales_orders(pool).await,
-            ENTITY_QUALITY_CERTS => DataIORepo::export_quality_certs(pool).await,
             _ => Err(AppError::Validation(format!(
                 "Unknown entity type: {}",
                 entity_type
@@ -378,7 +332,7 @@ impl DataIOService {
     /// - `AppError::Validation` — unknown entity type
     /// - `AppError::ExportError` — file generation failed
     pub async fn export_entity(
-        pool: &PgPool,
+        pool: &SqlitePool,
         entity_type: &str,
         format: &str,
     ) -> Result<Vec<u8>, AppError> {
@@ -419,7 +373,7 @@ impl DataIOService {
     /// - `AppError::ImportError` — parse or import failure
     /// - `AppError::ImportError` — empty data rows
     pub async fn import_entity(
-        pool: &PgPool,
+        pool: &SqlitePool,
         entity_type: &str,
         data: &[u8],
         file_name: &str,
@@ -439,8 +393,7 @@ impl DataIOService {
         }
 
         let (imported_count, errors) = match entity_type {
-            ENTITY_SEAMLESS_PIPES => DataIORepo::import_seamless_pipes(pool, &rows).await?,
-            ENTITY_SCREEN_PIPES => DataIORepo::import_screen_pipes(pool, &rows).await?,
+            ENTITY_ITEMS => DataIORepo::import_items(pool, &rows).await?,
             _ => {
                 return Err(AppError::ImportError(format!(
                     "Import not supported for entity type: {}",
@@ -459,7 +412,7 @@ impl DataIOService {
 
     /// Paginated operation-log query with optional user, action, and entity-type filters.
     pub async fn list_operation_logs(
-        pool: &PgPool,
+        pool: &SqlitePool,
         query: &OperationLogQuery,
     ) -> Result<(Vec<OperationLog>, u64), AppError> {
         let params = PaginationParams {
@@ -486,7 +439,7 @@ impl DataIOService {
     /// Record an operation log entry — called by handlers after user actions.
     #[allow(clippy::too_many_arguments)]
     pub async fn log_operation(
-        pool: &PgPool,
+        pool: &SqlitePool,
         user_id: Option<i64>,
         username: Option<String>,
         action: &str,

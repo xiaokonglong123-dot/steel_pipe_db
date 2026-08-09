@@ -1,0 +1,6 @@
+-- 010_drop_api_5ct_seeds.sql
+-- The API 5CT steel-grade seed data (api_5ct_grade_ref rows) is REMOVED in the
+-- SQLite + generic-ERP rewrite together with its table (see 007). Product
+-- attributes are now free-form `spec` text on the `items` table — there is no
+-- industry-specific grade reference any more.
+-- This migration intentionally contains no statements.

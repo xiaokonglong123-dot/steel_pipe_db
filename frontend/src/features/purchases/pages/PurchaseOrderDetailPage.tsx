@@ -104,25 +104,10 @@ export default function PurchaseOrderDetailPage() {
 
   const itemColumns = [
     {
-      title: t('purchases.pipe_type'),
-      dataIndex: 'pipe_type',
-      key: 'pipe_type',
-    },
-    {
-      title: t('purchases.grade'),
-      dataIndex: 'grade',
-      key: 'grade',
-      render: (grade: string) => <Tag color="blue">{grade}</Tag>,
-    },
-    {
-      title: t('purchases.od'),
-      dataIndex: 'od',
-      key: 'od',
-    },
-    {
-      title: t('purchases.wt'),
-      dataIndex: 'wt',
-      key: 'wt',
+      title: t('purchases.item', '商品'),
+      key: 'item',
+      render: (_: unknown, record: { item_id: number; sku?: string; name?: string }) =>
+        record.name ? `${record.sku ?? ''} — ${record.name}` : record.sku || `#${record.item_id}`,
     },
     {
       title: t('purchases.quantity'),

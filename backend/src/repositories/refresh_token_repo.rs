@@ -1,21 +1,27 @@
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::models::refresh_token::RefreshToken;
 
 /// CRUD for `refresh_tokens`. Handles token storage, lookup, and revocation.
+///
+/// SQLite stores timestamps as TEXT. sqlx encodes `DateTime<Utc>` as RFC3339
+/// (`2026-08-09T12:00:00Z`), while `datetime('now')` produces `2026-08-09 12:00:00`
+/// — the two formats do NOT compare as strings. All timestamp comparisons
+/// therefore bind a Rust-side `DateTime<Utc>` instead of calling `datetime('now')`
+/// inside the query.
 pub struct RefreshTokenRepo;
 
 impl RefreshTokenRepo {
     /// INSERT a new refresh token. `token_hash` is the SHA-256 of the opaque token.
     pub async fn create(
-        pool: &PgPool,
+        pool: &SqlitePool,
         user_id: i64,
         token_hash: &str,
         expires_at: &chrono::DateTime<chrono::Utc>,
     ) -> Result<RefreshToken, sqlx::Error> {
         sqlx::query_as::<_, RefreshToken>(
             "INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-             VALUES ($1, $2, $3)
+             VALUES (?, ?, ?)
              RETURNING id, user_id, token_hash, expires_at, created_at, revoked_at",
         )
         .bind(user_id)
@@ -27,26 +33,28 @@ impl RefreshTokenRepo {
 
     /// Find a refresh token by its hash. Returns None if not found, revoked, or expired.
     pub async fn find_by_token_hash(
-        pool: &PgPool,
+        pool: &SqlitePool,
         token_hash: &str,
     ) -> Result<Option<RefreshToken>, sqlx::Error> {
+        let now = chrono::Utc::now();
         sqlx::query_as::<_, RefreshToken>(
             "SELECT id, user_id, token_hash, expires_at, created_at, revoked_at
              FROM refresh_tokens
-             WHERE token_hash = $1
+             WHERE token_hash = ?
                AND revoked_at IS NULL
-               AND expires_at > NOW()",
+               AND expires_at > ?",
         )
         .bind(token_hash)
+        .bind(now)
         .fetch_optional(pool)
         .await
     }
 
     /// Revoke a single refresh token (sets revoked_at).
-    pub async fn revoke(pool: &PgPool, token_hash: &str) -> Result<(), sqlx::Error> {
+    pub async fn revoke(pool: &SqlitePool, token_hash: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE refresh_tokens SET revoked_at = NOW()
-             WHERE token_hash = $1 AND revoked_at IS NULL",
+            "UPDATE refresh_tokens SET revoked_at = datetime('now')
+             WHERE token_hash = ? AND revoked_at IS NULL",
         )
         .bind(token_hash)
         .execute(pool)
@@ -55,10 +63,10 @@ impl RefreshTokenRepo {
     }
 
     /// Revoke all refresh tokens for a user (logout / password change).
-    pub async fn revoke_all_for_user(pool: &PgPool, user_id: i64) -> Result<u64, sqlx::Error> {
+    pub async fn revoke_all_for_user(pool: &SqlitePool, user_id: i64) -> Result<u64, sqlx::Error> {
         let result = sqlx::query(
-            "UPDATE refresh_tokens SET revoked_at = NOW()
-             WHERE user_id = $1 AND revoked_at IS NULL",
+            "UPDATE refresh_tokens SET revoked_at = datetime('now')
+             WHERE user_id = ? AND revoked_at IS NULL",
         )
         .bind(user_id)
         .execute(pool)
@@ -67,13 +75,15 @@ impl RefreshTokenRepo {
     }
 
     /// Delete expired and revoked tokens older than `days` days (cleanup).
-    pub async fn cleanup(pool: &PgPool, days: i64) -> Result<u64, sqlx::Error> {
+    pub async fn cleanup(pool: &SqlitePool, days: i64) -> Result<u64, sqlx::Error> {
+        let cutoff = chrono::Utc::now() - chrono::Duration::days(days);
         let result = sqlx::query(
             "DELETE FROM refresh_tokens
-             WHERE (revoked_at IS NOT NULL OR expires_at < NOW())
-               AND created_at < NOW() + $1::interval",
+             WHERE (revoked_at IS NOT NULL OR expires_at < ?)
+               AND created_at < ?",
         )
-        .bind(format!("-{} days", days))
+        .bind(cutoff)
+        .bind(cutoff)
         .execute(pool)
         .await?;
         Ok(result.rows_affected())

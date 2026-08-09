@@ -2,7 +2,7 @@
 //! conditional routing, approve/reject state machine, task queries.
 
 use chrono::Utc;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use serde_json::Value;
 
 use crate::error::AppError;
@@ -19,7 +19,7 @@ impl WorkflowService {
     // -----------------------------------------------------------------------
 
     pub async fn list_definitions(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         entity_type: Option<&str>,
     ) -> Result<Vec<WorkflowDefinition>, AppError> {
@@ -29,7 +29,7 @@ impl WorkflowService {
     }
 
     pub async fn get_definition(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
     ) -> Result<WorkflowDefinition, AppError> {
@@ -58,7 +58,7 @@ impl WorkflowService {
     }
 
     pub async fn create_definition(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         name: &str,
         entity_type: &str,
@@ -86,7 +86,7 @@ impl WorkflowService {
     }
 
     pub async fn update_definition(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         name: Option<&str>,
@@ -110,7 +110,7 @@ impl WorkflowService {
         .ok_or_else(|| AppError::NotFound(format!("Workflow definition not found: {}", id)))
     }
 
-    pub async fn delete_definition(pool: &PgPool, tenant_id: i64, id: i64) -> Result<(), AppError> {
+    pub async fn delete_definition(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<(), AppError> {
         let deleted = WorkflowDefinitionRepo::delete(pool, tenant_id, id)
             .await
             .map_err(AppError::from)?;
@@ -128,12 +128,12 @@ impl WorkflowService {
     /// conditions up front so skipped nodes never enter the pending queue)
     /// and leave the first applicable node pending.
     pub async fn start_instance(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         definition_id: i64,
         entity_type: &str,
         entity_id: i64,
-        amount: Option<rust_decimal::Decimal>,
+        amount: Option<f64>,
         initiator_id: i64,
     ) -> Result<WorkflowInstance, AppError> {
         let def = Self::get_definition(pool, tenant_id, definition_id).await?;
@@ -200,15 +200,15 @@ impl WorkflowService {
 
     /// Condition routing: a node is skipped when its condition is present and
     /// NOT satisfied. Supported conditions: `{"amount_gt": N}` / `{"amount_lte": N}`.
-    fn condition_skips(node: &DefinitionNode, amount: Option<rust_decimal::Decimal>) -> bool {
+    fn condition_skips(node: &DefinitionNode, amount: Option<f64>) -> bool {
         let Some(cond) = &node.condition else { return false };
         let Some(amount) = amount else { return true }; // no amount context → skip conditional nodes
         let amt = amount;
         if let Some(n) = cond.get("amount_gt").and_then(Value::as_i64) {
-            return amt <= rust_decimal::Decimal::from(n);
+            return amt <= n as f64;
         }
         if let Some(n) = cond.get("amount_lte").and_then(Value::as_i64) {
-            return amt > rust_decimal::Decimal::from(n);
+            return amt > n as f64;
         }
         false
     }
@@ -219,11 +219,11 @@ impl WorkflowService {
 
     /// Pending tasks visible to a user: direct assignments plus delegations
     /// granted to them.
-    pub async fn my_tasks(pool: &PgPool, user_id: i64) -> Result<Vec<ApprovalNode>, AppError> {
+    pub async fn my_tasks(pool: &SqlitePool, user_id: i64) -> Result<Vec<ApprovalNode>, AppError> {
         let delegations = sqlx::query_as::<_, WorkflowDelegation>(
             "SELECT id, original_user_id, delegated_user_id, entity_type, starts_at, ends_at, is_active, created_at \
-             FROM workflow_delegations WHERE delegated_user_id = $1 AND is_active = TRUE \
-             AND starts_at <= NOW() AND (ends_at IS NULL OR ends_at >= NOW())",
+             FROM workflow_delegations WHERE delegated_user_id = ? AND is_active = 1 \
+             AND datetime(starts_at) <= datetime('now') AND (ends_at IS NULL OR datetime(ends_at) >= datetime('now'))",
         )
         .bind(user_id)
         .fetch_all(pool)
@@ -244,7 +244,7 @@ impl WorkflowService {
         Ok(tasks)
     }
 
-    pub async fn get_task(pool: &PgPool, node_id: i64) -> Result<(ApprovalNode, WorkflowInstance), AppError> {
+    pub async fn get_task(pool: &SqlitePool, node_id: i64) -> Result<(ApprovalNode, WorkflowInstance), AppError> {
         let node = ApprovalNodeRepo::find_by_id(pool, node_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Task not found: {}", node_id)))?;
@@ -256,14 +256,14 @@ impl WorkflowService {
 
     /// A user may act on a node when the node is assigned to them directly
     /// (user type) or to a role they hold (role type).
-    async fn user_can_act(pool: &PgPool, node: &ApprovalNode, user_id: i64) -> Result<bool, AppError> {
+    async fn user_can_act(pool: &SqlitePool, node: &ApprovalNode, user_id: i64) -> Result<bool, AppError> {
         match node.assignee_type.as_str() {
             "user" => Ok(node.assignee_value.as_deref() == Some(&user_id.to_string())),
             "role" => {
                 let n = sqlx::query_scalar::<_, i64>(
                     "SELECT COUNT(*) FROM user_roles ur \
                      JOIN roles r ON r.id = ur.role_id \
-                     WHERE ur.user_id = $1 AND r.name = $2",
+                     WHERE ur.user_id = ? AND r.name = ?",
                 )
                 .bind(user_id)
                 .bind(node.assignee_value.as_deref().unwrap_or(""))
@@ -279,7 +279,7 @@ impl WorkflowService {
     /// Approve the current node, then route to the next pending node or
     /// finish the instance as approved.
     pub async fn approve(
-        pool: &PgPool,
+        pool: &SqlitePool,
         node_id: i64,
         approver_id: i64,
         reason: Option<&str>,
@@ -321,7 +321,7 @@ impl WorkflowService {
 
     /// Reject terminates the whole instance (no rework loop in v1).
     pub async fn reject(
-        pool: &PgPool,
+        pool: &SqlitePool,
         node_id: i64,
         approver_id: i64,
         reason: &str,
@@ -346,7 +346,7 @@ impl WorkflowService {
     }
 
     pub async fn delegate(
-        pool: &PgPool,
+        pool: &SqlitePool,
         original_user_id: i64,
         delegated_user_id: i64,
         entity_type: Option<&str>,
@@ -366,7 +366,7 @@ impl WorkflowService {
         .map_err(AppError::from)
     }
 
-    async fn get_instance(pool: &PgPool, id: i64) -> Result<WorkflowInstance, AppError> {
+    async fn get_instance(pool: &SqlitePool, id: i64) -> Result<WorkflowInstance, AppError> {
         WorkflowInstanceRepo::find_by_id(pool, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Instance not found: {}", id)))

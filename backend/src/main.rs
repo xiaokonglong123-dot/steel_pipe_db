@@ -2,7 +2,7 @@
 
 use std::net::SocketAddr;
 
-use sqlx::postgres::PgPoolOptions;
+use sqlx::sqlite::SqlitePoolOptions;
 use tracing_subscriber::EnvFilter;
 
 use crate::dto::auth_dto::CreateUserRequest;
@@ -18,7 +18,6 @@ mod procurement;
 mod sales_crm;
 mod inventory_atp;
 mod manufacturing;
-mod threading;
 mod project;
 mod bi;
 mod portal;
@@ -52,8 +51,12 @@ async fn main() {
     // Read all env-based config upfront — panics early if critical vars are missing
     let cfg = config::Config::from_env();
 
+    // Ensure the data/ directory exists before connecting — SQLite's rwc mode
+    // auto-creates the file but not its parent directory.
+    std::fs::create_dir_all("data").expect("Failed to create data directory");
+
     // Pool must be created before routes — all handlers pull connections from this pool
-    let pool = PgPoolOptions::new()
+    let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect(&cfg.database_url)
         .await
@@ -101,7 +104,7 @@ async fn main() {
 }
 
 /// Creates the initial admin user when the database is empty.
-async fn bootstrap_admin(pool: &sqlx::PgPool, admin_username: &str, admin_password: &str) {
+async fn bootstrap_admin(pool: &sqlx::SqlitePool, admin_username: &str, admin_password: &str) {
     let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
         .fetch_one(pool)
         .await
@@ -142,7 +145,7 @@ async fn bootstrap_admin(pool: &sqlx::PgPool, admin_username: &str, admin_passwo
             // bootstrap runs after migrations).
             let bound = sqlx::query(
                 "INSERT INTO user_roles (user_id, role_id) \
-                 SELECT $1, id FROM roles \
+                 SELECT ?, id FROM roles \
                  WHERE name = 'admin' AND tenant_id = 1 AND deleted_at IS NULL \
                  ON CONFLICT DO NOTHING",
             )

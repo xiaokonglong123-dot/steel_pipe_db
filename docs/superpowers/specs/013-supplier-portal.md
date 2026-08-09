@@ -6,31 +6,36 @@
 
 ## 1. 目标
 
-外部供应商和客户能通过 Web 门户登录查看订单、确认 PO、提交发运、提交质量手册。
+外部供应商和客户能通过 Web 门户登录查看订单、确认采购订单、提交发运。
 
 ## 2. 功能
 
 | 角色 | 看到的 |
 |------|--------|
-| Supplier | 查看 PO、确认或拒绝 PO、提交发货跟踪、提交发货发票 -->
-| Customer | 查看 SO、历史订单、信用状态、收到发货告知 |
+| Supplier | 查看采购订单、确认或拒绝、提交发货跟踪、提交发货发票 |
+| Customer | 查看销售订单、历史订单、信用状态、收到发货告知 |
 
-## 3. 相关样式
+## 3. 相关表
+
+> 数据库为 SQLite3（`sqlite://data/erp.db?mode=rwc`）。
 
 ```sql
--- 新表: portal_tenants 链接到 auth.tenants 的 external
-CREATE TABLE auth.portal_tenants (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT REFERENCES auth.tenants(id),
-    entity_type VARCHAR(20), -- supplier, customer (choice)
-    entity_id BIGINT
+-- 新表: portal_accounts 链接到 parties (客户/供应商)
+CREATE TABLE portal_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER REFERENCES tenants(id),
+    entity_type TEXT, -- supplier, customer
+    entity_id INTEGER,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
 );
 ```
 
 ## 4. API
 
 | Method | Path | Auth |
-|--------|------|------|
+| -------- | ------ | ------ |
 | GET | `/portal/purchases` | supplier JWT |
 | POST | `/portal/purchases/:id/accept` | supplier |
 | GET | `/portal/sales` | customer JWT |
@@ -38,4 +43,4 @@ CREATE TABLE auth.portal_tenants (
 
 ## 5. 前端
 
-- SPA 用 `gateway/PortalLoginPage` 将供应商/客户排序进 tenant ID 渲染不同视图
+- SPA 用 `portal/PortalLoginPage` 将供应商/客户排序进租户 ID 渲染不同视图

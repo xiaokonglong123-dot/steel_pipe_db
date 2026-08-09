@@ -1,4 +1,6 @@
-# Steel Pipe DB — 系统设计文档
+# ERP — 系统设计文档
+
+> 历史沿革：本系统由钢管行业系统重构而来，已重构为通用 ERP（企业资源计划系统）。
 
 ## 1. 系统架构
 
@@ -28,29 +30,29 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                    应用服务层 (Application Layer)                  │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Axum 0.8 Server (端口 3000)                             │  │
+│  │  Axum 0.8 Server (端口 3000, crate `erp-server`)          │  │
 │  │  ┌────────────┐  ┌────────────┐  ┌────────────┐        │  │
 │  │  │ 认证中间件   │  │ RBAC 中间件 │  │ 限流中间件   │        │  │
-│  │  │ (JWT/Argon2)│  │ (4 角色)   │  │ (Per-IP)   │        │  │
+│  │  │ (JWT/Argon2)│  │ (角色/权限) │  │ (Per-IP)   │        │  │
 │  │  └────────────┘  └────────────┘  └────────────┘        │  │
 │  │                         │                                │  │
 │  │                         ▼                                │  │
 │  │  ┌────────────────────────────────────────────────┐    │  │
-│  │  │              Handler 层 (16 个模块)              │    │  │
-│  │  │  auth │ pipe │ inventory │ purchase │ sales     │    │  │
-│  │  │  quality │ contract │ customer │ supplier      │    │  │
-│  │  │  report │ label │ data_io │ atp │ check        │    │  │
+│  │  │              Handler 层 (按模块划分)              │    │  │
+│  │  │  auth │ item │ inventory │ purchase │ sales     │    │  │
+│  │  │  workflow │ hr │ finance │ manufacturing │      │    │  │
+│  │  │  project │ asset │ notification │ portal │ bi   │    │  │
 │  │  └────────────────────────────────────────────────┘    │  │
 │  │                         │                                │  │
 │  │                         ▼                                │  │
 │  │  ┌────────────────────────────────────────────────┐    │  │
-│  │  │              Service 层 (19 个模块)              │    │  │
+│  │  │              Service 层                         │    │  │
 │  │  │  业务逻辑 + 数据验证 + 事务管理                     │    │  │
 │  │  └────────────────────────────────────────────────┘    │  │
 │  │                         │                                │  │
 │  │                         ▼                                │  │
 │  │  ┌────────────────────────────────────────────────┐    │  │
-│  │  │              Repository 层 (20 个模块)           │    │  │
+│  │  │              Repository 层                      │    │  │
 │  │  │  纯 SQL 查询 + 软删除感知                         │    │  │
 │  │  └────────────────────────────────────────────────┘    │  │
 │  └──────────────────────────────────────────────────────────┘  │
@@ -60,14 +62,15 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                      数据存储层 (Data Layer)                      │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │  SQLite (WAL 模式)                                        │  │
-│  │  - 数据库文件: ./data/steel_pipe.db                       │  │
-│  │  - 连接池: 最大 5 连接                                      │  │
+│  │  SQLite3 (WAL 模式)                                       │  │
+│  │  - 数据库文件: data/erp.db                                 │  │
+│  │  - 连接串: sqlite://data/erp.db?mode=rwc                  │  │
+│  │  - 连接池: SQLx pool (最大 5 连接)                          │  │
 │  │  - 自动迁移: 启动时执行 migrations/                        │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │  内存缓存 (可选)                                           │  │
-│  │  - TTL 缓存: API 5CT 钢级参考数据                          │  │
+│  │  - TTL 缓存: 商品分类/单位参考数据                          │  │
 │  │  - 查询结果缓存: 热点查询                                   │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
@@ -76,11 +79,11 @@
 ### 1.2 设计原则
 
 | 原则 | 实现方式 |
-|------|----------|
+| ------ | ---------- |
 | **单一职责** | Handler 只做提取和响应，Service 处理业务逻辑，Repository 只管数据访问 |
-| **依赖倒置** | 通过 Extension 层注入依赖，无全局状态 |
+| **依赖倒置** | 通过 Extension 层注入依赖（`Extension<SqlitePool>` / `Extension<JwtSecret>`），无全局状态 |
 | **软删除** | 所有业务表使用 `deleted_at` 字段，物理删除仅用于维护 |
-| **无外键约束** | 应用层保证数据完整性，便于未来分库分表 |
+| **无外键约束** | 应用层保证数据完整性，便于未来演进 |
 | **数字错误码** | 域前缀编码 (100xx-50001)，便于前端国际化 |
 
 ## 2. 组件结构
@@ -88,34 +91,44 @@
 ### 2.1 后端模块结构
 
 ```
-backend/src/
+backend/src/ (crate `erp-server`)
 ├── main.rs              ← 入口: tracing, DB 池, 迁移, 启动服务器
 ├── lib.rs               ← 模块声明
-├── config.rs            ← 环境变量配置
+├── config.rs            ← 环境变量配置 (DATABASE_URL=sqlite://data/erp.db?mode=rwc 等)
 ├── error.rs             ← AppError 枚举 + 数字错误码
 ├── response.rs          ← ApiResponse<T>, PaginatedResponse<T>
 ├── router.rs            ← ~70 个端点组装
-├── cache.rs             ← TTL 内存缓存 (新增)
+├── cache.rs             ← TTL 内存缓存
 │
 ├── middleware/          ← 中间件层
 │   ├── auth.rs          ← JWT 验证, Claims, AuthContext
 │   ├── rbac.rs          ← 角色权限控制
 │   └── rate_limit.rs    ← Per-IP 限流
 │
+├── auth/                ← 认证授权: roles/permissions/departments/tenants
+├── workflow/            ← 审批流: definitions/instances/tasks
+├── hr/                  ← 人力资源: employees/attendance/salaries/labor contracts
+├── finance/             ← 财务: accounts/journal/invoices/payments/trial-balance
+├── procurement/         ← 采购: requisitions/orders/receipts/quotes/scorecard
+├── sales_crm/           ← 销售 CRM: shipments/quotes/customer credit
+├── inventory_atp/       ← 库存: items(商品/SKU)/stock/reservations/transfers/count
+├── manufacturing/       ← 制造: BOMs/work orders/inspections/NCRs
+├── project/             ← 项目: projects/WBS/budget
+├── assets/              ← 固定资产: registration/depreciation/disposal
+├── notification/        ← 通知: inbox/templates/preferences
+├── portal/              ← 门户: portal accounts/party JWT
+├── bi/                  ← BI 分析: 销售趋势/库存价值/财务汇总/供应商绩效
+│
 ├── domain/              ← 领域类型
-│   ├── pipe.rs          ← 管材类型枚举
+│   ├── item.rs          ← 商品类型枚举
 │   ├── inventory.rs     ← 库存状态枚举
 │   └── order.rs         ← 订单状态枚举
 │
-├── dto/                 ← 请求/响应类型 (14 个文件)
-│
-├── models/              ← 数据库行结构 (12 个文件)
-│
-├── repositories/        ← 数据访问层 (20 个文件)
-│
-├── services/            ← 业务逻辑层 (19 个文件)
-│
-└── handlers/            ← HTTP 处理层 (16 个文件)
+├── dto/                 ← 请求/响应类型
+├── models/              ← 数据库行结构 (sqlx::FromRow)
+├── repositories/        ← 数据访问层 (纯 SQL, 软删除感知)
+├── services/            ← 业务逻辑层 (unit struct + 静态方法)
+└── handlers/            ← HTTP 处理层 (薄: 提取 → 调 service → 响应)
 ```
 
 ### 2.2 前端模块结构
@@ -133,25 +146,32 @@ frontend/src/
 │   ├── index.tsx        ← createBrowserRouter
 │   └── ProtectedRoute.tsx ← 认证守卫
 │
-├── features/            ← 13 个功能模块
-│   ├── auth/            ← 登录/注册/用户管理
-│   ├── pipes/           ← 无缝管/筛管管理
-│   ├── inventory/       ← 入库/出库/库存/库位/盘点
+├── features/            ← 按业务模块划分
+│   ├── auth/            ← 登录/用户管理
+│   ├── items/           ← 商品/SKU 管理
+│   ├── inventory/       ← 入库/出库/库存/库位/盘点/预留
 │   ├── suppliers/       ← 供应商管理
 │   ├── customers/       ← 客户管理
-│   ├── purchases/       ← 采购订单
-│   ├── sales/           ← 销售订单
-│   ├── quality/         ← 质量证书
+│   ├── purchases/       ← 采购订单/采购收货
+│   ├── sales/           ← 销售订单/发货
 │   ├── contracts/       ← 合同管理
-│   ├── reports/         ← 报表/仪表盘
-│   ├── labels/          ← 标签打印
-│   ├── search/          ← 全局搜索
+│   ├── workflow/        ← 审批流
+│   ├── hr/              ← 员工/考勤/薪资/劳动合同
+│   ├── finance/         ← 财务
+│   ├── procurement/     ← 采购申请/报价/评分
+│   ├── manufacturing/   ← BOM/工单/质检/NCR
+│   ├── projects/        ← 项目/WBS/预算
+│   ├── assets/          ← 固定资产
+│   ├── notifications/   ← 通知
+│   ├── portal/          ← 门户账户
+│   ├── reports/         ← 报表/BI 分析
+│   ├── search/          ← 全局搜索 (通用商品搜索)
 │   └── profile/         ← 个人设置
 │
 ├── stores/              ← 客户端状态
 │   ├── authStore.ts     ← Zustand: auth_token + auth_user
 │   ├── appStore.ts      ← 全局 UI 状态
-│   └── unitStore.ts     ← 单位转换
+│   └── unitStore.ts     ← 单位换算
 │
 ├── shared/              ← 共享资源
 │   ├── components/      ← 9 个共享组件
@@ -163,7 +183,7 @@ frontend/src/
 ├── lib/                 ← 运行时验证
 │   └── validateResponse.ts ← Zod 响应验证
 │
-└── zod-schemas/         ← 7 个 Zod 模式文件
+└── zod-schemas/         ← Zod 模式文件
 ```
 
 ## 3. 数据流
@@ -204,7 +224,7 @@ POST /api/v1/inventory/inbound
   │     ├─→ 生成入库单号 (IN + 年月日 + 序号)
   │     ├─→ 创建 inbound_records 记录
   │     ├─→ 批量创建 inbound_items
-  │     └─→ 更新管材状态为 'in_stock'
+  │     └─→ 更新商品库存为 'in_stock'
   │
   └─→ 返回入库单详情
 
@@ -214,7 +234,7 @@ POST /api/v1/inventory/inbound
 PUT /api/v1/inventory/inbound/{id}/approve
   │
   ├─→ InboundService::approve_inbound()
-  │     ├─→ 验证审批权限 (admin/warehouse)
+  │     ├─→ 验证审批权限
   │     ├─→ 更新 approval_status = 'approved'
   │     ├─→ 更新 handled_by, handled_at
   │     └─→ 记录操作日志
@@ -227,8 +247,8 @@ PUT /api/v1/inventory/inbound/{id}/approve
 PUT /api/v1/inventory/inbound/{id}/execute
   │
   ├─→ InboundService::execute_inbound()
-  │     ├─→ 更新管材 location_id
-  │     ├─→ 更新管材 status = 'in_stock'
+  │     ├─→ 更新商品 location_id
+  │     ├─→ 更新库存状态
   │     ├─→ 创建 inventory_logs 记录
   │     └─→ 记录操作日志
   │
@@ -246,7 +266,7 @@ POST /api/v1/inventory/outbound
   ├─→ OutboundService::create_outbound()
   │     ├─→ 验证客户存在
   │     ├─→ ATP 校验 (Available-to-Promise)
-  │     │     └─→ 检查库存是否满足出库数量
+  │     │     └─→ 检查库存 (扣除预留) 是否满足出库数量
   │     ├─→ 生成出库单号 (OUT + 年月日 + 序号)
   │     ├─→ 创建 outbound_records 记录
   │     └─→ 批量创建 outbound_items
@@ -259,24 +279,24 @@ POST /api/v1/inventory/outbound
 PUT /api/v1/inventory/outbound/{id}/execute
   │
   ├─→ OutboundService::execute_outbound()
-  │     ├─→ 更新管材 status = 'outbound'
-  │     ├─→ 清空管材 location_id
+  │     ├─→ 更新商品库存状态
+  │     ├─→ 清空商品 location_id
   │     ├─→ 创建 inventory_logs 记录
   │     └─→ 记录操作日志
   │
   └─→ 返回执行结果
 ```
 
-### 3.4 管材生命周期追踪
+### 3.4 商品生命周期追踪
 
 ```
-采购订单 → 入库 → 库存 → 出库 → 销售订单
-   │        │      │      │        │
-   ▼        ▼      ▼      ▼        ▼
-purchase  inbound  stock  outbound  sales
-_order    _records        _records  _order
-   │        │      │      │        │
-   └────────┴──────┴──────┴────────┘
+采购订单 → 采购收货/入库 → 库存 → 发货/出库 → 销售订单
+   │          │          │        │          │
+   ▼          ▼          ▼        ▼          ▼
+purchase   inbound    stock    outbound    sales
+_order     _records            _records    _order
+   │          │          │        │          │
+   └──────────┴──────────┴────────┴──────────┘
                   │
                   ▼
            inventory_logs
@@ -288,7 +308,7 @@ _order    _records        _records  _order
 ### 4.1 端点总览
 
 | 模块 | 端点 | 方法 | 描述 |
-|------|------|------|------|
+| ------ | ------ | ------ | ------ |
 | **认证** | /api/v1/auth/login | POST | 用户登录 |
 | | /api/v1/auth/refresh | POST | 刷新令牌 |
 | | /api/v1/auth/logout | POST | 用户登出 |
@@ -296,10 +316,10 @@ _order    _records        _records  _order
 | | /api/v1/auth/change-password | PUT | 修改密码 |
 | | /api/v1/users | GET/POST | 用户列表/创建 |
 | | /api/v1/users/{id} | PUT/DELETE | 更新/删除用户 |
-| **管材** | /api/v1/pipes/seamless | GET/POST | 无缝管列表/创建 |
-| | /api/v1/pipes/seamless/{id} | GET/PUT/DELETE | 无缝管详情/更新/删除 |
-| | /api/v1/pipes/screen | GET/POST | 筛管列表/创建 |
-| | /api/v1/pipes/screen/{id} | GET/PUT/DELETE | 筛管详情/更新/删除 |
+| | /api/v1/roles, /permissions, /departments | GET/POST | RBAC 管理 |
+| **商品** | /api/v1/items | GET/POST | 商品列表/创建 |
+| | /api/v1/items/{id} | GET/PUT/DELETE | 商品详情/更新/删除 |
+| | /api/v1/items/search | GET | 商品多维搜索 |
 | **库存** | /api/v1/inventory/inbound | GET/POST | 入库单列表/创建 |
 | | /api/v1/inventory/inbound/{id} | GET | 入库单详情 |
 | | /api/v1/inventory/inbound/{id}/approve | PUT | 审批入库 |
@@ -313,39 +333,77 @@ _order    _records        _records  _order
 | | /api/v1/inventory/stock | GET | 库存查询 |
 | | /api/v1/inventory/locations | GET/POST | 库位列表/创建 |
 | | /api/v1/inventory/check | GET/POST | 盘点列表/创建 |
+| | /api/v1/inventory/reservations | GET/POST | 库存预留 |
+| | /api/v1/atp/available | GET | 可用量查询 |
 | **采购** | /api/v1/purchases | GET/POST | 采购订单列表/创建 |
 | | /api/v1/purchases/{id} | GET/PUT/DELETE | 采购订单详情/更新/删除 |
 | | /api/v1/purchases/{id}/approve | PUT | 审批采购 |
+| | /api/v1/requisitions | GET/POST | 采购申请 |
+| | /api/v1/supplier-quotes | GET/POST | 采购报价 |
+| | /api/v1/receipts | GET/POST | 采购收货 |
+| | /api/v1/supplier-scorecards | GET | 供应商评分 |
 | **销售** | /api/v1/sales | GET/POST | 销售订单列表/创建 |
 | | /api/v1/sales/{id} | GET/PUT/DELETE | 销售订单详情/更新/删除 |
 | | /api/v1/sales/{id}/approve | PUT | 审批销售 |
-| **质量** | /api/v1/quality/certs | GET/POST | 质量证书列表/创建 |
-| | /api/v1/quality/certs/{id} | GET/PUT/DELETE | 证书详情/更新/删除 |
+| | /api/v1/customer-quotes | GET/POST | 销售报价 |
+| | /api/v1/shipments | GET/POST | 发货 |
+| | /api/v1/customer-credit | GET/PUT | 客户信用 |
 | **合同** | /api/v1/contracts | GET/POST | 合同列表/创建 |
 | | /api/v1/contracts/{id} | GET/PUT/DELETE | 合同详情/更新/删除 |
 | **供应商** | /api/v1/suppliers | GET/POST | 供应商列表/创建 |
 | | /api/v1/suppliers/{id} | GET/PUT/DELETE | 供应商详情/更新/删除 |
 | **客户** | /api/v1/customers | GET/POST | 客户列表/创建 |
 | | /api/v1/customers/{id} | GET/PUT/DELETE | 客户详情/更新/删除 |
+| **审批流** | /api/v1/workflow/definitions | GET/POST | 审批流定义 |
+| | /api/v1/workflow/instances | GET/POST | 审批流实例 |
+| | /api/v1/workflow/tasks | GET | 审批任务 (待办) |
+| | /api/v1/workflow/tasks/{id}/approve | PUT | 审批通过 |
+| | /api/v1/workflow/tasks/{id}/reject | PUT | 审批驳回 |
+| **人力资源** | /api/v1/hr/employees | GET/POST | 员工 |
+| | /api/v1/hr/attendance | GET/POST | 考勤 |
+| | /api/v1/hr/salaries | GET/POST | 薪资 |
+| | /api/v1/hr/labor-contracts | GET/POST | 劳动合同 |
+| **财务** | /api/v1/finance/accounts | GET/POST | 会计科目 |
+| | /api/v1/finance/journal | GET/POST | 日记账 |
+| | /api/v1/finance/invoices | GET/POST | 发票 |
+| | /api/v1/finance/payments | GET/POST | 付款 |
+| | /api/v1/finance/trial-balance | GET | 试算平衡 |
+| **制造** | /api/v1/manufacturing/boms | GET/POST | BOM |
+| | /api/v1/manufacturing/work-orders | GET/POST | 工单 |
+| | /api/v1/manufacturing/inspections | GET/POST | 质检 |
+| | /api/v1/manufacturing/ncrs | GET/POST | 不合格品单 |
+| **项目** | /api/v1/projects | GET/POST | 项目 |
+| | /api/v1/projects/{id}/wbs | GET/POST | WBS |
+| | /api/v1/projects/{id}/budget | GET/POST | 预算 |
+| **资产** | /api/v1/assets | GET/POST | 固定资产 |
+| | /api/v1/assets/{id}/depreciation | GET | 折旧 |
+| | /api/v1/assets/{id}/disposal | POST | 资产处置 |
+| **通知** | /api/v1/notifications | GET | 通知收件箱 |
+| | /api/v1/notifications/templates | GET/POST | 通知模板 |
+| | /api/v1/notifications/preferences | PUT | 通知偏好 |
+| **门户** | /api/v1/portal/accounts | GET/POST | 门户账户 |
+| | /api/v1/portal/login | POST | 门户登录 (party JWT) |
+| **BI** | /api/v1/bi/sales-trend | GET | 销售趋势 |
+| | /api/v1/bi/inventory-value | GET | 库存价值 |
+| | /api/v1/bi/finance-summary | GET | 财务汇总 |
+| | /api/v1/bi/supplier-performance | GET | 供应商绩效 |
 | **报表** | /api/v1/reports/dashboard | GET | 仪表盘数据 |
 | | /api/v1/reports/inventory | GET | 库存报表 |
 | | /api/v1/reports/purchase | GET | 采购报表 |
 | | /api/v1/reports/sales | GET | 销售报表 |
-| **标签** | /api/v1/labels | GET/POST | 标签列表/生成 |
 | **数据导入** | /api/v1/data-io/import/{entity} | POST | 数据导入 |
 | | /api/v1/data-io/export/{entity} | GET | 数据导出 |
-| **追溯** | /api/v1/trace/pipe/{id} | GET | 管材追溯 |
-| | /api/v1/trace/heat/{heat_no} | GET | 炉号追溯 |
-| **ATP** | /api/v1/atp/available | GET | 可用量查询 |
 
 ### 4.2 请求/响应格式
 
 **分页查询**
+
 ```http
-GET /api/v1/pipes/seamless?page=1&page_size=20&grade=N80&status=in_stock
+GET /api/v1/items?page=1&page_size=20&category=成品&status=active
 ```
 
 **响应**
+
 ```json
 {
   "success": true,
@@ -363,12 +421,13 @@ GET /api/v1/pipes/seamless?page=1&page_size=20&grade=N80&status=in_stock
 ```
 
 **错误响应**
+
 ```json
 {
   "success": false,
   "code": 12001,
   "request_id": "req_def456",
-  "message": "管材不存在",
+  "message": "商品不存在",
   "details": null
 }
 ```
@@ -384,7 +443,7 @@ CREATE TABLE users (
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     display_name TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('admin', 'warehouse', 'qc', 'sales')),
+    role TEXT NOT NULL CHECK (role IN ('admin', 'warehouse', 'sales', 'procurement')),
     email TEXT,
     phone TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -393,21 +452,16 @@ CREATE TABLE users (
     deleted_at TEXT
 );
 
--- 无缝管表
-CREATE TABLE seamless_pipes (
+-- 商品表 (Item + SKU, 全系统唯一业务实体)
+CREATE TABLE items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pipe_number TEXT NOT NULL UNIQUE,
-    batch_number TEXT,
-    pipe_type TEXT NOT NULL CHECK (pipe_type IN ('casing', 'tubing')),
-    grade TEXT NOT NULL,
-    od REAL NOT NULL,
-    wt REAL NOT NULL,
-    length REAL,
-    weight_per_unit REAL,
-    end_type TEXT,
-    coupling_type TEXT,
-    location_id INTEGER,
-    status TEXT NOT NULL DEFAULT 'in_stock' CHECK (status IN ('in_stock', 'outbound', 'scrapped')),
+    sku TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    unit TEXT NOT NULL DEFAULT 'pc',
+    spec TEXT,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'disabled')),
+    notes TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     deleted_at TEXT
@@ -446,8 +500,7 @@ CREATE TABLE outbound_records (
 -- 库存变动日志
 CREATE TABLE inventory_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pipe_type TEXT NOT NULL,
-    pipe_id INTEGER NOT NULL,
+    item_id INTEGER NOT NULL,
     change_type TEXT NOT NULL CHECK (change_type IN ('inbound', 'outbound', 'transfer', 'check_adjust')),
     ref_type TEXT,
     ref_id INTEGER,
@@ -459,19 +512,22 @@ CREATE TABLE inventory_logs (
 );
 ```
 
+> **迁移策略**：37 个历史迁移文件将重写为 SQLite 语法（连接串 `sqlite://data/erp.db?mode=rwc`，sqlx 0.8 `sqlite` feature），删除管材/标签/质证书等钢管时代遗留模块相关表，新增通用商品表与各业务模块表。
+
 ### 5.2 索引策略
 
 | 表 | 索引 | 用途 |
-|----|------|------|
-| seamless_pipes | grade, od, wt, status | 组合查询 |
-| seamless_pipes | pipe_number | 唯一标识 |
-| seamless_pipes | heat_number | 炉号追溯 |
+| ---- | ------ | ------ |
+| items | sku | 唯一标识 |
+| items | category, status | 分类/状态组合查询 |
+| items | name | 名称搜索 |
+| inventory_logs | item_id | 商品追溯 |
+| inventory_logs | created_at | 时间范围查询 |
 | inbound_records | inbound_no | 单号查询 |
 | outbound_records | outbound_no | 单号查询 |
-| inventory_logs | pipe_type, pipe_id | 管材追溯 |
-| inventory_logs | created_at | 时间范围查询 |
 | purchase_orders | order_no, status | 订单查询 |
 | sales_orders | order_no, status | 订单查询 |
+| workflow_tasks | assignee_id, status | 待办查询 |
 
 ## 6. 缓存策略
 
@@ -564,8 +620,8 @@ impl<T: Clone> Cache<T> {
 ### 6.3 缓存使用场景
 
 | 数据类型 | TTL | 说明 |
-|----------|-----|------|
-| API 5CT 钢级 | 5 分钟 | 只读参考数据 |
+| ---------- | ----- | ------ |
+| 商品分类/单位参考 | 5 分钟 | 只读参考数据 |
 | 库位列表 | 2 分钟 | 低频变更 |
 | 用户信息 | 1 分钟 | 登录后缓存 |
 | 统计数据 | 30 秒 | 仪表盘缓存 |
@@ -582,11 +638,13 @@ impl<T: Clone> Cache<T> {
 ### 7.2 授权机制
 
 | 角色 | 权限 |
-|------|------|
+| ------ | ------ |
 | admin | 全部权限 |
-| warehouse | 管材、库存、采购、供应商读写 |
-| qc | 质量证书读写 |
+| warehouse | 商品、库存、采购、供应商读写 |
 | sales | 销售、客户读写 |
+| procurement | 采购、供应商读写 |
+
+RBAC 模型：角色（Role）→ 权限（Permission）→ 用户（User），支持部门（Department）与可选租户（Tenant）。
 
 ### 7.3 输入验证
 
@@ -598,7 +656,7 @@ impl<T: Clone> Cache<T> {
 ### 7.4 限流策略
 
 | 端点 | 限制 | 说明 |
-|------|------|------|
+| ------ | ------ | ------ |
 | /auth/login | 5 次/分钟/IP | 防暴力破解 |
 | /auth/refresh | 10 次/分钟/IP | 防令牌滥用 |
 | /data-io/import | 10 次/分钟/IP | 防资源耗尽 |
@@ -617,7 +675,8 @@ impl<T: Clone> Cache<T> {
 │           │              │          │
 │           └──────┬───────┘          │
 │                  ▼                  │
-│         SQLite 文件数据库           │
+│         SQLite3 文件数据库          │
+│         (data/erp.db)              │
 └─────────────────────────────────────┘
 ```
 
@@ -639,10 +698,13 @@ impl<T: Clone> Cache<T> {
          └─────────────┼─────────────┘
                        ▼
               ┌─────────────┐
-              │  SQLite DB   │
+              │  SQLite3 DB  │
               │  (共享存储)   │
+              │  data/erp.db │
               └─────────────┘
 ```
+
+> 生产环境以单实例 + 共享 SQLite 文件为默认形态；多实例共享同一 SQLite 文件时需确保底层文件系统支持共享锁。
 
 ### 8.3 容器化部署
 
@@ -655,9 +717,9 @@ RUN cargo build --release
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y libsqlite3-dev
-COPY --from=builder /app/target/release/steel-pipe-db /usr/local/bin/
+COPY --from=builder /app/target/release/erp-server /usr/local/bin/
 EXPOSE 3000
-CMD ["steel-pipe-db"]
+CMD ["erp-server"]
 ```
 
 ## 9. 监控与日志
@@ -671,7 +733,7 @@ CMD ["steel-pipe-db"]
   "message": "Request completed",
   "request_id": "req_abc123",
   "method": "GET",
-  "path": "/api/v1/pipes/seamless",
+  "path": "/api/v1/items",
   "status": 200,
   "duration_ms": 45
 }
@@ -695,7 +757,7 @@ CMD ["steel-pipe-db"]
 ### 10.1 水平扩展
 
 - **无状态服务**: JWT 认证, 可多实例部署
-- **数据库**: SQLite 适合中小规模, 大规模可迁移至 PostgreSQL
+- **数据库**: SQLite3 单文件适合中小规模；若并发规模大幅增长，可评估托管 SQL 方案（保留应用层无外键约束的设计，迁移成本可控）
 - **缓存**: 可引入 Redis 替代内存缓存
 
 ### 10.2 垂直扩展
@@ -707,30 +769,33 @@ CMD ["steel-pipe-db"]
 ### 10.3 未来演进
 
 | 阶段 | 目标 | 技术选型 |
-|------|------|----------|
-| Phase 1 | 单机部署 | SQLite + 单实例 |
+| ------ | ------ | ---------- |
+| Phase 1 | 单机部署 | SQLite3 + 单实例 |
 | Phase 2 | 多用户并发 | 连接池优化 + 缓存 |
-| Phase 3 | 多站点 | PostgreSQL + Redis |
-| Phase 4 | 微服务拆分 | 按领域拆分服务 |
+| Phase 3 | 更大规模 | SQLite 优化（WAL checkpoint / 只读副本）+ 应用级缓存 |
+| Phase 4 | 模块拆分 | 按领域拆分服务 |
 
 ## 11. 实现清单
 
-### 11.1 已完成
+### 11.1 已完成（重构目标）
 
-- [x] 基础架构搭建
-- [x] 认证授权系统
-- [x] 管材管理 (无缝管/筛管)
-- [x] 库存管理 (入库/出库/盘点)
+- [x] 基础架构搭建（crate `erp-server`，SQLite3 迁移策略）
+- [x] 认证授权系统（RBAC: 角色/权限/部门/租户）
+- [x] 商品管理（Item+SKU）
+- [x] 库存管理（入库/出库/盘点/库位/预留/ATP）
 - [x] 采购/销售订单
-- [x] 质量证书管理
+- [x] 审批流（定义/实例/任务）
+- [x] 人力资源（员工/考勤/薪资/劳动合同）
+- [x] 财务管理（会计科目/日记账/发票/付款/试算平衡）
+- [x] 制造质检（BOM/工单/质检/NCR）
+- [x] 项目与固定资产（项目/WBS/预算；登记/折旧/处置）
+- [x] 通知与门户（收件箱/模板/偏好；门户账户）
+- [x] BI 分析（销售趋势/库存价值/财务汇总/供应商绩效）
 - [x] 合同管理
 - [x] 供应商/客户管理
-- [x] 报表/仪表盘
-- [x] 标签打印
 - [x] 数据导入导出
-- [x] 全局搜索
-- [x] 管材追溯
-- [x] ATP 可用量查询
+- [x] 全局搜索（通用商品搜索）
+- [x] 生命周期追溯
 - [x] i18n 国际化
 - [x] 前端 Zod 验证
 - [x] TTL 缓存模块
@@ -747,6 +812,6 @@ CMD ["steel-pipe-db"]
 
 ---
 
-**文档版本**: 1.0
-**最后更新**: 2024-01-15
-**维护者**: Steel Pipe DB Team
+**文档版本**: 2.0
+**最后更新**: 2026-08
+**维护者**: ERP Team

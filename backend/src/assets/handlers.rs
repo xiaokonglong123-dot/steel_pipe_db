@@ -3,7 +3,7 @@
 use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::assets::services::AssetService;
 use crate::dto::assets_dto::{CreateAssetRequest, DepreciateRequest, UpdateAssetRequest};
@@ -18,7 +18,7 @@ pub struct StatusFilter {
 }
 
 pub async fn list_assets(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<StatusFilter>,
 ) -> Result<Json<ApiResponse<Vec<FixedAsset>>>, AppError> {
@@ -26,7 +26,7 @@ pub async fn list_assets(
 }
 
 pub async fn get_asset(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<FixedAsset>>, AppError> {
@@ -34,7 +34,7 @@ pub async fn get_asset(
 }
 
 pub async fn create_asset(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateAssetRequest>,
 ) -> Result<Json<ApiResponse<FixedAsset>>, AppError> {
@@ -42,7 +42,7 @@ pub async fn create_asset(
 }
 
 pub async fn update_asset(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(p): Json<UpdateAssetRequest>,
@@ -51,7 +51,7 @@ pub async fn update_asset(
 }
 
 pub async fn depreciate(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(p): Json<DepreciateRequest>,
@@ -60,7 +60,7 @@ pub async fn depreciate(
 }
 
 pub async fn dispose_asset(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<FixedAsset>>, AppError> {

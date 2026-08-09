@@ -2,13 +2,13 @@
 
 mod common;
 
-use steel_pipe_db::dto::notification_dto::{
+use erp_server::dto::notification_dto::{
     CreateTemplateRequest, SendNotificationRequest, UpdatePreferenceRequest,
 };
-use steel_pipe_db::notification::services::NotificationService;
+use erp_server::notification::services::NotificationService;
 
 /// Seed a user (id 1) for notification FK.
-async fn seed_user(pool: &sqlx::PgPool) {
+async fn seed_user(pool: &sqlx::SqlitePool) {
     sqlx::query(
         "INSERT INTO users (id, username, password_hash, display_name, role, tenant_id) \
          VALUES (1, 'notif_user', 'x', '通知用户', 'admin', 1) ON CONFLICT (id) DO NOTHING",

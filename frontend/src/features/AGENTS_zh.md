@@ -1,6 +1,6 @@
 # `features/` — The Feature Module Pattern
 
-Every feature module follows the same layout. Use this as a reference or template when adding a new one.
+Every feature module follows the same layout. Use this as a reference or template when adding a new one. Frontend of the **ERP（通用企业资源计划系统）** monorepo — backend crate `erp-server`, backend data layer **SQLite3** (`sqlite://data/erp.db?mode=rwc`, sqlx 0.8 sqlite feature).
 
 ## Feature Module Structure
 
@@ -24,19 +24,29 @@ features/{feature}/
 ## Existing Features
 
 | Feature | Routes | What it does |
-|---------|--------|-------------|
-| `auth/` | (via ProtectedRoute) | Login, auth state via Zustand |
-| `pipes/` | `/pipes/seamless/*`, `/pipes/screen/*` | API 5CT pipe master data (seamless + screen) |
-| `inventory/` | `/inventory/inbound`, `/inventory/outbound`, `/inventory/stock`, `/inventory/locations`, `/inventory/check` | Stock tracking, in/out, locations, checks |
-| `suppliers/` | `/suppliers/*` | Supplier management |
-| `customers/` | `/customers/*` | Customer management |
-| `purchases/` | `/purchases/*` | Purchase orders, approval workflow |
-| `sales/` | `/sales/*` | Sales orders, ATP check |
-| `quality/` | `/quality/certs/*` | Quality certs, mechanical/NDT tests |
-| `contracts/` | `/contracts/*` | Sales/procurement contracts, payment milestones |
-| `reports/` | `/reports`, `/reports/dashboard` | Dashboard, daily/monthly/statistical reports |
-| `labels/` | `/labels` | Barcode and spec label generation |
-| `search/` | `/search` | Global search across pipes, inventory, orders |
+| --------- | -------- | ------------- |
+| `auth/` | `/login`, `/system/users`, `/system/roles`, `/system/departments` | Login, RBAC (users/roles/departments), auth state via Zustand |
+| `inventory/` | `/inventory/inbound`, `/inventory/outbound`, `/inventory/stock`, `/inventory/locations`, `/inventory/check`, `/inventory/logs` | 商品/Item + SKU master data, 库存 (in/out/stock/locations/count sessions) |
+| `inventory_atp/` | `/inventory/atp` | 库存预留 (ATP) for orders |
+| `suppliers/` | `/suppliers/*` | 供应商 management |
+| `customers/` | `/customers/*` | 客户 management |
+| `purchases/` | `/purchases/*` | 采购订单, 审批流 |
+| `sales/` | `/sales/*`, `/sales/atp` | 销售订单, ATP check |
+| `sales_crm/` | `/sales/crm` | 客户信用, 发货 (shipments) |
+| `contracts/` | `/contracts/*` | 采购/销售合同, payment milestones |
+| `manufacturing/` | `/manufacturing` | BOM, 工单, 质检 (Inspection), 不合格品单 |
+| `project/` | `/projects` | 项目, WBS, 预算 |
+| `assets/` | `/assets` | 固定资产 registration, depreciation, disposal |
+| `hr/` | `/hr/employees`, `/hr/salaries` | 员工, 考勤, 薪资, 劳动合同 |
+| `finance/` | `/finance` | 会计科目, 日记账, 发票, 付款, 试算平衡 |
+| `procurement/` | `/procurement` | 采购申请, 采购收货, 采购报价, 供应商评分 |
+| `workflow/` | `/workflow/definitions`, `/workflow/my-tasks` | 审批流定义/实例/任务 |
+| `notification/` | `/notifications` | 通知 inbox, templates, preferences |
+| `portal/` | `/portal` | 门户账户 (party), PO accept, SO ack |
+| `reports/` | `/reports`, `/reports/dashboard`, `/reports/inventory`, `/reports/orders`, `/reports/trends` | 明细报表 |
+| `bi/` | `/bi` | BI 分析 dashboard |
+| `search/` | `/search` | Global search across items, inventory, orders |
+| `data-io/` | `/data-io/import`, `/data-io/export`, `/data-io/logs` | Generic item/inventory data import/export, operation logs |
 | `profile/` | `/profile/settings` | User settings, password change |
 
 ## Template: `api/index.ts` (TanStack Query Hooks)

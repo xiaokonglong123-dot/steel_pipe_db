@@ -1,4 +1,4 @@
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::auth_dto::{CreateUserRequest, UpdateUserRequest};
 use crate::dto::common::PaginationParams;
@@ -10,13 +10,13 @@ pub struct UserRepo;
 impl UserRepo {
     /// SELECT user by username, including `password_hash` for auth verification.
     pub async fn find_by_username(
-        pool: &PgPool,
+        pool: &SqlitePool,
         username: &str,
     ) -> Result<Option<User>, sqlx::Error> {
         sqlx::query_as::<_, User>(
             "SELECT id, tenant_id, username, password_hash, display_name, role, email, phone,
                     is_active, created_at, updated_at, deleted_at
-             FROM users WHERE username = $1 AND deleted_at IS NULL",
+             FROM users WHERE username = ? AND deleted_at IS NULL",
         )
         .bind(username)
         .fetch_optional(pool)
@@ -24,11 +24,11 @@ impl UserRepo {
     }
 
     /// SELECT user by primary key. Returns `None` if soft-deleted or missing.
-    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<User>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<User>, sqlx::Error> {
         sqlx::query_as::<_, User>(
             "SELECT id, tenant_id, username, password_hash, display_name, role, email, phone,
                     is_active, created_at, updated_at, deleted_at
-             FROM users WHERE id = $1 AND deleted_at IS NULL",
+             FROM users WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -37,13 +37,13 @@ impl UserRepo {
 
     /// INSERT a new user with hashed password. Returns the created `User`.
     pub async fn create(
-        pool: &PgPool,
+        pool: &SqlitePool,
         dto: &CreateUserRequest,
         password_hash: &str,
     ) -> Result<User, sqlx::Error> {
         sqlx::query_as::<_, User>(
             "INSERT INTO users (username, password_hash, display_name, role, email, phone)
-             VALUES ($1, $2, $3, $4, $5, $6)
+             VALUES (?, ?, ?, ?, ?, ?)
              RETURNING id, tenant_id, username, password_hash, display_name, role, email, phone,
                        is_active, created_at, updated_at, deleted_at",
         )
@@ -58,48 +58,48 @@ impl UserRepo {
     }
 
     /// Dynamic UPDATE of user fields (display_name, role, email, phone, is_active).
-    /// Uses positional parameter numbering. Returns the updated `User`.
+    /// Builds a `SET` clause with positional `?` binds in order, then binds `id` last.
+    /// Returns the updated `User`.
     pub async fn update(
-        pool: &PgPool,
+        pool: &SqlitePool,
         id: i64,
         dto: &UpdateUserRequest,
     ) -> Result<User, sqlx::Error> {
         let mut updates = Vec::new();
         let mut params: Vec<String> = Vec::new();
 
-        updates.push("updated_at = NOW()".to_string());
+        updates.push("updated_at = datetime('now')".to_string());
 
         if let Some(ref display_name) = dto.display_name {
             params.push(display_name.clone());
-            updates.push(format!("display_name = ${}", params.len()));
+            updates.push("display_name = ?".to_string());
         }
         if let Some(ref role) = dto.role {
             params.push(role.clone());
-            updates.push(format!("role = ${}", params.len()));
+            updates.push("role = ?".to_string());
         }
         if let Some(ref email) = dto.email {
             params.push(email.clone());
-            updates.push(format!("email = ${}", params.len()));
+            updates.push("email = ?".to_string());
         }
         if let Some(ref phone) = dto.phone {
             params.push(phone.clone());
-            updates.push(format!("phone = ${}", params.len()));
+            updates.push("phone = ?".to_string());
         }
         if let Some(is_active) = dto.is_active {
             updates.push(if is_active {
-                "is_active = TRUE".to_string()
+                "is_active = 1".to_string()
             } else {
-                "is_active = FALSE".to_string()
+                "is_active = 0".to_string()
             });
         }
 
         let set_clause = updates.join(", ");
         let sql = format!(
-            "UPDATE users SET {} WHERE id = ${} AND deleted_at IS NULL
+            "UPDATE users SET {} WHERE id = ? AND deleted_at IS NULL
              RETURNING id, tenant_id, username, password_hash, display_name, role, email, phone,
                        is_active, created_at, updated_at, deleted_at",
             set_clause,
-            params.len() + 1,
         );
 
         let mut query = sqlx::query_as::<_, User>(&sql);
@@ -112,7 +112,7 @@ impl UserRepo {
 
     /// Paginated user list with optional search (username, display_name, email, phone). Returns `(items, total)`.
     pub async fn list(
-        pool: &PgPool,
+        pool: &SqlitePool,
         params: &PaginationParams,
         q: Option<&str>,
     ) -> Result<(Vec<User>, u64), sqlx::Error> {
@@ -123,8 +123,11 @@ impl UserRepo {
             let like = format!("%{}%", search);
             let total: (i64,) = sqlx::query_as(
                 "SELECT COUNT(*) as cnt FROM users WHERE deleted_at IS NULL
-                   AND (username LIKE $1 OR display_name LIKE $1 OR email LIKE $1 OR phone LIKE $1)",
+                   AND (username LIKE ? OR display_name LIKE ? OR email LIKE ? OR phone LIKE ?)",
             )
+            .bind(&like)
+            .bind(&like)
+            .bind(&like)
             .bind(&like)
             .fetch_one(pool)
             .await?;
@@ -133,9 +136,12 @@ impl UserRepo {
                 "SELECT id, tenant_id, username, password_hash, display_name, role, email, phone,
                         is_active, created_at, updated_at, deleted_at
                  FROM users WHERE deleted_at IS NULL
-                   AND (username LIKE $1 OR display_name LIKE $1 OR email LIKE $1 OR phone LIKE $1)
-                 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+                   AND (username LIKE ? OR display_name LIKE ? OR email LIKE ? OR phone LIKE ?)
+                 ORDER BY created_at DESC LIMIT ? OFFSET ?",
             )
+            .bind(&like)
+            .bind(&like)
+            .bind(&like)
             .bind(&like)
             .bind(page_size)
             .bind(offset)
@@ -153,7 +159,7 @@ impl UserRepo {
                 "SELECT id, tenant_id, username, password_hash, display_name, role, email, phone,
                         is_active, created_at, updated_at, deleted_at
                  FROM users WHERE deleted_at IS NULL
-                 ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+                 ORDER BY created_at DESC LIMIT ? OFFSET ?",
             )
             .bind(page_size)
             .bind(offset)
@@ -166,13 +172,13 @@ impl UserRepo {
 
     /// UPDATE `password_hash` for a user.
     pub async fn update_password(
-        pool: &PgPool,
+        pool: &SqlitePool,
         id: i64,
         password_hash: &str,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE users SET password_hash = $1, updated_at = NOW()
-             WHERE id = $2 AND deleted_at IS NULL",
+            "UPDATE users SET password_hash = ?, updated_at = datetime('now')
+             WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(password_hash)
         .bind(id)
@@ -182,10 +188,10 @@ impl UserRepo {
     }
 
     /// Touch `updated_at` on login (tracks last login time).
-    pub async fn update_last_login(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn update_last_login(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE users SET updated_at = NOW()
-             WHERE id = $1 AND deleted_at IS NULL",
+            "UPDATE users SET updated_at = datetime('now')
+             WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
@@ -195,13 +201,13 @@ impl UserRepo {
 
     /// UPDATE user role. Returns the updated `User`.
     pub async fn update_role(
-        pool: &PgPool,
+        pool: &SqlitePool,
         user_id: i64,
         role: &str,
     ) -> Result<User, sqlx::Error> {
         sqlx::query_as::<_, User>(
-            "UPDATE users SET role = $1, updated_at = NOW()
-             WHERE id = $2 AND deleted_at IS NULL
+            "UPDATE users SET role = ?, updated_at = datetime('now')
+             WHERE id = ? AND deleted_at IS NULL
              RETURNING id, tenant_id, username, password_hash, display_name, role, email, phone,
                        is_active, created_at, updated_at, deleted_at",
         )
@@ -212,10 +218,10 @@ impl UserRepo {
     }
 
     /// Soft-delete a user: sets `deleted_at`. Returns the deleted `User` or `None` if already gone.
-    pub async fn delete_soft(pool: &PgPool, user_id: i64) -> Result<Option<User>, sqlx::Error> {
+    pub async fn delete_soft(pool: &SqlitePool, user_id: i64) -> Result<Option<User>, sqlx::Error> {
         sqlx::query_as::<_, User>(
-            "UPDATE users SET deleted_at = NOW()
-             WHERE id = $1 AND deleted_at IS NULL
+            "UPDATE users SET deleted_at = datetime('now')
+             WHERE id = ? AND deleted_at IS NULL
              RETURNING id, tenant_id, username, password_hash, display_name, role, email, phone,
                        is_active, created_at, updated_at, deleted_at",
         )

@@ -3,7 +3,7 @@
 use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::finance_dto::{
     CreateAccountRequest, CreateInvoiceRequest, CreateJournalEntryRequest, CreatePaymentRequest,
@@ -23,7 +23,7 @@ use crate::response::ApiResponse;
 // ---------------------------------------------------------------------------
 
 pub async fn list_accounts(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<Account>>>, AppError> {
     let items = FinanceService::list_accounts(&pool, user.0.tenant_id).await?;
@@ -31,7 +31,7 @@ pub async fn list_accounts(
 }
 
 pub async fn create_account(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateAccountRequest>,
 ) -> Result<Json<ApiResponse<Account>>, AppError> {
@@ -40,7 +40,7 @@ pub async fn create_account(
 }
 
 pub async fn update_account(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(payload): Json<UpdateAccountRequest>,
@@ -60,7 +60,7 @@ pub struct JournalFilter {
 }
 
 pub async fn list_journal_entries(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(filter): Query<JournalFilter>,
 ) -> Result<Json<ApiResponse<Vec<JournalEntry>>>, AppError> {
@@ -69,7 +69,7 @@ pub async fn list_journal_entries(
 }
 
 pub async fn get_journal_entry(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<JournalDetailResponse>>, AppError> {
@@ -84,7 +84,7 @@ pub struct JournalDetailResponse {
 }
 
 pub async fn create_journal_entry(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateJournalEntryRequest>,
 ) -> Result<Json<ApiResponse<JournalEntry>>, AppError> {
@@ -93,7 +93,7 @@ pub async fn create_journal_entry(
 }
 
 pub async fn trial_balance(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<TrialBalanceRow>>>, AppError> {
     let items = FinanceService::trial_balance(&pool, user.0.tenant_id).await?;
@@ -111,7 +111,7 @@ pub struct InvoiceFilter {
 }
 
 pub async fn list_invoices(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(filter): Query<InvoiceFilter>,
 ) -> Result<Json<ApiResponse<Vec<FinanceInvoice>>>, AppError> {
@@ -120,7 +120,7 @@ pub async fn list_invoices(
 }
 
 pub async fn get_invoice(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<InvoiceDetailResponse>>, AppError> {
@@ -135,7 +135,7 @@ pub struct InvoiceDetailResponse {
 }
 
 pub async fn create_invoice(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateInvoiceRequest>,
 ) -> Result<Json<ApiResponse<FinanceInvoice>>, AppError> {
@@ -144,7 +144,7 @@ pub async fn create_invoice(
 }
 
 pub async fn confirm_invoice(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<FinanceInvoice>>, AppError> {
@@ -153,7 +153,7 @@ pub async fn confirm_invoice(
 }
 
 pub async fn void_invoice(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<FinanceInvoice>>, AppError> {
@@ -166,7 +166,7 @@ pub async fn void_invoice(
 // ---------------------------------------------------------------------------
 
 pub async fn list_payments(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(filter): Query<InvoiceFilter>,
 ) -> Result<Json<ApiResponse<Vec<FinancePayment>>>, AppError> {
@@ -176,7 +176,7 @@ pub async fn list_payments(
 }
 
 pub async fn create_payment(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreatePaymentRequest>,
 ) -> Result<Json<ApiResponse<FinancePayment>>, AppError> {

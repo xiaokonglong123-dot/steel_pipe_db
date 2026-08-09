@@ -1,158 +1,87 @@
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::error::AppError;
 
 /// Aggregation queries for dashboard and reports. Returns `serde_json::Value`.
+///
+/// All reports are item-based for the generic ERP: inventory reports aggregate
+/// the `items` master + `inventory_logs` movements; quality reports aggregate
+/// the manufacturing inspections/NCRs (kept from the pipe era as generic QC).
 pub struct ReportRepo;
 
 impl ReportRepo {
-    /// Count of pipes by `status`, split by seamless/screen. Includes total counts.
+    /// Count of items by `status`, plus the total item count.
     pub async fn inventory_by_status(
-        pool: &PgPool,
+        pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT status, COUNT(*) as cnt FROM seamless_pipes \
+            "SELECT status, COUNT(*) as cnt FROM items \
              WHERE deleted_at IS NULL GROUP BY status ORDER BY cnt DESC",
         )
         .fetch_all(pool)
         .await
         .map_err(AppError::from)?;
 
-        let seamless_total: i64 = rows.iter().map(|(_, cnt)| cnt).sum();
+        let total: i64 = rows.iter().map(|(_, cnt)| cnt).sum();
 
         let mut result: Vec<serde_json::Value> = Vec::new();
+        result.insert(0, serde_json::json!({"status": "total", "count": total}));
         for (status, cnt) in rows {
             result.push(serde_json::json!({"status": status, "count": cnt}));
         }
 
-        let screen_rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT status, COUNT(*) as cnt FROM screen_pipes \
-             WHERE deleted_at IS NULL GROUP BY status ORDER BY cnt DESC",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        let screen_total: i64 = screen_rows.iter().map(|(_, cnt)| cnt).sum();
-        for (status, cnt) in screen_rows {
-            result.push(serde_json::json!({"status": format!("screen_{}", status), "count": cnt}));
-        }
-
-        let welded_rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT status, COUNT(*) as cnt FROM welded_pipes \
-             WHERE deleted_at IS NULL GROUP BY status ORDER BY cnt DESC",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        let welded_total: i64 = welded_rows.iter().map(|(_, cnt)| cnt).sum();
-        for (status, cnt) in welded_rows {
-            result.push(serde_json::json!({"status": format!("welded_{}", status), "count": cnt}));
-        }
-
-        result.insert(
-            0,
-            serde_json::json!({"status": "total_seamless", "count": seamless_total}),
-        );
-        result.insert(
-            1,
-            serde_json::json!({"status": "total_screen", "count": screen_total}),
-        );
-        result.insert(
-            2,
-            serde_json::json!({"status": "total_welded", "count": welded_total}),
-        );
-
         Ok(result)
     }
 
-    /// Count of seamless/screen pipes grouped by grade.
-    pub async fn inventory_by_grade(pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT grade, COUNT(*) as cnt FROM seamless_pipes \
-             WHERE deleted_at IS NULL GROUP BY grade ORDER BY cnt DESC",
+    /// Count of items grouped by category.
+    pub async fn inventory_by_category(
+        pool: &SqlitePool,
+    ) -> Result<Vec<serde_json::Value>, AppError> {
+        let rows: Vec<(Option<String>, i64)> = sqlx::query_as(
+            "SELECT category, COUNT(*) as cnt FROM items \
+             WHERE deleted_at IS NULL GROUP BY category ORDER BY cnt DESC",
         )
         .fetch_all(pool)
         .await
         .map_err(AppError::from)?;
 
-        let screen_rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT base_grade, COUNT(*) as cnt FROM screen_pipes \
-             WHERE deleted_at IS NULL GROUP BY base_grade ORDER BY cnt DESC",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        let welded_rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT grade, COUNT(*) as cnt FROM welded_pipes \
-             WHERE deleted_at IS NULL GROUP BY grade ORDER BY cnt DESC",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        let mut result: Vec<serde_json::Value> = Vec::new();
-        for (grade, cnt) in rows {
-            result.push(serde_json::json!({"grade": grade, "count": cnt, "pipe_type": "seamless"}));
-        }
-        for (grade, cnt) in screen_rows {
-            result.push(serde_json::json!({"grade": grade, "count": cnt, "pipe_type": "screen"}));
-        }
-        for (grade, cnt) in welded_rows {
-            result.push(serde_json::json!({"grade": grade, "count": cnt, "pipe_type": "welded"}));
-        }
-        Ok(result)
+        Ok(rows
+            .into_iter()
+            .map(|(category, cnt)| {
+                serde_json::json!({"category": category.unwrap_or_else(|| "uncategorized".into()), "count": cnt})
+            })
+            .collect())
     }
 
-    /// Count of seamless pipes by `pipe_type`, plus total screen count.
-    pub async fn inventory_by_type(pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT pipe_type, COUNT(*) as cnt FROM seamless_pipes \
-             WHERE deleted_at IS NULL GROUP BY pipe_type ORDER BY cnt DESC",
+    /// Stock movement totals by `change_type` from `inventory_logs` (inbound/outbound/transfer/check_adjust).
+    pub async fn inventory_by_type(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, AppError> {
+        let rows: Vec<(String, f64)> = sqlx::query_as(
+            "SELECT change_type, CAST(COALESCE(SUM(quantity), 0.0) AS REAL) as total_quantity \
+             FROM inventory_logs \
+             GROUP BY change_type ORDER BY total_quantity DESC",
         )
         .fetch_all(pool)
         .await
         .map_err(AppError::from)?;
 
-        let screen_cnt: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM screen_pipes WHERE deleted_at IS NULL")
-                .fetch_one(pool)
-                .await
-                .map_err(AppError::from)?;
-
-        let welded_rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT pipe_type, COUNT(*) as cnt FROM welded_pipes \
-             WHERE deleted_at IS NULL GROUP BY pipe_type ORDER BY cnt DESC",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        let mut result: Vec<serde_json::Value> = Vec::new();
-        for (pt, cnt) in rows {
-            result.push(serde_json::json!({"pipe_type": pt, "count": cnt}));
-        }
-        if screen_cnt.0 > 0 {
-            result.push(serde_json::json!({"pipe_type": "screen", "count": screen_cnt.0}));
-        }
-        for (pt, cnt) in welded_rows {
-            result.push(serde_json::json!({"pipe_type": pt, "count": cnt}));
-        }
-        Ok(result)
+        Ok(rows
+            .into_iter()
+            .map(|(change_type, total)| {
+                serde_json::json!({"change_type": change_type, "total_quantity": total})
+            })
+            .collect())
     }
 
     /// Location occupancy stats — full_code, max_capacity, current_usage, available, occupancy_pct.
-    pub async fn location_occupancy(pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
+    pub async fn location_occupancy(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, i64, i64, i64, i64)> = sqlx::query_as(
             "SELECT l.full_code, COALESCE(l.capacity, 0) as capacity, l.used_count, \
              (COALESCE(l.capacity, 0) - l.used_count) as available, \
              CASE WHEN l.capacity > 0 THEN \
-             CAST(ROUND(l.used_count * 100.0 / l.capacity) AS BIGINT) \
+             CAST(ROUND(l.used_count * 100.0 / l.capacity) AS INTEGER) \
              ELSE 0 END as occupancy_pct \
-             FROM locations l              WHERE l.is_active = TRUE AND l.deleted_at IS NULL ORDER BY l.full_code",
+             FROM locations l              WHERE l.is_active = 1 AND l.deleted_at IS NULL ORDER BY l.full_code",
         )
         .fetch_all(pool)
         .await
@@ -172,23 +101,29 @@ impl ReportRepo {
             .collect())
     }
 
+    fn period_group_expr(date_trunc: &str) -> String {
+        match date_trunc {
+            "monthly" => "strftime('%Y-%m', order_date)".to_string(),
+            "quarterly" => {
+                "strftime('%Y', order_date) || '-Q' || \
+                 CAST(((CAST(strftime('%m', order_date) AS INTEGER) + 2) / 3) AS TEXT)"
+                    .to_string()
+            }
+            "yearly" => "strftime('%Y', order_date)".to_string(),
+            _ => "strftime('%Y-%m', order_date)".to_string(),
+        }
+    }
+
     /// Aggregated purchase orders by period (monthly/quarterly/yearly). Returns order_count and total_amount.
     pub async fn purchase_order_report(
-        pool: &PgPool,
+        pool: &SqlitePool,
         date_trunc: &str,
     ) -> Result<Vec<serde_json::Value>, AppError> {
-        let group_expr = match date_trunc {
-            "monthly" => "to_char(order_date, 'YYYY-MM')",
-            "quarterly" => {
-                "to_char(order_date, 'YYYY') || '-Q' || CAST(((EXTRACT(MONTH FROM order_date)::INT + 2) / 3) AS TEXT)"
-            }
-            "yearly" => "to_char(order_date, 'YYYY')",
-            _ => "to_char(order_date, 'YYYY-MM')",
-        };
+        let group_expr = Self::period_group_expr(date_trunc);
 
         let sql = format!(
             "SELECT {} as period, COUNT(*) as order_count, \
-             COALESCE(SUM(total_amount), 0.0) as total_amount \
+             CAST(COALESCE(SUM(total_amount), 0.0) AS REAL) as total_amount \
              FROM purchase_orders WHERE deleted_at IS NULL \
              GROUP BY period ORDER BY period DESC LIMIT 24",
             group_expr
@@ -213,21 +148,14 @@ impl ReportRepo {
 
     /// Aggregated sales orders by period (monthly/quarterly/yearly). Returns order_count and total_amount.
     pub async fn sales_order_report(
-        pool: &PgPool,
+        pool: &SqlitePool,
         date_trunc: &str,
     ) -> Result<Vec<serde_json::Value>, AppError> {
-        let group_expr = match date_trunc {
-            "monthly" => "to_char(order_date, 'YYYY-MM')",
-            "quarterly" => {
-                "to_char(order_date, 'YYYY') || '-Q' || CAST(((EXTRACT(MONTH FROM order_date)::INT + 2) / 3) AS TEXT)"
-            }
-            "yearly" => "to_char(order_date, 'YYYY')",
-            _ => "to_char(order_date, 'YYYY-MM')",
-        };
+        let group_expr = Self::period_group_expr(date_trunc);
 
         let sql = format!(
             "SELECT {} as period, COUNT(*) as order_count, \
-             COALESCE(SUM(total_amount), 0.0) as total_amount \
+             CAST(COALESCE(SUM(total_amount), 0.0) AS REAL) as total_amount \
              FROM sales_orders WHERE deleted_at IS NULL \
              GROUP BY period ORDER BY period DESC LIMIT 24",
             group_expr
@@ -252,7 +180,7 @@ impl ReportRepo {
 
     /// Count of purchase/sales orders grouped by status.
     pub async fn order_status_distribution(
-        pool: &PgPool,
+        pool: &SqlitePool,
         table: &str,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         // Whitelist table names to prevent SQL injection
@@ -279,14 +207,14 @@ impl ReportRepo {
 
     /// Top N suppliers by total purchase amount.
     pub async fn top_suppliers(
-        pool: &PgPool,
+        pool: &SqlitePool,
         limit: i64,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, i64, f64)> = sqlx::query_as(
-            "SELECT s.name, COUNT(*) as order_count, COALESCE(SUM(po.total_amount), 0.0) as total_amount \
+            "SELECT s.name, COUNT(*) as order_count, CAST(COALESCE(SUM(po.total_amount), 0.0) AS REAL) as total_amount \
              FROM purchase_orders po JOIN suppliers s ON po.supplier_id = s.id \
              WHERE po.deleted_at IS NULL AND s.deleted_at IS NULL \
-             GROUP BY s.id, s.name ORDER BY total_amount DESC LIMIT $1",
+             GROUP BY s.id, s.name ORDER BY total_amount DESC LIMIT ?",
         )
         .bind(limit)
         .fetch_all(pool)
@@ -307,14 +235,14 @@ impl ReportRepo {
 
     /// Top N customers by total sales amount.
     pub async fn top_customers(
-        pool: &PgPool,
+        pool: &SqlitePool,
         limit: i64,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, i64, f64)> = sqlx::query_as(
-            "SELECT c.name, COUNT(*) as order_count, COALESCE(SUM(so.total_amount), 0.0) as total_amount \
+            "SELECT c.name, COUNT(*) as order_count, CAST(COALESCE(SUM(so.total_amount), 0.0) AS REAL) as total_amount \
              FROM sales_orders so JOIN customers c ON so.customer_id = c.id \
              WHERE so.deleted_at IS NULL AND c.deleted_at IS NULL \
-             GROUP BY c.id, c.name ORDER BY total_amount DESC LIMIT $1",
+             GROUP BY c.id, c.name ORDER BY total_amount DESC LIMIT ?",
         )
         .bind(limit)
         .fetch_all(pool)
@@ -333,25 +261,17 @@ impl ReportRepo {
             .collect())
     }
 
-    /// Pass/fail counts by pipe grade (seamless + screen UNION). Includes pass_rate percentage.
+    /// Pass/fail counts by item SKU from manufacturing inspections. Includes pass_rate percentage.
     pub async fn quality_pass_fail_by_grade(
-        pool: &PgPool,
+        pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows: Vec<(String, i64, i64, String)> = sqlx::query_as(
-            "SELECT sp.grade, \
-             SUM(CASE WHEN qc.result = 'pass' THEN 1 ELSE 0 END) as pass_count, \
-             SUM(CASE WHEN qc.result = 'fail' THEN 1 ELSE 0 END) as fail_count, \
-             'seamless' as pipe_type \
-             FROM quality_certs qc JOIN seamless_pipes sp ON qc.pipe_id = sp.id AND qc.pipe_type = 'seamless' \
-             WHERE sp.deleted_at IS NULL GROUP BY sp.grade \
-             UNION ALL \
-             SELECT sp.base_grade, \
-             SUM(CASE WHEN qc.result = 'pass' THEN 1 ELSE 0 END), \
-             SUM(CASE WHEN qc.result = 'fail' THEN 1 ELSE 0 END), \
-             'screen' \
-             FROM quality_certs qc JOIN screen_pipes sp ON qc.pipe_id = sp.id AND qc.pipe_type = 'screen' \
-             WHERE sp.deleted_at IS NULL GROUP BY sp.base_grade \
-             ORDER BY pipe_type, grade",
+        let rows: Vec<(Option<String>, i64, i64)> = sqlx::query_as(
+            "SELECT i.sku, \
+             SUM(CASE WHEN mi.result = 'pass' THEN 1 ELSE 0 END) as pass_count, \
+             SUM(CASE WHEN mi.result = 'fail' THEN 1 ELSE 0 END) as fail_count \
+             FROM mfg_inspections mi LEFT JOIN items i ON i.id = mi.item_id \
+             GROUP BY i.sku \
+             ORDER BY pass_count DESC",
         )
         .fetch_all(pool)
         .await
@@ -359,7 +279,7 @@ impl ReportRepo {
 
         Ok(rows
             .into_iter()
-            .map(|(grade, pass, fail, pipe_type)| {
+            .map(|(sku, pass, fail)| {
                 let total = pass + fail;
                 let pass_rate = if total > 0 {
                     format!("{:.1}%", pass as f64 * 100.0 / total as f64)
@@ -367,8 +287,7 @@ impl ReportRepo {
                     "N/A".into()
                 };
                 serde_json::json!({
-                    "grade": grade,
-                    "pipe_type": pipe_type,
+                    "sku": sku.unwrap_or_else(|| "unknown".into()),
                     "pass_count": pass,
                     "fail_count": fail,
                     "total": total,
@@ -378,16 +297,16 @@ impl ReportRepo {
             .collect())
     }
 
-    /// Quality certs grouped by month (last 12). Returns total, passed, failed, pass_rate.
+    /// Inspections grouped by month (last 12). Returns total, passed, failed, pass_rate.
     pub async fn quality_certs_by_month(
-        pool: &PgPool,
+        pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, i64, i64, i64)> = sqlx::query_as(
-            "SELECT to_char(cert_date, 'YYYY-MM') as month, \
+            "SELECT strftime('%Y-%m', inspected_at) as month, \
              COUNT(*) as total, \
              SUM(CASE WHEN result = 'pass' THEN 1 ELSE 0 END) as passed, \
              SUM(CASE WHEN result = 'fail' THEN 1 ELSE 0 END) as failed \
-             FROM quality_certs WHERE cert_date IS NOT NULL AND deleted_at IS NULL \
+             FROM mfg_inspections WHERE inspected_at IS NOT NULL \
              GROUP BY month ORDER BY month DESC LIMIT 12",
         )
         .fetch_all(pool)
@@ -413,38 +332,30 @@ impl ReportRepo {
             .collect())
     }
 
-    /// Total in-stock count for seamless + screen pipes.
-    pub async fn total_stock(pool: &PgPool) -> Result<i64, AppError> {
-        let seamless: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM seamless_pipes WHERE deleted_at IS NULL AND status = 'in_stock'",
+    /// Total active items in the item master.
+    pub async fn total_stock(pool: &SqlitePool) -> Result<i64, AppError> {
+        let row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM items WHERE deleted_at IS NULL AND status = 'active'",
         )
         .fetch_one(pool)
         .await
         .map_err(AppError::from)?;
-
-        let screen: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM screen_pipes WHERE deleted_at IS NULL AND status = 'in_stock'",
-        )
-        .fetch_one(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        Ok(seamless.0 + screen.0)
+        Ok(row.0)
     }
 
     /// Recent inbound records within N days. Returns record_no, type, status, created_at.
     pub async fn recent_inbound(
-        pool: &PgPool,
+        pool: &SqlitePool,
         days: i64,
         limit: i64,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, String, String, String)> = sqlx::query_as(
             "SELECT ir.inbound_no, ir.inbound_type, ir.approval_status, ir.created_at \
              FROM inbound_records ir \
-             WHERE ir.created_at >= NOW() + ($1 || ' days')::interval AND ir.deleted_at IS NULL \
-             ORDER BY ir.created_at DESC LIMIT $2",
+             WHERE ir.created_at >= datetime('now', ?) AND ir.deleted_at IS NULL \
+             ORDER BY ir.created_at DESC LIMIT ?",
         )
-        .bind(format!("-{}", days))
+        .bind(format!("-{} days", days))
         .bind(limit)
         .fetch_all(pool)
         .await
@@ -465,17 +376,17 @@ impl ReportRepo {
 
     /// Recent outbound records within N days. Returns record_no, type, status, created_at.
     pub async fn recent_outbound(
-        pool: &PgPool,
+        pool: &SqlitePool,
         days: i64,
         limit: i64,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, String, String, String)> = sqlx::query_as(
             "SELECT orr.outbound_no, orr.outbound_type, orr.approval_status, orr.created_at \
              FROM outbound_records orr \
-             WHERE orr.created_at >= NOW() + ($1 || ' days')::interval AND orr.deleted_at IS NULL \
-             ORDER BY orr.created_at DESC LIMIT $2",
+             WHERE orr.created_at >= datetime('now', ?) AND orr.deleted_at IS NULL \
+             ORDER BY orr.created_at DESC LIMIT ?",
         )
-        .bind(format!("-{}", days))
+        .bind(format!("-{} days", days))
         .bind(limit)
         .fetch_all(pool)
         .await
@@ -495,10 +406,10 @@ impl ReportRepo {
     }
 
     /// Count of inbound records in the last 30 days.
-    pub async fn inbound_count_30d(pool: &PgPool) -> Result<i64, AppError> {
+    pub async fn inbound_count_30d(pool: &SqlitePool) -> Result<i64, AppError> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM inbound_records \
-             WHERE created_at >= NOW() + '-30 days'::interval AND deleted_at IS NULL",
+             WHERE created_at >= datetime('now', '-30 days') AND deleted_at IS NULL",
         )
         .fetch_one(pool)
         .await
@@ -507,10 +418,10 @@ impl ReportRepo {
     }
 
     /// Count of outbound records in the last 30 days.
-    pub async fn outbound_count_30d(pool: &PgPool) -> Result<i64, AppError> {
+    pub async fn outbound_count_30d(pool: &SqlitePool) -> Result<i64, AppError> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM outbound_records \
-             WHERE created_at >= NOW() + '-30 days'::interval AND deleted_at IS NULL",
+             WHERE created_at >= datetime('now', '-30 days') AND deleted_at IS NULL",
         )
         .fetch_one(pool)
         .await
@@ -519,7 +430,7 @@ impl ReportRepo {
     }
 
     /// Pending inbound/outbound records and pending purchase/sales orders (up to 20 each).
-    pub async fn pending_approvals(pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
+    pub async fn pending_approvals(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, AppError> {
         let mut result: Vec<serde_json::Value> = Vec::new();
 
         let inbound: Vec<(i64, String, String)> = sqlx::query_as(
@@ -589,16 +500,16 @@ impl ReportRepo {
         Ok(result)
     }
 
-    /// Recent quality failures (result = 'fail'), up to `limit`.
+    /// Recent open NCRs (quality non-conformances), up to `limit`.
     pub async fn recent_quality_failures(
-        pool: &PgPool,
+        pool: &SqlitePool,
         limit: i64,
     ) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows: Vec<(String, String, i64, DateTime<Utc>, Option<String>)> = sqlx::query_as(
-            "SELECT qc.cert_number, qc.pipe_type, qc.pipe_id, qc.cert_date, qc.notes \
-             FROM quality_certs qc \
-             WHERE qc.result = 'fail' AND qc.deleted_at IS NULL \
-             ORDER BY qc.created_at DESC LIMIT $1",
+        let rows: Vec<(String, String, Option<i64>, DateTime<Utc>, Option<String>)> = sqlx::query_as(
+            "SELECT ncr_no, description, item_id, created_at, disposition \
+             FROM mfg_ncrs \
+             WHERE status = 'open' \
+             ORDER BY created_at DESC LIMIT ?",
         )
         .bind(limit)
         .fetch_all(pool)
@@ -607,20 +518,20 @@ impl ReportRepo {
 
         Ok(rows
             .into_iter()
-            .map(|(cert_no, pipe_type, pipe_id, inspect_date, notes)| {
+            .map(|(ncr_no, description, item_id, created_at, disposition)| {
                 serde_json::json!({
-                    "cert_no": cert_no,
-                    "pipe_type": pipe_type,
-                    "pipe_id": pipe_id.to_string(),
-                    "inspect_date": inspect_date,
-                    "notes": notes,
+                    "ncr_no": ncr_no,
+                    "description": description,
+                    "item_id": item_id.map(|v| v.to_string()),
+                    "created_at": created_at,
+                    "disposition": disposition,
                 })
             })
             .collect())
     }
 
     /// Sum of pending inbound + pending outbound records.
-    pub async fn pending_approval_count(pool: &PgPool) -> Result<i64, AppError> {
+    pub async fn pending_approval_count(pool: &SqlitePool) -> Result<i64, AppError> {
         let ib: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM inbound_records WHERE approval_status = 'pending' AND deleted_at IS NULL",
         )

@@ -1,15 +1,15 @@
-# `handlers/` — HTTP Layer (16 files, ~70 handlers)
+# `handlers/` — HTTP Layer (16 files, ~200 handlers)
 
 ## Pattern
 
 Every handler follows the same pattern: **extract → call service → respond**
 
 ```rust
-pub async fn list_seamless_pipes_handler(
+pub async fn list_items_handler(
     Extension(pool): Extension<SqlitePool>,
-    Query(filter): Query<PipeFilterParams>,
-) -> Result<Json<PaginatedResponse<SeamlessPipe>>, AppError> {
-    let (items, total) = PipeService::list_seamless_pipes(&pool, &filter, &pagination).await?;
+    Query(filter): Query<ItemFilterParams>,
+) -> Result<Json<PaginatedResponse<Item>>, AppError> {
+    let (items, total) = ItemService::list_items(&pool, &filter, &pagination).await?;
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 ```
@@ -32,24 +32,25 @@ Key points:
 ## Handler File List
 
 | File | Entity | Description |
-|------|--------|-------------|
+| ------ | -------- | ------------- |
 | `auth_handler.rs` | Auth | login, logout, refresh, profile |
-| `pipe_handler.rs` | Pipes | seamless + screen pipe CRUD, list, filter |
-| `inbound_handler.rs` | Inbound | inbound record CRUD, approval, batch |
-| `outbound_handler.rs` | Outbound | outbound record CRUD, approval |
+| `item_handler.rs` | Items | 商品/SKU master data CRUD, list, filter |
+| `inbound_handler.rs` | Inbound | inbound (入库) record CRUD, approval, batch |
+| `outbound_handler.rs` | Outbound | outbound (出库) record CRUD, approval |
 | `location_handler.rs` | Locations | warehouse location CRUD, assign, transfer |
-| `check_handler.rs` | Checks | inventory check CRUD, submit, complete |
-| `inventory_handler.rs` | Inventory | stock query, logs, statistics, trace |
-| `purchase_handler.rs` | Purchase Orders | CRUD, status transitions, approval |
-| `sales_handler.rs` | Sales Orders | CRUD, status transitions, ATP check |
-| `quality_handler.rs` | Quality | certs CRUD, mechanical tests, NDT |
+| `check_handler.rs` | Count Sessions | inventory count session (盘点) CRUD, submit, complete |
+| `inventory_handler.rs` | Inventory | stock query, logs, statistics |
+| `purchase_handler.rs` | Purchase Orders | 采购订单 CRUD, status transitions, approval |
+| `sales_handler.rs` | Sales Orders | 销售订单 CRUD, status transitions, ATP check |
 | `contract_handler.rs` | Contracts | CRUD, milestones |
 | `customer_handler.rs` | Customers | CRUD, list |
 | `supplier_handler.rs` | Suppliers | CRUD, list |
 | `report_handler.rs` | Reports | dashboard, daily/monthly/statistical reports |
-| `label_handler.rs` | Labels | barcode/spec label generation |
+| `data_io_handler.rs` | Data IO | Excel/CSV import and export (generic entities: items, orders) |
 | `atp_handler.rs` | ATP | ATP check (stock availability) before sales order approval |
-| `data_io_handler.rs` | Data IO | Excel/CSV import and export |
+| `health_handler.rs` | Health | liveness/readiness probes |
+
+Feature modules carry their own handlers inside the module: `workflow/handlers.rs` (definitions/instances/tasks), `hr/handlers.rs`, `finance/handlers.rs`, `procurement/handlers.rs`, `sales_crm/handlers.rs`, `inventory_atp/handlers.rs`, `manufacturing/handlers.rs` (incl. inspections), `project/handlers.rs`, `assets/handlers.rs`, `notification/handlers.rs`, `portal/handlers.rs`, `bi/handlers.rs`, and `auth/handlers.rs` (roles/permissions/departments/tenants). They follow the same extract → service → respond pattern.
 
 ## Common Extractor Patterns
 

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-//! Steel Pipe DB — backend crate for the API 5CT pipe inventory management system.
+//! ERP Server — backend crate for the generic ERP system.
 //!
 //! Dependency injection is via Axum [`Extension`] layers — no global state struct.
 
@@ -14,7 +14,6 @@ pub mod procurement;
 pub mod sales_crm;
 pub mod inventory_atp;
 pub mod manufacturing;
-pub mod threading;
 pub mod project;
 pub mod bi;
 pub mod portal;

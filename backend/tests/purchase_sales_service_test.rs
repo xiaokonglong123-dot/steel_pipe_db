@@ -7,21 +7,52 @@
 
 mod common;
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Item helpers (generic ERP) — item master + stock seeding
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Seed an item master row; returns its id.
+async fn seed_item(pool: &sqlx::SqlitePool, sku: &str) -> i64 {
+    sqlx::query_scalar(
+        "INSERT INTO items (sku, name, category, unit, spec, price, status) \
+         VALUES (?, 'Test Item', '原材料', '个', 'spec', 10.0, 'active') \
+         RETURNING id",
+    )
+    .bind(sku)
+    .fetch_one(pool)
+    .await
+    .expect("seed_item must succeed")
+}
+
+/// Seed an inventory_logs entry for an item (inbound/outbound) to simulate stock.
+async fn seed_inventory_log(pool: &sqlx::SqlitePool, item_id: i64, change_type: &str, quantity: f64) {
+    sqlx::query(
+        "INSERT INTO inventory_logs (item_id, quantity, change_type, created_at) \
+         VALUES (?, ?, ?, datetime('now'))",
+    )
+    .bind(item_id)
+    .bind(quantity)
+    .bind(change_type)
+    .execute(pool)
+    .await
+    .expect("seed_inventory_log must succeed");
+}
+
 use chrono::{DateTime, Utc};
 use rust_decimal_macros::dec;
-use steel_pipe_db::dto::common::PaginationParams;
-use steel_pipe_db::dto::purchase_dto::{
+use erp_server::dto::common::PaginationParams;
+use erp_server::dto::purchase_dto::{
     ApproveOrderRequest as PurchaseApproveReq, CreatePurchaseItemRequest,
     CreatePurchaseOrderRequest, PurchaseOrderFilterParams, PurchaseOrderStatusTransitionRequest,
     RejectOrderRequest as PurchaseRejectReq, UpdatePurchaseItemRequest, UpdatePurchaseOrderRequest,
 };
-use steel_pipe_db::dto::sales_dto::{
+use erp_server::dto::sales_dto::{
     ApproveOrderRequest as SalesApproveReq, CreateSalesItemRequest, CreateSalesOrderRequest,
     RejectOrderRequest as SalesRejectReq, SalesOrderFilterParams,
     SalesOrderStatusTransitionRequest, UpdateSalesItemRequest, UpdateSalesOrderRequest,
 };
-use steel_pipe_db::services::purchase_service::PurchaseService;
-use steel_pipe_db::services::sales_service::SalesService;
+use erp_server::services::purchase_service::PurchaseService;
+use erp_server::services::sales_service::SalesService;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Purchase Order — create
@@ -30,6 +61,7 @@ use steel_pipe_db::services::sales_service::SalesService;
 #[tokio::test]
 async fn create_purchase_order_with_items() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_PURCHASE_ORDE-A").await;
 
     let supplier_id = common::seed_supplier(&pool, "SUP-001", "Test Supplier")
         .await
@@ -41,11 +73,8 @@ async fn create_purchase_order_with_items() {
         order_date: "2025-06-01".into(),
         notes: Some("initial PO".into()),
         items: vec![CreatePurchaseItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 100,
+            item_id: item_a,
+            quantity: 100.0,
             unit_price: Some(dec!(150.0)),
             total_price: Some(dec!(15000.0)),
             notes: None,
@@ -88,13 +117,14 @@ async fn create_purchase_order_fails_empty_items() {
 #[tokio::test]
 async fn create_purchase_order_fails_inactive_supplier() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_PURCHASE_ORDE-A").await;
 
     // Manually insert an inactive supplier
     let supplier_id: i64 = sqlx::query_scalar(
         "INSERT INTO suppliers (supplier_code, name, contact_person, phone, email, address, \
          is_active, notes, created_at, updated_at) \
-         VALUES ($1, $2, 'Contact', '13800138000', $3, 'Addr', FALSE, 'inactive', \
-         NOW(), NOW()) RETURNING id",
+         VALUES (?, ?, 'Contact', '13800138000', ?, 'Addr', 0, 'inactive', \
+         datetime('now'), datetime('now')) RETURNING id",
     )
     .bind("SUP-003")
     .bind("Inactive Supplier")
@@ -109,11 +139,8 @@ async fn create_purchase_order_fails_inactive_supplier() {
         order_date: "2025-06-01".into(),
         notes: None,
         items: vec![CreatePurchaseItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),
             notes: None,
@@ -129,6 +156,7 @@ async fn create_purchase_order_fails_inactive_supplier() {
 #[tokio::test]
 async fn create_purchase_order_fails_duplicate_order_no() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_PURCHASE_ORDE-A").await;
 
     let supplier_id = common::seed_supplier(&pool, "SUP-004", "Supplier Dup")
         .await
@@ -140,11 +168,8 @@ async fn create_purchase_order_fails_duplicate_order_no() {
         order_date: "2025-06-01".into(),
         notes: None,
         items: vec![CreatePurchaseItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),
             notes: None,
@@ -166,6 +191,7 @@ async fn create_purchase_order_fails_duplicate_order_no() {
 #[tokio::test]
 async fn create_purchase_order_fails_nonexistent_supplier() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_PURCHASE_ORDE-A").await;
 
     let dto = CreatePurchaseOrderRequest {
         order_no: None,
@@ -173,11 +199,8 @@ async fn create_purchase_order_fails_nonexistent_supplier() {
         order_date: "2025-06-01".into(),
         notes: None,
         items: vec![CreatePurchaseItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),
             notes: None,
@@ -197,6 +220,7 @@ async fn create_purchase_order_fails_nonexistent_supplier() {
 #[tokio::test]
 async fn update_purchase_order_updates_header() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-UPDATE_PURCHASE_ORDE-A").await;
 
     let supplier_id = common::seed_supplier(&pool, "SUP-UPD", "Update Supplier")
         .await
@@ -208,11 +232,8 @@ async fn update_purchase_order_updates_header() {
         order_date: "2025-06-01".into(),
         notes: Some("original".into()),
         items: vec![CreatePurchaseItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 50,
+            item_id: item_a,
+            quantity: 50.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(5000.0)),
             notes: None,
@@ -239,6 +260,7 @@ async fn update_purchase_order_updates_header() {
 #[tokio::test]
 async fn update_purchase_order_fails_non_draft() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-UPDATE_PURCHASE_ORDE-A").await;
 
     let supplier_id = common::seed_supplier(&pool, "SUP-UPD2", "Supplier")
         .await
@@ -250,11 +272,8 @@ async fn update_purchase_order_fails_non_draft() {
         order_date: "2025-06-01".into(),
         notes: None,
         items: vec![CreatePurchaseItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),
             notes: None,
@@ -390,6 +409,8 @@ async fn transition_purchase_status_full_flow() {
 #[tokio::test]
 async fn get_purchase_order_with_items() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-GET_PURCHASE_ORDER_W-A").await;
+    let item_b = seed_item(&pool, "ITM-GET_PURCHASE_ORDER_W-B").await;
 
     let supplier_id = common::seed_supplier(&pool, "SUP-GET", "Get Supplier")
         .await
@@ -401,21 +422,15 @@ async fn get_purchase_order_with_items() {
         notes: None,
         items: vec![
             CreatePurchaseItemRequest {
-                pipe_type: "casing".into(),
-                grade: "J55".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 20,
+            item_id: item_a,
+            quantity: 20.0,
                 unit_price: Some(dec!(100.0)),
                 total_price: Some(dec!(2000.0)),
                 notes: None,
             },
             CreatePurchaseItemRequest {
-                pipe_type: "tubing".into(),
-                grade: "N80Q".into(),
-                od: 88.9,
-                wt: 6.45,
-                quantity: 30,
+            item_id: item_b,
+            quantity: 30.0,
                 unit_price: Some(dec!(80.0)),
                 total_price: Some(dec!(2400.0)),
                 notes: None,
@@ -449,6 +464,7 @@ async fn get_purchase_order_fails_not_found() {
 #[tokio::test]
 async fn list_purchase_orders_pagination() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-LIST_PURCHASE_ORDERS-A").await;
 
     let supplier_id = common::seed_supplier(&pool, "SUP-LST", "List Supplier")
         .await
@@ -462,11 +478,8 @@ async fn list_purchase_orders_pagination() {
             order_date: "2025-06-01".into(),
             notes: None,
             items: vec![CreatePurchaseItemRequest {
-                pipe_type: "casing".into(),
-                grade: "J55".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
                 unit_price: Some(dec!(100.0)),
                 total_price: Some(dec!(1000.0)),
                 notes: None,
@@ -506,6 +519,8 @@ async fn list_purchase_orders_pagination() {
 #[tokio::test]
 async fn list_purchase_orders_status_filter() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-LIST_PURCHASE_ORDERS-A").await;
+    let item_b = seed_item(&pool, "ITM-LIST_PURCHASE_ORDERS-B").await;
 
     let supplier_id = common::seed_supplier(&pool, "SUP-FLT", "Filter Supplier")
         .await
@@ -519,11 +534,8 @@ async fn list_purchase_orders_status_filter() {
             order_date: "2025-06-01".into(),
             notes: None,
             items: vec![CreatePurchaseItemRequest {
-                pipe_type: "casing".into(),
-                grade: "J55".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
                 unit_price: Some(dec!(100.0)),
                 total_price: Some(dec!(1000.0)),
                 notes: None,
@@ -541,11 +553,8 @@ async fn list_purchase_orders_status_filter() {
             order_date: "2025-06-01".into(),
             notes: None,
             items: vec![CreatePurchaseItemRequest {
-                pipe_type: "casing".into(),
-                grade: "J55".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 10,
+            item_id: item_b,
+            quantity: 10.0,
                 unit_price: Some(dec!(100.0)),
                 total_price: Some(dec!(1000.0)),
                 notes: None,
@@ -609,7 +618,7 @@ async fn delete_purchase_order_draft() {
 
     // Verify soft-deleted
     let deleted_at: (Option<DateTime<Utc>>,) =
-        sqlx::query_as("SELECT deleted_at FROM purchase_orders WHERE id = $1")
+        sqlx::query_as("SELECT deleted_at FROM purchase_orders WHERE id = ?")
             .bind(order.id)
             .fetch_one(&pool)
             .await
@@ -649,6 +658,7 @@ async fn delete_purchase_order_fails_approved() {
 #[tokio::test]
 async fn update_purchase_item_changes_qty() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-UPDATE_PURCHASE_ITEM-A").await;
 
     let supplier_id = common::seed_supplier(&pool, "SUP-ITM", "Item Supplier")
         .await
@@ -661,11 +671,8 @@ async fn update_purchase_item_changes_qty() {
         order_date: "2025-06-01".into(),
         notes: None,
         items: vec![CreatePurchaseItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 50,
+            item_id: item_a,
+            quantity: 50.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(5000.0)),
             notes: None,
@@ -681,12 +688,9 @@ async fn update_purchase_item_changes_qty() {
     let item_id = items[0].id;
 
     let update = UpdatePurchaseItemRequest {
+        item_id: None,
         id: None,
-        pipe_type: None,
-        grade: None,
-        od: None,
-        wt: None,
-        quantity: Some(75),
+        quantity: Some(75.0),
         unit_price: Some(dec!(90.0)),
         notes: None,
     };
@@ -696,7 +700,7 @@ async fn update_purchase_item_changes_qty() {
             .await
             .expect("update_purchase_item must succeed");
 
-    assert_eq!(updated_item.quantity, 75);
+    assert_eq!(updated_item.quantity, 75.0);
     assert_eq!(updated_item.unit_price, Some(90.0));
 }
 
@@ -718,12 +722,9 @@ async fn update_purchase_item_fails_non_draft() {
         .unwrap();
 
     let update = UpdatePurchaseItemRequest {
+        item_id: None,
         id: None,
-        pipe_type: None,
-        grade: None,
-        od: None,
-        wt: None,
-        quantity: Some(99),
+        quantity: Some(99.0),
         unit_price: None,
         notes: None,
     };
@@ -741,6 +742,8 @@ async fn update_purchase_item_fails_non_draft() {
 #[tokio::test]
 async fn delete_purchase_item_removes_item() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-DELETE_PURCHASE_ITEM-A").await;
+    let item_b = seed_item(&pool, "ITM-DELETE_PURCHASE_ITEM-B").await;
 
     let supplier_id = common::seed_supplier(&pool, "SUP-DLI", "DelItem Supplier")
         .await
@@ -753,21 +756,15 @@ async fn delete_purchase_item_removes_item() {
         notes: None,
         items: vec![
             CreatePurchaseItemRequest {
-                pipe_type: "casing".into(),
-                grade: "J55".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
                 unit_price: Some(dec!(100.0)),
                 total_price: Some(dec!(1000.0)),
                 notes: None,
             },
             CreatePurchaseItemRequest {
-                pipe_type: "tubing".into(),
-                grade: "N80Q".into(),
-                od: 88.9,
-                wt: 6.45,
-                quantity: 20,
+            item_id: item_b,
+            quantity: 20.0,
                 unit_price: Some(dec!(100.0)),
                 total_price: Some(dec!(1000.0)),
                 notes: None,
@@ -948,7 +945,7 @@ async fn link_inbound_to_order_links() {
     let inbound_id: i64 = sqlx::query_scalar(
         "INSERT INTO inbound_records (inbound_no, inbound_type, notes, approval_status, \
          created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING id",
+         VALUES (?, ?, ?, ?, datetime('now'), datetime('now')) RETURNING id",
     )
     .bind("INB-LNK-001")
     .bind("purchase")
@@ -964,7 +961,7 @@ async fn link_inbound_to_order_links() {
 
     // Verify the inbound record has the order_id set
     let linked_order_id: (Option<i64>,) =
-        sqlx::query_as("SELECT order_id FROM inbound_records WHERE id = $1")
+        sqlx::query_as("SELECT order_id FROM inbound_records WHERE id = ?")
             .bind(inbound_id)
             .fetch_one(&pool)
             .await
@@ -979,6 +976,7 @@ async fn link_inbound_to_order_links() {
 #[tokio::test]
 async fn full_purchase_order_lifecycle() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-FULL_PURCHASE_ORDER_-A").await;
 
     let supplier_id = common::seed_supplier(&pool, "SUP-LIFE", "Lifecycle Supplier")
         .await
@@ -991,11 +989,8 @@ async fn full_purchase_order_lifecycle() {
         order_date: "2025-06-01".into(),
         notes: Some("initial".into()),
         items: vec![CreatePurchaseItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 100,
+            item_id: item_a,
+            quantity: 100.0,
             unit_price: Some(dec!(120.0)),
             total_price: Some(dec!(12000.0)),
             notes: None,
@@ -1040,7 +1035,7 @@ async fn full_purchase_order_lifecycle() {
     let inbound_id: i64 = sqlx::query_scalar(
         "INSERT INTO inbound_records (inbound_no, inbound_type, notes, approval_status, \
          created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING id",
+         VALUES (?, ?, ?, ?, datetime('now'), datetime('now')) RETURNING id",
     )
     .bind("INB-LIFE-001")
     .bind("purchase")
@@ -1062,6 +1057,7 @@ async fn full_purchase_order_lifecycle() {
 #[tokio::test]
 async fn create_sales_order_with_items() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_SALES_ORDER_W-A").await;
 
     let customer_id = common::seed_customer(&pool, "CUS-001", "Test Customer")
         .await
@@ -1073,11 +1069,8 @@ async fn create_sales_order_with_items() {
         order_date: "2025-06-15".into(),
         notes: Some("initial SO".into()),
         items: vec![CreateSalesItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 50,
+            item_id: item_a,
+            quantity: 50.0,
             unit_price: Some(dec!(200.0)),
             total_price: Some(dec!(10000.0)),
             notes: None,
@@ -1119,13 +1112,14 @@ async fn create_sales_order_fails_empty_items() {
 #[tokio::test]
 async fn create_sales_order_fails_inactive_customer() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_SALES_ORDER_F-A").await;
 
     // Manually insert inactive customer
     let customer_id: i64 = sqlx::query_scalar(
         "INSERT INTO customers (customer_code, name, contact_person, phone, email, address, \
          is_active, notes, created_at, updated_at) \
-         VALUES ($1, $2, 'Contact', '13800138001', $3, 'Addr', FALSE, 'inactive', \
-         NOW(), NOW()) RETURNING id",
+         VALUES (?, ?, 'Contact', '13800138001', ?, 'Addr', 0, 'inactive', \
+         datetime('now'), datetime('now')) RETURNING id",
     )
     .bind("CUS-003")
     .bind("Inactive Customer")
@@ -1140,11 +1134,8 @@ async fn create_sales_order_fails_inactive_customer() {
         order_date: "2025-06-15".into(),
         notes: None,
         items: vec![CreateSalesItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),
             notes: None,
@@ -1160,6 +1151,7 @@ async fn create_sales_order_fails_inactive_customer() {
 #[tokio::test]
 async fn create_sales_order_fails_nonexistent_customer() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_SALES_ORDER_F-A").await;
 
     let dto = CreateSalesOrderRequest {
         order_no: None,
@@ -1167,11 +1159,8 @@ async fn create_sales_order_fails_nonexistent_customer() {
         order_date: "2025-06-15".into(),
         notes: None,
         items: vec![CreateSalesItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),
             notes: None,
@@ -1278,6 +1267,8 @@ async fn transition_sales_status_invalid_hop_fails() {
 #[tokio::test]
 async fn get_sales_order_with_items() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-GET_SALES_ORDER_WITH-A").await;
+    let item_b = seed_item(&pool, "ITM-GET_SALES_ORDER_WITH-B").await;
 
     let customer_id = common::seed_customer(&pool, "CUS-GET", "Get Customer")
         .await
@@ -1289,21 +1280,15 @@ async fn get_sales_order_with_items() {
         notes: None,
         items: vec![
             CreateSalesItemRequest {
-                pipe_type: "casing".into(),
-                grade: "J55".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 20,
+            item_id: item_a,
+            quantity: 20.0,
                 unit_price: Some(dec!(200.0)),
                 total_price: Some(dec!(4000.0)),
                 notes: None,
             },
             CreateSalesItemRequest {
-                pipe_type: "tubing".into(),
-                grade: "N80Q".into(),
-                od: 88.9,
-                wt: 6.45,
-                quantity: 30,
+            item_id: item_b,
+            quantity: 30.0,
                 unit_price: Some(dec!(150.0)),
                 total_price: Some(dec!(4500.0)),
                 notes: None,
@@ -1325,6 +1310,7 @@ async fn get_sales_order_with_items() {
 #[tokio::test]
 async fn list_sales_orders_pagination() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-LIST_SALES_ORDERS_PA-A").await;
 
     let customer_id = common::seed_customer(&pool, "CUS-LST", "List Customer")
         .await
@@ -1337,11 +1323,8 @@ async fn list_sales_orders_pagination() {
             order_date: "2025-06-15".into(),
             notes: None,
             items: vec![CreateSalesItemRequest {
-                pipe_type: "casing".into(),
-                grade: "J55".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
                 unit_price: Some(dec!(100.0)),
                 total_price: Some(dec!(1000.0)),
                 notes: None,
@@ -1391,7 +1374,7 @@ async fn delete_sales_order_draft() {
         .expect("delete draft SO must succeed");
 
     let deleted_at: (Option<DateTime<Utc>>,) =
-        sqlx::query_as("SELECT deleted_at FROM sales_orders WHERE id = $1")
+        sqlx::query_as("SELECT deleted_at FROM sales_orders WHERE id = ?")
             .bind(order.id)
             .fetch_one(&pool)
             .await
@@ -1424,6 +1407,7 @@ async fn delete_sales_order_fails_approved() {
 #[tokio::test]
 async fn update_sales_item_changes_qty() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-UPDATE_SALES_ITEM_CH-A").await;
 
     let customer_id = common::seed_customer(&pool, "CUS-SITM", "Item Customer")
         .await
@@ -1434,11 +1418,8 @@ async fn update_sales_item_changes_qty() {
         order_date: "2025-06-15".into(),
         notes: None,
         items: vec![CreateSalesItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 30,
+            item_id: item_a,
+            quantity: 30.0,
             unit_price: Some(dec!(200.0)),
             total_price: Some(dec!(6000.0)),
             notes: None,
@@ -1454,11 +1435,8 @@ async fn update_sales_item_changes_qty() {
     let item_id = items[0].id;
 
     let update = UpdateSalesItemRequest {
-        pipe_type: None,
-        grade: None,
-        od: None,
-        wt: None,
-        quantity: Some(45),
+        item_id: None,
+        quantity: Some(45.0),
         unit_price: Some(dec!(180.0)),
         notes: None,
     };
@@ -1467,13 +1445,15 @@ async fn update_sales_item_changes_qty() {
         SalesService::update_sales_item(&pool, order.id, item_id, &update)
             .await
             .expect("update_sales_item must succeed");
-    assert_eq!(updated.quantity, 45);
+    assert_eq!(updated.quantity, 45.0);
     assert_eq!(updated.unit_price, Some(180.0));
 }
 
 #[tokio::test]
 async fn delete_sales_item_removes_item() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-DELETE_SALES_ITEM_RE-A").await;
+    let item_b = seed_item(&pool, "ITM-DELETE_SALES_ITEM_RE-B").await;
 
     let customer_id = common::seed_customer(&pool, "CUS-DSITM", "DelItem Customer")
         .await
@@ -1485,21 +1465,15 @@ async fn delete_sales_item_removes_item() {
         notes: None,
         items: vec![
             CreateSalesItemRequest {
-                pipe_type: "casing".into(),
-                grade: "J55".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
                 unit_price: Some(dec!(100.0)),
                 total_price: Some(dec!(1000.0)),
                 notes: None,
             },
             CreateSalesItemRequest {
-                pipe_type: "tubing".into(),
-                grade: "N80Q".into(),
-                od: 88.9,
-                wt: 6.45,
-                quantity: 20,
+            item_id: item_b,
+            quantity: 20.0,
                 unit_price: Some(dec!(100.0)),
                 total_price: Some(dec!(1000.0)),
                 notes: None,
@@ -1532,19 +1506,14 @@ async fn delete_sales_item_removes_item() {
 #[tokio::test]
 async fn approve_sales_order_approves() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-APPROVE_SALES_ORDER_-A").await;
 
     let customer_id = common::seed_customer(&pool, "CUS-SAPR", "SO Approve Customer")
         .await
         .unwrap();
 
-    // Seed an in_stock pipe to satisfy ATP
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-SAPR-001", "in_stock", "J55")
-        .await
-        .unwrap();
-    // Also make a second one for quantity
-    common::seed_seamless_pipe(&pool, "PN-SAPR-002", "in_stock", "J55")
-        .await
-        .unwrap();
+    // Seed inbound stock to satisfy ATP
+    seed_inventory_log(&pool, item_a, "inbound", 2.0).await;
 
     let dto = CreateSalesOrderRequest {
         order_no: Some("SO-SAPR-001".into()),
@@ -1552,11 +1521,8 @@ async fn approve_sales_order_approves() {
         order_date: "2025-06-15".into(),
         notes: None,
         items: vec![CreateSalesItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 2,
+            item_id: item_a,
+            quantity: 2.0,
             unit_price: Some(dec!(200.0)),
             total_price: Some(dec!(400.0)),
             notes: None,
@@ -1589,6 +1555,7 @@ async fn approve_sales_order_approves() {
 #[tokio::test]
 async fn approve_sales_order_fails_insufficient_stock() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-APPROVE_SALES_ORDER_-A").await;
 
     let customer_id = common::seed_customer(&pool, "CUS-NOATP", "No ATP Customer")
         .await
@@ -1601,11 +1568,8 @@ async fn approve_sales_order_fails_insufficient_stock() {
         order_date: "2025-06-15".into(),
         notes: None,
         items: vec![CreateSalesItemRequest {
-            pipe_type: "casing".into(),
-            grade: "Q125".into(),
-            od: 244.5,
-            wt: 11.99,
-            quantity: 1,
+            item_id: item_a,
+            quantity: 1.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),
             notes: None,
@@ -1683,15 +1647,14 @@ async fn reject_sales_order_rejects() {
 #[tokio::test]
 async fn link_outbound_to_order_links() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-LINK_OUTBOUND_TO_ORD-A").await;
 
     let customer_id = common::seed_customer(&pool, "CUS-SLNK", "SO Link Customer")
         .await
         .unwrap();
 
-    // Create in_stock pipes for ATP
-    common::seed_seamless_pipe(&pool, "PN-SLNK-001", "in_stock", "J55")
-        .await
-        .unwrap();
+    // Seed inbound stock
+    seed_inventory_log(&pool, item_a, "inbound", 1.0).await;
 
     let dto = CreateSalesOrderRequest {
         order_no: Some("SO-SLNK-001".into()),
@@ -1699,11 +1662,8 @@ async fn link_outbound_to_order_links() {
         order_date: "2025-06-15".into(),
         notes: None,
         items: vec![CreateSalesItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 1,
+            item_id: item_a,
+            quantity: 1.0,
             unit_price: Some(dec!(200.0)),
             total_price: Some(dec!(200.0)),
             notes: None,
@@ -1729,7 +1689,7 @@ async fn link_outbound_to_order_links() {
     let outbound_id: i64 = sqlx::query_scalar(
         "INSERT INTO outbound_records (outbound_no, outbound_type, notes, approval_status, \
          created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING id",
+         VALUES (?, ?, ?, ?, datetime('now'), datetime('now')) RETURNING id",
     )
     .bind("OUT-SLNK-001")
     .bind("sales")
@@ -1744,7 +1704,7 @@ async fn link_outbound_to_order_links() {
         .expect("link_outbound must succeed");
 
     let linked_order_id: (Option<i64>,) =
-        sqlx::query_as("SELECT order_id FROM outbound_records WHERE id = $1")
+        sqlx::query_as("SELECT order_id FROM outbound_records WHERE id = ?")
             .bind(outbound_id)
             .fetch_one(&pool)
             .await
@@ -1759,21 +1719,14 @@ async fn link_outbound_to_order_links() {
 #[tokio::test]
 async fn sales_order_atp_validation_passes_with_stock() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-SALES_ORDER_ATP_VALI-A").await;
 
     let customer_id = common::seed_customer(&pool, "CUS-ATP1", "ATP Customer 1")
         .await
         .unwrap();
 
-    // Seed multiple in_stock pipes with matching grade
-    common::seed_seamless_pipe(&pool, "PN-ATP-001", "in_stock", "J55")
-        .await
-        .unwrap();
-    common::seed_seamless_pipe(&pool, "PN-ATP-002", "in_stock", "J55")
-        .await
-        .unwrap();
-    common::seed_seamless_pipe(&pool, "PN-ATP-003", "in_stock", "J55")
-        .await
-        .unwrap();
+    // Seed inbound stock: 3 units available
+    seed_inventory_log(&pool, item_a, "inbound", 3.0).await;
 
     let dto = CreateSalesOrderRequest {
         order_no: Some("SO-ATP-001".into()),
@@ -1781,11 +1734,8 @@ async fn sales_order_atp_validation_passes_with_stock() {
         order_date: "2025-06-15".into(),
         notes: None,
         items: vec![CreateSalesItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 3,
+            item_id: item_a,
+            quantity: 3.0,
             unit_price: Some(dec!(200.0)),
             total_price: Some(dec!(600.0)),
             notes: None,
@@ -1817,15 +1767,14 @@ async fn sales_order_atp_validation_passes_with_stock() {
 #[tokio::test]
 async fn sales_order_atp_validation_fails_without_stock() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-SALES_ORDER_ATP_VALI-A").await;
 
     let customer_id = common::seed_customer(&pool, "CUS-ATP2", "ATP Customer 2")
         .await
         .unwrap();
 
-    // Seed one in_stock pipe but request 10 — insufficient
-    common::seed_seamless_pipe(&pool, "PN-ATP-FAIL-001", "in_stock", "J55")
-        .await
-        .unwrap();
+    // Seed only 1 unit inbound but order requests 10 — insufficient
+    seed_inventory_log(&pool, item_a, "inbound", 1.0).await;
 
     let dto = CreateSalesOrderRequest {
         order_no: Some("SO-ATP-002".into()),
@@ -1833,11 +1782,8 @@ async fn sales_order_atp_validation_fails_without_stock() {
         order_date: "2025-06-15".into(),
         notes: None,
         items: vec![CreateSalesItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),
             notes: None,
@@ -1867,20 +1813,18 @@ async fn sales_order_atp_validation_fails_without_stock() {
 
 /// Create a minimal purchase order with a single item (draft status).
 async fn create_dummy_po(
-    pool: &sqlx::PgPool,
+    pool: &sqlx::SqlitePool,
     supplier_id: i64,
-) -> steel_pipe_db::models::purchase_order::PurchaseOrder {
+) -> erp_server::models::purchase_order::PurchaseOrder {
+    let item_a = seed_item(&pool, "ITM-CREATE_DUMMY_PO-A").await;
     let dto = CreatePurchaseOrderRequest {
         order_no: None,
         supplier_id,
         order_date: "2025-06-01".into(),
         notes: None,
         items: vec![CreatePurchaseItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),
             notes: None,
@@ -1893,20 +1837,18 @@ async fn create_dummy_po(
 
 /// Create a minimal sales order with a single item (draft status).
 async fn create_dummy_so(
-    pool: &sqlx::PgPool,
+    pool: &sqlx::SqlitePool,
     customer_id: i64,
-) -> steel_pipe_db::models::sales_order::SalesOrder {
+) -> erp_server::models::sales_order::SalesOrder {
+    let item_a = seed_item(&pool, "ITM-CREATE_DUMMY_SO-A").await;
     let dto = CreateSalesOrderRequest {
         order_no: None,
         customer_id,
         order_date: "2025-06-15".into(),
         notes: None,
         items: vec![CreateSalesItemRequest {
-            pipe_type: "casing".into(),
-            grade: "J55".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(100.0)),
             total_price: Some(dec!(1000.0)),
             notes: None,

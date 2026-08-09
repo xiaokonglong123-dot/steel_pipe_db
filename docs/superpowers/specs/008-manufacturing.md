@@ -14,101 +14,104 @@
 ## 2. 功能范围
 
 | 子模块 | 描述 |
-|--------|------|
-| **物料清单 (BOM)** | 树状 BOM，显示每环节所需材料和设备 |
+| -------- | ------ |
+| **物料清单 (BOM)** | 树状 BOM，显示每环节所需商品和设备 |
 | **生产工单** | 基于订单生成工单 -> 需要 BOM + routing |
 | **路径规划 (Routing)** | 各工序 + 设备要求 + 标准工时 |
 | **现场执行** | 打卡工单选进度(开始/完成/签收/移动) |
-| **质检深化** | 在制品检验、缺陷爬虫 (PA 循环)、NCR |
+| **质检深化** | 在制品检验、缺陷分析 (PDCA 循环)、NCR |
 | **设备管理** | 设备注册、维护计划、稼动率 |
 
 ## 3. 数据模型
 
+> 数据库为 SQLite3（`sqlite://data/erp.db?mode=rwc`），商品统一引用 `items.id`，质检为制造过程的质量检验记录（Inspection）。
+
 ```sql
-CREATE TABLE manufacturing.boms (
-    id BIGSERIAL PRIMARY KEY,
-    product_id BIGINT REFERENCES inventory.seamless_pipes(id), -- 或 screen pipes
-    name VARCHAR(200),
+CREATE TABLE boms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER REFERENCES items(id),  -- 商品
+    name TEXT,
     production_version INTEGER,
-    status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    status TEXT DEFAULT 'active',
+    created_at TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE manufacturing.bom_items (
-    id BIGSERIAL PRIMARY KEY,
-    bom_id BIGINT REFERENCES manufacturing.boms(id),
-    parent_item_id BIGINT REFERENCES manufacturing.bom_items(id),
-    item_type VARCHAR(20),     -- raw_material, semi_product, sub_assembly, pipe
-    item_identifier BIGINT,    -- seam_pipe_id or 其他
-    quantity NUMERIC(12,4),
-    unit VARCHAR(10),           -- pcs, kg, m
+CREATE TABLE bom_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bom_id INTEGER REFERENCES boms(id),
+    parent_item_id INTEGER REFERENCES bom_items(id),
+    item_type TEXT,     -- raw_material, semi_product, sub_assembly, product
+    item_id INTEGER REFERENCES items(id),  -- 商品
+    quantity REAL,
+    unit TEXT            -- pcs, kg, m
 );
 
-CREATE TABLE manufacturing.work_orders (
-    id BIGSERIAL PRIMARY KEY,
-    order_no VARCHAR(100) UNIQUE,
-    bom_id BIGINT REFERENCES manufacturing.boms(id),
-    sales_order_id BIGINT,              -- 为客户生产
-    planned_qty NUMERIC(12,4),
-    actual_qty NUMERIC(12,4),
-    status VARCHAR(20) DEFAULT 'draft',   -- draft/scheduled/in_progress/quality_check/done/cancelled
-    scheduled_start TIMESTAMPTZ,
-    scheduled_end TIMESTAMPTZ,
-    started_at, completed_at TIMESTAMPTZ
+CREATE TABLE work_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_no TEXT UNIQUE,
+    bom_id INTEGER REFERENCES boms(id),
+    sales_order_id INTEGER,              -- 为客户生产
+    planned_qty REAL,
+    actual_qty REAL,
+    status TEXT DEFAULT 'draft',   -- draft/scheduled/in_progress/quality_check/done/cancelled
+    scheduled_start TEXT,
+    scheduled_end TEXT,
+    started_at TEXT,
+    completed_at TEXT
 );
 
-CREATE TABLE manufacturing.work_order_steps (
-    id BIGSERIAL PRIMARY KEY,
-    work_order_id BIGINT REFERENCES manufacturing.work_orders(id),
-    routing_ops_id BIGINT REFERENCES manufacturing.routing_ops(id),
-    sequence INT,
-    status VARCHAR(20) DEFAULT 'pending',
-    assigned_equipment_id BIGINT,
-    hours_taken NUMERIC(10,2),
-    inspected_by BIGINT REFERENCES auth.users(id)
+CREATE TABLE work_order_steps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    work_order_id INTEGER REFERENCES work_orders(id),
+    routing_ops_id INTEGER REFERENCES routing_ops(id),
+    sequence INTEGER,
+    status TEXT DEFAULT 'pending',
+    assigned_equipment_id INTEGER,
+    hours_taken REAL,
+    inspected_by INTEGER REFERENCES users(id)
 );
 
-CREATE TABLE manufacturing.routing_ops (
-    id BIGSERIAL,
-    operation_name VARCHAR(200),   -- 切管, 攻螺纹, 热处理, 防腐...
-    workstation_type VARCHAR(100), -- pipe_cutting, threading, heat_treatment,,, 等等
-    standard_hours_each NUMERIC(10,2),
-    requires_qc BOOLEAN DEFAULT true
+CREATE TABLE routing_ops (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_name TEXT,   -- 下料, 加工, 热处理, 组装...
+    workstation_type TEXT, -- cutting, machining, heat_treatment, assembly...
+    standard_hours_each REAL,
+    requires_qc INTEGER DEFAULT 1
 );
 
-CREATE TABLE manufacturing.quality_inspections (
-    id BIGSERIAL PRIMARY KEY,
-    work_order_step_id BIGINT REFERENCES manufacturing.work_order_steps(id),
-    test_type VARCHAR(100),        -- dimension, hardness, hydrostatic, non_destructive, visual
-    value NUMERIC(18,4),
-    tolerance_range VARCHAR(100), -- 上限下限
-    result VARCHAR(20) DEFAULT 'pass', -- pass/fail
-    ncr_id BIGINT REFERENCES manufacturing.ncr_outputs(id),
-    inspector_id BIGINT REFERENCES auth.users(id),
-    created_at TIMESTAMPTZ
+CREATE TABLE quality_inspections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    work_order_step_id INTEGER REFERENCES work_order_steps(id),
+    test_type TEXT,        -- dimension, hardness, visual, functional...
+    value REAL,
+    tolerance_range TEXT,  -- 上限下限
+    result TEXT DEFAULT 'pass', -- pass/fail
+    ncr_id INTEGER REFERENCES ncr_outputs(id),
+    inspector_id INTEGER REFERENCES users(id),
+    created_at TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE manufacturing.ncr_outputs (
-    id BIGSERIAL PRIMARY KEY,
-    ncr_no VARCHAR(100) UNIQUE,
-    defected_product_id,  -- 什么管件
+CREATE TABLE ncr_outputs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ncr_no TEXT UNIQUE,
+    defected_item_id INTEGER REFERENCES items(id),  -- 不合格商品
     defect_description TEXT,
     corrective_action TEXT,
     root_cause TEXT,
-    status VARCHAR(20) DEFAULT 'open'
+    status TEXT DEFAULT 'open'
 );
 
-CREATE TABLE manufacturing.equipment_register (
-    id BIGSERIAL PRIMARY KEY,
-    eq_name VARCHAR(300),
-    maintenance_interval_days INT
+CREATE TABLE equipment_register (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    eq_name TEXT,
+    maintenance_interval_days INTEGER
 );
 ```
 
 ## 4. API
 
 | Method | Path | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | BOM | | |
 | GET | `/api/manufacturing/boms` | BOM list |
 | POST | `/api/manufacturing/boms` | Create BOM |
@@ -120,7 +123,7 @@ CREATE TABLE manufacturing.equipment_register (
 | POST | `/api/manufacturing/work-orders/:id/complete-step` | Complete step |
 | 质检 | | |
 | POST | `/api/manufacturing/inspections` | Log inspection |
-| POST | `/api/manufacturing/ncr` | 创建不合规报告 |
+| POST | `/api/manufacturing/ncr` | 创建不合格品单 |
 
 ## 5. 前端
 

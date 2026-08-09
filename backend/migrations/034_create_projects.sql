@@ -1,52 +1,56 @@
 -- 034_create_projects.sql
 -- Project management: project charter, WBS elements, budget transactions.
+--
+-- SQLite port: BIGSERIAL -> INTEGER PRIMARY KEY AUTOINCREMENT,
+-- TIMESTAMPTZ -> TEXT, NOW() -> datetime('now'), DATE -> TEXT,
+-- CURRENT_DATE -> date('now'), NUMERIC -> NUMERIC.
 
 CREATE TABLE IF NOT EXISTS projects (
-    id          BIGSERIAL PRIMARY KEY,
-    tenant_id   BIGINT NOT NULL DEFAULT 1,
-    project_no  VARCHAR(40) NOT NULL,
-    name        VARCHAR(200) NOT NULL,
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id   INTEGER NOT NULL DEFAULT 1.0,
+    project_no  TEXT NOT NULL,
+    name        TEXT NOT NULL,
     description TEXT,
-    status      VARCHAR(20) NOT NULL DEFAULT 'planning',  -- planning | active | on_hold | completed | cancelled
-    start_date  DATE,
-    end_date    DATE,
-    manager_id  BIGINT,
-    budget      NUMERIC(18,2) NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at  TIMESTAMPTZ,
+    status      TEXT NOT NULL DEFAULT 'planning',  -- planning | active | on_hold | completed | cancelled
+    start_date  TEXT,                           -- DATE -> TEXT
+    end_date    TEXT,
+    manager_id  INTEGER,
+    budget      REAL NOT NULL DEFAULT 0.0,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at  TEXT,
     UNIQUE (tenant_id, project_no)
 );
 
 CREATE TABLE IF NOT EXISTS wbs_elements (
-    id          BIGSERIAL PRIMARY KEY,
-    tenant_id   BIGINT NOT NULL DEFAULT 1,
-    project_id  BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    parent_id   BIGINT,
-    code        VARCHAR(30) NOT NULL,
-    name        VARCHAR(200) NOT NULL,
-    sort_order  INT NOT NULL DEFAULT 0,
-    weight_pct  NUMERIC(5,2),                -- progress weight within parent
-    progress_pct NUMERIC(5,2) NOT NULL DEFAULT 0,
-    start_date  DATE,
-    end_date    DATE,
-    assignee_id BIGINT,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id   INTEGER NOT NULL DEFAULT 1.0,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    parent_id   INTEGER,
+    code        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    weight_pct  REAL,                        -- progress weight within parent
+    progress_pct REAL NOT NULL DEFAULT 0.0,
+    start_date  TEXT,                           -- DATE -> TEXT
+    end_date    TEXT,
+    assignee_id INTEGER,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_wbs_project ON wbs_elements(project_id);
+CREATE INDEX IF NOT EXISTS idx_wbs_project ON wbs_elements(project_id);
 
 CREATE TABLE IF NOT EXISTS project_transactions (
-    id          BIGSERIAL PRIMARY KEY,
-    tenant_id   BIGINT NOT NULL DEFAULT 1,
-    project_id  BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    tx_type     VARCHAR(20) NOT NULL,        -- budget | expense | revenue
-    amount      NUMERIC(18,2) NOT NULL,
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id   INTEGER NOT NULL DEFAULT 1.0,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    tx_type     TEXT NOT NULL,                  -- budget | expense | revenue
+    amount      REAL NOT NULL,
     description TEXT,
-    tx_date     DATE NOT NULL DEFAULT CURRENT_DATE,
-    created_by  BIGINT,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    tx_date     TEXT NOT NULL DEFAULT (date('now')),
+    created_by  INTEGER,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_pt_project ON project_transactions(project_id);
+CREATE INDEX IF NOT EXISTS idx_pt_project ON project_transactions(project_id);

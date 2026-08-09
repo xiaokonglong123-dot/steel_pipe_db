@@ -1,58 +1,16 @@
 -- 016_add_performance_indexes.sql
--- Composite and covering indexes for common query patterns.
+-- Composite and covering indexes for common query patterns (generic ERP).
 --
 -- Strategy:
 --   - Composite indexes pair soft-delete (deleted_at) with the most common
 --     filter columns so the DB can satisfy "WHERE deleted_at IS NULL AND status=X"
 --     from a single index scan instead of a table scan + filter.
---   - Covering indexes include extra columns (pipe_type, location_id) so common
---     list queries can be answered entirely from the index without touching the
---     table rows (index-only scan).
 --   - JOIN-path indexes speed up detail-view queries that link header ↔ items.
 --   - All use CREATE INDEX IF NOT EXISTS for idempotency.
-
--- ============================================================
--- Seamless pipes — composite indexes for list/filter patterns
--- ============================================================
-
--- Status list: "list all in_stock seamless pipes" (most common page view)
-CREATE INDEX IF NOT EXISTS idx_sp_deleted_status
-    ON seamless_pipes(deleted_at, status);
-
--- Type filter: "list all casing" or "list all tubing"
-CREATE INDEX IF NOT EXISTS idx_sp_deleted_type
-    ON seamless_pipes(deleted_at, pipe_type);
-
--- Location lookup: "which pipes are at location X"
-CREATE INDEX IF NOT EXISTS idx_sp_deleted_location
-    ON seamless_pipes(deleted_at, location_id);
-
--- Grade + status: "list all J55 in_stock" (dashboard + filtering)
-CREATE INDEX IF NOT EXISTS idx_sp_deleted_grade_status
-    ON seamless_pipes(deleted_at, grade, status);
-
--- Covering index for the main list page (avoids table lookup for common columns)
-CREATE INDEX IF NOT EXISTS idx_sp_list_cover
-    ON seamless_pipes(deleted_at, status, pipe_number, grade, od, wt, location_id, pipe_type);
-
--- ============================================================
--- Screen pipes — same patterns as seamless pipes
--- ============================================================
-
-CREATE INDEX IF NOT EXISTS idx_scrp_deleted_status
-    ON screen_pipes(deleted_at, status);
-
-CREATE INDEX IF NOT EXISTS idx_scrp_deleted_type
-    ON screen_pipes(deleted_at, screen_type);
-
-CREATE INDEX IF NOT EXISTS idx_scrp_deleted_location
-    ON screen_pipes(deleted_at, location_id);
-
-CREATE INDEX IF NOT EXISTS idx_scrp_deleted_grade_status
-    ON screen_pipes(deleted_at, base_grade, status);
-
-CREATE INDEX IF NOT EXISTS idx_scrp_list_cover
-    ON screen_pipes(deleted_at, status, pipe_number, base_grade, base_od, base_wt, location_id, screen_type);
+--
+-- Pipe-table composite indexes (seamless/screen/welded) and quality-cert
+-- indexes were removed together with the dropped tables. Inventory indexes now
+-- key on item_id instead of (pipe_type, pipe_id).
 
 -- ============================================================
 -- Locations — active location list + zone filtering
@@ -112,16 +70,6 @@ CREATE INDEX IF NOT EXISTS idx_so_list_cover
     ON sales_orders(deleted_at, status, order_no, customer_id, order_date, total_amount);
 
 -- ============================================================
--- Quality certs — list by result + pipe reference
--- ============================================================
-
-CREATE INDEX IF NOT EXISTS idx_qc_deleted_result
-    ON quality_certs(deleted_at, result);
-
-CREATE INDEX IF NOT EXISTS idx_qc_deleted_pipe
-    ON quality_certs(deleted_at, pipe_type, pipe_id);
-
--- ============================================================
 -- Contracts — list by status and type
 -- ============================================================
 
@@ -152,11 +100,11 @@ CREATE INDEX IF NOT EXISTS idx_ol_user_time
     ON operation_logs(user_id, created_at);
 
 -- ============================================================
--- Inventory logs — pipe movement history
+-- Inventory logs — item movement history
 -- ============================================================
 
-CREATE INDEX IF NOT EXISTS idx_il_pipe_time
-    ON inventory_logs(pipe_type, pipe_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_il_item_time
+    ON inventory_logs(item_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_il_change_type
     ON inventory_logs(change_type, created_at);

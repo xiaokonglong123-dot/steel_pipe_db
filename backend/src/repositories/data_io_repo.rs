@@ -1,19 +1,17 @@
 use chrono::{DateTime, Utc};
-use sqlx::{Row, PgPool};
+use sqlx::SqlitePool;
 
-use crate::domain::date_utils::parse_opt_date;
 use crate::error::AppError;
 
-type InventoryExportRow = (
+type ItemExportRow = (
     i64,
     String,
     String,
-    String,
-    f64,
-    f64,
-    String,
-    Option<i64>,
     Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<f64>,
+    String,
 );
 type OrderExportRow = (
     i64,
@@ -25,162 +23,77 @@ type OrderExportRow = (
     Option<String>,
     Option<i64>,
 );
-type QualityCertExportRow = (
-    i64,
-    String,
-    String,
-    i64,
-    Option<DateTime<Utc>>,
-    String,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-);
 
 /// Bulk data export/import for Excel/CSV operations.
+///
+/// All exports are item-based for the generic ERP: item master (`items`) and
+/// per-item inventory movement totals (`inventory_logs`). The former
+/// seamless/screen pipe and quality-cert exports were removed together with the
+/// dropped pipe tables.
 pub struct DataIORepo;
 
 impl DataIORepo {
-    /// Export all non-deleted seamless pipes as JSON rows.
-    pub async fn export_seamless_pipes(
-        pool: &PgPool,
-    ) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows = sqlx::query(
-            "SELECT id, pipe_number, batch_number, pipe_type, grade, od, wt, length, weight_per_unit, \
-             end_type, coupling_type, coupling_od, coupling_length, heat_number, serial_number, \
-             manufacturer, production_date, cert_number, location_id, status, notes \
-             FROM seamless_pipes WHERE deleted_at IS NULL ORDER BY id"
+    /// Export all non-deleted items as JSON rows.
+    pub async fn export_items(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, AppError> {
+        let rows: Vec<ItemExportRow> = sqlx::query_as(
+            "SELECT id, sku, name, category, unit, spec, price, status \
+             FROM items WHERE deleted_at IS NULL ORDER BY id"
         )
         .fetch_all(pool)
         .await
         .map_err(AppError::from)?;
 
         Ok(rows
-            .iter()
-            .map(|r| {
-                serde_json::json!({
-                    "id": r.get::<i64, _>("id"),
-                    "pipe_number": r.get::<String, _>("pipe_number"),
-                    "batch_number": r.get::<Option<String>, _>("batch_number"),
-                    "pipe_type": r.get::<String, _>("pipe_type"),
-                    "grade": r.get::<String, _>("grade"),
-                    "od": r.get::<f64, _>("od"),
-                    "wt": r.get::<f64, _>("wt"),
-                    "length": r.get::<Option<f64>, _>("length"),
-                    "weight_per_unit": r.get::<Option<f64>, _>("weight_per_unit"),
-                    "end_type": r.get::<Option<String>, _>("end_type"),
-                    "coupling_type": r.get::<Option<String>, _>("coupling_type"),
-                    "coupling_od": r.get::<Option<f64>, _>("coupling_od"),
-                    "coupling_length": r.get::<Option<f64>, _>("coupling_length"),
-                    "heat_number": r.get::<Option<String>, _>("heat_number"),
-                    "serial_number": r.get::<Option<String>, _>("serial_number"),
-                    "manufacturer": r.get::<Option<String>, _>("manufacturer"),
-                    "production_date": r.get::<Option<DateTime<Utc>>, _>("production_date")
-                        .map(|d| d.format("%Y-%m-%d").to_string()),
-                    "cert_number": r.get::<Option<String>, _>("cert_number"),
-                    "location_id": r.get::<Option<i64>, _>("location_id"),
-                    "status": r.get::<String, _>("status"),
-                    "notes": r.get::<Option<String>, _>("notes"),
-                })
-            })
+            .into_iter()
+            .map(
+                |(id, sku, name, category, unit, spec, price, status)| {
+                    serde_json::json!({
+                        "id": id,
+                        "sku": sku,
+                        "name": name,
+                        "category": category,
+                        "unit": unit,
+                        "spec": spec,
+                        "price": price,
+                        "status": status,
+                    })
+                },
+            )
             .collect())
     }
 
-    /// Export all non-deleted screen pipes as JSON rows.
-    pub async fn export_screen_pipes(
-        pool: &PgPool,
-    ) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows = sqlx::query(
-            "SELECT id, pipe_number, batch_number, screen_type, slot_size, filtration_grade, \
-             base_od, base_wt, base_grade, base_end_type, length, weight_per_unit, heat_number, \
-             serial_number, manufacturer, production_date, cert_number, location_id, status, notes \
-             FROM screen_pipes WHERE deleted_at IS NULL ORDER BY id",
+    /// Export current stock per item (sum of inbound minus outbound inventory logs).
+    pub async fn export_inventory(pool: &SqlitePool) -> Result<Vec<serde_json::Value>, AppError> {
+        let rows: Vec<(i64, String, String, Option<f64>)> = sqlx::query_as(
+            "SELECT i.id, i.sku, i.name, \
+             CAST(COALESCE(SUM(CASE WHEN il.change_type = 'inbound' THEN il.quantity \
+                               WHEN il.change_type = 'outbound' THEN -il.quantity \
+                               ELSE 0 END), 0.0) AS REAL) as stock \
+             FROM items i \
+             LEFT JOIN inventory_logs il ON il.item_id = i.id \
+             WHERE i.deleted_at IS NULL \
+             GROUP BY i.id, i.sku, i.name ORDER BY i.id"
         )
         .fetch_all(pool)
         .await
         .map_err(AppError::from)?;
 
         Ok(rows
-            .iter()
-            .map(|r| {
+            .into_iter()
+            .map(|(id, sku, name, stock)| {
                 serde_json::json!({
-                    "id": r.get::<i64, _>("id"),
-                    "pipe_number": r.get::<String, _>("pipe_number"),
-                    "batch_number": r.get::<Option<String>, _>("batch_number"),
-                    "screen_type": r.get::<String, _>("screen_type"),
-                    "slot_size": r.get::<Option<f64>, _>("slot_size"),
-                    "filtration_grade": r.get::<Option<String>, _>("filtration_grade"),
-                    "base_od": r.get::<f64, _>("base_od"),
-                    "base_wt": r.get::<f64, _>("base_wt"),
-                    "base_grade": r.get::<String, _>("base_grade"),
-                    "base_end_type": r.get::<Option<String>, _>("base_end_type"),
-                    "length": r.get::<Option<f64>, _>("length"),
-                    "weight_per_unit": r.get::<Option<f64>, _>("weight_per_unit"),
-                    "heat_number": r.get::<Option<String>, _>("heat_number"),
-                    "serial_number": r.get::<Option<String>, _>("serial_number"),
-                    "manufacturer": r.get::<Option<String>, _>("manufacturer"),
-                    "production_date": r.get::<Option<DateTime<Utc>>, _>("production_date")
-                        .map(|d| d.format("%Y-%m-%d").to_string()),
-                    "cert_number": r.get::<Option<String>, _>("cert_number"),
-                    "location_id": r.get::<Option<i64>, _>("location_id"),
-                    "status": r.get::<String, _>("status"),
-                    "notes": r.get::<Option<String>, _>("notes"),
+                    "item_id": id,
+                    "sku": sku,
+                    "name": name,
+                    "stock": stock.unwrap_or(0.0),
                 })
             })
             .collect())
-    }
-
-    /// Export in-stock inventory (seamless + screen) as JSON rows.
-    pub async fn export_inventory(pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
-        let seamless: Vec<InventoryExportRow> = sqlx::query_as(
-            "SELECT sp.id, sp.pipe_number, 'seamless', sp.grade, sp.od, sp.wt, sp.status, sp.location_id, sp.heat_number \
-             FROM seamless_pipes sp WHERE sp.deleted_at IS NULL AND sp.status != 'outbound'"
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        let screen: Vec<InventoryExportRow> = sqlx::query_as(
-            "SELECT sp.id, sp.pipe_number, 'screen', sp.base_grade, sp.base_od, sp.base_wt, sp.status, sp.location_id, sp.heat_number \
-             FROM screen_pipes sp WHERE sp.deleted_at IS NULL AND sp.status != 'outbound'"
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        let mut result = Vec::new();
-        for r in seamless {
-            result.push(serde_json::json!({
-                "pipe_id": r.0,
-                "pipe_number": r.1,
-                "pipe_type": r.2,
-                "grade": r.3,
-                "od": r.4,
-                "wt": r.5,
-                "status": r.6,
-                "location_id": r.7,
-                "heat_number": r.8,
-            }));
-        }
-        for r in screen {
-            result.push(serde_json::json!({
-                "pipe_id": r.0,
-                "pipe_number": r.1,
-                "pipe_type": r.2,
-                "grade": r.3,
-                "od": r.4,
-                "wt": r.5,
-                "status": r.6,
-                "location_id": r.7,
-                "heat_number": r.8,
-            }));
-        }
-        Ok(result)
     }
 
     /// Export all purchase orders (with item count) as JSON rows.
     pub async fn export_purchase_orders(
-        pool: &PgPool,
+        pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<OrderExportRow> = sqlx::query_as(
             "SELECT id, order_no, supplier_id, order_date, status, total_amount, notes, created_by \
@@ -194,7 +107,7 @@ impl DataIORepo {
         for (id, order_no, supplier_id, order_date, status, total_amount, notes, created_by) in rows
         {
             let count: (i64,) =
-                sqlx::query_as("SELECT COUNT(*) FROM purchase_order_items WHERE order_id = $1")
+                sqlx::query_as("SELECT COUNT(*) FROM purchase_order_items WHERE order_id = ?")
                     .bind(id)
                     .fetch_one(pool)
                     .await
@@ -217,7 +130,7 @@ impl DataIORepo {
 
     /// Export all sales orders (with item count) as JSON rows.
     pub async fn export_sales_orders(
-        pool: &PgPool,
+        pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<OrderExportRow> = sqlx::query_as(
             "SELECT id, order_no, customer_id, order_date, status, total_amount, notes, created_by \
@@ -231,7 +144,7 @@ impl DataIORepo {
         for (id, order_no, customer_id, order_date, status, total_amount, notes, created_by) in rows
         {
             let count: (i64,) =
-                sqlx::query_as("SELECT COUNT(*) FROM sales_order_items WHERE order_id = $1")
+                sqlx::query_as("SELECT COUNT(*) FROM sales_order_items WHERE order_id = ?")
                     .bind(id)
                     .fetch_one(pool)
                     .await
@@ -252,39 +165,10 @@ impl DataIORepo {
         Ok(result)
     }
 
-    /// Export all quality certs as JSON rows.
-    pub async fn export_quality_certs(
-        pool: &PgPool,
-    ) -> Result<Vec<serde_json::Value>, AppError> {
-        let rows: Vec<QualityCertExportRow> = sqlx::query_as(
-            "SELECT id, cert_number, pipe_type, pipe_id, cert_date, result, inspector, inspection_body, notes \
-             FROM quality_certs WHERE deleted_at IS NULL ORDER BY id"
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)?;
-
-        Ok(rows
-            .into_iter()
-            .map(|r| {
-                serde_json::json!({
-                    "id": r.0,
-                    "cert_number": r.1,
-                    "pipe_type": r.2,
-                    "pipe_id": r.3,
-                    "cert_date": r.4,
-                    "result": r.5,
-                    "inspector": r.6,
-                    "inspection_body": r.7,
-                    "notes": r.8,
-                })
-            })
-            .collect())
-    }
-
-    /// Batch insert seamless pipes from import rows. Skips duplicates by `pipe_number`. Returns (imported_count, errors).
-    pub async fn import_seamless_pipes(
-        pool: &PgPool,
+    /// Batch insert items from import rows. Skips duplicates by `sku`.
+    /// Returns (imported_count, errors).
+    pub async fn import_items(
+        pool: &SqlitePool,
         rows: &[serde_json::Value],
     ) -> Result<(u64, Vec<String>), AppError> {
         let mut tx = pool
@@ -295,145 +179,51 @@ impl DataIORepo {
         let mut errors = Vec::new();
 
         for row in rows {
-            let pipe_number = match row.get("pipe_number").and_then(|v| v.as_str()) {
+            let sku = match row.get("sku").and_then(|v| v.as_str()) {
                 Some(v) => v.to_string(),
                 None => {
-                    errors.push("Missing pipe_number field".into());
+                    errors.push("Missing sku field".into());
+                    continue;
+                }
+            };
+            let name = match row.get("name").and_then(|v| v.as_str()) {
+                Some(v) => v.to_string(),
+                None => {
+                    errors.push("Missing name field".into());
                     continue;
                 }
             };
 
-            let pipe_type = row
-                .get("pipe_type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("casing");
-            let grade = row.get("grade").and_then(|v| v.as_str()).unwrap_or("J55");
-            let od = row.get("od").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let wt = row.get("wt").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let category = row.get("category").and_then(|v| v.as_str());
+            let unit = row.get("unit").and_then(|v| v.as_str());
+            let spec = row.get("spec").and_then(|v| v.as_str());
+            let price = row.get("price").and_then(|v| v.as_f64());
             let status = row
                 .get("status")
                 .and_then(|v| v.as_str())
-                .unwrap_or("in_stock");
+                .unwrap_or("active");
 
             let result: Option<(i64,)> = sqlx::query_as(
-                "INSERT INTO seamless_pipes (pipe_number, batch_number, pipe_type, grade, od, wt, \
-                 length, weight_per_unit, end_type, coupling_type, coupling_od, coupling_length, \
-                 heat_number, serial_number, manufacturer, production_date, cert_number, status, notes) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) \
-                 ON CONFLICT DO NOTHING                  RETURNING id",
+                "INSERT INTO items (sku, name, category, unit, spec, price, status) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?) \
+                 ON CONFLICT DO NOTHING \
+                 RETURNING id",
             )
-            .bind(&pipe_number)
-            .bind(row.get("batch_number").and_then(|v| v.as_str()))
-            .bind(pipe_type)
-            .bind(grade)
-            .bind(od)
-            .bind(wt)
-            .bind(row.get("length").and_then(|v| v.as_f64()))
-            .bind(row.get("weight_per_unit").and_then(|v| v.as_f64()))
-            .bind(row.get("end_type").and_then(|v| v.as_str()))
-            .bind(row.get("coupling_type").and_then(|v| v.as_str()))
-            .bind(row.get("coupling_od").and_then(|v| v.as_f64()))
-            .bind(row.get("coupling_length").and_then(|v| v.as_f64()))
-            .bind(row.get("heat_number").and_then(|v| v.as_str()))
-            .bind(row.get("serial_number").and_then(|v| v.as_str()))
-            .bind(row.get("manufacturer").and_then(|v| v.as_str()))
-            .bind(parse_opt_date(row.get("production_date").and_then(|v| v.as_str())))
-            .bind(row.get("cert_number").and_then(|v| v.as_str()))
+            .bind(&sku)
+            .bind(&name)
+            .bind(category)
+            .bind(unit)
+            .bind(spec)
+            .bind(price)
             .bind(status)
-            .bind(row.get("notes").and_then(|v| v.as_str()))
             .fetch_optional(&mut *tx)
             .await
-            .map_err(|e| AppError::ImportError(format!("Failed to insert {}: {}", pipe_number, e)))?;
+            .map_err(|e| AppError::ImportError(format!("Failed to insert {}: {}", sku, e)))?;
 
             if result.is_some() {
                 imported += 1;
             } else {
-                errors.push(format!(
-                    "Pipe number {} already exists, skipped",
-                    pipe_number
-                ));
-            }
-        }
-
-        tx.commit().await?;
-        Ok((imported, errors))
-    }
-
-    /// Batch insert screen pipes from import rows. Skips duplicates by `pipe_number`. Returns (imported_count, errors).
-    pub async fn import_screen_pipes(
-        pool: &PgPool,
-        rows: &[serde_json::Value],
-    ) -> Result<(u64, Vec<String>), AppError> {
-        let mut tx = pool
-            .begin()
-            .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        let mut imported = 0u64;
-        let mut errors = Vec::new();
-
-        for row in rows {
-            let pipe_number = match row.get("pipe_number").and_then(|v| v.as_str()) {
-                Some(v) => v.to_string(),
-                None => {
-                    errors.push("Missing pipe_number field".into());
-                    continue;
-                }
-            };
-
-            let base_od = row.get("base_od").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let base_wt = row.get("base_wt").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let screen_type = row
-                .get("screen_type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("wire_wrapped");
-            let base_grade = row
-                .get("base_grade")
-                .and_then(|v| v.as_str())
-                .unwrap_or("J55");
-            let status = row
-                .get("status")
-                .and_then(|v| v.as_str())
-                .unwrap_or("in_stock");
-
-            let result: Option<(i64,)> = sqlx::query_as(
-                "INSERT INTO screen_pipes (pipe_number, batch_number, screen_type, slot_size, \
-                 filtration_grade, base_od, base_wt, base_grade, base_end_type, length, \
-                 weight_per_unit, heat_number, serial_number, manufacturer, production_date, \
-                 cert_number, status, notes) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
-                 ON CONFLICT DO NOTHING                  RETURNING id",
-            )
-            .bind(&pipe_number)
-            .bind(row.get("batch_number").and_then(|v| v.as_str()))
-            .bind(screen_type)
-            .bind(row.get("slot_size").and_then(|v| v.as_f64()))
-            .bind(row.get("filtration_grade").and_then(|v| v.as_str()))
-            .bind(base_od)
-            .bind(base_wt)
-            .bind(base_grade)
-            .bind(row.get("base_end_type").and_then(|v| v.as_str()))
-            .bind(row.get("length").and_then(|v| v.as_f64()))
-            .bind(row.get("weight_per_unit").and_then(|v| v.as_f64()))
-            .bind(row.get("heat_number").and_then(|v| v.as_str()))
-            .bind(row.get("serial_number").and_then(|v| v.as_str()))
-            .bind(row.get("manufacturer").and_then(|v| v.as_str()))
-            .bind(parse_opt_date(row.get("production_date").and_then(|v| v.as_str())))
-            .bind(row.get("cert_number").and_then(|v| v.as_str()))
-            .bind(status)
-            .bind(row.get("notes").and_then(|v| v.as_str()))
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|e| {
-                AppError::ImportError(format!("Failed to insert {}: {}", pipe_number, e))
-            })?;
-
-            if result.is_some() {
-                imported += 1;
-            } else {
-                errors.push(format!(
-                    "Pipe number {} already exists, skipped",
-                    pipe_number
-                ));
+                errors.push(format!("Item sku {} already exists, skipped", sku));
             }
         }
 

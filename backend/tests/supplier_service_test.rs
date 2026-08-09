@@ -5,11 +5,11 @@
 
 mod common;
 
-use steel_pipe_db::dto::common::PaginationParams;
-use steel_pipe_db::dto::supplier_dto::{
+use erp_server::dto::common::PaginationParams;
+use erp_server::dto::supplier_dto::{
     CreateSupplierRequest, SupplierFilterParams, UpdateSupplierRequest,
 };
-use steel_pipe_db::services::supplier_service::SupplierService;
+use erp_server::services::supplier_service::SupplierService;
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 /// Create

@@ -10,13 +10,26 @@
 
 mod common;
 
+/// Seed an item master row; returns its id.
+async fn seed_item(pool: &sqlx::SqlitePool, sku: &str) -> i64 {
+    sqlx::query_scalar(
+        "INSERT INTO items (sku, name, category, unit, spec, price, status) \
+         VALUES (?, 'Test Item', '原材料', '个', 'spec', 10.0, 'active') \
+         RETURNING id",
+    )
+    .bind(sku)
+    .fetch_one(pool)
+    .await
+    .expect("seed_item must succeed")
+}
+
 use rust_decimal_macros::dec;
-use steel_pipe_db::dto::common::PaginationParams;
-use steel_pipe_db::dto::contract_dto::{
+use erp_server::dto::common::PaginationParams;
+use erp_server::dto::contract_dto::{
     ContractFilterParams, CreateContractItemRequest, CreateContractRequest, CreatePaymentRequest,
     UpdateContractItemRequest, UpdateContractRequest, UpdatePaymentRequest,
 };
-use steel_pipe_db::services::contract_service::ContractService;
+use erp_server::services::contract_service::ContractService;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // create_contract
@@ -25,6 +38,7 @@ use steel_pipe_db::services::contract_service::ContractService;
 #[tokio::test]
 async fn create_contract_sales_success() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_CONTRACT_SA-A").await;
 
     let dto = CreateContractRequest {
         contract_type: "sales".into(),
@@ -36,11 +50,8 @@ async fn create_contract_sales_success() {
         end_date: Some("2025-12-31".into()),
         notes: Some("test sales contract".into()),
         items: vec![CreateContractItemRequest {
-            pipe_type: "seamless".into(),
-            grade: "L80".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 100,
+            item_id: item_a,
+            quantity: 100.0,
             unit_price: Some(dec!(500.0)),
             notes: None,
         }],
@@ -62,8 +73,8 @@ async fn create_contract_sales_success() {
         Some("test sales contract")
     );
     assert_eq!(detail.items.len(), 1);
-    assert_eq!(detail.items[0].quantity, 100);
-    assert_eq!(detail.items[0].grade, "L80");
+    assert_eq!(detail.items[0].quantity, 100.0);
+    assert_eq!(detail.items[0].item_id, item_a);
     assert!(detail.contract.total_amount.unwrap_or(0.0) > 0.0);
     assert!(detail.contract.deleted_at.is_none());
 }
@@ -71,6 +82,8 @@ async fn create_contract_sales_success() {
 #[tokio::test]
 async fn create_contract_purchase_success() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_CONTRACT_PU-A").await;
+    let item_b = seed_item(&pool, "ITM-CREATE_CONTRACT_PU-B").await;
 
     let dto = CreateContractRequest {
         contract_type: "purchase".into(),
@@ -83,20 +96,14 @@ async fn create_contract_purchase_success() {
         notes: None,
         items: vec![
             CreateContractItemRequest {
-                pipe_type: "seamless".into(),
-                grade: "J55".into(),
-                od: 139.7,
-                wt: 7.72,
-                quantity: 50,
+            item_id: item_a,
+            quantity: 50.0,
                 unit_price: Some(dec!(450.0)),
                 notes: None,
             },
             CreateContractItemRequest {
-                pipe_type: "screen".into(),
-                grade: "N80".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 20,
+            item_id: item_b,
+            quantity: 20.0,
                 unit_price: Some(dec!(600.0)),
                 notes: Some("premium screen".into()),
             },
@@ -119,6 +126,7 @@ async fn create_contract_purchase_success() {
 #[tokio::test]
 async fn create_contract_invalid_type_rejected() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_CONTRACT_IN-A").await;
 
     let dto = CreateContractRequest {
         contract_type: "invalid_type".into(),
@@ -130,11 +138,8 @@ async fn create_contract_invalid_type_rejected() {
         end_date: None,
         notes: None,
         items: vec![CreateContractItemRequest {
-            pipe_type: "seamless".into(),
-            grade: "L80".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: None,
             notes: None,
         }],
@@ -171,6 +176,7 @@ async fn create_contract_empty_items_rejected() {
 #[tokio::test]
 async fn create_contract_zero_quantity_rejected() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CREATE_CONTRACT_ZE-A").await;
 
     let dto = CreateContractRequest {
         contract_type: "sales".into(),
@@ -182,11 +188,8 @@ async fn create_contract_zero_quantity_rejected() {
         end_date: None,
         notes: None,
         items: vec![CreateContractItemRequest {
-            pipe_type: "seamless".into(),
-            grade: "L80".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 0,
+            item_id: item_a,
+            quantity: 0.0,
             unit_price: None,
             notes: None,
         }],
@@ -333,6 +336,8 @@ async fn delete_contract_active_status_rejected() {
 #[tokio::test]
 async fn get_contract_detail_with_items_and_payments() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-GET_CONTRACT_DETAI-A").await;
+    let item_b = seed_item(&pool, "ITM-GET_CONTRACT_DETAI-B").await;
 
     let dto = CreateContractRequest {
         contract_type: "sales".into(),
@@ -345,20 +350,14 @@ async fn get_contract_detail_with_items_and_payments() {
         notes: None,
         items: vec![
             CreateContractItemRequest {
-                pipe_type: "seamless".into(),
-                grade: "L80".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 30,
+            item_id: item_a,
+            quantity: 30.0,
                 unit_price: Some(dec!(550.0)),
                 notes: None,
             },
             CreateContractItemRequest {
-                pipe_type: "screen".into(),
-                grade: "N80".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 10,
+            item_id: item_b,
+            quantity: 10.0,
                 unit_price: Some(dec!(700.0)),
                 notes: Some("special".into()),
             },
@@ -597,6 +596,7 @@ async fn list_contracts_empty_when_no_match() {
 #[tokio::test]
 async fn update_status_draft_to_active() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-UPDATE_STATUS_DRAF-A").await;
 
     // Create a contract with sign_date set
     let dto = CreateContractRequest {
@@ -609,11 +609,8 @@ async fn update_status_draft_to_active() {
         end_date: None,
         notes: None,
         items: vec![CreateContractItemRequest {
-            pipe_type: "seamless".into(),
-            grade: "L80".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: None,
             notes: None,
         }],
@@ -706,6 +703,7 @@ async fn update_status_invalid_status_rejected() {
 #[tokio::test]
 async fn update_status_activation_requires_sign_date() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-UPDATE_STATUS_ACTI-A").await;
 
     // Create a contract without sign_date
     let dto = CreateContractRequest {
@@ -718,11 +716,8 @@ async fn update_status_activation_requires_sign_date() {
         end_date: None,
         notes: None,
         items: vec![CreateContractItemRequest {
-            pipe_type: "seamless".into(),
-            grade: "L80".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 5,
+            item_id: item_a,
+            quantity: 5.0,
             unit_price: None,
             notes: None,
         }],
@@ -755,6 +750,8 @@ async fn update_status_nonexistent_fails() {
 #[tokio::test]
 async fn add_item_to_draft_contract() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-ADD_ITEM_TO_DRAFT_-A").await;
+    let item_b = seed_item(&pool, "ITM-ADD_ITEM_TO_DRAFT_-B").await;
 
     let dto = CreateContractRequest {
         contract_type: "sales".into(),
@@ -766,11 +763,8 @@ async fn add_item_to_draft_contract() {
         end_date: None,
         notes: None,
         items: vec![CreateContractItemRequest {
-            pipe_type: "seamless".into(),
-            grade: "L80".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(500.0)),
             notes: None,
         }],
@@ -782,11 +776,8 @@ async fn add_item_to_draft_contract() {
     let contract_id = detail.contract.id;
 
     let new_item = CreateContractItemRequest {
-        pipe_type: "screen".into(),
-        grade: "N80".into(),
-        od: 177.8,
-        wt: 9.19,
-        quantity: 5,
+            item_id: item_b,
+            quantity: 5.0,
         unit_price: Some(dec!(800.0)),
         notes: Some("added later".into()),
     };
@@ -797,26 +788,23 @@ async fn add_item_to_draft_contract() {
 
     assert!(item.id > 0);
     assert_eq!(item.contract_id, contract_id);
-    assert_eq!(item.pipe_type, "screen");
-    assert_eq!(item.grade, "N80");
-    assert_eq!(item.quantity, 5);
+    assert_eq!(item.item_id, item_b);
+    assert_eq!(item.quantity, 5.0);
     assert_eq!(item.unit_price, Some(800.0));
 }
 
 #[tokio::test]
 async fn add_item_zero_quantity_rejected() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-ADD_ITEM_ZERO_QUAN-A").await;
 
     let contract_id = common::seed_contract(&pool, "CT-ITM-001", "sales", "Item Test", "draft")
         .await
         .unwrap();
 
     let new_item = CreateContractItemRequest {
-        pipe_type: "seamless".into(),
-        grade: "L80".into(),
-        od: 177.8,
-        wt: 9.19,
-        quantity: 0,
+            item_id: item_a,
+            quantity: 0.0,
         unit_price: None,
         notes: None,
     };
@@ -830,17 +818,15 @@ async fn add_item_zero_quantity_rejected() {
 #[tokio::test]
 async fn add_item_to_active_contract_rejected() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-ADD_ITEM_TO_ACTIVE-A").await;
 
     let contract_id = common::seed_contract(&pool, "CT-ITM-002", "sales", "Active Item", "active")
         .await
         .unwrap();
 
     let new_item = CreateContractItemRequest {
-        pipe_type: "seamless".into(),
-        grade: "L80".into(),
-        od: 177.8,
-        wt: 9.19,
-        quantity: 5,
+            item_id: item_a,
+            quantity: 5.0,
         unit_price: None,
         notes: None,
     };
@@ -854,6 +840,7 @@ async fn add_item_to_active_contract_rejected() {
 #[tokio::test]
 async fn update_item_in_draft_contract() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-UPDATE_ITEM_IN_DRA-A").await;
 
     let dto = CreateContractRequest {
         contract_type: "purchase".into(),
@@ -865,11 +852,8 @@ async fn update_item_in_draft_contract() {
         end_date: None,
         notes: None,
         items: vec![CreateContractItemRequest {
-            pipe_type: "seamless".into(),
-            grade: "L80".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
             unit_price: Some(dec!(500.0)),
             notes: None,
         }],
@@ -882,12 +866,9 @@ async fn update_item_in_draft_contract() {
     let item_id = detail.items[0].id;
 
     let update = UpdateContractItemRequest {
+        item_id: None,
         id: None,
-        pipe_type: None,
-        grade: Some("N80".into()),
-        od: None,
-        wt: None,
-        quantity: Some(20),
+        quantity: Some(20.0),
         unit_price: Some(dec!(450.0)),
         notes: Some("updated".into()),
     };
@@ -896,8 +877,7 @@ async fn update_item_in_draft_contract() {
         .await
         .expect("update_item must succeed");
 
-    assert_eq!(updated.grade, "N80");
-    assert_eq!(updated.quantity, 20);
+    assert_eq!(updated.quantity, 20.0);
     assert_eq!(updated.unit_price, Some(450.0));
     assert_eq!(updated.notes.as_deref(), Some("updated"));
 }
@@ -911,11 +891,8 @@ async fn update_item_nonexistent_fails() {
         .unwrap();
 
     let update = UpdateContractItemRequest {
+        item_id: None,
         id: None,
-        pipe_type: None,
-        grade: None,
-        od: None,
-        wt: None,
         quantity: None,
         unit_price: None,
         notes: None,
@@ -938,16 +915,20 @@ async fn update_item_wrong_contract_rejected() {
         .await
         .unwrap();
 
-    let item_id = common::seed_contract_item(&pool, contract_a, "seamless", "L80", 5, Some(100.0))
-        .await
-        .unwrap();
+    let master_id = seed_item(&pool, "ITM-CONTRACT-WRONG-A").await;
+    let item_id = sqlx::query_scalar(
+        "INSERT INTO contract_items (contract_id, item_id, quantity, unit_price, total_price, notes) \
+         VALUES (?, ?, 5, 100.0, 500.0, NULL) RETURNING id",
+    )
+    .bind(contract_a)
+    .bind(master_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
     let update = UpdateContractItemRequest {
+        item_id: None,
         id: None,
-        pipe_type: None,
-        grade: None,
-        od: None,
-        wt: None,
         quantity: None,
         unit_price: None,
         notes: None,
@@ -962,6 +943,8 @@ async fn update_item_wrong_contract_rejected() {
 #[tokio::test]
 async fn delete_item_from_draft_contract() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-DELETE_ITEM_FROM_D-A").await;
+    let item_b = seed_item(&pool, "ITM-DELETE_ITEM_FROM_D-B").await;
 
     let dto = CreateContractRequest {
         contract_type: "sales".into(),
@@ -974,20 +957,14 @@ async fn delete_item_from_draft_contract() {
         notes: None,
         items: vec![
             CreateContractItemRequest {
-                pipe_type: "seamless".into(),
-                grade: "L80".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 10,
+            item_id: item_a,
+            quantity: 10.0,
                 unit_price: Some(dec!(100.0)),
                 notes: None,
             },
             CreateContractItemRequest {
-                pipe_type: "screen".into(),
-                grade: "N80".into(),
-                od: 177.8,
-                wt: 9.19,
-                quantity: 5,
+            item_id: item_b,
+            quantity: 5.0,
                 unit_price: Some(dec!(200.0)),
                 notes: None,
             },
@@ -1037,9 +1014,16 @@ async fn delete_item_wrong_contract_rejected() {
         .await
         .unwrap();
 
-    let item_id = common::seed_contract_item(&pool, contract_a, "seamless", "L80", 3, None)
-        .await
-        .unwrap();
+    let master_id = seed_item(&pool, "ITM-CONTRACT-DEL-A").await;
+    let item_id = sqlx::query_scalar(
+        "INSERT INTO contract_items (contract_id, item_id, quantity, unit_price, total_price, notes) \
+         VALUES (?, ?, 3, NULL, NULL, NULL) RETURNING id",
+    )
+    .bind(contract_a)
+    .bind(master_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
     let err = ContractService::delete_item(&pool, contract_b, item_id)
         .await
@@ -1404,6 +1388,8 @@ async fn get_payments_nonexistent_contract_fails() {
 #[tokio::test]
 async fn contract_lifecycle() {
     let pool = common::test_pool().await;
+    let item_a = seed_item(&pool, "ITM-CONTRACT_LIFECYCLE-A").await;
+    let item_b = seed_item(&pool, "ITM-CONTRACT_LIFECYCLE-B").await;
 
     // ── Create with items ──
     let dto = CreateContractRequest {
@@ -1416,11 +1402,8 @@ async fn contract_lifecycle() {
         end_date: Some("2025-12-31".into()),
         notes: Some("lifecycle test".into()),
         items: vec![CreateContractItemRequest {
-            pipe_type: "seamless".into(),
-            grade: "L80".into(),
-            od: 177.8,
-            wt: 9.19,
-            quantity: 50,
+            item_id: item_a,
+            quantity: 50.0,
             unit_price: Some(dec!(500.0)),
             notes: None,
         }],
@@ -1434,11 +1417,8 @@ async fn contract_lifecycle() {
 
     // ── Add another item ──
     let new_item = CreateContractItemRequest {
-        pipe_type: "screen".into(),
-        grade: "N80".into(),
-        od: 177.8,
-        wt: 9.19,
-        quantity: 10,
+            item_id: item_b,
+            quantity: 10.0,
         unit_price: Some(dec!(700.0)),
         notes: None,
     };

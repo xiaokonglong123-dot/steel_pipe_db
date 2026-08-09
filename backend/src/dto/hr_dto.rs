@@ -17,7 +17,7 @@ pub struct CreateEmployeeRequest {
     pub position_id: Option<i64>,
     pub hire_date: NaiveDate,
     pub probation_end: Option<NaiveDate>,
-    pub base_salary: Option<rust_decimal::Decimal>,
+    pub base_salary: Option<f64>,
     pub notes: Option<String>,
 }
 
@@ -30,7 +30,7 @@ pub struct UpdateEmployeeRequest {
     pub department_id: Option<i64>,
     pub position_id: Option<i64>,
     pub probation_end: Option<NaiveDate>,
-    pub base_salary: Option<rust_decimal::Decimal>,
+    pub base_salary: Option<f64>,
     pub notes: Option<String>,
 }
 

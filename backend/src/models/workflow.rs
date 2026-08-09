@@ -29,7 +29,7 @@ pub struct WorkflowInstance {
     pub tenant_id: i64,
     pub entity_type: String,
     pub entity_id: i64,
-    pub amount: Option<rust_decimal::Decimal>,
+    pub amount: Option<f64>,
     pub status: String,
     pub current_step: i32,
     pub initiator_id: i64,

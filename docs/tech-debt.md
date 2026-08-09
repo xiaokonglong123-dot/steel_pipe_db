@@ -5,6 +5,9 @@
 >
 > **环境说明**：本仓库后端在当前开发环境已可通过 `cargo check` 编译（需设置
 > `CARGO_HTTP_CAINFO=/tmp/trust-bundle.crt`）。前端 `tsc --noEmit` 在本环境正常。
+>
+> **历史沿革**：本系统由钢管行业系统重构而来，现为通用 ERP；本文档跟踪
+> `erp-server`（代码阶段实施）的架构与技术债。
 
 最后更新：2026-05-30
 
@@ -36,7 +39,7 @@
 
 ### C1 — ATP 校验 TOCTOU 竞态 → 已修复
 
-**修复**：`purchase_sales_service.rs::approve_sales_order` 改用 `BEGIN IMMEDIATE` 事务，
+**修复**：`sales_service.rs::approve_sales_order` 改用 `BEGIN IMMEDIATE` 事务，
 将 ATP 查询与状态更新放在单个串行化事务中。相关方法 `InventoryRepo::find_atp` 改为接受
 泛型 executor，可在事务内部使用。
 
@@ -47,6 +50,7 @@
 ### B1 — JWT 密钥 fail-open → 已修复
 
 **修复**：`config.rs::resolve_jwt_secret` 新增 fail-closed 语义：
+
 - 生产环境（`APP_ENV=production`）：JWT_SECRET 缺失、为占位值或 < 32 字节时 panic；
 - 开发环境：warn 并允许使用 placeholder（保留 `cp .env.example .env && cargo run` 体验）。
 
@@ -55,6 +59,7 @@
 ### B2 — 默认管理员种子凭证 → 已修复
 
 **修复**：
+
 - `migrations/001_create_users.sql`：移除硬编码的 INSERT 种子语句，仅保留建表；
 - `main.rs`：新增 `bootstrap_admin()` 函数，启动时若 users 表为空，从 `ADMIN_USERNAME` /
   `ADMIN_PASSWORD` 环境变量创建首个管理员（Argon2id 哈希）。
@@ -64,6 +69,7 @@
 ### B3 / D1 — 前端 JWT 存 localStorage → 已修复
 
 **修复**：
+
 - 后端：添加 `axum-extra` cookie 依赖；login/refresh/logout handler 设置 httpOnly refresh_token cookie
 - 前端：移除 localStorage 持久化，access token 仅存内存；axios 启用 `withCredentials`；页面加载时自动调用 `/auth/refresh` 恢复会话
 
@@ -72,6 +78,7 @@
 ### B4 — 无真正 refresh token / logout 不失效 → 已实现
 
 **现状**：代码已实现完整的 refresh token rotation：
+
 - `refresh_tokens` 表存储 SHA-256 哈希
 - `/auth/refresh` 轮换旧 token（revoke + create）
 - `/auth/logout` 撤销用户所有 refresh tokens
@@ -82,8 +89,8 @@
 
 ## 已完成（文档侧，供参照）
 
-- README.md：数据模型节重写为真实 24 张表；表数计数 19→24（3 处）；Security 节如实描述无状态 JWT / logout 不撤销 / refresh 7 天宽限续期。
+- README.md：数据模型节重写为 ERP 通用商品（Item/SKU）/采购·销售订单/合同/财务等表；Security 节如实描述无状态 JWT / logout 不撤销 / refresh 7 天宽限续期。
 - docs/detailed-design.en.md：补 `contract_items`、`contract_payments` 表结构与 ER 图关系。
 - backend/AGENTS.md、AGENTS_zh.md：middleware 2→4（补 `rate_limit.rs`）。
-- backend/src/services/AGENTS.md、AGENTS_zh.md：services 12→16，替换过时的 `inventory_service.rs` 为 5 个拆分服务。
+- backend/src/services/AGENTS.md、AGENTS_zh.md：services 按保留模块组织，替换过时的 `inventory_service.rs` 为拆分服务。
 - backend/src/handlers/auth_handler.rs：登录/刷新文档注释纠正（不再声称 access+refresh tokens / rotation）。

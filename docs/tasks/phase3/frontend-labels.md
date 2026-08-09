@@ -1,34 +1,12 @@
-# Phase 3 — Frontend: Label Printing Module (P2)
+# Phase 3 — Frontend: Label Printing Module (P2) — **ARCHIVED**
 
-> Based on: `docs/frontend-design.en.md` §4.1
+> **状态：模块已删除** — 通用商品/SKU 不再内置标签打印 UI。
+> 历史沿革：本系统由钢管行业系统重构而来，本任务文档对应的标签打印前端页面在 ERP 重构中已下线。
 
-## Task List
+## 删除说明
 
-### 1.1 Shared Types & API
-- [ ] Define `features/labels/types.ts`: LabelTemplate, LabelConfig, etc.
-- [ ] Define `features/labels/api/labelApi.ts`:
-  - Template CRUD
-  - Label generation
-  - Print history
-
-### 1.2 Label Template Management Page
-- [ ] Implement `LabelTemplateListPage`:
-  - Template list (name, width/height, last modified, actions)
-  - Create / edit / delete templates
-- [ ] Implement `LabelTemplateFormPage`:
-  - Basic info: template name, width, height (mm)
-  - Visual editor (simplified): pick fields to display + font size + alignment
-  - Preview: simulate label rendering
-
-### 1.3 Label Generation & Print Page
-- [ ] Implement `LabelGeneratePage`:
-  - Select label template
-  - Select pipes (batch): comma-separated input + pick from list
-  - Preview generated label layout
-  - Print button → calls generate API → downloads PDF / triggers print
-
-### 1.4 Shared Components
-- [ ] Implement `TemplatePreview`: live preview of label template configuration
-- [ ] Implement `PipeSelector`: batch pipe selector (search by number + multi-select list)
-
-> **Dependencies**: Pipe management frontend module (PipeSelector)
+- 旧 `features/labels/` 前端目录（模板列表/模板表单/生成页面）已移除。
+- 旧模板预览组件与管材专用批量选择组件已删除；通用商品批量选择由 `features/inventory` 提供。
+- 路由表移除 `/labels/*`。
+- 通用商品/SKU 的条码/二维码 UI 若业务侧需要，在 `inventory` 或 `manufacturing` 模块下按需扩展。
+- 详见 `specs/UBIQUITOUS_LANGUAGE_LATEST.md` 术语表。

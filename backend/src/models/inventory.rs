@@ -16,9 +16,10 @@ pub struct Location {
     pub full_code: String,
     /// Human-readable description of this location.
     pub description: Option<String>,
-    /// Maximum capacity (how many pipes fit here).
+    /// Maximum capacity.
     pub capacity: Option<i64>,
-    /// How many pipes are currently stored here.
+    /// How many units are currently stored here (item-quantity based, kept
+    /// for compatibility; stock is derived from inventory_logs).
     pub used_count: i64,
     /// Whether this location is active and usable.
     pub is_active: bool,
@@ -33,7 +34,7 @@ pub struct InboundRecord {
     pub id: i64,
     /// Inbound document number.
     pub inbound_no: String,
-    /// Inbound type: purchase / production / return / transfer.
+    /// Inbound type: purchase / production / return.
     pub inbound_type: String,
     /// Related order ID (e.g. purchase order).
     pub order_id: Option<i64>,
@@ -41,7 +42,7 @@ pub struct InboundRecord {
     pub supplier_id: Option<i64>,
     /// Free-form notes.
     pub notes: Option<String>,
-    /// Approval status: pending / approved / rejected.
+    /// Approval status: auto_approved / pending / approved / rejected.
     pub approval_status: String,
     /// Why it got rejected (if it did).
     pub rejection_reason: Option<String>,
@@ -56,16 +57,16 @@ pub struct InboundRecord {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-/// Inbound item DB row. The actual pipes in an inbound shipment.
+/// Inbound item DB row. The actual items in an inbound shipment.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct InboundItem {
     pub id: i64,
     /// FK back to the inbound record.
     pub inbound_id: i64,
-    /// Pipe type: seamless or screen.
-    pub pipe_type: String,
-    /// Pipe ID — references either seamless_pipes or screen_pipes.
-    pub pipe_id: i64,
+    /// FK to the items master table.
+    pub item_id: i64,
+    /// Received quantity.
+    pub quantity: f64,
     pub created_at: DateTime<Utc>,
 }
 
@@ -75,7 +76,7 @@ pub struct OutboundRecord {
     pub id: i64,
     /// Outbound document number.
     pub outbound_no: String,
-    /// Outbound type: sales / scrapped / transfer.
+    /// Outbound type: sales / transfer / scrapped.
     pub outbound_type: String,
     /// Related order ID (e.g. sales order).
     pub order_id: Option<i64>,
@@ -83,7 +84,7 @@ pub struct OutboundRecord {
     pub customer_id: Option<i64>,
     /// Free-form notes.
     pub notes: Option<String>,
-    /// Approval status: pending / approved / rejected.
+    /// Approval status: auto_approved / pending / approved / rejected.
     pub approval_status: String,
     /// Rejection reason, if applicable.
     pub rejection_reason: Option<String>,
@@ -98,27 +99,27 @@ pub struct OutboundRecord {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-/// Outbound item DB row. Individual pipes going out the door.
+/// Outbound item DB row. Items going out the door.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct OutboundItem {
     pub id: i64,
     /// FK back to the outbound record.
     pub outbound_id: i64,
-    /// Pipe type: seamless or screen.
-    pub pipe_type: String,
-    /// Pipe ID — references seamless_pipes or screen_pipes.
-    pub pipe_id: i64,
+    /// FK to the items master table.
+    pub item_id: i64,
+    /// Shipped quantity.
+    pub quantity: f64,
     pub created_at: DateTime<Utc>,
 }
 
-/// Inventory log DB row. Audit trail for every pipe movement, no exceptions.
+/// Inventory log DB row. Audit trail for every item movement, no exceptions.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct InventoryLog {
     pub id: i64,
-    /// Pipe type: seamless or screen.
-    pub pipe_type: String,
-    /// Pipe ID that moved.
-    pub pipe_id: i64,
+    /// FK to the items master table.
+    pub item_id: i64,
+    /// Signed quantity moved (positive = in, negative = out).
+    pub quantity: f64,
     /// Change type: inbound / outbound / transfer / check_adjust.
     pub change_type: String,
     /// Reference document type.
@@ -155,20 +156,18 @@ pub struct InventoryCheckRecord {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-/// Inventory check item DB row. One row = one pipe being verified.
+/// Inventory check item DB row. One row = one item being verified.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct InventoryCheckItem {
     pub id: i64,
     /// FK back to the check record.
     pub check_id: i64,
-    /// Pipe type: seamless or screen.
-    pub pipe_type: String,
-    /// Pipe ID being checked.
-    pub pipe_id: i64,
-    /// Expected stock status.
-    pub expected_status: String,
+    /// FK to the items master table.
+    pub item_id: i64,
+    /// Expected (book) quantity.
+    pub expected_quantity: Option<f64>,
     /// What was actually found on the floor.
-    pub found_status: Option<String>,
+    pub found_quantity: Option<f64>,
     /// Whether expected and found match up.
     pub is_match: Option<bool>,
     /// Notes about this item.

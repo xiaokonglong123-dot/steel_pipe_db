@@ -3,7 +3,7 @@
 use axum::extract::{Extension, Query};
 use axum::Json;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::bi::services::{
     BiService, FinanceSummary, InventoryValueRow, SalesTrendRow, SupplierPerfRow,
@@ -18,7 +18,7 @@ pub struct TrendFilter {
 }
 
 pub async fn sales_trend(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
     Query(f): Query<TrendFilter>,
 ) -> Result<Json<ApiResponse<Vec<SalesTrendRow>>>, AppError> {
@@ -26,21 +26,21 @@ pub async fn sales_trend(
 }
 
 pub async fn inventory_value(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<InventoryValueRow>>>, AppError> {
     Ok(ApiResponse::ok(BiService::inventory_value(&pool).await?))
 }
 
 pub async fn finance_summary(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<FinanceSummary>>, AppError> {
     Ok(ApiResponse::ok(BiService::finance_summary(&pool, 1).await?))
 }
 
 pub async fn supplier_performance(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<SupplierPerfRow>>>, AppError> {
     Ok(ApiResponse::ok(BiService::supplier_performance(&pool, 1).await?))

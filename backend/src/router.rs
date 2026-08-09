@@ -1,4 +1,4 @@
-//! Route definitions for the Steel Pipe DB API.
+//! Route definitions for the ERP API.
 //!
 //! # Organization Strategy
 //!
@@ -15,7 +15,7 @@
 //!   → route_layer(rbac::require_role)
 //!     → layer(CORS)
 //!       → layer(Trace + RequestId)
-//!         → layer(Extension<PgPool>)
+//!         → layer(Extension<SqlitePool>)
 //!           → layer(Extension<JwtSecret>)
 //!             → layer(Extension<RateLimiter>)
 //! ```
@@ -25,17 +25,14 @@
 //! | Domain     | Read (any auth) | Write (roles)                    |
 //! |------------|:---------------:|----------------------------------|
 //! | Users      | admin           | admin                            |
-//! | Pipes      | ✅              | admin, warehouse                 |
 //! | Inbound    | ✅              | admin, warehouse                 |
 //! | Outbound   | ✅              | admin, warehouse                 |
-//! | Quality    | ✅              | admin, qc                        |
 //! | Sales      | ✅              | admin, sales                     |
 //! | Purchases  | ✅              | admin, warehouse, sales          |
 //! | Suppliers  | ✅              | admin, warehouse, sales          |
 //! | Customers  | ✅              | admin, warehouse, sales          |
 //! | Contracts  | ✅              | admin, warehouse, sales          |
 //! | Data IO    | templates       | admin (import/logs), admin/warehouse/sales (export) |
-//! | Labels     | ✅              | admin, warehouse (write)         |
 //! | Reports    | ✅              | — (read-only)                    |
 
 use std::time::Duration as StdDuration;
@@ -47,7 +44,7 @@ use axum::{
     },
     middleware, Router,
 };
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use tower::ServiceBuilder;
 use tower_http::{request_id::MakeRequestUuid, ServiceBuilderExt};
 
@@ -68,16 +65,13 @@ use crate::handlers::data_io_handler;
 use crate::handlers::health_handler;
 use crate::handlers::inbound_handler;
 use crate::handlers::inventory_handler;
-use crate::handlers::label_handler;
+use crate::handlers::item_handler;
 use crate::handlers::location_handler;
 use crate::handlers::outbound_handler;
-use crate::handlers::pipe_handler;
 use crate::handlers::purchase_handler;
-use crate::handlers::quality_handler;
 use crate::handlers::report_handler;
 use crate::handlers::sales_handler;
 use crate::handlers::supplier_handler;
-use crate::handlers::welded_pipe;
 
 // Helper functions for route groups with role-protected write operations
 // Each returns a Router with auth_middleware + require_role on all endpoints.
@@ -162,6 +156,16 @@ fn warehouse_write_routes() -> Router {
             axum::routing::put(location_handler::update_location_handler)
                 .delete(location_handler::delete_location_handler),
         )
+        // Items (商品 master)
+        .route(
+            "/api/v1/items",
+            axum::routing::post(item_handler::create_item_handler),
+        )
+        .route(
+            "/api/v1/items/{id}",
+            axum::routing::put(item_handler::update_item_handler)
+                .delete(item_handler::delete_item_handler),
+        )
         // Inventory checks
         .route(
             "/api/v1/inventory/checks",
@@ -175,58 +179,13 @@ fn warehouse_write_routes() -> Router {
             "/api/v1/inventory/checks/{check_id}/items/{item_id}",
             axum::routing::put(check_handler::submit_check_item_handler),
         )
-        // Location assign / transfer
-        .route(
-            "/api/v1/inventory/locations/{id}/assign",
-            axum::routing::post(location_handler::assign_location_handler),
-        )
-        .route(
-            "/api/v1/inventory/pipes/{pipe_type}/{pipe_id}/transfer-location",
-            axum::routing::post(location_handler::transfer_location_handler),
-        )
         // Batch inbound
         .route(
             "/api/v1/inbound-records/batch",
             axum::routing::post(inbound_handler::batch_create_inbound_handler),
         )
-        // Labels (warehouse function)
-        .route(
-            "/api/v1/labels/batch",
-            axum::routing::post(label_handler::create_batch_labels_handler),
-        )
-        .route(
-            "/api/v1/labels/shipping",
-            axum::routing::post(label_handler::create_shipping_label_handler),
-        )
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin", "warehouse"])
-        }))
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ))
-}
-
-fn qc_write_routes() -> Router {
-    Router::new()
-        .route(
-            "/api/v1/quality/certs",
-            axum::routing::post(quality_handler::create_cert_handler),
-        )
-        .route(
-            "/api/v1/quality/certs/{id}",
-            axum::routing::put(quality_handler::update_cert_handler)
-                .delete(quality_handler::delete_cert_handler),
-        )
-        .route(
-            "/api/v1/quality/attachments",
-            axum::routing::post(quality_handler::create_attachment_handler),
-        )
-        .route(
-            "/api/v1/quality/attachments/{id}",
-            axum::routing::delete(quality_handler::delete_attachment_handler),
-        )
-        .route_layer(middleware::from_fn(|req, next| {
-            crate::middleware::rbac::require_role(req, next, &["admin", "qc"])
         }))
         .route_layer(middleware::from_fn(
             crate::middleware::auth::auth_middleware,
@@ -385,7 +344,7 @@ fn contract_write_routes() -> Router {
 // Main app builder — assembles all route groups, middleware, and shared layers
 
 pub fn create_app(
-    pool: PgPool,
+    pool: SqlitePool,
     jwt_secret: String,
     cors_origins: Vec<HeaderValue>,
     cache_manager: CacheManager,
@@ -723,10 +682,6 @@ pub fn create_app(
             axum::routing::get(crate::inventory_atp::handlers::overview),
         )
         .route(
-            "/api/v1/inventory/atp/pipe",
-            axum::routing::get(crate::inventory_atp::handlers::pipe_atp),
-        )
-        .route(
             "/api/v1/inventory/reservations",
             axum::routing::post(crate::inventory_atp::handlers::reserve),
         )
@@ -801,28 +756,6 @@ pub fn create_app(
         .route(
             "/api/v1/manufacturing/ncrs/{id}/resolve",
             axum::routing::post(crate::manufacturing::handlers::resolve_ncr),
-        )
-        .route_layer(middleware::from_fn(|req, next| {
-            crate::middleware::rbac::require_role(req, next, &["admin"])
-        }))
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ));
-
-    // Threading module (admin): machining records, API 5CT engineering calcs
-    let threading_routes: axum::Router = Router::new()
-        .route(
-            "/api/v1/threading/records",
-            axum::routing::get(crate::threading::handlers::list_records)
-                .post(crate::threading::handlers::create_record),
-        )
-        .route(
-            "/api/v1/threading/calc",
-            axum::routing::post(crate::threading::handlers::calc),
-        )
-        .route(
-            "/api/v1/casing/design-check",
-            axum::routing::post(crate::threading::handlers::design_check),
         )
         .route_layer(middleware::from_fn(|req, next| {
             crate::middleware::rbac::require_role(req, next, &["admin"])
@@ -1001,80 +934,6 @@ pub fn create_app(
             crate::middleware::rbac::require_role(req, next, &["admin"])
         }));
 
-    // Pipe read-only (GET, search)
-    let pipe_read = Router::new()
-        .route(
-            "/api/v1/seamless-pipes",
-            axum::routing::get(pipe_handler::list_seamless_pipes_handler),
-        )
-        .route(
-            "/api/v1/seamless-pipes/{id}",
-            axum::routing::get(pipe_handler::get_seamless_pipe_handler),
-        )
-        .route(
-            "/api/v1/screen-pipes",
-            axum::routing::get(pipe_handler::list_screen_pipes_handler),
-        )
-        .route(
-            "/api/v1/screen-pipes/{id}",
-            axum::routing::get(pipe_handler::get_screen_pipe_handler),
-        )
-        .route(
-            "/api/v1/pipes/search",
-            axum::routing::get(pipe_handler::search_pipes_handler),
-        )
-        .route(
-            "/api/v1/welded-pipes",
-            axum::routing::get(welded_pipe::list_welded_pipes_handler),
-        )
-        .route(
-            "/api/v1/welded-pipes/{id}",
-            axum::routing::get(welded_pipe::get_welded_pipe_handler),
-        )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ));
-
-    // Pipe write (POST, PUT, DELETE)
-    let pipe_write = Router::new()
-        .route(
-            "/api/v1/seamless-pipes",
-            axum::routing::post(pipe_handler::create_seamless_pipe_handler),
-        )
-        .route(
-            "/api/v1/seamless-pipes/{id}",
-            axum::routing::put(pipe_handler::update_seamless_pipe_handler)
-                .delete(pipe_handler::delete_seamless_pipe_handler),
-        )
-        .route(
-            "/api/v1/screen-pipes",
-            axum::routing::post(pipe_handler::create_screen_pipe_handler),
-        )
-        .route(
-            "/api/v1/screen-pipes/{id}",
-            axum::routing::put(pipe_handler::update_screen_pipe_handler)
-                .delete(pipe_handler::delete_screen_pipe_handler),
-        )
-        .route(
-            "/api/v1/pipes/batch",
-            axum::routing::post(pipe_handler::batch_create_pipes_handler),
-        )
-        .route(
-            "/api/v1/welded-pipes",
-            axum::routing::post(welded_pipe::create_welded_pipe_handler),
-        )
-        .route(
-            "/api/v1/welded-pipes/{id}",
-            axum::routing::put(welded_pipe::update_welded_pipe_handler)
-                .delete(welded_pipe::delete_welded_pipe_handler),
-        )
-        .route_layer(middleware::from_fn(|req, next| {
-            crate::middleware::rbac::require_role(req, next, &["admin", "warehouse"])
-        }))
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ));
-
     // Inventory read (GET)
     let inventory_read = Router::new()
         .route(
@@ -1101,6 +960,19 @@ pub fn create_app(
             "/api/v1/inventory/logs",
             axum::routing::get(inventory_handler::list_inventory_logs_handler),
         )
+        // Items (商品 master) — read
+        .route(
+            "/api/v1/items/search",
+            axum::routing::get(item_handler::search_items_handler),
+        )
+        .route(
+            "/api/v1/items",
+            axum::routing::get(item_handler::list_items_handler),
+        )
+        .route(
+            "/api/v1/items/{id}",
+            axum::routing::get(item_handler::get_item_handler),
+        )
         .route(
             "/api/v1/locations",
             axum::routing::get(location_handler::list_locations_handler),
@@ -1118,12 +990,8 @@ pub fn create_app(
             axum::routing::get(check_handler::get_check_handler),
         )
         .route(
-            "/api/v1/trace/pipe/{pipe_type}/{pipe_id}",
-            axum::routing::get(inventory_handler::trace_pipe_handler),
-        )
-        .route(
-            "/api/v1/trace/heat-number/{heat_number}",
-            axum::routing::get(inventory_handler::trace_heat_handler),
+            "/api/v1/trace/items/{item_id}",
+            axum::routing::get(inventory_handler::trace_item_handler),
         )
         .route(
             "/api/v1/trace/order/{order_type}/{order_id}",
@@ -1269,32 +1137,6 @@ pub fn create_app(
             crate::middleware::auth::auth_middleware,
         ));
 
-    // Quality read (GET)
-    let quality_read = Router::new()
-        .route(
-            "/api/v1/quality/certs",
-            axum::routing::get(quality_handler::list_certs_handler),
-        )
-        .route(
-            "/api/v1/quality/certs/{id}",
-            axum::routing::get(quality_handler::get_cert_handler),
-        )
-        .route(
-            "/api/v1/quality/grades",
-            axum::routing::get(quality_handler::list_grades_handler),
-        )
-        .route(
-            "/api/v1/quality/grades/query",
-            axum::routing::get(quality_handler::get_grade_handler),
-        )
-        .route(
-            "/api/v1/quality/attachments",
-            axum::routing::get(quality_handler::list_attachments_handler),
-        )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ));
-
     // Contract read (GET)
     let contract_read = Router::new()
         .route(
@@ -1335,20 +1177,6 @@ pub fn create_app(
             crate::middleware::auth::auth_middleware,
         ));
 
-    // Labels read (GET)
-    let label_read = Router::new()
-        .route(
-            "/api/v1/labels/pipe/{pipe_type}/{pipe_id}",
-            axum::routing::get(label_handler::get_pipe_label_handler),
-        )
-        .route(
-            "/api/v1/labels/quality/{cert_id}",
-            axum::routing::get(label_handler::get_quality_label_handler),
-        )
-        .route_layer(middleware::from_fn(
-            crate::middleware::auth::auth_middleware,
-        ));
-
     Router::new()
         // Public (no auth required)
         .merge(public)
@@ -1371,8 +1199,6 @@ pub fn create_app(
         .merge(inventory_atp_routes)
         // Manufacturing module (admin): BOMs, work orders, inspections, NCRs
         .merge(manufacturing_routes)
-        // Threading module (admin): machining records, API 5CT engineering calcs
-        .merge(threading_routes)
         // Project management (admin): projects, WBS, budget transactions
         .merge(project_routes)
         // Fixed assets (admin)
@@ -1388,7 +1214,6 @@ pub fn create_app(
         // Admin read
         .merge(admin_read)
         // Business read-only (all authenticated users)
-        .merge(pipe_read)
         .merge(inventory_read)
         .merge(data_io_template_read)
         .merge(data_io_export_read)
@@ -1397,15 +1222,11 @@ pub fn create_app(
         .merge(customer_read)
         .merge(purchase_read)
         .merge(sales_read)
-        .merge(quality_read)
         .merge(contract_read)
         .merge(report_routes)
-        .merge(label_read)
         // Write-protected (role-checked)
         .merge(admin_write_routes())
-        .merge(pipe_write)
         .merge(warehouse_write_routes())
-        .merge(qc_write_routes())
         .merge(sales_write_routes())
         .merge(purchases_write_routes())
         .merge(supplier_customer_write_routes())

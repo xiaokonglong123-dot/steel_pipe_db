@@ -21,7 +21,7 @@ pub struct UpdateShipmentStatusRequest {
 pub struct CreateSalesQuoteRequest {
     pub customer_id: i64,
     pub valid_until: Option<NaiveDate>,
-    pub total_amount: rust_decimal::Decimal,
+    pub total_amount: f64,
     pub items: Vec<serde_json::Value>,
     pub notes: Option<String>,
 }

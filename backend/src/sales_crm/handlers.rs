@@ -3,7 +3,7 @@
 use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::sales_crm_dto::{CreateSalesQuoteRequest, CreateShipmentRequest, UpdateShipmentStatusRequest};
 use crate::error::AppError;
@@ -25,7 +25,7 @@ pub struct StatusRequest {
 
 // Shipments
 pub async fn list_shipments(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<IdFilter>,
 ) -> Result<Json<ApiResponse<Vec<SalesShipment>>>, AppError> {
@@ -33,7 +33,7 @@ pub async fn list_shipments(
 }
 
 pub async fn create_shipment(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateShipmentRequest>,
 ) -> Result<Json<ApiResponse<SalesShipment>>, AppError> {
@@ -41,7 +41,7 @@ pub async fn create_shipment(
 }
 
 pub async fn update_shipment_status(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(p): Json<UpdateShipmentStatusRequest>,
@@ -51,7 +51,7 @@ pub async fn update_shipment_status(
 
 // Quotes
 pub async fn list_quotes(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<IdFilter>,
 ) -> Result<Json<ApiResponse<Vec<SalesQuote>>>, AppError> {
@@ -59,7 +59,7 @@ pub async fn list_quotes(
 }
 
 pub async fn get_quote(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<SalesQuote>>, AppError> {
@@ -67,7 +67,7 @@ pub async fn get_quote(
 }
 
 pub async fn create_quote(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateSalesQuoteRequest>,
 ) -> Result<Json<ApiResponse<SalesQuote>>, AppError> {
@@ -75,7 +75,7 @@ pub async fn create_quote(
 }
 
 pub async fn update_quote_status(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(p): Json<StatusRequest>,
@@ -85,7 +85,7 @@ pub async fn update_quote_status(
 
 /// Convert a confirmed quote into a sales order.
 pub async fn convert_quote(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -95,7 +95,7 @@ pub async fn convert_quote(
 
 // Credit
 pub async fn customer_credit(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(customer_id): Path<i64>,
 ) -> Result<Json<ApiResponse<CustomerCredit>>, AppError> {

@@ -5,18 +5,20 @@ use validator::Validate;
 //  Inbound DTOs
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/// One inbound line item — item + quantity.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct InboundItemRequest {
+    /// FK to the items master table.
+    pub item_id: i64,
+    /// Received quantity.
+    pub quantity: f64,
+}
+
 /// Inbound record detail response DTO — record header + line items.
 #[derive(Debug, Serialize)]
 pub struct InboundRecordDetail {
     pub record: crate::models::inventory::InboundRecord,
     pub items: Vec<crate::models::inventory::InboundItem>,
-}
-
-/// Outbound record detail response DTO — record header + line items.
-#[derive(Debug, Serialize)]
-pub struct OutboundRecordDetail {
-    pub record: crate::models::inventory::OutboundRecord,
-    pub items: Vec<crate::models::inventory::OutboundItem>,
 }
 
 /// Update inbound record request DTO — only editable fields.
@@ -30,21 +32,10 @@ pub struct UpdateInboundRecordRequest {
     pub supplier_id: Option<i64>,
 }
 
-/// Update outbound record request DTO — only editable fields.
-#[derive(Debug, Deserialize, Validate)]
-pub struct UpdateOutboundRecordRequest {
-    /// Free-form notes.
-    pub notes: Option<String>,
-    /// Related order ID.
-    pub order_id: Option<i64>,
-    /// Customer ID.
-    pub customer_id: Option<i64>,
-}
-
 /// Create inbound record request DTO.
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateInboundRecordRequest {
-    /// Inbound type: purchase / production / return / transfer.
+    /// Inbound type: purchase / production / return.
     #[validate(length(min = 1))]
     pub inbound_type: String,
     /// Related order ID.
@@ -53,19 +44,9 @@ pub struct CreateInboundRecordRequest {
     pub supplier_id: Option<i64>,
     /// Notes.
     pub notes: Option<String>,
-    /// List of inbound pipes.
-    pub pipes: Vec<InboundPipeItem>,
-}
-
-/// Inbound pipe item DTO.
-#[derive(Debug, Clone, Deserialize, Serialize, Validate)]
-pub struct InboundPipeItem {
-    /// Pipe type: seamless or screen.
-    #[validate(length(min = 1))]
-    pub pipe_type: String,
-    /// Pipe ID.
-    #[validate(range(min = 1))]
-    pub pipe_id: i64,
+    /// Line items (item_id + quantity). At least one required.
+    #[validate(length(min = 1, message = "At least one item is required"))]
+    pub items: Vec<InboundItemRequest>,
 }
 
 /// Inbound record list filter params.
@@ -81,7 +62,7 @@ pub struct InboundFilter {
     pub approval_status: Option<String>,
     /// Filter by related order ID.
     pub order_id: Option<i64>,
-    /// Full-text search.
+    /// Full-text search on inbound number.
     pub q: Option<String>,
 }
 
@@ -89,10 +70,37 @@ pub struct InboundFilter {
 //  Outbound DTOs
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/// Update outbound record request DTO — only editable fields.
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateOutboundRecordRequest {
+    /// Free-form notes.
+    pub notes: Option<String>,
+    /// Related order ID.
+    pub order_id: Option<i64>,
+    /// Customer ID.
+    pub customer_id: Option<i64>,
+}
+
+/// Outbound record detail response DTO — record header + line items.
+#[derive(Debug, Serialize)]
+pub struct OutboundRecordDetail {
+    pub record: crate::models::inventory::OutboundRecord,
+    pub items: Vec<crate::models::inventory::OutboundItem>,
+}
+
+/// One outbound line item — item + quantity.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct OutboundItemRequest {
+    /// FK to the items master table.
+    pub item_id: i64,
+    /// Shipped quantity.
+    pub quantity: f64,
+}
+
 /// Create outbound record request DTO.
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateOutboundRecordRequest {
-    /// Outbound type: sales / scrapped / transfer.
+    /// Outbound type: sales / transfer / scrapped.
     #[validate(length(min = 1))]
     pub outbound_type: String,
     /// Related order ID.
@@ -101,19 +109,9 @@ pub struct CreateOutboundRecordRequest {
     pub customer_id: Option<i64>,
     /// Notes.
     pub notes: Option<String>,
-    /// List of outbound pipes.
-    pub pipes: Vec<OutboundPipeItem>,
-}
-
-/// Outbound pipe item DTO.
-#[derive(Debug, Clone, Deserialize, Validate)]
-pub struct OutboundPipeItem {
-    /// Pipe type: seamless or screen.
-    #[validate(length(min = 1))]
-    pub pipe_type: String,
-    /// Pipe ID.
-    #[validate(range(min = 1))]
-    pub pipe_id: i64,
+    /// Line items (item_id + quantity). At least one required.
+    #[validate(length(min = 1, message = "At least one item is required"))]
+    pub items: Vec<OutboundItemRequest>,
 }
 
 /// Outbound record list filter params.
@@ -129,7 +127,7 @@ pub struct OutboundFilter {
     pub approval_status: Option<String>,
     /// Filter by related order ID.
     pub order_id: Option<i64>,
-    /// Full-text search.
+    /// Full-text search on outbound number.
     pub q: Option<String>,
 }
 
@@ -142,13 +140,13 @@ pub struct OutboundFilter {
 pub struct InventoryFilter {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
-    /// Filter by steel grade.
-    pub grade: Option<String>,
-    /// Filter by pipe type.
-    pub pipe_type: Option<String>,
+    /// Filter by item master ID.
+    pub item_id: Option<i64>,
+    /// Filter by item category.
+    pub category: Option<String>,
     /// Filter by location.
     pub location_id: Option<i64>,
-    /// Full-text search.
+    /// Full-text search on SKU / name / spec.
     pub q: Option<String>,
 }
 
@@ -201,9 +199,8 @@ pub struct CreateCheckRequest {
 /// Submit check item result DTO.
 #[derive(Debug, Deserialize, Validate)]
 pub struct SubmitCheckItemRequest {
-    /// Actual status found during check.
-    #[validate(length(min = 1))]
-    pub found_status: String,
+    /// Actual quantity found during check.
+    pub found_quantity: f64,
     /// Notes.
     pub notes: Option<String>,
 }
@@ -234,10 +231,9 @@ pub struct RejectRequest {
 /// ATP (Available-to-Promise) query params.
 #[derive(Debug, Deserialize, Validate)]
 pub struct AtpQuery {
-    /// Filter by pipe type.
-    pub pipe_type: Option<String>,
-    /// Filter by steel grade.
-    pub grade: Option<String>,
+    /// Filter by item master ID.
+    #[validate(range(min = 1, message = "Item ID must be positive"))]
+    pub item_id: Option<i64>,
     /// Filter by location.
     #[validate(range(min = 1, message = "Location ID must be positive"))]
     pub location_id: Option<i64>,
@@ -246,40 +242,19 @@ pub struct AtpQuery {
 /// ATP query result item DTO.
 #[derive(Debug, Serialize)]
 pub struct AtpItem {
-    /// Pipe type.
-    pub pipe_type: String,
-    /// Steel grade.
-    pub grade: String,
+    /// Item master ID.
+    pub item_id: i64,
+    /// SKU.
+    pub sku: Option<String>,
     /// Available quantity.
-    pub quantity: i64,
+    pub quantity: f64,
     /// Location ID.
     pub location_id: Option<i64>,
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  Location Assignment DTOs
+//  Stock / Statistics DTOs
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-/// Assign location request DTO.
-#[derive(Debug, Deserialize, Validate)]
-pub struct AssignLocationRequest {
-    /// Pipe type: seamless or screen.
-    #[validate(length(min = 1))]
-    pub pipe_type: String,
-    /// Pipe ID.
-    #[validate(range(min = 1))]
-    pub pipe_id: i64,
-}
-
-/// Transfer location request DTO.
-#[derive(Debug, Deserialize, Validate)]
-pub struct TransferLocationRequest {
-    /// Target location ID.
-    #[validate(range(min = 1))]
-    pub to_location_id: i64,
-    /// Notes.
-    pub notes: Option<String>,
-}
 
 /// Batch create inbound records request DTO.
 #[derive(Debug, Deserialize, Validate)]
@@ -289,11 +264,11 @@ pub struct BatchCreateInboundRequest {
     pub records: Vec<CreateInboundRecordRequest>,
 }
 
-/// Inventory statistics response DTO — total stock, breakdown by grade and location.
+/// Inventory statistics response DTO — total stock, breakdown by category and location.
 #[derive(Debug, Serialize)]
 pub struct InventoryStatistics {
-    pub total_in_stock: i64,
-    pub by_grade: Vec<crate::repositories::inventory_repo::GradeCount>,
+    pub total_in_stock: f64,
+    pub by_category: Vec<crate::repositories::inventory_repo::CategoryCount>,
     pub by_location: Vec<crate::repositories::inventory_repo::LocationCount>,
 }
 
@@ -304,17 +279,16 @@ pub struct CheckRecordDetail {
     pub items: Vec<crate::models::inventory::InventoryCheckItem>,
 }
 
-/// Stock item DTO — unified row from seamless_pipes or screen_pipes.
-#[derive(Debug, Serialize)]
+/// Stock item DTO — item master row joined with computed on-hand quantity.
+#[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct StockItem {
     pub id: i64,
-    pub pipe_number: String,
-    pub grade: String,
-    pub od: f64,
-    pub wt: f64,
-    pub pipe_type: String,
+    pub sku: String,
+    pub name: String,
+    pub category: Option<String>,
+    pub unit: Option<String>,
+    pub spec: Option<String>,
     pub status: String,
-    pub location_id: Option<i64>,
-    pub created_at: String,
-    pub updated_at: String,
+    /// Computed on-hand quantity from inventory_logs.
+    pub quantity: f64,
 }

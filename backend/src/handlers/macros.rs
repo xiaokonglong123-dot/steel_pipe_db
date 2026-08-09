@@ -20,11 +20,11 @@ macro_rules! party_handler {
         use axum::extract::{Extension, Path, Query};
         use axum::response::IntoResponse;
         use axum::Json;
-        use sqlx::PgPool;
+        use sqlx::SqlitePool;
         use validator::Validate;
 
         pub async fn $list_fn(
-            Extension(pool): Extension<PgPool>,
+            Extension(pool): Extension<SqlitePool>,
             Query(filter): Query<$filter>,
         ) -> Result<Json<crate::response::PaginatedResponse<$model>>, crate::error::AppError> {
             let pagination = crate::dto::common::PaginationParams {
@@ -42,7 +42,7 @@ macro_rules! party_handler {
         }
 
         pub async fn $create_fn(
-            Extension(pool): Extension<PgPool>,
+            Extension(pool): Extension<SqlitePool>,
             Json(req): Json<$create_dto>,
         ) -> Result<axum::response::Response, crate::error::AppError> {
             req.validate()
@@ -52,7 +52,7 @@ macro_rules! party_handler {
         }
 
         pub async fn $get_fn(
-            Extension(pool): Extension<PgPool>,
+            Extension(pool): Extension<SqlitePool>,
             Path(id): Path<i64>,
         ) -> Result<Json<crate::response::ApiResponse<$model>>, crate::error::AppError> {
             let item = $service::get(&pool, id).await?;
@@ -60,7 +60,7 @@ macro_rules! party_handler {
         }
 
         pub async fn $update_fn(
-            Extension(pool): Extension<PgPool>,
+            Extension(pool): Extension<SqlitePool>,
             Path(id): Path<i64>,
             Json(req): Json<$update_dto>,
         ) -> Result<Json<crate::response::ApiResponse<$model>>, crate::error::AppError> {
@@ -71,7 +71,7 @@ macro_rules! party_handler {
         }
 
         pub async fn $delete_fn(
-            Extension(pool): Extension<PgPool>,
+            Extension(pool): Extension<SqlitePool>,
             Path(id): Path<i64>,
         ) -> Result<axum::response::Response, crate::error::AppError> {
             $service::delete(&pool, id).await?;
@@ -79,7 +79,7 @@ macro_rules! party_handler {
         }
 
         pub async fn $search_fn(
-            Extension(pool): Extension<PgPool>,
+            Extension(pool): Extension<SqlitePool>,
             Query(query): Query<crate::handlers::supplier_handler::SearchQuery>,
         ) -> Result<Json<crate::response::ApiResponse<Vec<$model>>>, crate::error::AppError> {
             let results = $service::search(&pool, &query.q).await?;
@@ -87,7 +87,7 @@ macro_rules! party_handler {
         }
 
         pub async fn $active_fn(
-            Extension(pool): Extension<PgPool>,
+            Extension(pool): Extension<SqlitePool>,
         ) -> Result<Json<crate::response::ApiResponse<Vec<$model>>>, crate::error::AppError> {
             let items = $service::list_active(&pool).await?;
             Ok(crate::response::ApiResponse::ok(items))

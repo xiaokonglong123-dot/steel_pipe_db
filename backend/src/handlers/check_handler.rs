@@ -3,7 +3,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{CreateCheckRequest, SubmitCheckItemRequest};
@@ -21,7 +21,7 @@ pub struct CheckListQuery {
 }
 
 pub async fn create_check_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateCheckRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()
@@ -31,7 +31,7 @@ pub async fn create_check_handler(
 }
 
 pub async fn list_checks_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Query(query): Query<CheckListQuery>,
 ) -> Result<Json<PaginatedResponse<InventoryCheckRecord>>, AppError> {
     let pagination = PaginationParams {
@@ -49,7 +49,7 @@ pub async fn list_checks_handler(
 }
 
 pub async fn get_check_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<crate::dto::inventory_dto::CheckRecordDetail>>, AppError> {
     let (record, items) = CheckService::get_check_detail(&pool, id).await?;
@@ -59,7 +59,7 @@ pub async fn get_check_handler(
 }
 
 pub async fn submit_check_item_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path((check_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<SubmitCheckItemRequest>,
 ) -> Result<axum::response::Response, AppError> {
@@ -70,7 +70,7 @@ pub async fn submit_check_item_handler(
 }
 
 pub async fn complete_check_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let result = CheckService::complete_check(&pool, id).await?;

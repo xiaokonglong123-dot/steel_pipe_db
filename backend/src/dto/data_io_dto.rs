@@ -1,20 +1,16 @@
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-pub const ENTITY_SEAMLESS_PIPES: &str = "seamless_pipes";
-pub const ENTITY_SCREEN_PIPES: &str = "screen_pipes";
+pub const ENTITY_ITEMS: &str = "items";
 pub const ENTITY_INVENTORY: &str = "inventory";
 pub const ENTITY_PURCHASE_ORDERS: &str = "purchase_orders";
 pub const ENTITY_SALES_ORDERS: &str = "sales_orders";
-pub const ENTITY_QUALITY_CERTS: &str = "quality_certs";
 
 pub const VALID_ENTITY_TYPES: &[&str] = &[
-    ENTITY_SEAMLESS_PIPES,
-    ENTITY_SCREEN_PIPES,
+    ENTITY_ITEMS,
     ENTITY_INVENTORY,
     ENTITY_PURCHASE_ORDERS,
     ENTITY_SALES_ORDERS,
-    ENTITY_QUALITY_CERTS,
 ];
 
 #[derive(Debug, Deserialize, Validate)]

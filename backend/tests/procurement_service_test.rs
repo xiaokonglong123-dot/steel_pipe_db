@@ -2,12 +2,11 @@
 
 mod common;
 
-use rust_decimal_macros::dec;
-use steel_pipe_db::dto::procurement_dto::{
+use erp_server::dto::procurement_dto::{
     CreateQuoteRequest, CreateReceiptRequest, CreateRequisitionRequest, ReceiptItemInput,
     UpdateQuoteStatusRequest,
 };
-use steel_pipe_db::procurement::services::ProcurementService;
+use erp_server::procurement::services::ProcurementService;
 
 #[tokio::test]
 async fn requisition_lifecycle() {
@@ -17,10 +16,10 @@ async fn requisition_lifecycle() {
         1,
         Some(1),
         &CreateRequisitionRequest {
-            title: "采购钢管".into(),
+            title: "采购商品一批".into(),
             department_id: None,
             expected_date: None,
-            items: vec![serde_json::json!({"pipe_type": "seamless", "quantity": 10})],
+            items: vec![serde_json::json!({"sku": "ITM0001", "quantity": 10})],
             notes: None,
         },
     )
@@ -49,9 +48,9 @@ async fn goods_receipt_creation() {
             purchase_order_id: 1,
             notes: Some("第一批到货".into()),
             items: vec![ReceiptItemInput {
-                pipe_id: None,
-                pipe_number: Some("PN-001".into()),
-                quantity: dec!(20),
+                item_id: None,
+                sku: Some("ITM0001".into()),
+                quantity: 20.0,
                 remark: None,
             }],
         },
@@ -62,7 +61,7 @@ async fn goods_receipt_creation() {
     let (got, items) = ProcurementService::get_receipt(&pool, 1, receipt.id).await.unwrap();
     assert_eq!(got.receipt_no, receipt.receipt_no);
     assert_eq!(items.len(), 1);
-    assert_eq!(items[0].pipe_number.as_deref(), Some("PN-001"));
+    assert_eq!(items[0].sku.as_deref(), Some("ITM0001"));
 }
 
 #[tokio::test]
@@ -90,10 +89,10 @@ async fn quote_status_transitions() {
         1,
         &CreateQuoteRequest {
             supplier_id: 1,
-            title: Some("无缝管报价".into()),
+            title: Some("原材料报价".into()),
             valid_until: None,
-            total_amount: dec!(50000),
-            items: vec![serde_json::json!({"grade": "J55", "quantity": 100})],
+            total_amount: 50000.0,
+            items: vec![serde_json::json!({"item_id": 1, "quantity": 100})],
             notes: None,
         },
     )
@@ -128,14 +127,14 @@ async fn supplier_scorecard_aggregates() {
     // Insert a purchase order directly for scorecard aggregation.
     sqlx::query(
         "INSERT INTO purchase_orders (order_no, supplier_id, order_date, total_amount, status) \
-         VALUES ('PO-SC-1', 5, NOW(), $1, 'approved')",
+         VALUES ('PO-SC-1', 5, datetime('now'), ?, 'approved')",
     )
-    .bind(dec!(12345))
+    .bind(12345.0)
     .execute(&pool)
     .await
     .unwrap();
 
     let card = ProcurementService::supplier_scorecard(&pool, 1, 5).await.unwrap();
     assert_eq!(card.order_count, 1);
-    assert_eq!(card.order_total, dec!(12345));
+    assert_eq!(card.order_total, 12345.0);
 }

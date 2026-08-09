@@ -3,8 +3,7 @@
 
 mod common;
 
-use rust_decimal_macros::dec;
-use steel_pipe_db::workflow::services::WorkflowService;
+use erp_server::workflow::services::WorkflowService;
 
 fn node(key: &str, assignee_value: &str, condition: Option<serde_json::Value>) -> serde_json::Value {
     serde_json::json!({
@@ -18,11 +17,11 @@ fn node(key: &str, assignee_value: &str, condition: Option<serde_json::Value>) -
 /// Seed the users referenced by tests (initiator=1, approvers=2/3).
 /// The test pool runs migrations but NOT the app bootstrap, so users(id)
 /// must be created explicitly for the workflow FK constraints.
-async fn seed_users(pool: &sqlx::PgPool) {
+async fn seed_users(pool: &sqlx::SqlitePool) {
     for (id, name) in [(1i64, "init"), (2, "manager"), (3, "director")] {
         let _ = sqlx::query(
             "INSERT INTO users (id, username, password_hash, display_name, role, tenant_id) \
-             VALUES ($1, $2, 'x', $3, 'admin', 1) ON CONFLICT (id) DO NOTHING",
+             VALUES (?, ?, 'x', ?, 'admin', 1) ON CONFLICT (id) DO NOTHING",
         )
         .bind(id)
         .bind(format!("user{}", id))
@@ -89,7 +88,7 @@ async fn conditional_routing_skips_high_amount_node() {
         .unwrap();
 
     // Small amount: director node is skipped; approving manager finishes the flow.
-    let inst = WorkflowService::start_instance(&pool, 1, def.id, "purchase_order", 43, Some(dec!(10000)), 1)
+    let inst = WorkflowService::start_instance(&pool, 1, def.id, "purchase_order", 43, Some(10000.0), 1)
         .await
         .unwrap();
     let tasks = WorkflowService::my_tasks(&pool, 3).await.unwrap();
@@ -110,7 +109,7 @@ async fn large_amount_routes_to_director() {
     let def = WorkflowService::create_definition(&pool, 1, "PO 金额条件", "purchase_order", None, &nodes, None)
         .await
         .unwrap();
-    let inst = WorkflowService::start_instance(&pool, 1, def.id, "purchase_order", 44, Some(dec!(100000)), 1)
+    let inst = WorkflowService::start_instance(&pool, 1, def.id, "purchase_order", 44, Some(100000.0), 1)
         .await
         .unwrap();
     assert_eq!(inst.status, "running");
@@ -167,7 +166,7 @@ async fn all_nodes_conditional_auto_approves() {
     let def = WorkflowService::create_definition(&pool, 1, "仅大额审批", "purchase_order", None, &nodes, None)
         .await
         .unwrap();
-    let inst = WorkflowService::start_instance(&pool, 1, def.id, "purchase_order", 47, Some(dec!(1000)), 1)
+    let inst = WorkflowService::start_instance(&pool, 1, def.id, "purchase_order", 47, Some(1000.0), 1)
         .await
         .unwrap();
     assert_eq!(inst.status, "approved", "no applicable node → auto-approved");

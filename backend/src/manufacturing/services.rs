@@ -1,6 +1,6 @@
 //! Manufacturing services — BOMs, work orders (step state machine), NCRs.
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::manufacturing_dto::{
     CreateBomRequest, CreateInspectionRequest, CreateNcrRequest, CreateWorkOrderRequest,
@@ -17,7 +17,7 @@ impl ManufacturingService {
     // BOMs
     // -----------------------------------------------------------------------
 
-    pub async fn create_bom(pool: &PgPool, tenant_id: i64, dto: &CreateBomRequest) -> Result<Bom, AppError> {
+    pub async fn create_bom(pool: &SqlitePool, tenant_id: i64, dto: &CreateBomRequest) -> Result<Bom, AppError> {
         if dto.name.trim().is_empty() {
             return Err(AppError::Validation("BOM name is required".into()));
         }
@@ -45,11 +45,11 @@ impl ManufacturingService {
         Ok(bom)
     }
 
-    pub async fn list_boms(pool: &PgPool, tenant_id: i64) -> Result<Vec<Bom>, AppError> {
+    pub async fn list_boms(pool: &SqlitePool, tenant_id: i64) -> Result<Vec<Bom>, AppError> {
         BomRepo::list(pool, tenant_id).await.map_err(AppError::from)
     }
 
-    pub async fn get_bom(pool: &PgPool, tenant_id: i64, id: i64) -> Result<(Bom, Vec<BomItem>), AppError> {
+    pub async fn get_bom(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<(Bom, Vec<BomItem>), AppError> {
         let bom = BomRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("BOM not found: {}", id)))?;
@@ -64,11 +64,11 @@ impl ManufacturingService {
     /// Create a work order; if a BOM is referenced, its items become the
     /// default step sequence (one step per material).
     pub async fn create_work_order(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreateWorkOrderRequest,
     ) -> Result<WorkOrder, AppError> {
-        if dto.quantity <= rust_decimal::Decimal::ZERO {
+        if dto.quantity <= 0.0 {
             return Err(AppError::Validation("Quantity must be positive".into()));
         }
         let wo_no = format!("WO-{}-{}", chrono::Utc::now().format("%Y%m%d"), seq(pool, "mfg_work_orders").await?);
@@ -97,12 +97,12 @@ impl ManufacturingService {
         Ok(wo)
     }
 
-    pub async fn list_work_orders(pool: &PgPool, tenant_id: i64, status: Option<&str>) -> Result<Vec<WorkOrder>, AppError> {
+    pub async fn list_work_orders(pool: &SqlitePool, tenant_id: i64, status: Option<&str>) -> Result<Vec<WorkOrder>, AppError> {
         WorkOrderRepo::list(pool, tenant_id, status).await.map_err(AppError::from)
     }
 
     pub async fn get_work_order(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
     ) -> Result<(WorkOrder, Vec<WorkOrderStep>), AppError> {
@@ -114,7 +114,7 @@ impl ManufacturingService {
     }
 
     /// Start a pending work order → in_progress.
-    pub async fn start_work_order(pool: &PgPool, tenant_id: i64, id: i64) -> Result<WorkOrder, AppError> {
+    pub async fn start_work_order(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<WorkOrder, AppError> {
         let wo = WorkOrderRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Work order not found: {}", id)))?;
@@ -131,7 +131,7 @@ impl ManufacturingService {
 
     /// Complete the current step; advances current_step. When the last step
     /// completes, the work order is marked completed.
-    pub async fn complete_step(pool: &PgPool, tenant_id: i64, id: i64) -> Result<WorkOrder, AppError> {
+    pub async fn complete_step(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<WorkOrder, AppError> {
         let wo = WorkOrderRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Work order not found: {}", id)))?;
@@ -178,7 +178,7 @@ impl ManufacturingService {
     // -----------------------------------------------------------------------
 
     pub async fn create_inspection(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreateInspectionRequest,
         inspector: Option<i64>,
@@ -187,7 +187,7 @@ impl ManufacturingService {
             return Err(AppError::Validation(format!("Invalid inspection result: {}", dto.result)));
         }
         InspectionRepo::create(
-            pool, tenant_id, dto.work_order_id, dto.pipe_id, &dto.inspection_type,
+            pool, tenant_id, dto.work_order_id, dto.item_id, &dto.inspection_type,
             &dto.result, inspector, dto.notes.as_deref(),
         )
         .await
@@ -195,7 +195,7 @@ impl ManufacturingService {
     }
 
     pub async fn list_inspections(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         work_order_id: Option<i64>,
     ) -> Result<Vec<Inspection>, AppError> {
@@ -203,7 +203,7 @@ impl ManufacturingService {
     }
 
     pub async fn create_ncr(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreateNcrRequest,
         created_by: Option<i64>,
@@ -217,19 +217,19 @@ impl ManufacturingService {
         }
         let ncr_no = format!("NCR-{}-{}", chrono::Utc::now().format("%Y%m%d"), seq(pool, "mfg_ncrs").await?);
         NcrRepo::create(
-            pool, tenant_id, &ncr_no, dto.work_order_id, dto.pipe_id,
+            pool, tenant_id, &ncr_no, dto.work_order_id, dto.item_id,
             dto.description.trim(), &severity, created_by,
         )
         .await
         .map_err(AppError::from)
     }
 
-    pub async fn list_ncrs(pool: &PgPool, tenant_id: i64, status: Option<&str>) -> Result<Vec<Ncr>, AppError> {
+    pub async fn list_ncrs(pool: &SqlitePool, tenant_id: i64, status: Option<&str>) -> Result<Vec<Ncr>, AppError> {
         NcrRepo::list(pool, tenant_id, status).await.map_err(AppError::from)
     }
 
     pub async fn resolve_ncr(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         dto: &ResolveNcrRequest,
@@ -244,7 +244,7 @@ impl ManufacturingService {
 }
 
 /// Per-table sequence helper for document numbers.
-async fn seq(pool: &PgPool, table: &str) -> Result<i64, AppError> {
+async fn seq(pool: &SqlitePool, table: &str) -> Result<i64, AppError> {
     let n: i64 = sqlx::query_scalar(&format!("SELECT COALESCE(MAX(id), 0) + 1 FROM {}", table))
         .fetch_one(pool)
         .await

@@ -1,117 +1,122 @@
 -- 005_create_inventory.sql
--- Core inventory tables: inbound/outbound records + items, inventory current state, movement logs.
--- Inbound types: purchase, production, return, transfer.
--- Outbound types: sales, scrapped, transfer.
+-- Core inventory tables: inbound/outbound records + items, inventory change
+-- logs, inventory checks. Itemized for the generic ERP: every reference to
+-- the old pipe_type/pipe_id pair is now a single `item_id` (points to items.id).
+-- Inbound types: purchase, production, return.
+-- Outbound types: sales, transfer, scrapped.
 -- Approval workflow: pending → approved/rejected; auto_approved skips approval.
--- Inventory logs provide per-pipe audit trail for traceability.
+-- Inventory logs provide per-item audit trail for traceability.
 -- No FK constraints — integrity enforced at application layer.
 -- Soft delete via deleted_at column.
+--
+-- SQLite port: BIGSERIAL -> INTEGER PRIMARY KEY AUTOINCREMENT,
+-- TIMESTAMPTZ -> TEXT, NOW() -> datetime('now'), BOOLEAN -> INTEGER (1/0).
 CREATE TABLE IF NOT EXISTS inbound_records (
-    id BIGSERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     inbound_no TEXT NOT NULL UNIQUE,
     inbound_type TEXT NOT NULL CHECK (inbound_type IN ('purchase', 'production', 'return')),
-    order_id BIGINT,
-    supplier_id BIGINT,
+    order_id INTEGER,
+    supplier_id INTEGER,
     notes TEXT,
     approval_status TEXT NOT NULL DEFAULT 'auto_approved' CHECK (approval_status IN ('auto_approved', 'pending', 'approved', 'rejected')),
-    handled_by BIGINT,
-    handled_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at TIMESTAMPTZ
+    handled_by INTEGER,
+    handled_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT
 );
 
-CREATE INDEX idx_inbound_records_inbound_no ON inbound_records(inbound_no);
-CREATE INDEX idx_inbound_records_inbound_type ON inbound_records(inbound_type);
-CREATE INDEX idx_inbound_records_order_id ON inbound_records(order_id);
+CREATE INDEX IF NOT EXISTS idx_inbound_records_inbound_no ON inbound_records(inbound_no);
+CREATE INDEX IF NOT EXISTS idx_inbound_records_inbound_type ON inbound_records(inbound_type);
+CREATE INDEX IF NOT EXISTS idx_inbound_records_order_id ON inbound_records(order_id);
 
--- Inbound items (each pipe)
+-- Inbound items (each line records an item + quantity)
 CREATE TABLE IF NOT EXISTS inbound_items (
-    id BIGSERIAL PRIMARY KEY,
-    inbound_id BIGINT NOT NULL,
-    pipe_type TEXT NOT NULL,
-    pipe_id BIGINT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    inbound_id INTEGER NOT NULL,
+    item_id INTEGER NOT NULL,
+    quantity REAL NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_inbound_items_inbound_id ON inbound_items(inbound_id);
-CREATE INDEX idx_inbound_items_pipe ON inbound_items(pipe_type, pipe_id);
+CREATE INDEX IF NOT EXISTS idx_inbound_items_inbound_id ON inbound_items(inbound_id);
+CREATE INDEX IF NOT EXISTS idx_inbound_items_item ON inbound_items(item_id);
 
 -- Outbound records (header)
 CREATE TABLE IF NOT EXISTS outbound_records (
-    id BIGSERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     outbound_no TEXT NOT NULL UNIQUE,
     outbound_type TEXT NOT NULL CHECK (outbound_type IN ('sales', 'transfer', 'scrapped')),
-    order_id BIGINT,
-    customer_id BIGINT,
+    order_id INTEGER,
+    customer_id INTEGER,
     notes TEXT,
     approval_status TEXT NOT NULL DEFAULT 'auto_approved' CHECK (approval_status IN ('auto_approved', 'pending', 'approved', 'rejected')),
-    handled_by BIGINT,
-    handled_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at TIMESTAMPTZ
+    handled_by INTEGER,
+    handled_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT
 );
 
-CREATE INDEX idx_outbound_records_outbound_no ON outbound_records(outbound_no);
-CREATE INDEX idx_outbound_records_outbound_type ON outbound_records(outbound_type);
-CREATE INDEX idx_outbound_records_order_id ON outbound_records(order_id);
+CREATE INDEX IF NOT EXISTS idx_outbound_records_outbound_no ON outbound_records(outbound_no);
+CREATE INDEX IF NOT EXISTS idx_outbound_records_outbound_type ON outbound_records(outbound_type);
+CREATE INDEX IF NOT EXISTS idx_outbound_records_order_id ON outbound_records(order_id);
 
--- Outbound items (each pipe)
+-- Outbound items (each line records an item + quantity)
 CREATE TABLE IF NOT EXISTS outbound_items (
-    id BIGSERIAL PRIMARY KEY,
-    outbound_id BIGINT NOT NULL,
-    pipe_type TEXT NOT NULL,
-    pipe_id BIGINT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    outbound_id INTEGER NOT NULL,
+    item_id INTEGER NOT NULL,
+    quantity REAL NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_outbound_items_outbound_id ON outbound_items(outbound_id);
-CREATE INDEX idx_outbound_items_pipe ON outbound_items(pipe_type, pipe_id);
+CREATE INDEX IF NOT EXISTS idx_outbound_items_outbound_id ON outbound_items(outbound_id);
+CREATE INDEX IF NOT EXISTS idx_outbound_items_item ON outbound_items(item_id);
 
--- Inventory change logs (per-pipe granularity)
+-- Inventory change logs (item-level granularity)
 CREATE TABLE IF NOT EXISTS inventory_logs (
-    id BIGSERIAL PRIMARY KEY,
-    pipe_type TEXT NOT NULL,
-    pipe_id BIGINT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL,
+    quantity REAL NOT NULL DEFAULT 1,
     change_type TEXT NOT NULL CHECK (change_type IN ('inbound', 'outbound', 'transfer', 'check_adjust')),
     ref_type TEXT,
-    ref_id BIGINT,
-    from_location_id BIGINT,
-    to_location_id BIGINT,
+    ref_id INTEGER,
+    from_location_id INTEGER,
+    to_location_id INTEGER,
     notes TEXT,
-    created_by BIGINT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_inventory_logs_pipe ON inventory_logs(pipe_type, pipe_id);
-CREATE INDEX idx_inventory_logs_created_at ON inventory_logs(created_at);
-CREATE INDEX idx_inventory_logs_change_type ON inventory_logs(change_type);
+CREATE INDEX IF NOT EXISTS idx_inventory_logs_item ON inventory_logs(item_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_logs_created_at ON inventory_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_inventory_logs_change_type ON inventory_logs(change_type);
 
 -- Inventory check records
 CREATE TABLE IF NOT EXISTS inventory_check_records (
-    id BIGSERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     check_no TEXT NOT NULL UNIQUE,
-    location_id BIGINT,
+    location_id INTEGER,
     status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed', 'cancelled')),
     notes TEXT,
-    created_by BIGINT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at TIMESTAMPTZ
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT
 );
 
--- Inventory check items
+-- Inventory check items (quantity-based, generic)
 CREATE TABLE IF NOT EXISTS inventory_check_items (
-    id BIGSERIAL PRIMARY KEY,
-    check_id BIGINT NOT NULL,
-    pipe_type TEXT NOT NULL,
-    pipe_id BIGINT NOT NULL,
-    expected_status TEXT NOT NULL,
-    found_status TEXT,
-    is_match BOOLEAN,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    check_id INTEGER NOT NULL,
+    item_id INTEGER NOT NULL,
+    expected_quantity REAL,
+    found_quantity REAL,
+    is_match INTEGER,
     notes TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_inventory_check_items_check_id ON inventory_check_items(check_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_check_items_check_id ON inventory_check_items(check_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_check_items_item ON inventory_check_items(item_id);

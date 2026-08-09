@@ -1,69 +1,20 @@
-# 009 — 管道螺纹 & 工程分析 (Phase 3)
+# 009 — 已删除模块归档说明
 
-> **版本**: v1.0
-> **日期**: 2026-08-02
-> **依赖**: 008-manufacturing (螺纹制造), 007-inventory-atp
-> **状态**: Draft
+> **版本**: ~~v1.0~~ → 归档
+> **日期**: 2026-08-02 → 2026-08-08（归档）
+> **状态**: **Archived — 模块已删除**
 
----
+## 归档说明
 
-## 1. 目标
+**模块已删除 — 由通用商品/SKU 与制造质检取代。**
 
-深化 API 5CT 钢管的螺纹管理（几何参数计算、扭矩、连接强度分析）及管柱设计。
+历史沿革：本系统由钢管行业系统重构而来，原「管道螺纹 & 工程分析」设计（几何参数计算、扭矩、连接强度、管柱设计）随螺纹加工模块一并移除。
 
-## 2. 功能范围
+原设计内容不再实施，原因：
 
-| 功能 | 说明 |
-|------|------|
-| 螺纹几何分析 | 根据 API 5CT 标准计算螺纹长、颈端、攻陷余量 |
-| 扭矩计算 | 接头拧紧扭矩、外拧力估算 |
-| 螺纹制造记录 | 每个管段螺纹制造参数记录 (de-coded) |
-| 管柱设计 | 井壁设计方案 (casing string design) + safety factor analysis |
-| 连接强度校核 | Grade、tension、collapse、internal yield joint strength |
+1. **原模块整体删除** — 该能力是钢管行业专属，通用 ERP 不再需要。
+2. **管柱设计（Casing Design）属油气井工程范畴** — 超出通用企业资源计划系统的业务范围。
+3. **质量能力由「制造质检 (Inspection)」承接** — 制造模块的质检（Inspection）与不合格品单（NCR）覆盖一般制造过程的质量检验需求，详见 `008-manufacturing.md`。
+4. **对象统一为商品 (Item) + SKU** — 原 `pipe_id` 等管材专属引用全部由 `items.id` 取代，见 `016-data-schema.md`。
 
-## 3. 数据模型
-
-```sql
--- Threading records (关联 product)
-CREATE TABLE manufacturing.threading_records (
-    id BIGSERIAL PRIMARY KEY,
-    pipe_id BIGINT,         -- link to pipe
-    thread_type VARCHAR(50),    -- Round, Buttress, XSS, etc.
-    api_spec VARCHAR(10),       -- 5CT, 7
-    thread_integrity_test VARCHAR(20),
-    measured_parameters JSONB   -- {lead_error, taper, thread_height, standoff, etc.}
-);
-
--- Coupler/connection geometry (pre-calculated)
-CREATE TABLE manufacturing.thread_geometry_cache (
-    id BIGSERIAL PRIMARY KEY,
-    pipe_id BIGINT, coupling_id BIGINT,
-    connection_efficiency NUMERIC(8,4),  -- % of pipe yield strength
-    torque_optimum NUMERIC(12,3) N,      -- 最优安装扭矩 (N·m)
-    torque_max NUMERIC(12,3) R,
-    bore_drift NUMERIC(10,4)             -- 漂通直径
-);
-
--- 管柱设计 (Casing Design)
-CREATE TABLЕ manufacturing.casing_designs (
-    id BIGSERIAL PRIMARY KEY,
-    well_name VARCHAR(200),
-    well_depth_m NUMERIC(12,2),   - 深度 (m)
-    casing_assembly JSONB         -- [{grade: 'P110', od: 244.5, ..., md: 1200, td: 3600}]
-);
-```
-
-## 4. API
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/threading/ calc` | 螺纹计划算器 (输入参数 -> 计算结果) |
-| POST | `/api/threading/record` | 记录螺纹加工数据 |
-| GET | `/api/casing/ design/check` | 核住柱设计的安全因子 (sliding scale) |
-| GET | `/api/casing/ design/calc-joint-strength` | joint strength calculations |
-
-## 5. 前端
-
-- `features/manufacturing/pages/ThreadingCalcPage.tsx` → 螺纹参数计算器
-- `features/manufacturing/pages/CasingDesignPage.tsx` → 管柱设计
-- `features/manufacturing/pages/ThreadingRecordPage.tsx` → 加工记录查看
+如需追溯原设计，请查看 Git 历史中本文件删除前的内容。

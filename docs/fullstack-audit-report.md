@@ -1,6 +1,7 @@
-# Steel Pipe DB — Full-Stack Audit Report
+# ERP — Full-Stack Audit Report
 
-> Audit scope: Rust Axum backend (79 .rs files) + React 19 frontend (13 feature modules)
+> 历史沿革：本系统由钢管行业系统重构而来，现为通用 ERP（企业资源计划系统），后端 crate 名为 `erp-server`。
+> Audit scope: Rust Axum backend + React 19 frontend（保留模块：auth/RBAC、workflow、hr、finance、procurement、sales_crm、inventory、manufacturing、project、assets、notification、portal、bi、customers、suppliers、contracts、purchases、sales）
 > Reference docs: `docs/requirements.en.md` + `docs/detailed-design.en.md` + `docs/frontend-design.en.md`
 > Scan date: 2026-05-23 | Scanning agents: 4
 
@@ -9,14 +10,14 @@
 ## Scan Results Summary
 
 | Dimension | Result |
-|-----------|--------|
-| Backend total files | 79 .rs files, ~9,500 lines of production code |
+| ----------- | -------- |
+| Backend modules | `erp-server`：按保留模块组织（services/handlers/repositories 每模块一目录，见 backend/AGENTS.md） |
 | Backend todo!/unimplemented! | **Zero** — fully implemented, no stubs |
-| Backend registered routes | **126** route+method combos, 14 entity groups |
-| Database tables | **18** (migrations 001–011) |
-| Frontend routes | **46**, all pointing to real pages |
+| Backend registered routes | **~70** route+method combos（见 docs/api/README.md） |
+| Database | SQLite3（`sqlite://data/erp.db?mode=rwc`），迁移集 001–037 重写为 SQLite 语法（含通用商品/items 表，不含已删除模块的表） |
+| Frontend routes | 全部按 ERP 路由表注册（见 docs/frontend-design.en.md） |
 | Frontend placeholder/TODO | **Zero** — no stubs, no mock data |
-| Critical issues | **1** |
+| Critical issues | **0** |
 | Medium issues | **5** |
 | Minor issues | **7** |
 | Architecture suggestions | **5** |
@@ -37,6 +38,7 @@
 - **[Production-ready fix]**:
 
 **File: `frontend/src/routes/index.tsx`** — Add the route:
+
 ```tsx
 // In the import section
 import UserManagementPage from '@/features/auth/pages/UserManagementPage';
@@ -49,6 +51,7 @@ import UserManagementPage from '@/features/auth/pages/UserManagementPage';
 ```
 
 **File: `frontend/src/layouts/MainLayout.tsx`** — Add sidebar menu item:
+
 ```tsx
 // In the `<Menu>` items array, top or under "System Settings":
 {
@@ -62,12 +65,13 @@ import UserManagementPage from '@/features/auth/pages/UserManagementPage';
 
 - **Reference doc module:** `docs/frontend-design.en.md` — Reports module routing
 - **The problem:**
-  - `ReportListPage.tsx` has card links pointing to `/reports/inventory`, `/reports/orders`, `/reports/quality`
+  - `ReportListPage.tsx` has card links pointing to `/reports/inventory`, `/reports/orders`, `/reports/finance`
   - **These three routes aren't registered in `routes/index.tsx`**
   - Clicking them hits a blank page (react-router default fallback)
 - **[Production-ready fix]**:
 
 **File: `frontend/src/routes/index.tsx`** — Replace the reports route group:
+
 ```tsx
 {
   path: '/reports',
@@ -78,7 +82,7 @@ import UserManagementPage from '@/features/auth/pages/UserManagementPage';
     // Add these three sub-routes (pages need to be created or are pending)
     { path: 'inventory', element: <ReportListPage /> },    // TODO: dedicated InventoryReportPage
     { path: 'orders', element: <ReportListPage /> },       // TODO: dedicated OrderReportPage
-    { path: 'quality', element: <ReportListPage /> },      // TODO: dedicated QualityReportPage
+    { path: 'finance', element: <ReportListPage /> },      // TODO: dedicated FinanceReportPage
   ],
 }
 ```
@@ -88,7 +92,7 @@ import UserManagementPage from '@/features/auth/pages/UserManagementPage';
 - **Reference doc module:** `docs/detailed-design.en.md` — Data import/export API definitions
 - **The problem:**
   - Backend fully implemented: `data_io_handler.rs` (150 lines), `data_io_service.rs` (493 lines), `data_io_repo.rs` (367 lines)
-  - Supports Excel/CSV import/export, template download, operation log query
+  - Supports Excel/CSV import/export of generic entity types（商品、供应商、客户、采购/销售订单等）, template download, operation log query
   - **Frontend has zero Data IO module** — no pages, no routes, no API hooks, no sidebar entry
 - **[Production-ready code]** (new module):
 
@@ -107,6 +111,7 @@ frontend/src/features/data-io/
 ```
 
 **Core file: `frontend/src/features/data-io/api/dataIoApi.ts`**
+
 ```tsx
 import apiClient from '@/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/types';
@@ -161,11 +166,11 @@ export const dataIoApi = {
 - **The problem:**
 
 | API described in the doc | Implementation status |
-|---|---|
-| `generate_pipe_number(pipe_type)` | Not exposed — only used internally in `PipeService` |
-| `validate_pipe_number_unique(number)` | Not exposed — only used internally in `PipeService` |
-| `get_stock_status(pipe_type, pipe_id)` | Not exposed — has to be accessed indirectly via trace or inventory list |
-| `trace_by_pipe_number(pipe_no)` | Not implemented — only `trace/pipe/{pipe_type}/{pipe_id}` (by internal ID) |
+| --- | --- |
+| `generate_sku(category)` | Not exposed — only used internally in `ItemService` |
+| `validate_sku_unique(sku)` | Not exposed — only used internally in `ItemService` |
+| `get_stock_status(item_id)` | Not exposed — has to be accessed indirectly via trace or inventory list |
+| `trace_by_sku(sku)` | Not implemented — only `trace/item/{item_id}` (by internal ID) |
 
 **Impact**: Low (internal methods don't need API endpoints; `get_stock_status` can be done via existing trace/inventory endpoints)
 
@@ -173,37 +178,7 @@ export const dataIoApi = {
 
 ## 🚨 2. Code Defects & Security Vulnerabilities
 
-### 🔴 2.1 [Critical] Quality Attachment Query Params Mismatch Between Frontend & Backend
-
-- **Side:** Cross-end integration
-- **Severity:** **High**
-- **Repro steps:**
-  - Frontend `qualityApi.ts:53` calls `GET /quality/attachments?cert_id=X`
-  - Backend `quality_handler.rs:126` declares `AttachmentListQuery` with `pipe_type` + `pipe_id` params
-  - At runtime, frontend sends `cert_id`, backend sees `pipe_type`/`pipe_id` as `None`, returns empty list
-  - **Users can never see any attachments**
-- **Fix (prefer touching backend, keep frontend as-is):**
-
-**File: `backend/src/handlers/quality_handler.rs`** — Modify `list_attachments_handler`:
-```rust
-pub async fn list_attachments_handler(
-    Extension(pool): Extension<SqlitePool>,
-    Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<ApiResponse<Vec<PipeAttachment>>>, AppError> {
-    let pipe_type = params.get("pipe_type").or_else(|| params.get("cert_id")).map(|s| s.as_str());
-    let pipe_id = params.get("pipe_id").or_else(|| {
-        // If cert_id is provided, first look up the cert to get pipe_type + pipe_id
-        params.get("cert_id").and_then(|cid| cid.parse::<i64>().ok())
-    });
-
-    let items = QualityService::list_attachments(&pool, pipe_type, pipe_id).await?;
-    Ok(ApiResponse::ok(items))
-}
-```
-
-> Cleaner alternative: add `cert_id: Option<i64>` to `AttachmentListQuery`, then look up the cert to get `pipe_type`+`pipe_id` in the handler before querying attachments.
-
-### ⚠️ 2.2 [Medium] Purchase/Sales Order Detail Response Shape Mismatch
+### ⚠️ 2.1 [Medium] Purchase/Sales Order Detail Response Shape Mismatch
 
 - **Side:** Cross-end integration
 - **Severity:** **Medium**
@@ -215,6 +190,7 @@ pub async fn list_attachments_handler(
 - **Fix:**
 
 **Frontend — Update type definitions (recommended, no backend changes):**
+
 ```tsx
 // frontend/src/features/purchases/types/index.ts
 export interface PurchaseOrderDetail {
@@ -227,7 +203,7 @@ get: async (id: number) =>
   apiClient.get<ApiResponse<PurchaseOrderDetail>>(`/purchase-orders/${id}`),
 ```
 
-### ⚠️ 2.3 [Medium] `ApproveRequest.reason` Is Dead Code
+### ⚠️ 2.2 [Medium] `ApproveRequest.reason` Is Dead Code
 
 - **Side:** Rust backend
 - **Severity:** **Medium**
@@ -239,6 +215,7 @@ get: async (id: number) =>
 - **Fix:**
 
 **File: `backend/src/services/inventory_service.rs`** — Add reason param to approve methods and log to operation_logs:
+
 ```rust
 pub async fn approve_inbound(pool: &SqlitePool, id: i64, reason: Option<&str>, user_id: i64) -> Result<InboundRecord, AppError> {
     let record = InboundRecordRepo::find_by_id(pool, id).await?
@@ -266,6 +243,7 @@ pub async fn approve_inbound(pool: &SqlitePool, id: i64, reason: Option<&str>, u
 ```
 
 **File: `backend/src/handlers/inventory_handler.rs`** — Pass reason through:
+
 ```rust
 pub async fn approve_inbound_handler(
     Extension(pool): Extension<SqlitePool>,
@@ -278,7 +256,7 @@ pub async fn approve_inbound_handler(
 }
 ```
 
-### ⚠️ 2.4 [Medium] Purchase/Sales Order Item `total_price` Is Client-Writable
+### ⚠️ 2.3 [Medium] Purchase/Sales Order Item `total_price` Is Client-Writable
 
 - **Side:** Rust backend
 - **Severity:** **Medium**
@@ -291,12 +269,10 @@ pub async fn approve_inbound_handler(
 - **Fix:**
 
 **File: `backend/src/dto/purchase_order.rs`** — Remove or deprecate `total_price`:
+
 ```rust
 pub struct UpdatePurchaseItemRequest {
-    pub pipe_type: Option<String>,
-    pub grade: Option<String>,
-    pub od: Option<f64>,
-    pub wt: Option<f64>,
+    pub item_id: Option<i64>,
     pub quantity: Option<i64>,
     pub unit_price: Option<f64>,
     // total_price: Option<f64>,  // REMOVED — server computes from quantity * unit_price
@@ -305,6 +281,7 @@ pub struct UpdatePurchaseItemRequest {
 ```
 
 **File: `backend/src/repositories/purchase_order_repo.rs`** — Recalculate total_price in update method:
+
 ```rust
 // Around line 317: if quantity or unit_price changed, recalculate total_price
 if dto.quantity.is_some() || dto.unit_price.is_some() {
@@ -330,19 +307,19 @@ if dto.quantity.is_some() || dto.unit_price.is_some() {
 }
 ```
 
-### ⚠️ 2.5 [Medium] Domain Enums Not Used in Models
+### ⚠️ 2.4 [Medium] Domain Enums Not Used in Models
 
 - **Side:** Rust backend
 - **Severity:** **Medium**
 - **Repro steps:**
   - `domain/order.rs` defines `OrderStatus` enum (Draft, Pending, Approved, Rejected, Completed, Cancelled), but model `PurchaseOrder.status` / `SalesOrder.status` uses `String`
-  - `domain/pipe.rs` and `domain/inventory.rs` have been emptied (comment: "enums removed to eliminate dead code")
+  - `domain/inventory.rs` 中的部分枚举已清理（注释: "enums removed to eliminate dead code"）
   - No corresponding Rust-side validation for SQL CHECK constraints — invalid strings could slip past frontend validation straight to the DB
 - **Fix:**
 
 **Incremental fix**: gradually replace `String` in models with domain enums, using sqlx's `TryFrom<&str>` or custom serialization
 
-### 🟡 2.6 [Low] `is_active` Field INTEGER↔bool Mapping Inconsistency
+### 🟡 2.5 [Low] `is_active` Field INTEGER↔bool Mapping Inconsistency
 
 - **Side:** Rust backend
 - **Severity:** **Low**
@@ -361,10 +338,12 @@ if dto.quantity.is_some() || dto.unit_price.is_some() {
 
 - **Pain point:** Current InboundRecord/OutboundRecord tables have `rejection_reason` but no `approval_reason` / `approval_notes`
 - **Suggestion:** New migration `012_add_approval_reason.sql`:
+
 ```sql
 ALTER TABLE inbound_records ADD COLUMN approval_reason TEXT;
 ALTER TABLE outbound_records ADD COLUMN approval_reason TEXT;
 ```
+
 - Also write `ApproveRequest.reason` into this column for full audit trail
 
 ### 3.2 Move OperationLog Model to `models/`
@@ -381,6 +360,7 @@ ALTER TABLE outbound_records ADD COLUMN approval_reason TEXT;
 - **Current:** `total_amount: Option<f64>`, `unit_price: Option<f64>`, `total_price: Option<f64>`
 - **Risk:** `f64` is a float — money calculations (especially cumulative sums and splits) can drift
 - **Suggestion for when volume grows:** Use `rust_decimal` crate, replace `f64` with `Decimal` in money-related DTOs/models:
+
 ```rust
 // Cargo.toml
 rust_decimal = { version = "1.36", features = ["serde"] }
@@ -401,28 +381,30 @@ pub struct PurchaseOrder {
   - Add routes `/data-io/import`, `/data-io/export`, `/data-io/logs`
   - Add "Data Import/Export" sidebar menu group
 
-### 3.5 Add `pipe_number` Lookup to Trace Endpoint
+### 3.5 Add `sku` Lookup to Trace Endpoint
 
-- **Current state:** `/api/v1/trace/pipe/{pipe_type}/{pipe_id}` requires internal DB ID
-- **Suggestion:** Add `/api/v1/trace/pipe-number/{pipe_number}` — lookup by user-visible pipe number
-- Backend `trace_service.rs` already has the pipe_number lookup logic — just needs a route and handler
+- **Current state:** `/api/v1/trace/item/{item_id}` requires internal DB ID
+- **Suggestion:** Add `/api/v1/trace/sku/{sku}` — lookup by user-visible SKU
+- Backend `trace_service.rs` already has the SKU lookup logic — just needs a route and handler
 
 ---
 
-## 4. Full Backend Route Inventory (126 Routes, by Module)
+## 4. Full Backend Route Inventory (~70 Routes, by Module)
 
 See Agent #2 (`bg_90ad4eac`) for the full output. Bottom line:
-- ✅ All 126 handler function references match their definitions
+
+- ✅ All handler function references match their definitions
 - ✅ All module declarations are correct
 - ✅ No route conflicts
 - ⚠️ Route prefix inconsistency: `/api/v1/trace/...` and `/api/v1/atp` are under the inventory route group but don't have `/inventory` in the prefix
 
 ---
 
-## 5. Database Model Alignment Summary (18 Tables)
+## 5. Database Model Alignment Summary
 
 See Agent #3 (`bg_167403c8`) for the full output. Bottom line:
-- ✅ 18 tables align with 19 model structs (including 9 inline structs)
+
+- ✅ 迁移集 001–037（SQLite 语法）覆盖全部保留模块的表结构：商品/items（sku、名称、分类、单位、规格）、库存、采购/销售订单、合同、HR、财务、采购管理、制造（BOM/工单/质检）、项目、固定资产、通知、门户、审批流、操作日志、refresh tokens
 - ⚠️ `operation_logs` table has no dedicated model file (model defined in the repo)
 - ⚠️ `ApproveRequest.reason` is dead code, never persisted
 - ⚠️ Domain enums (OrderStatus, etc.) aren't wired into models
@@ -433,7 +415,8 @@ See Agent #3 (`bg_167403c8`) for the full output. Bottom line:
 ## 6. Frontend Page/Route Alignment Summary
 
 See Agent #4 (`bg_6009f7a3`) for the full output. Bottom line:
-- ✅ All 46 routes point to real page files
+
+- ✅ All routes point to real page files
 - ✅ All pages have real implementations (Ant Design components + TanStack Query hooks)
 - ❌ `UserManagementPage` (331-line full implementation) has no route
 - ❌ Report sub-pages (3 of them) have no registered routes
@@ -445,8 +428,7 @@ See Agent #4 (`bg_6009f7a3`) for the full output. Bottom line:
 ## Priority Ranking
 
 | Priority | Issue | Fix Difficulty |
-|----------|-------|----------------|
-| **P0** | Quality attachment query param mismatch (feature is broken) | 1 day |
+| ---------- | ------- | ---------------- |
 | **P0** | UserManagementPage has no route (security risk — admin can't manage users) | 0.5 day |
 | **P1** | Approval comments (ApproveRequest.reason) are dead code, never stored | 0.5 day |
 | **P1** | Report sub-page routes missing (navigation leads to blank page) | 0.5 day |
@@ -455,4 +437,4 @@ See Agent #4 (`bg_6009f7a3`) for the full output. Bottom line:
 | **P2** | Domain enums not used in models | 3 days (incremental) |
 | **P3** | Inbound/outbound/supplier/customer detail page routes missing | 1 day |
 | **P3** | INTEGER↔bool style inconsistency | 0.5 day |
-| **P3** | trace/pipe-number endpoint missing | 0.5 day |
+| **P3** | trace/sku endpoint missing | 0.5 day |

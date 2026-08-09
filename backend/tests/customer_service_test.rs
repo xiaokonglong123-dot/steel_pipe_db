@@ -5,11 +5,11 @@
 
 mod common;
 
-use steel_pipe_db::dto::common::PaginationParams;
-use steel_pipe_db::dto::customer_dto::{
+use erp_server::dto::common::PaginationParams;
+use erp_server::dto::customer_dto::{
     CreateCustomerRequest, CustomerFilterParams, UpdateCustomerRequest,
 };
-use steel_pipe_db::services::customer_service::CustomerService;
+use erp_server::services::customer_service::CustomerService;
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 /// Create

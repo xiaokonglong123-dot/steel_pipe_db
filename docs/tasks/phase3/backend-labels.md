@@ -1,29 +1,12 @@
-# Phase 3 — Backend: Label Printing Module (P2)
+# Phase 3 — Backend: Label Printing Module (P2) — **ARCHIVED**
 
-> Based on: `docs/requirements.en.md` §3.8, `docs/detailed-design.en.md` §10.3
+> **状态：模块已删除** — 通用商品/SKU 不再内置标签打印；按需由业务侧自行扩展。
+> 历史沿革：本系统由钢管行业系统重构而来，本任务文档对应的标签打印模块在 ERP 重构中已下线。
 
-## Task List
+## 删除说明
 
-### 1.1 Label Template Management
-- [ ] Create `label_templates` table migration (template name, content config)
-- [ ] Implement `GET /api/v1/label-templates` — Template list
-- [ ] Implement `POST /api/v1/label-templates` — Create template
-- [ ] Implement `PUT /api/v1/label-templates/{id}` — Update template
-- [ ] Implement `DELETE /api/v1/label-templates/{id}` — Delete template
-- [ ] Each template stores: label width/height, font size, field positions (JSON config)
-
-### 1.2 Label Generation & Printing
-- [ ] Implement `POST /api/v1/labels/generate`:
-  - Request: template ID + list of pipe numbers
-  - Validate pipes exist + template exists
-  - Returns: generated label PDF (A4 layout, multi-label grid)
-- [ ] Use PDF library (`printpdf`) to generate labels with barcodes or QR codes
-- [ ] Differentiate output for bare pipe / finished pipe / coupling
-- [ ] Label content: pipe number, grade, spec, length, weight, production date, heat/lot number
-- [ ] `GET /api/v1/labels/print-history` — Print history records
-
-### 1.3 Barcodes / QR Codes
-- [ ] Generate QR code: encodes pipe number URL (points to detail page)
-- [ ] Generate Code 128 barcode from pipe number (use `barcoder` crate or hand-roll it)
-
-> **Dependencies**: Pipe management module (references pipe data)
+- 旧标签模板表已删除；通用 ERP 不内置模板管理。
+- 旧标签生成与打印服务（`POST /api/v1/labels/generate`、`GET /api/v1/labels/print-history`）已下线。
+- 旧 `printpdf` / `barcoder` 依赖从 `Cargo.toml` 移除；条码/二维码生成需求不再绑定商品主数据。
+- 通用商品/SKU 的条码/二维码若业务侧需要，应在 `inventory_atp` 或 `manufacturing` 扩展点中按需实现，不作为平台级强制能力。
+- 详见 `specs/UBIQUITOUS_LANGUAGE_LATEST.md` 术语表。

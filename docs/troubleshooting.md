@@ -11,16 +11,18 @@
 **解决方案：**
 
 1. **确认 WAL 模式已启用**（默认已启用，可检查数据库）：
+
    ```bash
-   sqlite3 data/steel_pipe.db "PRAGMA journal_mode;"
+   sqlite3 data/erp.db "PRAGMA journal_mode;"
    # 应输出 "wal"，而非 "delete"
    ```
 
 2. **减少并发写入**：如果业务允许，串行化写入操作。
 
 3. **增加 busy_timeout**：在 `DATABASE_URL` 中添加参数：
+
    ```
-   DATABASE_URL=sqlite://./data/steel_pipe.db?mode=rwc&busy_timeout=5000
+   DATABASE_URL=sqlite://data/erp.db?mode=rwc&busy_timeout=5000
    ```
 
 4. **检查是否有长时间运行的事务**：确保没有未提交的事务占用锁。
@@ -36,6 +38,7 @@
 **解决方案：**
 
 1. **调整过期时间**：在 `.env` 中修改 `JWT_EXPIRY_HOURS`：
+
    ```
    JWT_EXPIRY_HOURS=72    # 3 天
    ```
@@ -59,15 +62,17 @@
 1. **查看具体错误**：启动时日志会显示哪个迁移失败。
 
 2. **检查迁移状态**：
+
    ```bash
-   sqlite3 data/steel_pipe.db "SELECT * FROM _sqlx_migrations ORDER BY version;"
+   sqlite3 data/erp.db "SELECT * FROM _sqlx_migrations ORDER BY version;"
    ```
 
 3. **从备份恢复**：如果有备份，恢复数据库文件后重启服务。
 
 4. **重新初始化**（⚠️ 会丢失所有数据）：
+
    ```bash
-   rm data/steel_pipe.db
+   rm data/erp.db
    cargo run    # 自动重新运行所有迁移
    ```
 
@@ -80,6 +85,7 @@
 **解决方案：**
 
 1. **查找占用进程**：
+
    ```bash
    lsof -i :3000
    # 或
@@ -87,11 +93,13 @@
    ```
 
 2. **更换端口**：在 `.env` 中修改 `SERVER_PORT`：
+
    ```
    SERVER_PORT=3001
    ```
 
 3. **终止占用进程**：
+
    ```bash
    kill <PID>
    ```
@@ -109,11 +117,13 @@
 **解决方案：**
 
 1. **确认后端已启动**：
+
    ```bash
    curl http://localhost:3000/api/v1/auth/login
    ```
 
 2. **检查 Vite 代理配置**（`frontend/vite.config.ts`）：
+
    ```typescript
    server: {
      proxy: {
@@ -142,6 +152,7 @@
 1. **开发环境**：确保通过 `http://localhost:5173` 访问（非 `127.0.0.1` 或其他地址）。
 
 2. **生产环境**：在 `router.rs` 的 `CorsLayer` 中添加实际域名：
+
    ```rust
    .allow_origin([
        "http://localhost:5173".parse::<HeaderValue>().unwrap(),
@@ -160,6 +171,7 @@
 **原因：** SPA 路由需要服务器端配置回退到 `index.html`。
 
 **解决方案：** 在 Nginx 配置中添加：
+
 ```nginx
 location / {
     try_files $uri $uri/ /index.html;
@@ -192,20 +204,22 @@ location / {
 
 ### 数据库文件过大
 
-**症状：** `steel_pipe.db` 文件持续增长，即使删除了数据。
+**症状：** `erp.db` 文件持续增长，即使删除了数据。
 
 **原因：** SQLite 的软删除（`deleted_at`）和 WAL 模式不会自动回收空间。
 
 **解决方案：**
 
 1. **VACUUM 压缩**（需要停服）：
+
    ```bash
-   sqlite3 data/steel_pipe.db "VACUUM;"
+   sqlite3 data/erp.db "VACUUM;"
    ```
 
 2. **清理 WAL 文件**：
+
    ```bash
-   sqlite3 data/steel_pipe.db "PRAGMA wal_checkpoint(TRUNCATE);"
+   sqlite3 data/erp.db "PRAGMA wal_checkpoint(TRUNCATE);"
    ```
 
 3. **定期维护**：建议每月执行一次 VACUUM。
@@ -219,18 +233,21 @@ location / {
 **解决方案：**
 
 1. **确认索引存在**：
+
    ```bash
-   sqlite3 data/steel_pipe.db ".indices"
+   sqlite3 data/erp.db ".indices"
    ```
 
 2. **查看查询计划**：
+
    ```bash
-   sqlite3 data/steel_pipe.db "EXPLAIN QUERY PLAN SELECT * FROM seamless_pipes WHERE status = 'in_stock';"
+   sqlite3 data/erp.db "EXPLAIN QUERY PLAN SELECT * FROM items WHERE sku = 'ITEM-0001';"
    ```
 
 3. **运行 ANALYZE**（更新统计信息，帮助查询优化器）：
+
    ```bash
-   sqlite3 data/steel_pipe.db "ANALYZE;"
+   sqlite3 data/erp.db "ANALYZE;"
    ```
 
 4. **检查是否遗漏了 `deleted_at IS NULL`**：所有查询都应排除软删除记录。
@@ -244,19 +261,19 @@ location / {
 curl -s http://localhost:3000/api/v1/auth/login | head
 
 # 查看数据库表列表
-sqlite3 data/steel_pipe.db ".tables"
+sqlite3 data/erp.db ".tables"
 
 # 查看数据库大小
-ls -lh data/steel_pipe.db
+ls -lh data/erp.db
 
 # 查看活跃连接
-sqlite3 data/steel_pipe.db "PRAGMA database_list;"
+sqlite3 data/erp.db "PRAGMA database_list;"
 
 # 查看 WAL 状态
-sqlite3 data/steel_pipe.db "PRAGMA wal_checkpoint;"
+sqlite3 data/erp.db "PRAGMA wal_checkpoint;"
 
 # 查看后端日志（设置 RUST_LOG 环境变量）
 RUST_LOG=debug cargo run    # 详细日志
 RUST_LOG=sqlx=warn cargo run  # 仅 SQL 警告
-RUST_LOG=steel_pipe_db=info cargo run  # 仅应用信息
+RUST_LOG=erp_server=info cargo run  # 仅应用信息
 ```

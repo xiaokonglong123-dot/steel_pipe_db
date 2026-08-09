@@ -1,6 +1,6 @@
 //! Finance repositories — pure SQL, static methods.
 
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{Sqlite, SqlitePool, Transaction};
 use crate::models::finance::{
     Account, FinanceInvoice, FinanceInvoiceItem, FinancePayment, JournalEntry, JournalEntryDetail,
     TrialBalanceRow,
@@ -9,22 +9,22 @@ use crate::models::finance::{
 pub struct AccountRepo;
 
 impl AccountRepo {
-    pub async fn list(pool: &PgPool, tenant_id: i64) -> Result<Vec<Account>, sqlx::Error> {
+    pub async fn list(pool: &SqlitePool, tenant_id: i64) -> Result<Vec<Account>, sqlx::Error> {
         sqlx::query_as::<_, Account>(
             "SELECT id, tenant_id, code, name, account_type, parent_id, is_active, \
                     created_at, updated_at, deleted_at \
-             FROM chart_of_accounts WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY code",
+             FROM chart_of_accounts WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY code",
         )
         .bind(tenant_id)
         .fetch_all(pool)
         .await
     }
 
-    pub async fn find_by_code(pool: &PgPool, tenant_id: i64, code: &str) -> Result<Option<Account>, sqlx::Error> {
+    pub async fn find_by_code(pool: &SqlitePool, tenant_id: i64, code: &str) -> Result<Option<Account>, sqlx::Error> {
         sqlx::query_as::<_, Account>(
             "SELECT id, tenant_id, code, name, account_type, parent_id, is_active, \
                     created_at, updated_at, deleted_at \
-             FROM chart_of_accounts WHERE tenant_id = $1 AND code = $2 AND deleted_at IS NULL",
+             FROM chart_of_accounts WHERE tenant_id = ? AND code = ? AND deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(code)
@@ -32,11 +32,11 @@ impl AccountRepo {
         .await
     }
 
-    pub async fn find_by_id(pool: &PgPool, tenant_id: i64, id: i64) -> Result<Option<Account>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<Option<Account>, sqlx::Error> {
         sqlx::query_as::<_, Account>(
             "SELECT id, tenant_id, code, name, account_type, parent_id, is_active, \
                     created_at, updated_at, deleted_at \
-             FROM chart_of_accounts WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
+             FROM chart_of_accounts WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(id)
@@ -45,7 +45,7 @@ impl AccountRepo {
     }
 
     pub async fn create(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         code: &str,
         name: &str,
@@ -54,7 +54,7 @@ impl AccountRepo {
     ) -> Result<Account, sqlx::Error> {
         sqlx::query_as::<_, Account>(
             "INSERT INTO chart_of_accounts (tenant_id, code, name, account_type, parent_id) \
-             VALUES ($1, $2, $3, $4, $5) \
+             VALUES (?, ?, ?, ?, ?) \
              RETURNING id, tenant_id, code, name, account_type, parent_id, is_active, \
                        created_at, updated_at, deleted_at",
         )
@@ -68,23 +68,23 @@ impl AccountRepo {
     }
 
     pub async fn update(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         name: Option<&str>,
         is_active: Option<bool>,
     ) -> Result<Option<Account>, sqlx::Error> {
         sqlx::query_as::<_, Account>(
-            "UPDATE chart_of_accounts SET name = COALESCE($3, name), \
-                    is_active = COALESCE($4, is_active), updated_at = NOW() \
-             WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL \
+            "UPDATE chart_of_accounts SET name = COALESCE(?, name), \
+                    is_active = COALESCE(?, is_active), updated_at = datetime('now') \
+             WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL \
              RETURNING id, tenant_id, code, name, account_type, parent_id, is_active, \
                        created_at, updated_at, deleted_at",
         )
-        .bind(tenant_id)
-        .bind(id)
         .bind(name)
         .bind(is_active)
+        .bind(tenant_id)
+        .bind(id)
         .fetch_optional(pool)
         .await
     }
@@ -94,7 +94,7 @@ pub struct JournalEntryRepo;
 
 impl JournalEntryRepo {
     pub async fn create(
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'_, Sqlite>,
         tenant_id: i64,
         entry_no: &str,
         entry_date: chrono::NaiveDate,
@@ -103,7 +103,7 @@ impl JournalEntryRepo {
     ) -> Result<JournalEntry, sqlx::Error> {
         sqlx::query_as::<_, JournalEntry>(
             "INSERT INTO journal_entries (tenant_id, entry_no, entry_date, description, created_by) \
-             VALUES ($1, $2, $3, $4, $5) \
+             VALUES (?, ?, ?, ?, ?) \
              RETURNING id, tenant_id, entry_no, entry_date, description, status, currency, \
                        created_by, created_at, posted_at",
         )
@@ -117,16 +117,16 @@ impl JournalEntryRepo {
     }
 
     pub async fn insert_detail(
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'_, Sqlite>,
         entry_id: i64,
         account_id: i64,
-        debit: rust_decimal::Decimal,
-        credit: rust_decimal::Decimal,
+        debit: f64,
+        credit: f64,
         description: Option<&str>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             "INSERT INTO journal_entry_details (entry_id, account_id, debit, credit, description) \
-             VALUES ($1, $2, $3, $4, $5)",
+             VALUES (?, ?, ?, ?, ?)",
         )
         .bind(entry_id)
         .bind(account_id)
@@ -138,8 +138,8 @@ impl JournalEntryRepo {
         Ok(())
     }
 
-    pub async fn post(tx: &mut Transaction<'_, Postgres>, entry_id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query("UPDATE journal_entries SET status = 'posted', posted_at = NOW() WHERE id = $1")
+    pub async fn post(tx: &mut Transaction<'_, Sqlite>, entry_id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE journal_entries SET status = 'posted', posted_at = datetime('now') WHERE id = ?")
             .bind(entry_id)
             .execute(&mut **tx)
             .await?;
@@ -147,7 +147,7 @@ impl JournalEntryRepo {
     }
 
     pub async fn list(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         from: Option<chrono::NaiveDate>,
         to: Option<chrono::NaiveDate>,
@@ -155,32 +155,34 @@ impl JournalEntryRepo {
         sqlx::query_as::<_, JournalEntry>(
             "SELECT id, tenant_id, entry_no, entry_date, description, status, currency, \
                     created_by, created_at, posted_at \
-             FROM journal_entries WHERE tenant_id = $1 \
-             AND ($2::date IS NULL OR entry_date >= $2) AND ($3::date IS NULL OR entry_date <= $3) \
+             FROM journal_entries WHERE tenant_id = ? \
+             AND (? IS NULL OR entry_date >= ?) AND (? IS NULL OR entry_date <= ?) \
              ORDER BY entry_date DESC, id DESC LIMIT 500",
         )
         .bind(tenant_id)
         .bind(from)
+        .bind(from)
+        .bind(to)
         .bind(to)
         .fetch_all(pool)
         .await
     }
 
-    pub async fn details_for_entry(pool: &PgPool, entry_id: i64) -> Result<Vec<JournalEntryDetail>, sqlx::Error> {
+    pub async fn details_for_entry(pool: &SqlitePool, entry_id: i64) -> Result<Vec<JournalEntryDetail>, sqlx::Error> {
         sqlx::query_as::<_, JournalEntryDetail>(
             "SELECT id, entry_id, account_id, debit, credit, description \
-             FROM journal_entry_details WHERE entry_id = $1 ORDER BY id",
+             FROM journal_entry_details WHERE entry_id = ? ORDER BY id",
         )
         .bind(entry_id)
         .fetch_all(pool)
         .await
     }
 
-    pub async fn find_by_id(pool: &PgPool, tenant_id: i64, id: i64) -> Result<Option<JournalEntry>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<Option<JournalEntry>, sqlx::Error> {
         sqlx::query_as::<_, JournalEntry>(
             "SELECT id, tenant_id, entry_no, entry_date, description, status, currency, \
                     created_by, created_at, posted_at \
-             FROM journal_entries WHERE tenant_id = $1 AND id = $2",
+             FROM journal_entries WHERE tenant_id = ? AND id = ?",
         )
         .bind(tenant_id)
         .bind(id)
@@ -188,14 +190,14 @@ impl JournalEntryRepo {
         .await
     }
 
-    pub async fn trial_balance(pool: &PgPool, tenant_id: i64) -> Result<Vec<TrialBalanceRow>, sqlx::Error> {
+    pub async fn trial_balance(pool: &SqlitePool, tenant_id: i64) -> Result<Vec<TrialBalanceRow>, sqlx::Error> {
         sqlx::query_as::<_, TrialBalanceRow>(
-            "SELECT a.code, a.name, COALESCE(SUM(d.debit), 0) AS debit, \
-                    COALESCE(SUM(d.credit), 0) AS credit \
+            "SELECT a.code, a.name, CAST(COALESCE(SUM(d.debit), 0.0) AS REAL) AS debit, \
+                    CAST(COALESCE(SUM(d.credit), 0.0) AS REAL) AS credit \
              FROM journal_entry_details d \
              JOIN chart_of_accounts a ON a.id = d.account_id \
              JOIN journal_entries e ON e.id = d.entry_id \
-             WHERE e.tenant_id = $1 AND e.status = 'posted' \
+             WHERE e.tenant_id = ? AND e.status = 'posted' \
              GROUP BY a.code, a.name ORDER BY a.code",
         )
         .bind(tenant_id)
@@ -208,22 +210,22 @@ pub struct InvoiceRepo;
 
 impl InvoiceRepo {
     pub async fn create(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         invoice_no: &str,
         invoice_type: &str,
         party_id: i64,
         order_id: Option<i64>,
-        amount: rust_decimal::Decimal,
-        tax_amount: rust_decimal::Decimal,
-        total_amount: rust_decimal::Decimal,
+        amount: f64,
+        tax_amount: f64,
+        total_amount: f64,
         due_date: Option<chrono::NaiveDate>,
     ) -> Result<FinanceInvoice, sqlx::Error> {
         sqlx::query_as::<_, FinanceInvoice>(
             "INSERT INTO finance_invoices \
              (tenant_id, invoice_no, invoice_type, party_id, order_id, amount, tax_amount, \
               total_amount, due_date, issued_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now')) \
              RETURNING id, tenant_id, invoice_no, invoice_type, party_id, order_id, amount, \
                        tax_amount, total_amount, status, due_date, issued_at, created_at, updated_at",
         )
@@ -241,16 +243,16 @@ impl InvoiceRepo {
     }
 
     pub async fn insert_item(
-        pool: &PgPool,
+        pool: &SqlitePool,
         invoice_id: i64,
         description: Option<&str>,
-        quantity: rust_decimal::Decimal,
-        unit_price: rust_decimal::Decimal,
-        amount: rust_decimal::Decimal,
+        quantity: f64,
+        unit_price: f64,
+        amount: f64,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             "INSERT INTO finance_invoice_items (invoice_id, description, quantity, unit_price, amount) \
-             VALUES ($1, $2, $3, $4, $5)",
+             VALUES (?, ?, ?, ?, ?)",
         )
         .bind(invoice_id)
         .bind(description)
@@ -262,11 +264,11 @@ impl InvoiceRepo {
         Ok(())
     }
 
-    pub async fn find_by_id(pool: &PgPool, tenant_id: i64, id: i64) -> Result<Option<FinanceInvoice>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<Option<FinanceInvoice>, sqlx::Error> {
         sqlx::query_as::<_, FinanceInvoice>(
             "SELECT id, tenant_id, invoice_no, invoice_type, party_id, order_id, amount, \
                     tax_amount, total_amount, status, due_date, issued_at, created_at, updated_at \
-             FROM finance_invoices WHERE tenant_id = $1 AND id = $2",
+             FROM finance_invoices WHERE tenant_id = ? AND id = ?",
         )
         .bind(tenant_id)
         .bind(id)
@@ -275,26 +277,26 @@ impl InvoiceRepo {
     }
 
     pub async fn update_status(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         status: &str,
     ) -> Result<Option<FinanceInvoice>, sqlx::Error> {
         sqlx::query_as::<_, FinanceInvoice>(
-            "UPDATE finance_invoices SET status = $3, updated_at = NOW() \
-             WHERE tenant_id = $1 AND id = $2 \
+            "UPDATE finance_invoices SET status = ?, updated_at = datetime('now') \
+             WHERE tenant_id = ? AND id = ? \
              RETURNING id, tenant_id, invoice_no, invoice_type, party_id, order_id, amount, \
                        tax_amount, total_amount, status, due_date, issued_at, created_at, updated_at",
         )
+        .bind(status)
         .bind(tenant_id)
         .bind(id)
-        .bind(status)
         .fetch_optional(pool)
         .await
     }
 
     pub async fn list(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         invoice_type: Option<&str>,
         status: Option<&str>,
@@ -302,21 +304,23 @@ impl InvoiceRepo {
         sqlx::query_as::<_, FinanceInvoice>(
             "SELECT id, tenant_id, invoice_no, invoice_type, party_id, order_id, amount, \
                     tax_amount, total_amount, status, due_date, issued_at, created_at, updated_at \
-             FROM finance_invoices WHERE tenant_id = $1 \
-             AND ($2::text IS NULL OR invoice_type = $2) AND ($3::text IS NULL OR status = $3) \
+             FROM finance_invoices WHERE tenant_id = ? \
+             AND (? IS NULL OR invoice_type = ?) AND (? IS NULL OR status = ?) \
              ORDER BY id DESC LIMIT 500",
         )
         .bind(tenant_id)
         .bind(invoice_type)
+        .bind(invoice_type)
+        .bind(status)
         .bind(status)
         .fetch_all(pool)
         .await
     }
 
-    pub async fn items_for_invoice(pool: &PgPool, invoice_id: i64) -> Result<Vec<FinanceInvoiceItem>, sqlx::Error> {
+    pub async fn items_for_invoice(pool: &SqlitePool, invoice_id: i64) -> Result<Vec<FinanceInvoiceItem>, sqlx::Error> {
         sqlx::query_as::<_, FinanceInvoiceItem>(
             "SELECT id, invoice_id, description, quantity, unit_price, amount \
-             FROM finance_invoice_items WHERE invoice_id = $1 ORDER BY id",
+             FROM finance_invoice_items WHERE invoice_id = ? ORDER BY id",
         )
         .bind(invoice_id)
         .fetch_all(pool)
@@ -328,12 +332,12 @@ pub struct PaymentRepo;
 
 impl PaymentRepo {
     pub async fn create(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         payment_no: &str,
         invoice_id: Option<i64>,
         direction: &str,
-        amount: rust_decimal::Decimal,
+        amount: f64,
         method: &str,
         reference: Option<&str>,
         created_by: Option<i64>,
@@ -341,7 +345,7 @@ impl PaymentRepo {
         sqlx::query_as::<_, FinancePayment>(
             "INSERT INTO finance_payments \
              (tenant_id, payment_no, invoice_id, direction, amount, method, reference, created_by) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
              RETURNING id, tenant_id, payment_no, invoice_id, direction, amount, method, \
                        paid_at, reference, created_by, created_at",
         )
@@ -357,14 +361,15 @@ impl PaymentRepo {
         .await
     }
 
-    pub async fn list(pool: &PgPool, tenant_id: i64, invoice_id: Option<i64>) -> Result<Vec<FinancePayment>, sqlx::Error> {
+    pub async fn list(pool: &SqlitePool, tenant_id: i64, invoice_id: Option<i64>) -> Result<Vec<FinancePayment>, sqlx::Error> {
         sqlx::query_as::<_, FinancePayment>(
             "SELECT id, tenant_id, payment_no, invoice_id, direction, amount, method, \
                     paid_at, reference, created_by, created_at \
-             FROM finance_payments WHERE tenant_id = $1 \
-             AND ($2::bigint IS NULL OR invoice_id = $2) ORDER BY id DESC LIMIT 500",
+             FROM finance_payments WHERE tenant_id = ? \
+             AND (? IS NULL OR invoice_id = ?) ORDER BY id DESC LIMIT 500",
         )
         .bind(tenant_id)
+        .bind(invoice_id)
         .bind(invoice_id)
         .fetch_all(pool)
         .await

@@ -1,185 +1,143 @@
-# Backend — Rust Package (steel-pipe-db)
+# Backend — Rust 包（erp-server）
 
-## Tech
+> 历史沿革：本系统由钢管行业系统重构而来，旧模块与旧术语一律废弃。
 
-- **Rust** nightly-2024-02-08, edition 2021
-- **Single crate** `steel-pipe-db` (no workspace, no monorepo nonsense)
-- **SQLx** 0.8 with SQLite (runtime-tokio-rustls), migrations auto-run on startup
+## 技术栈
 
-## Key Dependencies (from Cargo.toml)
+- **Rust** nightly-2024-02-08，edition 2021
+- **单一 crate** `erp-server`（无 workspace，无 monorepo）
+- **SQLx** 0.8 + SQLite（runtime-tokio），启动时自动执行迁移
 
-- `axum` 0.8 — HTTP routing (macros + multipart features)
-- `sqlx` 0.8 — SQL (sqlite, runtime-tokio-rustls, chrono features)
+## 关键依赖（来自 Cargo.toml）
+
+- `axum` 0.8 — HTTP 路由（macros + multipart features）
+- `sqlx` 0.8 — SQL（sqlite、runtime-tokio、chrono features）
 - `serde` / `serde_json` — JSON
-- `jsonwebtoken` 9 — JWT auth
-- `argon2` 0.5 — Password hashing (NOT bcrypt)
-- `validator` 0.19 — Request validation (derive feature)
-- `chrono` 0.4 — Date/time (serde feature)
-- `tokio` 1 — Async runtime (full features)
-- `tower-http` 0.6 — CORS, TraceLayer, request-id
-- `tower` 0.5 — Utilities
-- `uuid` 1 — UUID generation (v4 feature)
-- `dotenvy` 0.15 — .env loading
-- `thiserror` 2 — Error derive macro
-- `calamine` 0.26 — Excel import
-- `rust_xlsxwriter` 0.80 — Excel export
-- `csv` 1.3 — CSV import/export
-- `tracing` / `tracing-subscriber` — Structured logging (env-filter, json)
+- `jsonwebtoken` 9 — JWT 认证
+- `argon2` 0.5 — 密码哈希（NOT bcrypt）
+- `validator` 0.19 — 请求校验（derive feature）
+- `chrono` 0.4 — 日期/时间（serde feature）
+- `tokio` 1 — 异步运行时（full features）
+- `tower-http` 0.6 — CORS、TraceLayer、request-id
+- `tower` 0.5 — 工具
+- `uuid` 1 — UUID 生成（v4 feature）
+- `dotenvy` 0.15 — .env 加载
+- `thiserror` 2 — 错误派生宏
+- `calamine` 0.26 — Excel 导入
+- `rust_xlsxwriter` 0.80 — Excel 导出
+- `csv` 1.3 — CSV 导入/导出
+- `tracing` / `tracing-subscriber` — 结构化日志（env-filter、json）
 
-**Heads up:** No `rust_decimal`, `bigdecimal`, `backpack`, or `bcrypt` here. Don't go looking for them.
+**注意：** 这里没有 `rust_decimal`、`bigdecimal`、`backpack` 或 `bcrypt`，不要去找它们。
 
-## Build & Test
+## 构建与测试
 
 ```bash
 cd backend
-cargo check          # Type-check only (faster than build, CI uses this)
-cargo build          # Debug build
-cargo build --release # Release build
-cargo test           # Run all tests
+cargo check          # 仅类型检查（比 build 快，CI 使用）
+cargo build          # Debug 构建
+cargo build --release # Release 构建
+cargo test           # 运行全部测试
 ```
 
-## Database
+## 数据库
 
-- **SQLite** file at path from `DATABASE_URL` env var (defaults to `./data/steel_pipe.db`)
-- **Migrations**: `backend/migrations/` — SQLx timestamp-prefixed files
-- Auto-migrate on startup via `sqlx::migrate!("./migrations")`
-- No external DB server needed — it's just a file
-- WAL mode enabled, soft deletes via `deleted_at` column
+- **SQLite** 文件，连接串 `sqlite://data/erp.db?mode=rwc`（由 `DATABASE_URL` 环境变量指定，首次运行自动创建）
+- **迁移**：`backend/migrations/` — SQLx 时间戳前缀文件。37 个历史迁移文件将重写为 SQLite 语法，并删除钢管时代的遗留表。
+- 启动时通过 `sqlx::migrate!("./migrations")` 自动迁移
+- 无需外部数据库服务器——就是一个文件
+- 启用 WAL 模式，软删除通过 `deleted_at` 列实现
 
-## Module Structure
+## 模块结构
 
 ```
 src/
-├── main.rs              ← Entry point: tracing, DB pool, migrate, start server
-├── lib.rs               ← Module declarations, #![allow(dead_code)]
-├── config.rs            ← Env-based Config (DATABASE_URL, JWT_SECRET, etc.)
-├── error.rs             ← AppError enum with numeric error codes (10001-50001)
-├── response.rs          ← ApiResponse<T>, PaginatedResponse<T>
-├── router.rs            ← ~70 endpoints assembled via .merge()
-├── domain/              ← 3 files (pipe.rs, inventory.rs, order.rs) — enums/domain types
-│   └── mod.rs
-├── dto/                 ← 14 files, request/response structs
-│   ├── mod.rs
-│   ├── auth_dto.rs
-│   ├── pipe_dto.rs
-│   ├── inventory_dto.rs
-│   ├── purchase_dto.rs
-│   ├── sales_dto.rs
-│   ├── quality_dto.rs
-│   ├── contract_dto.rs
-│   ├── customer_dto.rs
-│   ├── supplier_dto.rs
-│   ├── label_dto.rs
-│   ├── report_dto.rs
-│   ├── data_io_dto.rs
-│   └── common.rs
-├── models/              ← 11 files, DB row structs (sqlx::FromRow)
-│   ├── mod.rs
-│   ├── user.rs
-│   ├── seamless_pipe.rs
-│   ├── screen_pipe.rs
-│   ├── inventory.rs
-│   ├── purchase_order.rs
-│   ├── sales_order.rs
-│   ├── quality.rs
-│   ├── contract.rs
-│   ├── customer.rs
-│   └── supplier.rs
-├── repositories/        ← 20 files, pure SQL, soft-delete aware
-│   ├── mod.rs
-│   ├── pipe_repo.rs
-│   ├── inventory_repo.rs          ← ATP查询, 库存统计
-│   ├── location_repo.rs           ← 仓库位置 CRUD
-│   ├── inbound_repo.rs            ← 入库记录 CRUD
-│   ├── outbound_repo.rs           ← 出库记录 CRUD
-│   ├── inventory_log_repo.rs      ← 管道移动审计日志
-│   ├── check_repo.rs              ← 盘点记录和盘点项
-│   ├── purchase_order_repo.rs
-│   ├── sales_order_repo.rs
-│   ├── quality_repo.rs
-│   ├── contract_repo.rs
-│   ├── customer_repo.rs
-│   ├── supplier_repo.rs
-│   ├── label_repo.rs
-│   ├── report_repo.rs
-│   ├── data_io_repo.rs
-│   ├── user_repo.rs
-│   ├── operation_log_repo.rs
-│   └── refresh_token_repo.rs
-├── services/            ← 19 files, business logic (unit structs, static methods)
-│   ├── mod.rs
-│   ├── auth_service.rs
-│   ├── pipe_service.rs
-│   ├── inbound_service.rs       ← 入库 (创建/审批/执行/查询)
-│   ├── outbound_service.rs      ← 出库 (创建/审批/执行/查询)
-│   ├── check_service.rs         ← 盘点 (创建/提交/完成)
-│   ├── inventory_query_service.rs ← 只读库存查询 (列表/统计)
-│   ├── location_service.rs      ← 仓库位置 (CRUD/分配/调拨)
-│   ├── purchase_service.rs      ← 采购订单生命周期
-│   ├── sales_service.rs         ← 销售订单生命周期 + ATP 验证
-│   ├── quality_service.rs
-│   ├── contract_service.rs
-│   ├── customer_service.rs
-│   ├── supplier_service.rs
-│   ├── label_service.rs
-│   ├── report_service.rs
-│   ├── data_io_service.rs
-│   └── trace_service.rs         ← 全生命周期管道追溯
-├── handlers/            ← 16 files, thin handlers (extract → call service → respond)
-│   ├── mod.rs
-│   ├── auth_handler.rs
-│   ├── pipe_handler.rs
-│   ├── inbound_handler.rs
-│   ├── outbound_handler.rs
-│   ├── location_handler.rs
-│   ├── check_handler.rs
-│   ├── inventory_handler.rs
-│   ├── purchase_handler.rs
-│   ├── sales_handler.rs
-│   ├── quality_handler.rs
-│   ├── contract_handler.rs
-│   ├── customer_handler.rs
-│   ├── supplier_handler.rs
-│   ├── report_handler.rs
-│   ├── label_handler.rs
-│   ├── data_io_handler.rs
-│   └── atp_handler.rs
-└── middleware/          ← 4 files, auth + RBAC + rate limiting
-    ├── mod.rs
-    ├── auth.rs          ← JWT verification, Claims, AuthContext, auth_middleware
-    ├── rbac.rs          ← Role-based access control helpers
-    └── rate_limit.rs    ← Per-IP rate limiting (e.g. 5 req/min on login/refresh)
+├── main.rs              ← 入口：tracing、DB 连接池、迁移、启动服务
+├── lib.rs               ← 模块声明，#![allow(dead_code)]
+├── config.rs            ← 环境变量配置（DATABASE_URL、JWT_SECRET 等）
+├── error.rs             ← AppError 枚举，数字错误码（10001-50001）
+├── response.rs          ← ApiResponse<T>、PaginatedResponse<T>
+├── router.rs            ← ~200 个端点，通过 .merge() 组装
+├── cache.rs             ← 响应缓存 + cache_invalidator.rs
+├── domain/              ← 通用领域类型（商品、库存、单据、金额）
+├── dto/                 ← 请求/响应结构体（每实体一个文件）
+├── models/              ← 数据库行结构体（sqlx::FromRow）
+├── repositories/        ← 纯 SQL，软删除感知
+├── services/            ← 业务逻辑（unit struct + 静态方法）
+├── handlers/            ← 薄 HTTP 处理器（提取 → 调服务 → 响应）
+├── middleware/          ← auth、rbac、rate_limit、security_headers
+├── auth/                ← RBAC：角色 / 权限 / 部门 / 租户
+├── workflow/            ← 审批引擎：审批流定义 / 实例 / 任务
+├── hr/                  ← 员工 / 考勤 / 薪资 / 劳动合同
+├── finance/             ← 会计科目 / 日记账 / 发票 / 付款 / 试算平衡
+├── procurement/         ← 采购申请 / 收货 / 报价 / 供应商评分
+├── sales_crm/           ← 发货 / 报价 / 客户信用
+├── inventory_atp/       ← 商品/SKU 库存：预留 / 调拨 / 盘点
+├── manufacturing/       ← BOM / 工单 / 质检 / 不合格品单
+├── project/             ← 项目 / WBS / 预算
+├── assets/              ← 固定资产：登记 / 折旧 / 处置
+├── notification/        ← 收件箱 / 模板 / 偏好
+├── portal/              ← 门户账户 / 当事人 JWT / 采购订单确认 / 销售订单回执
+└── bi/                  ← 销售趋势 / 库存价值 / 财务汇总 / 供应商绩效
 ```
 
-## Key Files
+每个功能模块（`auth/`、`workflow/`、`hr/`、…）遵循相同的布局：`mod.rs` + `handlers.rs` + `repos.rs` + `services.rs`（`bi/` 无 `repos.rs`——只读分析，复用共享仓储）。
 
-- `Cargo.toml` — Package manifest
-- `.env.example` — Environment template (DATABASE_URL, JWT_SECRET, etc.)
-- `migrations/` — SQLx timestamp-prefixed migration files (11 files, including `011_add_rejection_reason.sql`)
+核心分层明细：
 
-## Rust Conventions
+```
+├── domain/              ← 通用领域类型（item、inventory、order、money）
+├── dto/                 ← auth_dto、item_dto、inventory_dto、purchase_dto、sales_dto、
+│                          contract_dto、customer_dto、supplier_dto、report_dto、data_io_dto、common、…
+├── models/              ← 数据库行结构体：user、rbac、item、inventory、purchase_order、
+│                          sales_order、contract、customer、supplier、workflow、hr、finance、
+│                          procurement、sales_crm、inventory_atp、manufacturing、project、
+│                          assets、notification、portal
+├── repositories/        ← item_repo、inventory_repo、location_repo、inbound_repo、outbound_repo、
+│                          inventory_log_repo、check_repo、purchase_order_repo、sales_order_repo、
+│                          contract_repo、customer_repo、supplier_repo、report_repo、data_io_repo、
+│                          user_repo、operation_log_repo、refresh_token_repo
+├── services/            ← auth_service、item_service、inbound_service、outbound_service、
+│                          check_service、inventory_query_service、location_service、
+│                          purchase_service、sales_service、contract_service、customer_service、
+│                          supplier_service、report_service、data_io_service
+├── handlers/            ← auth_handler、item_handler、inbound_handler、outbound_handler、
+│                          location_handler、check_handler、inventory_handler、purchase_handler、
+│                          sales_handler、contract_handler、customer_handler、supplier_handler、
+│                          report_handler、data_io_handler、atp_handler、health_handler
+└── middleware/          ← auth.rs（JWT）、rbac.rs、rate_limit.rs、security_headers.rs
+```
 
-- `snake_case` for functions/variables, `PascalCase` for types
-- `use` statements follow `use crate::{handlers, models, ...}` pattern
-- `mod.rs` files re-export public items: `pub use pipe_handler::*;`
-- Public API functions are `pub async fn` with explicit return types
-- Internal helpers are `pub(crate) fn` or `async fn`
-- **All handlers return `Result<Json<...>, AppError>`** (NOT `impl IntoResponse`)
-- Services are **unit structs with static methods** (no constructor DI): `PipeService::list(...)`
-- Services return `Result<T, AppError>`
-  - Repositories accept `&SqlitePool` and return `Result<Vec<T>, sqlx::Error>`
-- `inventory_service.rs` 已拆分为专注的模块:
-  - `inbound_service.rs` — 入库记录创建, 审批, 批量执行
-  - `outbound_service.rs` — 出库记录创建, 审批, 库存扣减
-  - `check_service.rs` — 盘点创建, 项目提交, 完成
-  - `inventory_query_service.rs` — 只读查询 (列表, 统计)
-  - `location_service.rs` — 仓库位置 CRUD, 分配, 调拨
-- `purchase_sales_service.rs` 已拆分为:
-  - `purchase_service.rs` — 采购订单生命周期, 审批, 拒绝
-  - `sales_service.rs` — 销售订单生命周期, ATP 验证, 审批
+库存已泛化为**商品/SKU**：商品主数据表承载 `sku` / 名称 / 分类 / 单位 / 可选规格——无任何行业专属字段。预留、调拨、盘点位于 `inventory_atp/`。
+
+## 关键文件
+
+- `Cargo.toml` — 包清单（crate `erp-server`）
+- `.env.example` — 环境变量模板（DATABASE_URL、JWT_SECRET 等）
+- `migrations/` — SQLx 时间戳前缀迁移文件（已重写为 SQLite 语法；钢管表已删除）
+
+## Rust 约定
+
+- 函数/变量用 `snake_case`，类型用 `PascalCase`
+- `use` 语句遵循 `use crate::{handlers, models, ...}` 模式
+- `mod.rs` 重导出公共项：`pub use item_handler::*;`
+- 公共 API 函数为 `pub async fn`，返回类型显式
+- 内部辅助函数为 `pub(crate) fn` 或 `async fn`
+- **所有 handler 返回 `Result<Json<...>, AppError>`**（不是 `impl IntoResponse`）
+- Service 是 **unit struct + 静态方法**（无构造器 DI）：`ItemService::list(...)`
+- Service 返回 `Result<T, AppError>`；仓储接受 `&SqlitePool`，返回 `Result<Vec<T>, sqlx::Error>`
+- 库存服务层按职责拆分：
+  - `inbound_service.rs` — 入库（创建/审批/批量执行）
+  - `outbound_service.rs` — 出库（创建/审批/库存扣减）
+  - `check_service.rs` — 盘点（创建/提交/完成）
+  - `inventory_query_service.rs` — 只读查询（列表/统计）
+  - `location_service.rs` — 库位 CRUD、分配、调拨
+- 采购与销售拆分：
+  - `purchase_service.rs` — 采购订单生命周期、审批、拒绝
+  - `sales_service.rs` — 销售订单生命周期、ATP 验证、审批
 - ATP 计算位于 `sales_service.rs` 和 `atp_handler.rs`
 
-## DI Pattern: Extension layers, NOT State<Arc<AppState>>
+## DI 模式：Extension 层，而非 State<Arc<AppState>>
 
 ```rust
 // router.rs layers:
@@ -188,36 +146,36 @@ src/
 .layer(Extension(pool))       // Extension<SqlitePool>
 .layer(Extension(JwtSecret(jwt_secret))) // Extension<JwtSecret>
 
-// Handler extracts:
-pub async fn list_pipes(
+// Handler 提取:
+pub async fn list_items(
     Extension(pool): Extension<SqlitePool>,
-    Query(filter): Query<PipeFilterParams>,
-) -> Result<Json<PaginatedResponse<Pipe>>, AppError> {
+    Query(filter): Query<ItemFilterParams>,
+) -> Result<Json<PaginatedResponse<Item>>, AppError> {
 ```
 
-No `AppState` struct. The DB pool is injected directly; the JWT secret is wrapped in `JwtSecret` so it is type-safe, has redacted `Debug`, and cannot be confused with arbitrary string extensions.
+不存在 `AppState` 结构体。DB 连接池直接注入；JWT 密钥包装为 `JwtSecret`，类型安全、`Debug` 输出脱敏，且不会与任意字符串 Extension 混淆。
 
-## Response Shapes
+## 响应形状
 
 ```json
-// Success:    { "success": true, "request_id": "req_...", "data": T }
-// Paginated:  { "success": true, "request_id": "req_...", "meta": { "total": N, "page": P, "page_size": S, "total_pages": N }, "data": { "items": [], ... } }
-// Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
+// 成功:    { "success": true, "request_id": "req_...", "data": T }
+// 分页:    { "success": true, "request_id": "req_...", "meta": { "total": N, "page": P, "page_size": S, "total_pages": N }, "data": { "items": [], ... } }
+// 错误:    { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
 ```
 
-`tower-http` also sets/propagates an `x-request-id` header, and CORS exposes it to the frontend.
+`tower-http` 同时设置/透传 `x-request-id` 头，CORS 向浏览器暴露该头。
 
-## Error Codes (numeric, domain-prefixed)
+## 错误码（数字、按域前缀）
 
-| Range | Domain |
-|-------|--------|
-| 100xx | General (Internal, Validation, NotFound) |
-| 110xx | Auth (Unauthorized, TokenExpired, Forbidden) |
-| 120xx | Pipe (NotFound, Duplicate, StatusConflict) |
-| 130xx | Inventory (InsufficientStock, LocationFull) |
-| 140xx | Orders (CannotModify, NotFound) |
-| 150xx | Quality (CertNotFound, AttachmentNotFound) |
-| 160xx | Supplier (NotFound, CodeDuplicate) |
-| 170xx | Customer (NotFound, CodeDuplicate) |
-| 180xx | Data IO (ImportError, ExportError) |
+| 范围 | 域 |
+| ------- | -------- |
+| 100xx | General（Internal、Validation、NotFound） |
+| 110xx | Auth（Unauthorized、TokenExpired、Forbidden） |
+| 120xx | Item 商品（NotFound、Duplicate、StatusConflict） |
+| 130xx | Inventory（InsufficientStock、LocationNotFound） |
+| 140xx | Orders（CannotModify、NotFound） |
+| 150xx | Inspection 质检（NotFound、StatusConflict） |
+| 160xx | Supplier（NotFound、CodeDuplicate） |
+| 170xx | Customer（NotFound、CodeDuplicate） |
+| 180xx | Data IO（ImportError、ExportError） |
 | 50001 | Database |

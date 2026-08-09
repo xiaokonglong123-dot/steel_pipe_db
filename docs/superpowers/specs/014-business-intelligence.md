@@ -11,8 +11,8 @@
 ## 2. 功能
 
 | 类型 | 报告名 |
-|------|--------|
-| Finance | 损益表 (P&L), Balance Sheet, Trial Balance, Aging (超时分析) |
+| ------ | -------- |
+| Finance | 损益表 (P&L), Balance Sheet, Trial Balance, Aging (账龄分析) |
 | Operations | Inventory turns, stock report, defective summary, Order fill rate |
 | Sales | 销售趋势，by customer / product, top 10 products |
 | HR | 员工统计、离职率 |
@@ -25,5 +25,5 @@
 
 ## 4. 前端
 
-- `features/reports/pages/ ` 五个主要命页  并不再增 ECharts 生成图表
-- `most` 报告前端提供 Time-filter, Export, Print
+- `features/reports/pages/` 主要页面 + ECharts 生成图表
+- 报表前端提供 Time-filter, Export, Print

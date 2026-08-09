@@ -2,9 +2,13 @@
 
 **Goal:** External login for suppliers and customers to view PO, accept, submit.
 
+**Architecture:** New `backend/src/portal/` module.
+
+**Database:** SQLite3 (`sqlite://data/erp.db?mode=rwc`), 无 schema 前缀
+
 ---
 
-### Task 1: Portal table — portal_tenants tied to auth.tenants
+### Task 1: Portal table — portal_accounts tied to tenants
 
 ### Task 2: Supplier view endpoints
 

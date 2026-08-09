@@ -37,8 +37,8 @@ pub struct JournalEntryDetail {
     pub id: i64,
     pub entry_id: i64,
     pub account_id: i64,
-    pub debit: rust_decimal::Decimal,
-    pub credit: rust_decimal::Decimal,
+    pub debit: f64,
+    pub credit: f64,
     pub description: Option<String>,
 }
 
@@ -50,9 +50,9 @@ pub struct FinanceInvoice {
     pub invoice_type: String,
     pub party_id: i64,
     pub order_id: Option<i64>,
-    pub amount: rust_decimal::Decimal,
-    pub tax_amount: rust_decimal::Decimal,
-    pub total_amount: rust_decimal::Decimal,
+    pub amount: f64,
+    pub tax_amount: f64,
+    pub total_amount: f64,
     pub status: String,
     pub due_date: Option<NaiveDate>,
     pub issued_at: Option<DateTime<Utc>>,
@@ -65,9 +65,9 @@ pub struct FinanceInvoiceItem {
     pub id: i64,
     pub invoice_id: i64,
     pub description: Option<String>,
-    pub quantity: rust_decimal::Decimal,
-    pub unit_price: rust_decimal::Decimal,
-    pub amount: rust_decimal::Decimal,
+    pub quantity: f64,
+    pub unit_price: f64,
+    pub amount: f64,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -77,7 +77,7 @@ pub struct FinancePayment {
     pub payment_no: String,
     pub invoice_id: Option<i64>,
     pub direction: String,
-    pub amount: rust_decimal::Decimal,
+    pub amount: f64,
     pub method: String,
     pub paid_at: DateTime<Utc>,
     pub reference: Option<String>,
@@ -90,6 +90,6 @@ pub struct FinancePayment {
 pub struct TrialBalanceRow {
     pub code: String,
     pub name: String,
-    pub debit: rust_decimal::Decimal,
-    pub credit: rust_decimal::Decimal,
+    pub debit: f64,
+    pub credit: f64,
 }

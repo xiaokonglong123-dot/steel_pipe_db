@@ -10,20 +10,16 @@ use crate::error::AppError;
 pub enum CacheInvalidationEvent {
     /// Invalidate all caches.
     All,
-    /// Invalidate grade-related caches.
-    Grades,
+    /// Invalidate item-related caches.
+    Items,
     /// Invalidate location-related caches.
     Locations,
     /// Invalidate dashboard statistics cache.
     Dashboard,
-    /// Invalidate pipe-related caches.
-    Pipes,
     /// Invalidate inventory-related caches.
     Inventory,
     /// Invalidate order-related caches (purchase/sales).
     Orders,
-    /// Invalidate quality-related caches.
-    Quality,
     /// Invalidate contract-related caches.
     Contracts,
     /// Invalidate supplier/customer caches.
@@ -40,18 +36,16 @@ impl CacheInvalidator {
     /// Create a new cache invalidator with a background worker.
     pub fn new(cache_manager: CacheManager) -> Self {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        
+
         tokio::spawn(async move {
             while let Some(event) = rx.recv().await {
                 match event {
                     CacheInvalidationEvent::All => cache_manager.invalidate_all().await,
-                    CacheInvalidationEvent::Grades => cache_manager.invalidate_grades().await,
+                    CacheInvalidationEvent::Items => cache_manager.invalidate_items().await,
                     CacheInvalidationEvent::Locations => cache_manager.invalidate_locations().await,
                     CacheInvalidationEvent::Dashboard => cache_manager.invalidate_dashboard().await,
-                    CacheInvalidationEvent::Pipes => cache_manager.invalidate_dashboard().await,
                     CacheInvalidationEvent::Inventory => cache_manager.invalidate_dashboard().await,
                     CacheInvalidationEvent::Orders => cache_manager.invalidate_dashboard().await,
-                    CacheInvalidationEvent::Quality => cache_manager.invalidate_dashboard().await,
                     CacheInvalidationEvent::Contracts => cache_manager.invalidate_dashboard().await,
                     CacheInvalidationEvent::Partners => cache_manager.invalidate_dashboard().await,
                 }
@@ -63,7 +57,8 @@ impl CacheInvalidator {
 
     /// Emit a cache invalidation event (non-blocking).
     pub fn emit(&self, event: CacheInvalidationEvent) -> Result<(), AppError> {
-        self.sender.send(event)
+        self.sender
+            .send(event)
             .map_err(|_| AppError::Internal("Cache invalidator channel closed".into()))
     }
 
@@ -78,18 +73,17 @@ impl CacheInvalidator {
 
 /// Extension trait for services to easily emit cache invalidation events.
 pub trait CacheInvalidate {
-    fn invalidate_pipes(&self) -> Result<(), AppError>;
+    fn invalidate_items(&self) -> Result<(), AppError>;
     fn invalidate_inventory(&self) -> Result<(), AppError>;
     fn invalidate_orders(&self) -> Result<(), AppError>;
-    fn invalidate_quality(&self) -> Result<(), AppError>;
     fn invalidate_contracts(&self) -> Result<(), AppError>;
     fn invalidate_partners(&self) -> Result<(), AppError>;
     fn invalidate_all(&self) -> Result<(), AppError>;
 }
 
 impl CacheInvalidate for CacheInvalidator {
-    fn invalidate_pipes(&self) -> Result<(), AppError> {
-        self.emit(CacheInvalidationEvent::Pipes)
+    fn invalidate_items(&self) -> Result<(), AppError> {
+        self.emit(CacheInvalidationEvent::Items)
     }
 
     fn invalidate_inventory(&self) -> Result<(), AppError> {
@@ -98,10 +92,6 @@ impl CacheInvalidate for CacheInvalidator {
 
     fn invalidate_orders(&self) -> Result<(), AppError> {
         self.emit(CacheInvalidationEvent::Orders)
-    }
-
-    fn invalidate_quality(&self) -> Result<(), AppError> {
-        self.emit(CacheInvalidationEvent::Quality)
     }
 
     fn invalidate_contracts(&self) -> Result<(), AppError> {
@@ -131,8 +121,8 @@ impl CacheInvalidationRegistry {
     }
 
     /// Register invalidation rules for an operation.
-    /// 
-    /// The key format is "entity:operation" e.g., "pipe:create", "inventory:update"
+    ///
+    /// The key format is "entity:operation" e.g., "item:create", "inventory:update"
     pub async fn register(&self, key: &str, events: Vec<CacheInvalidationEvent>) {
         let mut rules = self.rules.write().await;
         rules.insert(key.to_string(), events);
@@ -145,7 +135,11 @@ impl CacheInvalidationRegistry {
     }
 
     /// Emit invalidation events for an operation.
-    pub async fn invalidate(&self, invalidator: &CacheInvalidator, key: &str) -> Result<(), AppError> {
+    pub async fn invalidate(
+        &self,
+        invalidator: &CacheInvalidator,
+        key: &str,
+    ) -> Result<(), AppError> {
         let events = self.get_events(key).await;
         for event in events {
             invalidator.emit(event)?;
@@ -158,31 +152,96 @@ impl CacheInvalidationRegistry {
 pub fn init_default_invalidation_rules(registry: &CacheInvalidationRegistry) {
     let registry = registry.clone();
     tokio::spawn(async move {
-        // Pipe operations
-        registry.register("pipe:create", vec![CacheInvalidationEvent::Pipes, CacheInvalidationEvent::Dashboard]).await;
-        registry.register("pipe:update", vec![CacheInvalidationEvent::Pipes, CacheInvalidationEvent::Dashboard]).await;
-        registry.register("pipe:delete", vec![CacheInvalidationEvent::Pipes, CacheInvalidationEvent::Dashboard]).await;
-        
+        // Item operations
+        registry
+            .register(
+                "item:create",
+                vec![CacheInvalidationEvent::Items, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+        registry
+            .register(
+                "item:update",
+                vec![CacheInvalidationEvent::Items, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+        registry
+            .register(
+                "item:delete",
+                vec![CacheInvalidationEvent::Items, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+
         // Inventory operations
-        registry.register("inventory:inbound", vec![CacheInvalidationEvent::Inventory, CacheInvalidationEvent::Dashboard]).await;
-        registry.register("inventory:outbound", vec![CacheInvalidationEvent::Inventory, CacheInvalidationEvent::Dashboard]).await;
-        registry.register("inventory:check", vec![CacheInvalidationEvent::Inventory, CacheInvalidationEvent::Dashboard]).await;
-        registry.register("inventory:location", vec![CacheInvalidationEvent::Inventory, CacheInvalidationEvent::Locations, CacheInvalidationEvent::Dashboard]).await;
-        
+        registry
+            .register(
+                "inventory:inbound",
+                vec![CacheInvalidationEvent::Inventory, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+        registry
+            .register(
+                "inventory:outbound",
+                vec![CacheInvalidationEvent::Inventory, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+        registry
+            .register(
+                "inventory:check",
+                vec![CacheInvalidationEvent::Inventory, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+        registry
+            .register(
+                "inventory:location",
+                vec![
+                    CacheInvalidationEvent::Inventory,
+                    CacheInvalidationEvent::Locations,
+                    CacheInvalidationEvent::Dashboard,
+                ],
+            )
+            .await;
+
         // Order operations
-        registry.register("order:purchase", vec![CacheInvalidationEvent::Orders, CacheInvalidationEvent::Dashboard]).await;
-        registry.register("order:sales", vec![CacheInvalidationEvent::Orders, CacheInvalidationEvent::Dashboard]).await;
-        
-        // Quality operations
-        registry.register("quality:create", vec![CacheInvalidationEvent::Quality, CacheInvalidationEvent::Dashboard]).await;
-        registry.register("quality:update", vec![CacheInvalidationEvent::Quality, CacheInvalidationEvent::Dashboard]).await;
-        
+        registry
+            .register(
+                "order:purchase",
+                vec![CacheInvalidationEvent::Orders, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+        registry
+            .register(
+                "order:sales",
+                vec![CacheInvalidationEvent::Orders, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+
         // Contract operations
-        registry.register("contract:create", vec![CacheInvalidationEvent::Contracts, CacheInvalidationEvent::Dashboard]).await;
-        registry.register("contract:update", vec![CacheInvalidationEvent::Contracts, CacheInvalidationEvent::Dashboard]).await;
-        
+        registry
+            .register(
+                "contract:create",
+                vec![CacheInvalidationEvent::Contracts, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+        registry
+            .register(
+                "contract:update",
+                vec![CacheInvalidationEvent::Contracts, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+
         // Partner operations
-        registry.register("partner:supplier", vec![CacheInvalidationEvent::Partners, CacheInvalidationEvent::Dashboard]).await;
-        registry.register("partner:customer", vec![CacheInvalidationEvent::Partners, CacheInvalidationEvent::Dashboard]).await;
+        registry
+            .register(
+                "partner:supplier",
+                vec![CacheInvalidationEvent::Partners, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
+        registry
+            .register(
+                "partner:customer",
+                vec![CacheInvalidationEvent::Partners, CacheInvalidationEvent::Dashboard],
+            )
+            .await;
     });
 }

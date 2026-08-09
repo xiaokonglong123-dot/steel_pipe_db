@@ -15,16 +15,16 @@ export interface SalesOrder {
 export interface SalesOrderItem {
   id: number;
   order_id: number;
-  pipe_type: string;
-  grade: string;
-  od: number;
-  wt: number;
+  item_id: number;
   quantity: number;
   delivered_quantity: number;
   unit_price?: number;
   total_price?: number;
   notes?: string;
   created_at: string;
+  /** Display-only fields (not returned by the backend; used for optimistic rows). */
+  sku?: string;
+  name?: string;
 }
 
 export interface CreateSalesOrderData {
@@ -35,10 +35,11 @@ export interface CreateSalesOrderData {
 }
 
 export interface CreateSalesOrderItemData {
-  pipe_type: string;
-  grade: string;
-  od: number;
-  wt: number;
+  /** Item master ID (`items.id`). */
+  item_id: number;
+  /** Display-only: SKU / name of the picked item. */
+  sku?: string;
+  name?: string;
   quantity: number;
   unit_price?: number;
   notes?: string;

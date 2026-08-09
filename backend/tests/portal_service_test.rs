@@ -2,9 +2,9 @@
 
 mod common;
 
-use steel_pipe_db::dto::portal_dto::{AcceptPurchaseRequest, CreatePortalAccountRequest, PortalLoginRequest};
-use steel_pipe_db::middleware::auth::JwtSecret;
-use steel_pipe_db::portal::services::PortalService;
+use erp_server::dto::portal_dto::{AcceptPurchaseRequest, CreatePortalAccountRequest, PortalLoginRequest};
+use erp_server::middleware::auth::JwtSecret;
+use erp_server::portal::services::PortalService;
 
 #[tokio::test]
 async fn portal_account_and_login() {
@@ -68,7 +68,7 @@ async fn supplier_sees_and_accepts_own_po() {
     // Seed a purchase order for supplier 5.
     sqlx::query(
         "INSERT INTO purchase_orders (order_no, supplier_id, order_date, status, total_amount) \
-         VALUES ('PO-PORTAL-1', 5, NOW(), 'pending', 9999)",
+         VALUES ('PO-PORTAL-1', 5, datetime('now'), 'pending', 9999)",
     )
     .execute(&pool)
     .await
@@ -100,7 +100,7 @@ async fn customer_acknowledges_sales_order() {
     let pool = common::test_pool().await;
     sqlx::query(
         "INSERT INTO sales_orders (order_no, customer_id, order_date, status, total_amount) \
-         VALUES ('SO-PORTAL-1', 3, NOW(), 'approved', 5000)",
+         VALUES ('SO-PORTAL-1', 3, datetime('now'), 'approved', 5000)",
     )
     .execute(&pool)
     .await

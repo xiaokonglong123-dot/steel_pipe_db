@@ -3,12 +3,11 @@
 
 mod common;
 
-use rust_decimal_macros::dec;
-use steel_pipe_db::dto::finance_dto::{
+use erp_server::dto::finance_dto::{
     CreateAccountRequest, CreateInvoiceRequest, CreateJournalEntryRequest, CreatePaymentRequest,
     InvoiceItemInput, JournalDetailInput,
 };
-use steel_pipe_db::finance::services::FinanceService;
+use erp_server::finance::services::FinanceService;
 
 #[tokio::test]
 async fn account_crud() {
@@ -55,7 +54,7 @@ async fn journal_entry_balance_rule() {
         &CreateJournalEntryRequest {
             entry_date: chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             description: Some("不平衡".into()),
-            details: vec![JournalDetailInput { account_id: a1.id, debit: Some(dec!(100)), credit: None, description: None }],
+            details: vec![JournalDetailInput { account_id: a1.id, debit: Some(100.0), credit: None, description: None }],
         },
         None,
     )
@@ -70,8 +69,8 @@ async fn journal_entry_balance_rule() {
             entry_date: chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             description: Some("销售".into()),
             details: vec![
-                JournalDetailInput { account_id: a1.id, debit: Some(dec!(500)), credit: None, description: None },
-                JournalDetailInput { account_id: a2.id, debit: None, credit: Some(dec!(500)), description: None },
+                JournalDetailInput { account_id: a1.id, debit: Some(500.0), credit: None, description: None },
+                JournalDetailInput { account_id: a2.id, debit: None, credit: Some(500.0), description: None },
             ],
         },
         None,
@@ -93,8 +92,8 @@ async fn trial_balance_after_posting() {
             entry_date: chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             description: None,
             details: vec![
-                JournalDetailInput { account_id: a1.id, debit: Some(dec!(800)), credit: None, description: None },
-                JournalDetailInput { account_id: a2.id, debit: None, credit: Some(dec!(800)), description: None },
+                JournalDetailInput { account_id: a1.id, debit: Some(800.0), credit: None, description: None },
+                JournalDetailInput { account_id: a2.id, debit: None, credit: Some(800.0), description: None },
             ],
         },
         None,
@@ -106,8 +105,8 @@ async fn trial_balance_after_posting() {
     assert_eq!(tb.len(), 2);
     let cash = tb.iter().find(|r| r.code == "1001").unwrap();
     let revenue = tb.iter().find(|r| r.code == "6001").unwrap();
-    assert_eq!(cash.debit, dec!(800));
-    assert_eq!(revenue.credit, dec!(800));
+    assert_eq!(cash.debit, 800.0);
+    assert_eq!(revenue.credit, 800.0);
 }
 
 #[tokio::test]
@@ -121,19 +120,19 @@ async fn invoice_lifecycle_and_auto_settle() {
             party_id: 1,
             order_id: None,
             amount: None,
-            tax_amount: Some(dec!(13)),
+            tax_amount: Some(13.0),
             due_date: None,
             items: vec![InvoiceItemInput {
-                description: Some("无缝钢管".into()),
-                quantity: Some(dec!(2)),
-                unit_price: Some(dec!(500)),
+                description: Some("商品A".into()),
+                quantity: Some(2.0),
+                unit_price: Some(500.0),
             }],
         },
     )
     .await
     .unwrap();
     // 2 × 500 = 1000 + 13 tax = 1013.
-    assert_eq!(inv.total_amount, dec!(1013));
+    assert_eq!(inv.total_amount, 1013.0);
     assert_eq!(inv.status, "draft");
 
     // Confirm.
@@ -151,7 +150,7 @@ async fn invoice_lifecycle_and_auto_settle() {
             invoice_type: "sales".into(),
             party_id: 1,
             order_id: None,
-            amount: Some(dec!(300)),
+            amount: Some(300.0),
             tax_amount: None,
             due_date: None,
             items: vec![],
@@ -166,7 +165,7 @@ async fn invoice_lifecycle_and_auto_settle() {
         &CreatePaymentRequest {
             invoice_id: Some(inv2.id),
             direction: "in".into(),
-            amount: dec!(300),
+            amount: 300.0,
             method: Some("bank_transfer".into()),
             reference: Some("REF-1".into()),
         },
@@ -189,7 +188,7 @@ async fn partial_payment_keeps_invoice_confirmed() {
             invoice_type: "sales".into(),
             party_id: 1,
             order_id: None,
-            amount: Some(dec!(500)),
+            amount: Some(500.0),
             tax_amount: None,
             due_date: None,
             items: vec![],
@@ -204,7 +203,7 @@ async fn partial_payment_keeps_invoice_confirmed() {
         &CreatePaymentRequest {
             invoice_id: Some(inv.id),
             direction: "in".into(),
-            amount: dec!(200),
+            amount: 200.0,
             method: None,
             reference: None,
         },

@@ -83,10 +83,12 @@ export default function ContractDetailPage() {
   };
 
   const itemColumns = [
-    { title: t('contracts.pipe_type'), dataIndex: 'pipe_type', key: 'pipe_type', render: (v: string) => <Tag>{v}</Tag> },
-    { title: t('contracts.grade'), dataIndex: 'grade', key: 'grade' },
-    { title: t('contracts.od'), dataIndex: 'od', key: 'od' },
-    { title: t('contracts.wt'), dataIndex: 'wt', key: 'wt' },
+    {
+      title: t('contracts.item', '商品'),
+      key: 'item',
+      render: (_: unknown, record: ContractItem) =>
+        record.name ? `${record.sku ?? ''} — ${record.name}` : record.sku || `#${record.item_id}`,
+    },
     { title: t('contracts.quantity'), dataIndex: 'quantity', key: 'quantity' },
     { title: t('contracts.unit_price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number | null) => v != null ? v.toLocaleString() : '-' },
     { title: t('contracts.total_price'), dataIndex: 'total_price', key: 'total_price', render: (v: number | null) => v != null ? v.toLocaleString() : '-' },

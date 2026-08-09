@@ -2,7 +2,9 @@
 
 **Goal:** Manage fixed assets, depreciation, transfer, disposal.
 
-**Architecture:** New `assets` crate.
+**Architecture:** New `backend/src/assets/` module (repos/services/handlers).
+
+**Database:** SQLite3 (`sqlite://data/erp.db?mode=rwc`)
 
 ---
 

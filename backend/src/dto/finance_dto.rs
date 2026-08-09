@@ -20,8 +20,8 @@ pub struct UpdateAccountRequest {
 #[derive(Debug, Deserialize)]
 pub struct JournalDetailInput {
     pub account_id: i64,
-    pub debit: Option<rust_decimal::Decimal>,
-    pub credit: Option<rust_decimal::Decimal>,
+    pub debit: Option<f64>,
+    pub credit: Option<f64>,
     pub description: Option<String>,
 }
 
@@ -37,8 +37,8 @@ pub struct CreateInvoiceRequest {
     pub invoice_type: String,
     pub party_id: i64,
     pub order_id: Option<i64>,
-    pub amount: Option<rust_decimal::Decimal>,
-    pub tax_amount: Option<rust_decimal::Decimal>,
+    pub amount: Option<f64>,
+    pub tax_amount: Option<f64>,
     pub due_date: Option<NaiveDate>,
     pub items: Vec<InvoiceItemInput>,
 }
@@ -46,15 +46,15 @@ pub struct CreateInvoiceRequest {
 #[derive(Debug, Deserialize)]
 pub struct InvoiceItemInput {
     pub description: Option<String>,
-    pub quantity: Option<rust_decimal::Decimal>,
-    pub unit_price: Option<rust_decimal::Decimal>,
+    pub quantity: Option<f64>,
+    pub unit_price: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreatePaymentRequest {
     pub invoice_id: Option<i64>,
     pub direction: String,
-    pub amount: rust_decimal::Decimal,
+    pub amount: f64,
     pub method: Option<String>,
     pub reference: Option<String>,
 }

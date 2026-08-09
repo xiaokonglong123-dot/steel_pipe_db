@@ -1,6 +1,5 @@
-use axum::{extract::{Extension, Query}, Json};
-use serde::Deserialize;
-use sqlx::PgPool;
+use axum::{extract::{Extension, Path, Query}, Json};
+use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::InventoryFilter;
@@ -10,13 +9,8 @@ use crate::response::{ApiResponse, PaginatedResponse};
 use crate::services::inventory_query_service::InventoryQueryService;
 use crate::services::trace_service::TraceService;
 
-#[derive(Deserialize)]
-pub struct HeatNumberQuery {
-    pub heat_number: String,
-}
-
 pub async fn list_inventory_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<InventoryFilter>,
 ) -> Result<Json<PaginatedResponse<crate::dto::inventory_dto::StockItem>>, AppError> {
     let pagination = PaginationParams {
@@ -34,7 +28,7 @@ pub async fn list_inventory_handler(
 }
 
 pub async fn list_inventory_logs_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<InventoryFilter>,
 ) -> Result<Json<PaginatedResponse<InventoryLog>>, AppError> {
     let pagination = PaginationParams {
@@ -52,33 +46,25 @@ pub async fn list_inventory_logs_handler(
 }
 
 pub async fn inventory_statistics_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
 ) -> Result<Json<ApiResponse<crate::dto::inventory_dto::InventoryStatistics>>, AppError> {
     let stats = InventoryQueryService::inventory_statistics(&pool).await?;
     Ok(ApiResponse::ok(stats))
 }
 
-pub async fn trace_pipe_handler(
-    Extension(pool): Extension<PgPool>,
-    axum::extract::Path((pipe_type, pipe_id)): axum::extract::Path<(String, i64)>,
+/// GET /api/v1/trace/items/{item_id} — full lifecycle trace for one item.
+pub async fn trace_item_handler(
+    Extension(pool): Extension<SqlitePool>,
+    Path(item_id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let result = TraceService::trace_pipe_lifecycle(&pool, &pipe_type, pipe_id).await?;
+    let result = TraceService::trace_item_lifecycle(&pool, item_id).await?;
     Ok(ApiResponse::ok(result))
 }
 
-pub async fn trace_heat_handler(
-    Extension(pool): Extension<PgPool>,
-    Query(query): Query<HeatNumberQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    if query.heat_number.trim().is_empty() {
-        return Err(AppError::Validation("Heat number is required".into()));
-    }
-    let results = TraceService::trace_by_heat_number(&pool, &query.heat_number).await?;
-    Ok(ApiResponse::ok(serde_json::Value::Array(results)))
-}
-
+/// GET /api/v1/trace/order/{order_type}/{order_id} — inbound/outbound records
+/// linked to a purchase/sales order.
 pub async fn trace_order_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     axum::extract::Path((order_type, order_id)): axum::extract::Path<(String, i64)>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let result = TraceService::trace_by_order(&pool, &order_type, order_id).await?;

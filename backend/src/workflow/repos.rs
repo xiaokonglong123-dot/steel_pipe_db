@@ -1,31 +1,32 @@
 //! Workflow repositories — pure SQL, static methods, soft-delete aware.
-//! Follows the project repo convention (unit structs, `&PgPool`).
+//! Follows the project repo convention (unit structs, `&SqlitePool`).
 
 use chrono::Utc;
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{Sqlite, SqlitePool, Transaction};
 use crate::models::workflow::{ApprovalNode, WorkflowDefinition, WorkflowDelegation, WorkflowInstance};
 
 pub struct WorkflowDefinitionRepo;
 
 impl WorkflowDefinitionRepo {
-    pub async fn list(pool: &PgPool, tenant_id: i64, entity_type: Option<&str>) -> Result<Vec<WorkflowDefinition>, sqlx::Error> {
+    pub async fn list(pool: &SqlitePool, tenant_id: i64, entity_type: Option<&str>) -> Result<Vec<WorkflowDefinition>, sqlx::Error> {
         sqlx::query_as::<_, WorkflowDefinition>(
             "SELECT id, tenant_id, name, entity_type, description, definition_json, \
                     callback_action, version, is_active, created_at, updated_at, deleted_at \
-             FROM workflow_definitions WHERE tenant_id = $1 AND deleted_at IS NULL \
-             AND ($2::text IS NULL OR entity_type = $2) ORDER BY id",
+             FROM workflow_definitions WHERE tenant_id = ? AND deleted_at IS NULL \
+             AND (? IS NULL OR entity_type = ?) ORDER BY id",
         )
         .bind(tenant_id)
+        .bind(entity_type)
         .bind(entity_type)
         .fetch_all(pool)
         .await
     }
 
-    pub async fn find_by_id(pool: &PgPool, tenant_id: i64, id: i64) -> Result<Option<WorkflowDefinition>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<Option<WorkflowDefinition>, sqlx::Error> {
         sqlx::query_as::<_, WorkflowDefinition>(
             "SELECT id, tenant_id, name, entity_type, description, definition_json, \
                     callback_action, version, is_active, created_at, updated_at, deleted_at \
-             FROM workflow_definitions WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
+             FROM workflow_definitions WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(id)
@@ -34,7 +35,7 @@ impl WorkflowDefinitionRepo {
     }
 
     pub async fn create(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         name: &str,
         entity_type: &str,
@@ -45,7 +46,7 @@ impl WorkflowDefinitionRepo {
         sqlx::query_as::<_, WorkflowDefinition>(
             "INSERT INTO workflow_definitions \
              (tenant_id, name, entity_type, description, definition_json, callback_action) \
-             VALUES ($1, $2, $3, $4, $5, $6) \
+             VALUES (?, ?, ?, ?, ?, ?) \
              RETURNING id, tenant_id, name, entity_type, description, definition_json, \
                        callback_action, version, is_active, created_at, updated_at, deleted_at",
         )
@@ -60,7 +61,7 @@ impl WorkflowDefinitionRepo {
     }
 
     pub async fn update(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         name: Option<&str>,
@@ -70,29 +71,29 @@ impl WorkflowDefinitionRepo {
     ) -> Result<Option<WorkflowDefinition>, sqlx::Error> {
         sqlx::query_as::<_, WorkflowDefinition>(
             "UPDATE workflow_definitions SET \
-               name = COALESCE($3, name), \
-               description = COALESCE($4, description), \
-               definition_json = COALESCE($5, definition_json), \
-               is_active = COALESCE($6, is_active), \
-               updated_at = NOW() \
-             WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL \
+               name = COALESCE(?, name), \
+               description = COALESCE(?, description), \
+               definition_json = COALESCE(?, definition_json), \
+               is_active = COALESCE(?, is_active), \
+               updated_at = datetime('now') \
+             WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL \
              RETURNING id, tenant_id, name, entity_type, description, definition_json, \
                        callback_action, version, is_active, created_at, updated_at, deleted_at",
         )
-        .bind(tenant_id)
-        .bind(id)
         .bind(name)
         .bind(description)
         .bind(definition_json)
         .bind(is_active)
+        .bind(tenant_id)
+        .bind(id)
         .fetch_optional(pool)
         .await
     }
 
-    pub async fn delete(pool: &PgPool, tenant_id: i64, id: i64) -> Result<bool, sqlx::Error> {
+    pub async fn delete(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<bool, sqlx::Error> {
         sqlx::query(
-            "UPDATE workflow_definitions SET deleted_at = NOW() \
-             WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
+            "UPDATE workflow_definitions SET deleted_at = datetime('now') \
+             WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(id)
@@ -106,18 +107,18 @@ pub struct WorkflowInstanceRepo;
 
 impl WorkflowInstanceRepo {
     pub async fn create(
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'_, Sqlite>,
         definition_id: i64,
         tenant_id: i64,
         entity_type: &str,
         entity_id: i64,
-        amount: Option<rust_decimal::Decimal>,
+        amount: Option<f64>,
         initiator_id: i64,
     ) -> Result<WorkflowInstance, sqlx::Error> {
         sqlx::query_as::<_, WorkflowInstance>(
             "INSERT INTO workflow_instances \
              (definition_id, tenant_id, entity_type, entity_id, amount, initiator_id) \
-             VALUES ($1, $2, $3, $4, $5, $6) \
+             VALUES (?, ?, ?, ?, ?, ?) \
              RETURNING id, definition_id, tenant_id, entity_type, entity_id, amount, status, \
                        current_step, initiator_id, created_at, updated_at, finished_at",
         )
@@ -131,11 +132,11 @@ impl WorkflowInstanceRepo {
         .await
     }
 
-    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<WorkflowInstance>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<WorkflowInstance>, sqlx::Error> {
         sqlx::query_as::<_, WorkflowInstance>(
             "SELECT id, definition_id, tenant_id, entity_type, entity_id, amount, status, \
                     current_step, initiator_id, created_at, updated_at, finished_at \
-             FROM workflow_instances WHERE id = $1",
+             FROM workflow_instances WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -143,14 +144,14 @@ impl WorkflowInstanceRepo {
     }
 
     pub async fn find_by_entity(
-        pool: &PgPool,
+        pool: &SqlitePool,
         entity_type: &str,
         entity_id: i64,
     ) -> Result<Option<WorkflowInstance>, sqlx::Error> {
         sqlx::query_as::<_, WorkflowInstance>(
             "SELECT id, definition_id, tenant_id, entity_type, entity_id, amount, status, \
                     current_step, initiator_id, created_at, updated_at, finished_at \
-             FROM workflow_instances WHERE entity_type = $1 AND entity_id = $2 \
+             FROM workflow_instances WHERE entity_type = ? AND entity_id = ? \
              ORDER BY id DESC LIMIT 1",
         )
         .bind(entity_type)
@@ -160,31 +161,31 @@ impl WorkflowInstanceRepo {
     }
 
     pub async fn finish(
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'_, Sqlite>,
         id: i64,
         status: &str,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE workflow_instances SET status = $2, finished_at = NOW(), updated_at = NOW() \
-             WHERE id = $1",
+            "UPDATE workflow_instances SET status = ?, finished_at = datetime('now'), updated_at = datetime('now') \
+             WHERE id = ?",
         )
-        .bind(id)
         .bind(status)
+        .bind(id)
         .execute(&mut **tx)
         .await?;
         Ok(())
     }
 
     pub async fn advance_step(
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'_, Sqlite>,
         id: i64,
         step: i32,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE workflow_instances SET current_step = $2, updated_at = NOW() WHERE id = $1",
+            "UPDATE workflow_instances SET current_step = ?, updated_at = datetime('now') WHERE id = ?",
         )
-        .bind(id)
         .bind(step)
+        .bind(id)
         .execute(&mut **tx)
         .await?;
         Ok(())
@@ -195,7 +196,7 @@ pub struct ApprovalNodeRepo;
 
 impl ApprovalNodeRepo {
     pub async fn insert(
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'_, Sqlite>,
         instance_id: i64,
         step_index: i32,
         node_key: &str,
@@ -206,7 +207,7 @@ impl ApprovalNodeRepo {
         sqlx::query_as::<_, ApprovalNode>(
             "INSERT INTO approval_nodes \
              (instance_id, step_index, node_key, assignee_type, assignee_value, condition_json) \
-             VALUES ($1, $2, $3, $4, $5, $6) \
+             VALUES (?, ?, ?, ?, ?, ?) \
              RETURNING id, instance_id, step_index, node_key, assignee_type, assignee_value, \
                        condition_json, status, approver_id, approval_reason, due_date, \
                        decided_at, created_at",
@@ -222,24 +223,24 @@ impl ApprovalNodeRepo {
     }
 
     pub async fn list_for_instance(
-        pool: &PgPool,
+        pool: &SqlitePool,
         instance_id: i64,
     ) -> Result<Vec<ApprovalNode>, sqlx::Error> {
         sqlx::query_as::<_, ApprovalNode>(
             "SELECT id, instance_id, step_index, node_key, assignee_type, assignee_value, \
                     condition_json, status, approver_id, approval_reason, due_date, decided_at, created_at \
-             FROM approval_nodes WHERE instance_id = $1 ORDER BY step_index",
+             FROM approval_nodes WHERE instance_id = ? ORDER BY step_index",
         )
         .bind(instance_id)
         .fetch_all(pool)
         .await
     }
 
-    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<ApprovalNode>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<ApprovalNode>, sqlx::Error> {
         sqlx::query_as::<_, ApprovalNode>(
             "SELECT id, instance_id, step_index, node_key, assignee_type, assignee_value, \
                     condition_json, status, approver_id, approval_reason, due_date, decided_at, created_at \
-             FROM approval_nodes WHERE id = $1",
+             FROM approval_nodes WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -249,7 +250,7 @@ impl ApprovalNodeRepo {
     /// Nodes pending approval for a user: direct user-assigned nodes plus
     /// role-assigned nodes matching the user's roles.
     pub async fn pending_for_user(
-        pool: &PgPool,
+        pool: &SqlitePool,
         user_id: i64,
     ) -> Result<Vec<ApprovalNode>, sqlx::Error> {
         sqlx::query_as::<_, ApprovalNode>(
@@ -259,11 +260,11 @@ impl ApprovalNodeRepo {
              FROM approval_nodes n \
              WHERE n.status = 'pending' \
                AND ( \
-                 (n.assignee_type = 'user' AND n.assignee_value = $1::text) \
+                 (n.assignee_type = 'user' AND n.assignee_value = ?) \
                  OR (n.assignee_type = 'role' AND n.assignee_value IN ( \
                        SELECT r.name FROM user_roles ur \
                        JOIN roles r ON r.id = ur.role_id \
-                       WHERE ur.user_id = $2 \
+                       WHERE ur.user_id = ? \
                      )) \
                ) \
              ORDER BY n.id DESC",
@@ -275,30 +276,30 @@ impl ApprovalNodeRepo {
     }
 
     pub async fn decide(
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'_, Sqlite>,
         id: i64,
         status: &str,
         approver_id: i64,
         reason: Option<&str>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE approval_nodes SET status = $2, approver_id = $3, approval_reason = $4, \
-                    decided_at = NOW() WHERE id = $1",
+            "UPDATE approval_nodes SET status = ?, approver_id = ?, approval_reason = ?, \
+                    decided_at = datetime('now') WHERE id = ?",
         )
-        .bind(id)
         .bind(status)
         .bind(approver_id)
         .bind(reason)
+        .bind(id)
         .execute(&mut **tx)
         .await?;
         Ok(())
     }
 
     pub async fn skip(
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'_, Sqlite>,
         id: i64,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query("UPDATE approval_nodes SET status = 'skipped' WHERE id = $1")
+        sqlx::query("UPDATE approval_nodes SET status = 'skipped' WHERE id = ?")
             .bind(id)
             .execute(&mut **tx)
             .await?;
@@ -310,7 +311,7 @@ pub struct WorkflowDelegationRepo;
 
 impl WorkflowDelegationRepo {
     pub async fn create(
-        pool: &PgPool,
+        pool: &SqlitePool,
         original_user_id: i64,
         delegated_user_id: i64,
         entity_type: Option<&str>,
@@ -320,7 +321,7 @@ impl WorkflowDelegationRepo {
         sqlx::query_as::<_, WorkflowDelegation>(
             "INSERT INTO workflow_delegations \
              (original_user_id, delegated_user_id, entity_type, starts_at, ends_at) \
-             VALUES ($1, $2, $3, $4, $5) \
+             VALUES (?, ?, ?, ?, ?) \
              RETURNING id, original_user_id, delegated_user_id, entity_type, starts_at, ends_at, is_active, created_at",
         )
         .bind(original_user_id)

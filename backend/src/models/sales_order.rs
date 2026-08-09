@@ -7,7 +7,7 @@ use crate::domain::money::to_decimal_opt;
 use crate::domain::order::OrderStatus;
 use std::str::FromStr;
 
-/// Sales order DB row. Represents a sales order for selling pipes to a customer.
+/// Sales order DB row. Represents a sales order for selling items to a customer.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct SalesOrder {
     pub id: i64,
@@ -55,24 +55,18 @@ impl SalesOrderItem {
     }
 }
 
-/// Sales order item DB row. Line items — what pipes and how many.
+/// Sales order item DB row. Line items — what items and how many.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct SalesOrderItem {
     pub id: i64,
     /// FK back to the sales order.
     pub order_id: i64,
-    /// Pipe type: seamless or screen.
-    pub pipe_type: String,
-    /// Steel grade.
-    pub grade: String,
-    /// Outer diameter (mm).
-    pub od: f64,
-    /// Wall thickness (mm).
-    pub wt: f64,
+    /// FK to the item master (`items.id`).
+    pub item_id: i64,
     /// Quantity ordered.
-    pub quantity: i64,
+    pub quantity: f64,
     /// Quantity delivered so far.
-    pub delivered_quantity: i64,
+    pub delivered_quantity: f64,
     /// Unit price.
     pub unit_price: Option<f64>,
     /// Total price for this line.

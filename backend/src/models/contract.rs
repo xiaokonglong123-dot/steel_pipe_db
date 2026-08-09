@@ -64,22 +64,16 @@ impl ContractPayment {
     }
 }
 
-/// Contract item DB row. Pipe specs and quantities under a contract.
+/// Contract item DB row. Items and quantities under a contract.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ContractItem {
     pub id: i64,
     /// FK back to the contract.
     pub contract_id: i64,
-    /// Pipe type: seamless or screen.
-    pub pipe_type: String,
-    /// Steel grade.
-    pub grade: String,
-    /// Outer diameter (mm).
-    pub od: f64,
-    /// Wall thickness (mm).
-    pub wt: f64,
+    /// FK to the item master (`items.id`).
+    pub item_id: i64,
     /// Quantity.
-    pub quantity: i64,
+    pub quantity: f64,
     /// Unit price.
     pub unit_price: Option<f64>,
     /// Total price for this line.

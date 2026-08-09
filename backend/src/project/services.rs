@@ -1,6 +1,6 @@
 //! Project services — project charter, WBS, budget transactions.
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::project_dto::{
     CreateProjectRequest, CreateTransactionRequest, CreateWbsRequest, UpdateWbsProgressRequest,
@@ -12,30 +12,30 @@ use crate::project::repos::{ProjectRepo, ProjectTxRepo, WbsRepo};
 pub struct ProjectService;
 
 impl ProjectService {
-    pub async fn create_project(pool: &PgPool, tenant_id: i64, dto: &CreateProjectRequest) -> Result<Project, AppError> {
+    pub async fn create_project(pool: &SqlitePool, tenant_id: i64, dto: &CreateProjectRequest) -> Result<Project, AppError> {
         if dto.name.trim().is_empty() {
             return Err(AppError::Validation("Project name is required".into()));
         }
         let project_no = format!("PRJ-{}-{}", chrono::Utc::now().format("%Y%m%d"), seq(pool, "projects").await?);
         ProjectRepo::create(
             pool, tenant_id, &project_no, dto.name.trim(), dto.description.as_deref(),
-            dto.start_date, dto.end_date, dto.manager_id, dto.budget.unwrap_or_default(),
+            dto.start_date, dto.end_date, dto.manager_id, dto.budget.unwrap_or(0.0),
         )
         .await
         .map_err(AppError::from)
     }
 
-    pub async fn list_projects(pool: &PgPool, tenant_id: i64, status: Option<&str>) -> Result<Vec<Project>, AppError> {
+    pub async fn list_projects(pool: &SqlitePool, tenant_id: i64, status: Option<&str>) -> Result<Vec<Project>, AppError> {
         ProjectRepo::list(pool, tenant_id, status).await.map_err(AppError::from)
     }
 
-    pub async fn get_project(pool: &PgPool, tenant_id: i64, id: i64) -> Result<Project, AppError> {
+    pub async fn get_project(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<Project, AppError> {
         ProjectRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Project not found: {}", id)))
     }
 
-    pub async fn update_project_status(pool: &PgPool, tenant_id: i64, id: i64, status: &str) -> Result<Project, AppError> {
+    pub async fn update_project_status(pool: &SqlitePool, tenant_id: i64, id: i64, status: &str) -> Result<Project, AppError> {
         if !matches!(status, "planning" | "active" | "on_hold" | "completed" | "cancelled") {
             return Err(AppError::Validation(format!("Invalid project status: {}", status)));
         }
@@ -44,7 +44,7 @@ impl ProjectService {
             .ok_or_else(|| AppError::NotFound(format!("Project not found: {}", id)))
     }
 
-    pub async fn create_wbs(pool: &PgPool, tenant_id: i64, project_id: i64, dto: &CreateWbsRequest) -> Result<WbsElement, AppError> {
+    pub async fn create_wbs(pool: &SqlitePool, tenant_id: i64, project_id: i64, dto: &CreateWbsRequest) -> Result<WbsElement, AppError> {
         // Project must exist.
         Self::get_project(pool, tenant_id, project_id).await?;
         if dto.code.trim().is_empty() || dto.name.trim().is_empty() {
@@ -58,17 +58,17 @@ impl ProjectService {
         .map_err(AppError::from)
     }
 
-    pub async fn wbs_tree(pool: &PgPool, project_id: i64) -> Result<Vec<WbsElement>, AppError> {
+    pub async fn wbs_tree(pool: &SqlitePool, project_id: i64) -> Result<Vec<WbsElement>, AppError> {
         WbsRepo::list(pool, project_id).await.map_err(AppError::from)
     }
 
     pub async fn update_wbs_progress(
-        pool: &PgPool,
+        pool: &SqlitePool,
         project_id: i64,
         id: i64,
         dto: &UpdateWbsProgressRequest,
     ) -> Result<WbsElement, AppError> {
-        if dto.progress_pct < rust_decimal::Decimal::ZERO || dto.progress_pct > rust_decimal::Decimal::from(100) {
+        if dto.progress_pct < 0.0 || dto.progress_pct > 100.0 {
             return Err(AppError::Validation("Progress must be 0-100".into()));
         }
         WbsRepo::update_progress(pool, project_id, id, dto.progress_pct)
@@ -77,7 +77,7 @@ impl ProjectService {
     }
 
     pub async fn create_transaction(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         project_id: i64,
         dto: &CreateTransactionRequest,
@@ -96,11 +96,11 @@ impl ProjectService {
         .map_err(AppError::from)
     }
 
-    pub async fn list_transactions(pool: &PgPool, project_id: i64) -> Result<Vec<ProjectTransaction>, AppError> {
+    pub async fn list_transactions(pool: &SqlitePool, project_id: i64) -> Result<Vec<ProjectTransaction>, AppError> {
         ProjectTxRepo::list(pool, project_id).await.map_err(AppError::from)
     }
 
-    pub async fn financials(pool: &PgPool, tenant_id: i64, project_id: i64) -> Result<ProjectFinancials, AppError> {
+    pub async fn financials(pool: &SqlitePool, tenant_id: i64, project_id: i64) -> Result<ProjectFinancials, AppError> {
         ProjectRepo::financials(pool, tenant_id, project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Project not found: {}", project_id)))
@@ -108,7 +108,7 @@ impl ProjectService {
 }
 
 /// Per-table sequence helper for document numbers.
-async fn seq(pool: &PgPool, table: &str) -> Result<i64, AppError> {
+async fn seq(pool: &SqlitePool, table: &str) -> Result<i64, AppError> {
     let n: i64 = sqlx::query_scalar(&format!("SELECT COALESCE(MAX(id), 0) + 1 FROM {}", table))
         .fetch_one(pool)
         .await

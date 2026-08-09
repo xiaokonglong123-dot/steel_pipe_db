@@ -5,13 +5,11 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::cache::CacheManager;
 use crate::dto::common::PaginationParams;
-use crate::dto::inventory_dto::{
-    AssignLocationRequest, CreateLocationRequest, TransferLocationRequest, UpdateLocationRequest,
-};
+use crate::dto::inventory_dto::{CreateLocationRequest, UpdateLocationRequest};
 use validator::Validate;
 
 use crate::error::AppError;
@@ -27,7 +25,7 @@ pub struct LocationListQuery {
 }
 
 pub async fn list_locations_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Extension(cache): Extension<CacheManager>,
     Query(query): Query<LocationListQuery>,
 ) -> Result<Json<PaginatedResponse<Location>>, AppError> {
@@ -42,21 +40,21 @@ pub async fn list_locations_handler(
 
     let active_only = query.active_only.unwrap_or(false);
     let cache_key = if active_only { "locations_active" } else { "locations_all" };
-    
+
     if let Some(cached_json) = cache.locations.get(cache_key).await {
         if let Ok(cached) = serde_json::from_value::<(Vec<Location>, u64)>(cached_json) {
             let (items, total) = cached;
             return Ok(PaginatedResponse::ok(items, total, page, page_size));
         }
     }
-    
+
     let (items, total) = LocationService::list_locations(&pool, &pagination, active_only).await?;
     cache.locations.insert(cache_key.to_string(), serde_json::to_value((&items, total)).map_err(AppError::from)?).await;
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
 pub async fn create_location_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Extension(cache): Extension<CacheManager>,
     Json(req): Json<CreateLocationRequest>,
 ) -> Result<axum::response::Response, AppError> {
@@ -67,7 +65,7 @@ pub async fn create_location_handler(
 }
 
 pub async fn get_location_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Location>>, AppError> {
     let location = LocationService::get_location(&pool, id).await?;
@@ -75,7 +73,7 @@ pub async fn get_location_handler(
 }
 
 pub async fn update_location_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Extension(cache): Extension<CacheManager>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateLocationRequest>,
@@ -87,34 +85,10 @@ pub async fn update_location_handler(
 }
 
 pub async fn delete_location_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Extension(cache): Extension<CacheManager>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
     LocationService::delete_location(&pool, &cache, id).await?;
     Ok((StatusCode::NO_CONTENT, ()).into_response())
-}
-
-pub async fn assign_location_handler(
-    Extension(pool): Extension<PgPool>,
-    Extension(cache): Extension<CacheManager>,
-    Path(location_id): Path<i64>,
-    Json(req): Json<AssignLocationRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::Validation(e.to_string()))?;
-    let result = LocationService::assign_location(&pool, &cache, location_id, &req).await?;
-    Ok(ApiResponse::ok(result))
-}
-
-pub async fn transfer_location_handler(
-    Extension(pool): Extension<PgPool>,
-    Extension(cache): Extension<CacheManager>,
-    Path((pipe_type, pipe_id)): Path<(String, i64)>,
-    Json(req): Json<TransferLocationRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::Validation(e.to_string()))?;
-    let result = LocationService::transfer_location(&pool, &cache, &pipe_type, pipe_id, &req).await?;
-    Ok(ApiResponse::ok(result))
 }

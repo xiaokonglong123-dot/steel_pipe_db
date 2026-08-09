@@ -29,7 +29,7 @@ pub struct SalesQuote {
     pub customer_id: i64,
     pub quote_date: NaiveDate,
     pub valid_until: Option<NaiveDate>,
-    pub total_amount: rust_decimal::Decimal,
+    pub total_amount: f64,
     pub status: String,
     pub items_json: serde_json::Value,
     pub notes: Option<String>,
@@ -42,6 +42,6 @@ pub struct SalesQuote {
 #[derive(Debug, Serialize, FromRow)]
 pub struct CustomerCredit {
     pub customer_id: i64,
-    pub open_invoice_total: rust_decimal::Decimal,
-    pub lifetime_sales: rust_decimal::Decimal,
+    pub open_invoice_total: f64,
+    pub lifetime_sales: f64,
 }

@@ -4,7 +4,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::inventory_dto::{
@@ -20,7 +20,7 @@ use crate::response::{ApiResponse, PaginatedResponse};
 use crate::services::inbound_service::InboundService;
 
 pub async fn create_inbound_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateInboundRecordRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()
@@ -30,7 +30,7 @@ pub async fn create_inbound_handler(
 }
 
 pub async fn list_inbound_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<InboundFilter>,
 ) -> Result<Json<PaginatedResponse<InboundRecord>>, AppError> {
     let pagination = PaginationParams {
@@ -48,7 +48,7 @@ pub async fn list_inbound_handler(
 }
 
 pub async fn get_inbound_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<crate::dto::inventory_dto::InboundRecordDetail>>, AppError> {
     let (record, items) = InboundService::get_inbound_record(&pool, id).await?;
@@ -58,7 +58,7 @@ pub async fn get_inbound_handler(
 }
 
 pub async fn approve_inbound_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
     Extension(auth): Extension<AuthContext>,
     Json(req): Json<ApproveRequest>,
@@ -70,7 +70,7 @@ pub async fn approve_inbound_handler(
 }
 
 pub async fn reject_inbound_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
     Json(req): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -81,7 +81,7 @@ pub async fn reject_inbound_handler(
 }
 
 pub async fn update_inbound_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateInboundRecordRequest>,
 ) -> Result<Json<ApiResponse<InboundRecord>>, AppError> {
@@ -90,7 +90,7 @@ pub async fn update_inbound_handler(
 }
 
 pub async fn delete_inbound_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
     InboundService::delete_inbound(&pool, id).await?;
@@ -98,7 +98,7 @@ pub async fn delete_inbound_handler(
 }
 
 pub async fn list_inbound_items_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<InboundItem>>>, AppError> {
     let items = InboundService::list_inbound_items(&pool, id).await?;
@@ -106,7 +106,7 @@ pub async fn list_inbound_items_handler(
 }
 
 pub async fn batch_create_inbound_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Json(req): Json<BatchCreateInboundRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()

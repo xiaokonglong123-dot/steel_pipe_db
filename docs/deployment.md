@@ -1,5 +1,8 @@
 # 部署指南 / Deployment Guide
 
+> 历史沿革：本系统由钢管行业系统重构而来，现为通用 ERP（企业资源计划系统）。
+> 后端 crate 名为 `erp-server`（代码阶段实施），数据库为 SQLite3（`sqlite://data/erp.db?mode=rwc`）。
+
 ## 生产环境配置
 
 ### 后端环境变量
@@ -11,8 +14,8 @@ cp .env.example .env
 ```
 
 | 变量 | 生产环境要求 | 说明 |
-|------|-------------|------|
-| `DATABASE_URL` | 确保路径可写 | SQLite 文件路径，`mode=rwc` 自动创建 |
+| ------ | ------------- | ------ |
+| `DATABASE_URL` | 确保路径可写 | SQLite 文件路径（默认 `sqlite://data/erp.db?mode=rwc`），`mode=rwc` 自动创建 |
 | `JWT_SECRET` | **必须修改** | 使用 `openssl rand -base64 48` 生成 |
 | `JWT_EXPIRY_HOURS` | 按需调整 | 默认 24 小时 |
 | `SERVER_HOST` | 建议 `127.0.0.1` | 仅本地监听，配合反向代理 |
@@ -39,10 +42,10 @@ cd backend
 cargo build --release
 
 # 运行
-./target/release/steel-pipe-db
+./target/release/erp-server
 ```
 
-构建产物位于 `backend/target/release/steel-pipe-db`。
+构建产物位于 `backend/target/release/erp-server`。
 
 ### 前端（React）
 
@@ -71,7 +74,7 @@ server {
 
     # 前端静态文件
     location / {
-        root /var/www/steel-pipe-db/frontend/dist;
+        root /var/www/erp/frontend/dist;
         index index.html;
         try_files $uri $uri/ /index.html;  # SPA 路由回退
     }
@@ -90,7 +93,7 @@ server {
 
     # 静态资源缓存
     location /assets/ {
-        root /var/www/steel-pipe-db/frontend/dist;
+        root /var/www/erp/frontend/dist;
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
@@ -101,19 +104,19 @@ server {
 
 ## Systemd 服务配置
 
-创建 `/etc/systemd/system/steel-pipe-db.service`：
+创建 `/etc/systemd/system/erp.service`：
 
 ```ini
 [Unit]
-Description=Steel Pipe DB API Server
+Description=ERP API Server
 After=network.target
 
 [Service]
 Type=simple
-User=steel-pipe
-WorkingDirectory=/opt/steel-pipe-db/backend
-EnvironmentFile=/opt/steel-pipe-db/backend/.env
-ExecStart=/opt/steel-pipe-db/backend/target/release/steel-pipe-db
+User=erp
+WorkingDirectory=/opt/erp/backend
+EnvironmentFile=/opt/erp/backend/.env
+ExecStart=/opt/erp/backend/target/release/erp-server
 Restart=on-failure
 RestartSec=5
 
@@ -121,7 +124,7 @@ RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/steel-pipe-db/backend/data
+ReadWritePaths=/opt/erp/backend/data
 
 [Install]
 WantedBy=multi-user.target
@@ -131,9 +134,9 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable steel-pipe-db
-sudo systemctl start steel-pipe-db
-sudo systemctl status steel-pipe-db
+sudo systemctl enable erp
+sudo systemctl start erp
+sudo systemctl status erp
 ```
 
 ---
@@ -144,27 +147,27 @@ sudo systemctl status steel-pipe-db
 
 ```bash
 # 使用 sqlite3 进行一致性备份（推荐，不会锁定数据库）
-sqlite3 data/steel_pipe.db ".backup data/steel_pipe_backup_$(date +%Y%m%d_%H%M%S).db"
+sqlite3 data/erp.db ".backup data/erp_backup_$(date +%Y%m%d_%H%M%S).db"
 ```
 
 ### 定时备份（crontab）
 
 ```bash
 # 每天凌晨 2 点自动备份，保留最近 30 天
-0 2 * * * sqlite3 /opt/steel-pipe-db/backend/data/steel_pipe.db ".backup /opt/steel-pipe-db/backups/steel_pipe_$(date +\%Y\%m\%d).db" && find /opt/steel-pipe-db/backups/ -name "steel_pipe_*.db" -mtime +30 -delete
+0 2 * * * sqlite3 /opt/erp/backend/data/erp.db ".backup /opt/erp/backups/erp_$(date +\%Y\%m\%d).db" && find /opt/erp/backups/ -name "erp_*.db" -mtime +30 -delete
 ```
 
 ### 恢复备份
 
 ```bash
 # 停止服务
-sudo systemctl stop steel-pipe-db
+sudo systemctl stop erp
 
 # 替换数据库文件
-cp data/steel_pipe_backup_YYYYMMDD.db data/steel_pipe.db
+cp data/erp_backup_YYYYMMDD.db data/erp.db
 
 # 重启服务
-sudo systemctl start steel-pipe-db
+sudo systemctl start erp
 ```
 
 ---
@@ -194,7 +197,7 @@ RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/
 WORKDIR /app
 
 # Backend binary
-COPY --from=backend-builder /app/backend/target/release/steel-pipe-db /app/steel-pipe-db
+COPY --from=backend-builder /app/backend/target/release/erp-server /app/erp-server
 # Backend .env and migrations
 COPY backend/.env /app/.env
 COPY backend/migrations/ /app/migrations/
@@ -207,7 +210,7 @@ RUN mkdir -p /app/data
 
 EXPOSE 3000
 
-CMD ["/app/steel-pipe-db"]
+CMD ["/app/erp-server"]
 ```
 
 ### docker-compose.yml
@@ -237,7 +240,7 @@ services:
 - [ ] `JWT_SECRET` 已替换为强随机密钥（非默认值）
 - [ ] `SERVER_HOST` 设为 `127.0.0.1`（不直接暴露到公网）
 - [ ] Nginx 已配置 HTTPS（使用 Let's Encrypt 或其他证书）
-- [ ] 数据库文件定期备份
+- [ ] SQLite 数据库文件定期备份
 - [ ] 默认 `admin/admin123` 密码已在首次登录后修改
 - [ ] CORS 仅允许前端域名（非 `*`）
 - [ ] 文件上传大小限制已配置

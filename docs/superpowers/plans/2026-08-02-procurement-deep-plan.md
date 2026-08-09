@@ -2,13 +2,15 @@
 
 **Goal:** Enhance existing purchase order module with requisitions, quotes, 3-way matching, delivery tracking.
 
-**Architecture:** Extend existing orders crate with new tables `purchase_requisitions`, `supplier_quotes`, `po_receipts`. Minimal new handlers.
+**Architecture:** Extend existing `backend/src/procurement/` module with new tables `purchase_requisitions`, `supplier_quotes`, `po_receipts`. Minimal new handlers.
+
+**Database:** SQLite3 (`sqlite://data/erp.db?mode=rwc`), 无 schema 前缀
 
 ---
 
 ### Task 1: Add database columns/tables
 
-Extend `orders.suppliers` with new columns, create `orders.purchase_requisitions`, `orders.supplier_quotes`, `orders.po_receipts` table migration.
+Extend `suppliers` with new columns, create `purchase_requisitions`, `supplier_quotes`, `po_receipts` table migration.
 
 ### Task 2: Create purchase requisition service
 

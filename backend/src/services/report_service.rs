@@ -1,4 +1,4 @@
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::error::AppError;
 use crate::repositories::report_repo::ReportRepo;
@@ -9,16 +9,17 @@ use crate::repositories::report_repo::ReportRepo;
 pub struct ReportService;
 
 impl ReportService {
-    /// Inventory overview report — counts by status, grade, pipe type, plus location occupancy.
-    pub async fn inventory_summary(pool: &PgPool) -> Result<serde_json::Value, AppError> {
+    /// Inventory overview report — counts by status, category, stock movement type,
+    /// plus location occupancy.
+    pub async fn inventory_summary(pool: &SqlitePool) -> Result<serde_json::Value, AppError> {
         let by_status = ReportRepo::inventory_by_status(pool).await?;
-        let by_grade = ReportRepo::inventory_by_grade(pool).await?;
+        let by_category = ReportRepo::inventory_by_category(pool).await?;
         let by_type = ReportRepo::inventory_by_type(pool).await?;
         let location_occupancy = ReportRepo::location_occupancy(pool).await?;
 
         Ok(serde_json::json!({
             "by_status": by_status,
-            "by_grade": by_grade,
+            "by_category": by_category,
             "by_type": by_type,
             "location_occupancy": location_occupancy,
         }))
@@ -27,7 +28,7 @@ impl ReportService {
     /// Order report — aggregates by type (`sales`/`purchase`) and time period,
     /// includes order lists, status distribution, and top 10 customers/suppliers.
     pub async fn order_report(
-        pool: &PgPool,
+        pool: &SqlitePool,
         order_type: &str,
         period: &str,
     ) -> Result<serde_json::Value, AppError> {
@@ -69,20 +70,20 @@ impl ReportService {
         }))
     }
 
-    /// QC report — pass/fail distribution by grade and cert count per month.
-    pub async fn quality_report(pool: &PgPool) -> Result<serde_json::Value, AppError> {
-        let by_grade = ReportRepo::quality_pass_fail_by_grade(pool).await?;
+    /// QC report — pass/fail distribution by item and inspection count per month.
+    pub async fn quality_report(pool: &SqlitePool) -> Result<serde_json::Value, AppError> {
+        let by_item = ReportRepo::quality_pass_fail_by_grade(pool).await?;
         let by_month = ReportRepo::quality_certs_by_month(pool).await?;
 
         Ok(serde_json::json!({
-            "by_grade": by_grade,
+            "by_item": by_item,
             "by_month": by_month,
         }))
     }
 
-    /// Dashboard data — total stock, 30-day in/out counts, recent movements,
-    /// pending approvals count and list, and recent QC failures.
-    pub async fn dashboard(pool: &PgPool) -> Result<serde_json::Value, AppError> {
+    /// Dashboard data — total active items, 30-day in/out counts, recent movements,
+    /// pending approvals count and list, and recent open NCRs.
+    pub async fn dashboard(pool: &SqlitePool) -> Result<serde_json::Value, AppError> {
         let stock = ReportRepo::total_stock(pool).await?;
         let inbound_count = ReportRepo::inbound_count_30d(pool).await?;
         let outbound_count = ReportRepo::outbound_count_30d(pool).await?;

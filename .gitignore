@@ -81,3 +81,12 @@ steel_pipe.ico
 
 # ── Worktrees ──
 .worktrees/
+
+/.crew/
+/.crew
+!.crew/artifacts/
+!.crew/graphs/
+!.crew/artifacts/.gitkeep
+!.crew/graphs/.gitkeep
+# Tool caches / local-only dirs
+.pi/

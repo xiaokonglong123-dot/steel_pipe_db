@@ -6,11 +6,11 @@
 mod common;
 
 use chrono::{DateTime, Utc};
-use steel_pipe_db::dto::auth_dto::{
+use erp_server::dto::auth_dto::{
     ChangePasswordRequest, CreateUserRequest, LoginRequest, RefreshTokenRequest, UpdateUserRequest,
 };
-use steel_pipe_db::dto::common::PaginationParams;
-use steel_pipe_db::services::auth_service::AuthService;
+use erp_server::dto::common::PaginationParams;
+use erp_server::services::auth_service::AuthService;
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 /// Login
@@ -74,7 +74,7 @@ async fn login_inactive_user_returns_forbidden() {
     let pool = common::test_pool().await;
     let user_id = common::seed_user(&pool, "disabled", "admin").await.unwrap();
 
-    sqlx::query("UPDATE users SET is_active = FALSE WHERE id = $1")
+    sqlx::query("UPDATE users SET is_active = 0 WHERE id = ?")
         .bind(user_id)
         .execute(&pool)
         .await
@@ -239,7 +239,7 @@ async fn refresh_token_expired_token_returns_unauthorized() {
     .await
     .expect("login must succeed");
 
-    sqlx::query("UPDATE refresh_tokens SET expires_at = '2000-01-01T00:00:00Z' WHERE user_id = $1")
+    sqlx::query("UPDATE refresh_tokens SET expires_at = '2000-01-01T00:00:00Z' WHERE user_id = ?")
         .bind(user_id)
         .execute(&pool)
         .await
@@ -718,7 +718,7 @@ async fn delete_user_sets_deleted_at_timestamp() {
         .await
         .expect("delete_user must succeed");
 
-    let row: (Option<DateTime<Utc>>,) = sqlx::query_as("SELECT deleted_at FROM users WHERE id = $1")
+    let row: (Option<DateTime<Utc>>,) = sqlx::query_as("SELECT deleted_at FROM users WHERE id = ?")
         .bind(user_id)
         .fetch_one(&pool)
         .await

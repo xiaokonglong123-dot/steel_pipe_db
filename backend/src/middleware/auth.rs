@@ -9,8 +9,10 @@ use axum::{
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
+use crate::auth::repos::UserRoleRepo;
 use crate::error::ApiErrorResponse;
 
 #[derive(Clone)]
@@ -30,8 +32,12 @@ impl fmt::Debug for JwtSecret {
 
 /// JWT payload claims extracted from the access token.
 ///
-/// Contains the authenticated user's identity and token metadata
-/// (issued-at and expiration timestamps).
+/// The token carries identity (`sub`/`username`/`tenant_id`) plus a role and
+/// permission **snapshot** taken at issue time. Authorization is *not* trusted
+/// from the token: [`auth_middleware`] re-resolves the user's role and
+/// permissions from the DB on every request, so changes take effect
+/// immediately. The snapshot fields are kept for backward compatibility with
+/// old tokens and for frontend display only.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub: i64,
@@ -47,6 +53,7 @@ pub struct Claims {
 ///
 /// Downstream handlers and middlewares extract this via `Extension<AuthContext>`
 /// to access the current user's identity, tenant scope, and effective permissions.
+/// `role` and `permissions` are freshly resolved from the DB on every request.
 #[derive(Debug, Clone)]
 pub struct AuthContext {
     pub user_id: i64,
@@ -56,24 +63,36 @@ pub struct AuthContext {
     pub permissions: Vec<String>,
 }
 
+fn err_response(status: StatusCode, code: u32, message: &str) -> Response {
+    (
+        status,
+        Json(ApiErrorResponse {
+            success: false,
+            code,
+            request_id: format!("req_{}", Uuid::new_v4()),
+            message: message.to_string(),
+            details: None,
+        }),
+    )
+        .into_response()
+}
+
 /// Axum middleware that validates a Bearer JWT from the `Authorization` header.
 ///
 /// On success, inserts an [`AuthContext`] into request extensions for downstream use.
+/// The user's role and permissions are resolved from the DB **on every request**,
+/// so role changes, account deactivation, and deletion take effect immediately —
+/// no need to wait for the access token to expire.
+///
 /// On failure, returns 401 with an `ApiErrorResponse` (code 11001 for invalid/missing
-/// token, 11002 for expired signature).
+/// token, 11002 for expired signature), or 500 if the DB lookup cannot complete.
 pub async fn auth_middleware(mut req: Request, next: Next) -> Response {
     let Some(jwt_secret) = req.extensions().get::<JwtSecret>() else {
-        return (
+        return err_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiErrorResponse {
-                success: false,
-                code: 50001,
-                request_id: format!("req_{}", Uuid::new_v4()),
-                message: "Authentication is not configured".to_string(),
-                details: None,
-            }),
-        )
-            .into_response();
+            50001,
+            "Authentication is not configured",
+        );
     };
 
     let auth_header = req
@@ -85,36 +104,16 @@ pub async fn auth_middleware(mut req: Request, next: Next) -> Response {
     let token = match auth_header {
         Some(t) => t,
         None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(ApiErrorResponse {
-                    success: false,
-                    code: 11001,
-                    request_id: format!("req_{}", Uuid::new_v4()),
-                    message: "Missing authorization token".to_string(),
-                    details: None,
-                }),
-            )
-                .into_response()
+            return err_response(StatusCode::UNAUTHORIZED, 11001, "Missing authorization token")
         }
     };
 
-    match decode::<Claims>(
+    let claims = match decode::<Claims>(
         token,
         &DecodingKey::from_secret(jwt_secret.as_str().as_bytes()),
         &Validation::default(),
     ) {
-        Ok(data) => {
-            let ctx = AuthContext {
-                user_id: data.claims.sub,
-                tenant_id: data.claims.tenant_id,
-                username: data.claims.username,
-                role: data.claims.role,
-                permissions: data.claims.permissions,
-            };
-            req.extensions_mut().insert(ctx);
-            next.run(req).await
-        }
+        Ok(data) => data.claims,
         Err(e) => {
             let (code, msg) = match e.kind() {
                 jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
@@ -122,17 +121,67 @@ pub async fn auth_middleware(mut req: Request, next: Next) -> Response {
                 }
                 _ => (11001, "Invalid token".to_string()),
             };
-            (
-                StatusCode::UNAUTHORIZED,
-                Json(ApiErrorResponse {
-                    success: false,
-                    code,
-                    request_id: format!("req_{}", Uuid::new_v4()),
-                    message: msg,
-                    details: None,
-                }),
-            )
-                .into_response()
+            return err_response(StatusCode::UNAUTHORIZED, code, &msg);
         }
+    };
+
+    // Re-resolve role/permissions from the DB. The pool lives on request
+    // extensions because `Extension(pool)` is layered outside this middleware.
+    let Some(pool) = req.extensions().get::<SqlitePool>() else {
+        return err_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            50001,
+            "Authentication is not configured",
+        );
+    };
+
+    let role_row: Option<(String, bool)> =
+        match sqlx::query_as("SELECT role, is_active FROM users WHERE id = ? AND deleted_at IS NULL")
+            .bind(claims.sub)
+            .fetch_optional(pool)
+            .await
+        {
+            Ok(row) => row,
+            Err(e) => {
+                tracing::error!("Failed to resolve user {} role: {}", claims.sub, e);
+                return err_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    50001,
+                    "Failed to resolve user permissions",
+                );
+            }
+        };
+
+    let Some((role, is_active)) = role_row else {
+        return err_response(
+            StatusCode::UNAUTHORIZED,
+            11001,
+            "Account no longer exists",
+        );
+    };
+    if !is_active {
+        return err_response(StatusCode::FORBIDDEN, 11003, "Account is disabled");
     }
+
+    let permissions = match UserRoleRepo::permission_keys_for_user(pool, claims.sub).await {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!("Failed to resolve user {} permissions: {}", claims.sub, e);
+            return err_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                50001,
+                "Failed to resolve user permissions",
+            );
+        }
+    };
+
+    let ctx = AuthContext {
+        user_id: claims.sub,
+        tenant_id: claims.tenant_id,
+        username: claims.username,
+        role,
+        permissions,
+    };
+    req.extensions_mut().insert(ctx);
+    next.run(req).await
 }

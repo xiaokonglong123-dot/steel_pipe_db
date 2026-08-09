@@ -1,6 +1,8 @@
 # 贡献指南 / Contributing Guide
 
-感谢你对 Steel Pipe DB 项目的关注！本文档介绍如何参与项目贡献。
+感谢你对 ERP（通用企业资源计划系统）项目的关注！本文档介绍如何参与项目贡献。
+
+> 历史沿革：本系统由钢管行业系统重构而来，现为通用 ERP 架构（后端 crate `erp-server`，SQLite3 数据库，连接串 `sqlite://data/erp.db?mode=rwc`）。贡献时请遵循 [`specs/UBIQUITOUS_LANGUAGE_LATEST.md`](./specs/UBIQUITOUS_LANGUAGE_LATEST.md) 中的统一术语（商品/Item+SKU、采购订单、销售订单、质检/Inspection、工单等）。
 
 ## 开发环境设置
 
@@ -9,11 +11,11 @@
 ### 必备工具
 
 | 工具 | 版本 | 用途 |
-|------|------|------|
+| ------ | ------ | ------ |
 | Rust | 1.78+ (edition 2021) | 后端开发 |
 | Node.js | 20+ | 前端开发 |
 | npm | 10+ | 前端依赖管理 |
-| sqlite3 | 3.x+ | 数据库调试 |
+| sqlite3 | 3.x+ | 数据库调试（SQLite3，`data/erp.db`） |
 
 ---
 
@@ -22,7 +24,7 @@
 ### 分支策略
 
 | 分支 | 用途 |
-|------|------|
+| ------ | ------ |
 | `main` | 稳定发布分支，只接受 PR 合入 |
 | `feat/<feature-name>` | 新功能开发 |
 | `fix/<issue-description>` | Bug 修复 |
@@ -43,7 +45,7 @@
 **类型（type）：**
 
 | 类型 | 说明 |
-|------|------|
+| ------ | ------ |
 | `feat` | 新功能 |
 | `fix` | Bug 修复 |
 | `docs` | 文档变更 |
@@ -56,8 +58,8 @@
 **范围（scope）：**
 
 | 范围 | 说明 |
-|------|------|
-| `backend` | Rust 后端 |
+| ------ | ------ |
+| `backend` | Rust 后端（erp-server crate） |
 | `frontend` | React 前端 |
 | `api` | API 端点变更 |
 | `db` | 数据库/迁移变更 |
@@ -81,10 +83,11 @@ refactor(backend): split inventory_service into focused modules
 
 - `snake_case` 用于函数和变量，`PascalCase` 用于类型
 - 所有 handler 返回 `Result<Json<...>, AppError>`
-- Service 使用 unit struct + static methods：`PipeService::list(...)`
+- Service 使用 unit struct + static methods：`ItemService::list(...)`
 - Repository 接受 `&SqlitePool`，返回 `Result<Vec<T>, sqlx::Error>`
 - 使用 `///` 文档注释标注所有 `pub async fn`
 - 使用 `#![allow(dead_code)]` 仅在 `lib.rs` 顶部
+- 数据库为 SQLite3（`sqlite://data/erp.db?mode=rwc`），sqlx 0.8 `sqlite` 特性
 
 ```bash
 # 提交前检查
@@ -128,8 +131,9 @@ npm run build          # 构建验证
 - [ ] 新功能有对应的文档更新
 - [ ] 无类型错误（`cargo check` / `tsc --noEmit`）
 - [ ] 无 lint 警告
-- [ ] 数据库变更包含 migration 文件
+- [ ] 数据库变更包含 migration 文件（SQLite 语法）
 - [ ] API 变更已更新相关 DTO 和 handler 文档注释
+- [ ] 术语符合 `specs/UBIQUITOUS_LANGUAGE_LATEST.md`（商品/Item+SKU、采购订单、销售订单等）
 
 ---
 
@@ -147,7 +151,12 @@ npm run build          # 构建验证
 请求流转：HTTP → CORS → TraceLayer → AuthMiddleware → RBAC → Handler → Service → Repository → SQLite
 ```
 
+保留模块：auth/RBAC、workflow 审批、hr、finance、procurement、sales_crm、inventory（商品/SKU）、manufacturing、project、assets、notification、portal、bi、customers、suppliers、contracts、purchases、sales。
+
+迁移策略：旧版 37 个迁移文件重写为 SQLite 语法，删除管材专属表（文档先行阶段仅描述该策略，代码阶段实施）。
+
 详细架构说明请参考：
+
 - [详细设计文档](../docs/详细设计文档.md) 或 [detailed-design.en.md](../docs/detailed-design.en.md)
 - [后端 AGENTS.md](../backend/AGENTS.md)
 - [前端 AGENTS.md](../frontend/AGENTS.md)

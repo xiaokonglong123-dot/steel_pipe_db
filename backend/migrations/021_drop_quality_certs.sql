@@ -1,0 +1,9 @@
+-- 021_drop_quality_certs.sql
+-- This migration previously de-duplicated quality_certs rows and created a
+-- partial unique index per (pipe_type, pipe_id) so that at most one active
+-- quality certificate could exist per pipe.
+--
+-- The quality_certs table is REMOVED in the SQLite + generic-ERP rewrite (see
+-- 007_drop_quality_pipe_tables.sql); manufacturing quality inspection lives in
+-- mfg_inspections / mfg_ncrs (032_create_manufacturing.sql) which do not need
+-- this constraint. This migration intentionally contains no statements.

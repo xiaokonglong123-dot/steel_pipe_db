@@ -2,15 +2,14 @@
 import { useEffect, useState } from 'react';
 import {
   Form, Input, DatePicker, InputNumber, Button, Space, message,
-  Card, Table, Modal, Popconfirm,
+  Card, Table, Popconfirm,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { PageLayout } from '@/shared/components/PageLayout';
+import { PageLayout, ItemPicker } from '@/shared/components';
+import type { ItemOption } from '@/shared/components';
 import { useSalesOrder, useCreateSalesOrder, useUpdateSalesOrder } from '../hooks/useSales';
-import { usePipeSearch } from '@/features/inventory/hooks/useInventory';
-import type { PipeSearchResult } from '@/features/inventory/hooks/useInventory';
 import type { CreateSalesOrderData, CreateSalesOrderItemData, SalesOrderItem } from '../types';
 
 export default function SalesOrderFormPage() {
@@ -19,7 +18,7 @@ export default function SalesOrderFormPage() {
   const navigate = useNavigate();
   const [form] = Form.useForm<CreateSalesOrderData>();
   const [items, setItems] = useState<CreateSalesOrderItemData[]>([]);
-  const [pipeModalOpen, setPipeModalOpen] = useState(false);
+  const [itemModalOpen, setItemModalOpen] = useState(false);
 
   const isEdit = !!id;
   const orderId = isEdit ? Number(id) : 0;
@@ -31,7 +30,7 @@ export default function SalesOrderFormPage() {
   const updateMutation = useUpdateSalesOrder(orderId);
 
   useEffect(() => {
-    if (isEdit && order) {
+    if (isEdit && order && orderItems.length > 0) {
       form.setFieldsValue({
         customer_id: order.customer_id,
         order_date: order.order_date,
@@ -39,20 +38,32 @@ export default function SalesOrderFormPage() {
       });
       setItems(
         orderItems.map((item: SalesOrderItem) => ({
-          pipe_type: item.pipe_type,
-          grade: item.grade,
-          od: item.od,
-          wt: item.wt,
+          item_id: item.item_id,
+          sku: item.sku,
+          name: item.name,
           quantity: item.quantity,
-          unit_price: item.unit_price ?? undefined,
+          unit_price: item.unit_price ?? 0,
           notes: item.notes ?? undefined,
         })),
       );
     }
-  }, [isEdit, order, form]);
+  }, [isEdit, order, form, orderItems]);
 
-  const addItem = (item: CreateSalesOrderItemData) => {
-    setItems((prev) => [...prev, item]);
+  const addItems = (picked: ItemOption[]) => {
+    const additions: CreateSalesOrderItemData[] = picked.map((it) => ({
+      item_id: it.id,
+      sku: it.sku,
+      name: it.name,
+      quantity: 1,
+      unit_price: 0,
+      notes: undefined,
+    }));
+    setItems((prev) => [...prev, ...additions]);
+    setItemModalOpen(false);
+  };
+
+  const updateItem = (index: number, patch: Partial<CreateSalesOrderItemData>) => {
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   };
 
   const removeItem = (index: number) => {
@@ -65,11 +76,19 @@ export default function SalesOrderFormPage() {
       return;
     }
     try {
-      const payload = { ...values, items };
+      const payload = {
+        ...values,
+        items: items.map((it) => ({
+          item_id: it.item_id,
+          quantity: it.quantity,
+          unit_price: it.unit_price ?? 0,
+          notes: it.notes ?? null,
+        })),
+      };
       if (isEdit) {
-        await updateMutation.mutateAsync(payload);
+        await updateMutation.mutateAsync(payload as Parameters<typeof updateMutation.mutateAsync>[0]);
       } else {
-        await createMutation.mutateAsync(payload);
+        await createMutation.mutateAsync(payload as Parameters<typeof createMutation.mutateAsync>[0]);
       }
       message.success(t('common.operate_success'));
       navigate('/sales');
@@ -78,17 +97,70 @@ export default function SalesOrderFormPage() {
     }
   };
 
+  if (isEdit && loadingOrder) {
+    return <div>{t('common.loading')}</div>;
+  }
+
   const itemColumns = [
-    { title: t('pipes.pipe_number'), dataIndex: 'pipe_number', key: 'pipe_number' },
-    { title: t('pipes.pipe_type'), dataIndex: 'pipe_type', key: 'pipe_type' },
-    { title: t('pipes.grade'), dataIndex: 'grade', key: 'grade' },
-  { title: t('sales.od'), dataIndex: 'od', key: 'od', render: (v: number | null) => v ?? '-' },
-  { title: t('sales.wt'), dataIndex: 'wt', key: 'wt', render: (v: number | null) => v ?? '-' },
-    { title: t('sales.quantity'), dataIndex: 'quantity', key: 'quantity' },
-    { title: t('sales.unit_price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number) => v.toLocaleString() },
-    { title: t('sales.total_price'), dataIndex: 'total_price', key: 'total_price', render: (v: number | null) => v?.toLocaleString() ?? '-' },
     {
-      title: t('common.actions'), key: 'actions',
+      title: t('sales.item', '商品'),
+      key: 'item',
+      render: (_: unknown, record: CreateSalesOrderItemData) =>
+        record.name ? `${record.sku ?? ''} — ${record.name}` : record.sku || `#${record.item_id}`,
+    },
+    {
+      title: t('sales.quantity'),
+      dataIndex: 'quantity',
+      key: 'quantity',
+      width: 120,
+      render: (_: unknown, record: CreateSalesOrderItemData, index: number) => (
+        <InputNumber
+          min={0}
+          step={1}
+          value={record.quantity}
+          style={{ width: '100%' }}
+          onChange={(v) => updateItem(index, { quantity: v ?? 0 })}
+        />
+      ),
+    },
+    {
+      title: t('sales.unit_price'),
+      dataIndex: 'unit_price',
+      key: 'unit_price',
+      width: 140,
+      render: (_: unknown, record: CreateSalesOrderItemData, index: number) => (
+        <InputNumber
+          min={0}
+          step={0.01}
+          value={record.unit_price}
+          style={{ width: '100%' }}
+          onChange={(v) => updateItem(index, { unit_price: v ?? 0 })}
+        />
+      ),
+    },
+    {
+      title: t('sales.total_price'),
+      key: 'total_price',
+      width: 140,
+      render: (_: unknown, record: CreateSalesOrderItemData) =>
+        ((record.quantity ?? 0) * (record.unit_price ?? 0)).toLocaleString(),
+    },
+    {
+      title: t('sales.notes'),
+      dataIndex: 'notes',
+      key: 'notes',
+      width: 160,
+      render: (_: unknown, record: CreateSalesOrderItemData, index: number) => (
+        <Input
+          value={record.notes ?? ''}
+          onChange={(e) => updateItem(index, { notes: e.target.value })}
+        />
+      ),
+    },
+    {
+      title: t('common.actions'),
+      key: 'actions',
+      width: 80,
       render: (_: unknown, __: unknown, index: number) => (
         <Popconfirm title={t('common.confirm_delete')} onConfirm={() => removeItem(index)}>
           <Button type="link" danger icon={<DeleteOutlined />} />
@@ -96,10 +168,6 @@ export default function SalesOrderFormPage() {
       ),
     },
   ];
-
-  if (isEdit && loadingOrder) {
-    return <div>{t('common.loading')}</div>;
-  }
 
   return (
     <PageLayout
@@ -142,7 +210,7 @@ export default function SalesOrderFormPage() {
             <Button
               type="dashed"
               icon={<PlusOutlined />}
-              onClick={() => setPipeModalOpen(true)}
+              onClick={() => setItemModalOpen(true)}
             >
               {t('sales.add_item')}
             </Button>
@@ -173,56 +241,11 @@ export default function SalesOrderFormPage() {
         </Form.Item>
       </Form>
 
-      <Modal
-        title={t('sales.select_pipe')}
-        open={pipeModalOpen}
-        onCancel={() => setPipeModalOpen(false)}
-        footer={null}
-        width={700}
-      >
-        <PipeSelector
-          onSelect={(pipe) => {
-            addItem({
-              pipe_type: pipe.pipe_type,
-              grade: pipe.grade,
-              od: pipe.od,
-              wt: pipe.wt,
-              quantity: 1,
-              unit_price: 0,
-            });
-            setPipeModalOpen(false);
-          }}
-        />
-      </Modal>
+      <ItemPicker
+        open={itemModalOpen}
+        onCancel={() => setItemModalOpen(false)}
+        onSelect={addItems}
+      />
     </PageLayout>
-  );
-}
-
-function PipeSelector({ onSelect }: { onSelect: (pipe: { id: number; pipe_number: string; pipe_type: string; grade: string; od: number; wt: number }) => void }) {
-  const { data: pipes, isLoading } = usePipeSearch({ status: 'in_stock' });
-  const { t: tp } = useTranslation();
-
-  const columns = [
-    { title: tp('pipes.pipe_number'), dataIndex: 'pipe_number', key: 'pipe_number' },
-    { title: tp('pipes.grade'), dataIndex: 'grade', key: 'grade' },
-    {
-      title: tp('common.actions'),
-      key: 'actions',
-      render: (_: unknown, record: PipeSearchResult) => (
-        <Button type="primary" size="small" onClick={() => onSelect(record)}>
-          {tp('sales.select')}
-        </Button>
-      ),
-    },
-  ];
-
-  return (
-    <Table
-      columns={columns}
-      dataSource={pipes ?? []}
-      rowKey="id"
-      loading={isLoading}
-      pagination={{ pageSize: 10 }}
-    />
   );
 }

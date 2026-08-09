@@ -17,7 +17,7 @@ pub struct StartInstanceRequest {
     pub definition_id: i64,
     pub entity_type: String,
     pub entity_id: i64,
-    pub amount: Option<rust_decimal::Decimal>,
+    pub amount: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]

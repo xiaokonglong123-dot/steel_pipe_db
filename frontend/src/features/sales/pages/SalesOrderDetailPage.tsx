@@ -89,14 +89,17 @@ export default function SalesOrderDetailPage() {
   };
 
   const itemColumns = [
-    { title: t('pipes.pipe_type'), dataIndex: 'pipe_type', key: 'pipe_type' },
-    { title: t('pipes.grade'), dataIndex: 'grade', key: 'grade' },
-    { title: t('sales.od'), dataIndex: 'od', key: 'od' },
-    { title: t('sales.wt'), dataIndex: 'wt', key: 'wt' },
+    {
+      title: t('sales.item', '商品'),
+      key: 'item',
+      render: (_: unknown, record: { item_id: number; sku?: string; name?: string }) =>
+        record.name ? `${record.sku ?? ''} — ${record.name}` : record.sku || `#${record.item_id}`,
+    },
     { title: t('sales.quantity'), dataIndex: 'quantity', key: 'quantity' },
     { title: t('sales.delivered_quantity'), dataIndex: 'delivered_quantity', key: 'delivered_quantity' },
     { title: t('sales.unit_price'), dataIndex: 'unit_price', key: 'unit_price', render: (v: number | null) => v != null ? v.toLocaleString() : '-' },
     { title: t('sales.total_price'), dataIndex: 'total_price', key: 'total_price', render: (v: number | null) => v != null ? v.toLocaleString() : '-' },
+    { title: t('sales.notes'), dataIndex: 'notes', key: 'notes', render: (v: string | undefined) => v ?? '-' },
   ];
 
   if (isLoading) {

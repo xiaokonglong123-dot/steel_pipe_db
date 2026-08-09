@@ -1,19 +1,19 @@
 //! RBAC integration tests — roles, permissions, departments, user-role binding.
 //!
 //! These exercise the IdentityService against a real (per-test schema)
-//! PostgreSQL instance. Migration 022/023/024 seed the permission
-//! dictionary and the four built-in roles.
+//! SQLite test database (via tests::common). Migration 022/023/025 seed
+//! the permission dictionary and the four built-in roles.
 
 mod common;
 
-use steel_pipe_db::auth::services::IdentityService;
+use erp_server::auth::services::IdentityService;
 
 #[tokio::test]
 async fn list_permissions_returns_dictionary() {
     let pool = common::test_pool().await;
     let perms = IdentityService::list_permissions(&pool).await.unwrap();
     assert!(perms.len() >= 20, "expected >=20 seeded permissions, got {}", perms.len());
-    assert!(perms.iter().any(|p| p.key == "pipe.read"));
+    assert!(perms.iter().any(|p| p.key == "item.read"));
     assert!(perms.iter().any(|p| p.key == "system.admin"));
 }
 
@@ -58,19 +58,19 @@ async fn set_role_permissions_replaces_and_returns_keys() {
         &pool,
         1,
         role.id,
-        &["pipe.read".to_string(), "quality.read".to_string()],
+        &["item.read".to_string(), "quality.read".to_string()],
     )
     .await
     .unwrap();
     assert_eq!(keys.len(), 2);
-    assert!(keys.contains(&"pipe.read".to_string()));
+    assert!(keys.contains(&"item.read".to_string()));
 
     // Unknown permission keys are rejected (typo safety).
     let bad = IdentityService::set_role_permissions(
         &pool,
         1,
         role.id,
-        &["pipe.nonexistent".to_string()],
+        &["item.nonexistent".to_string()],
     )
     .await;
     assert!(bad.is_err(), "unknown permission key must be rejected");

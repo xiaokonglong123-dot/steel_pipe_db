@@ -2,11 +2,11 @@
 
 mod common;
 
-use steel_pipe_db::dto::hr_dto::{
+use erp_server::dto::hr_dto::{
     CheckInRequest, CreateContractRequest, CreateEmployeeRequest, CreatePositionRequest,
     UpdateEmployeeRequest,
 };
-use steel_pipe_db::hr::services::HrService;
+use erp_server::hr::services::HrService;
 
 fn employee_dto(no: &str, name: &str) -> CreateEmployeeRequest {
     CreateEmployeeRequest {
@@ -22,7 +22,7 @@ fn employee_dto(no: &str, name: &str) -> CreateEmployeeRequest {
         position_id: None,
         hire_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
         probation_end: None,
-        base_salary: Some(rust_decimal_macros::dec!(8000)),
+        base_salary: Some(8000.0),
         notes: None,
     }
 }
@@ -61,7 +61,7 @@ async fn update_and_terminate_employee() {
         department_id: Some(1),
         position_id: None,
         probation_end: None,
-        base_salary: Some(rust_decimal_macros::dec!(9000)),
+        base_salary: Some(9000.0),
         notes: None,
     };
     let updated = HrService::update_employee(&pool, 1, e.id, &upd).await.unwrap();
@@ -135,8 +135,8 @@ async fn generate_and_list_salaries() {
     let salaries = HrService::generate_salaries(&pool, 1, "2026-07").await.unwrap();
     assert_eq!(salaries.len(), 1);
     assert_eq!(salaries[0].employee_id, e.id);
-    assert_eq!(salaries[0].gross, rust_decimal_macros::dec!(8000));
-    assert_eq!(salaries[0].net, rust_decimal_macros::dec!(8000));
+    assert_eq!(salaries[0].gross, 8000.0);
+    assert_eq!(salaries[0].net, 8000.0);
 
     // Re-generate is idempotent (upsert).
     let again = HrService::generate_salaries(&pool, 1, "2026-07").await.unwrap();

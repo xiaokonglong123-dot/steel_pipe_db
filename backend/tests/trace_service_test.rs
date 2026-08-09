@@ -1,164 +1,127 @@
 //! Integration tests for TraceService.
 //!
 //! Covers:
-//! - Trace pipe lifecycle (seamless + screen)
-//! - Trace by heat number
+//! - Trace item lifecycle (with/without logs)
 //! - Trace by order (inbound + outbound)
-//! - Error cases: pipe not found, invalid pipe type, invalid order type
+//! - Error cases: item not found, invalid order type
 //!
-//! All tests use an in-memory SQLite database with fresh migrations.
+//! All tests use a fresh SQLite test pool with migrations applied (tests::common).
 
 mod common;
 
-use steel_pipe_db::services::trace_service::TraceService;
+use erp_server::services::trace_service::TraceService;
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// trace_pipe_lifecycle — seamless
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/// Seed a generic item (商品) row; returns item id.
+async fn seed_item(pool: &sqlx::SqlitePool, sku: &str, name: &str) -> i64 {
+    sqlx::query_scalar(
+        "INSERT INTO items (sku, name, category, unit, spec, price, status) \
+         VALUES (?, ?, '原材料', '件', 'SPC', 10.0, 'active') RETURNING id",
+    )
+    .bind(sku)
+    .bind(name)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/// trace_item_lifecycle
+/// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[tokio::test]
-async fn trace_pipe_lifecycle_seamless_with_logs() {
+async fn trace_item_lifecycle_with_logs() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-TRACE-001", "in_stock", "L80")
-        .await
-        .unwrap();
+    let item_id = seed_item(&pool, "SKU-TRACE-001", "追溯商品").await;
 
     // Insert inventory log entries directly (matching actual schema)
     sqlx::query(
-        "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, notes, created_at)
-         VALUES ('seamless', $1, 'inbound', 'purchase', 100, 'received from supplier', NOW() + '-2 days'::interval)",
+        "INSERT INTO inventory_logs (item_id, quantity, change_type, ref_type, ref_id, notes, created_at)
+         VALUES (?, 10.0, 'inbound', 'purchase', 100, 'received from supplier', datetime('now'))",
     )
-    .bind(pipe_id)
+    .bind(item_id)
     .execute(&pool)
     .await
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, notes, created_at)
-         VALUES ('seamless', $1, 'transfer', 'location_change', 200, 'moved to A-01-01', NOW() + '-1 days'::interval)",
+        "INSERT INTO inventory_logs (item_id, quantity, change_type, ref_type, ref_id, notes, created_at)
+         VALUES (?, 3.0, 'outbound', 'sales', 200, 'shipped to customer', datetime('now'))",
     )
-    .bind(pipe_id)
+    .bind(item_id)
     .execute(&pool)
     .await
     .unwrap();
 
-    let result = TraceService::trace_pipe_lifecycle(&pool, "seamless", pipe_id)
+    let result = TraceService::trace_item_lifecycle(&pool, item_id)
         .await
-        .expect("trace_pipe_lifecycle must succeed");
+        .expect("trace_item_lifecycle must succeed");
 
-    assert_eq!(result["pipe"]["pipe_number"].as_str(), Some("PN-TRACE-001"));
-    assert_eq!(result["pipe"]["current_status"].as_str(), Some("in_stock"));
-    assert_eq!(result["pipe"]["pipe_type"].as_str(), Some("seamless"));
+    assert_eq!(result["item"]["sku"].as_str(), Some("SKU-TRACE-001"));
+    assert_eq!(result["item"]["current_stock"].as_f64(), Some(7.0));
 
     let events = result["events"].as_array().unwrap();
     assert_eq!(events.len(), 2, "should have 2 events");
     assert_eq!(events[0]["change_type"].as_str(), Some("inbound"));
-    assert_eq!(events[1]["change_type"].as_str(), Some("transfer"));
+    assert_eq!(events[1]["change_type"].as_str(), Some("outbound"));
 }
 
 #[tokio::test]
-async fn trace_pipe_lifecycle_seamless_no_logs() {
+async fn trace_item_lifecycle_no_logs() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-TRACE-002", "scrapped", "J55")
-        .await
-        .unwrap();
+    let item_id = seed_item(&pool, "SKU-TRACE-002", "无记录商品").await;
 
-    let result = TraceService::trace_pipe_lifecycle(&pool, "seamless", pipe_id)
+    let result = TraceService::trace_item_lifecycle(&pool, item_id)
         .await
-        .expect("trace_pipe_lifecycle with no logs must succeed");
+        .expect("trace_item_lifecycle with no logs must succeed");
 
-    assert_eq!(result["pipe"]["pipe_number"].as_str(), Some("PN-TRACE-002"));
-    assert_eq!(result["pipe"]["current_status"].as_str(), Some("scrapped"));
+    assert_eq!(result["item"]["sku"].as_str(), Some("SKU-TRACE-002"));
+    assert_eq!(result["item"]["current_stock"].as_f64(), Some(0.0));
 
     let events = result["events"].as_array().unwrap();
     assert!(events.is_empty(), "should have no events");
 }
 
 #[tokio::test]
-async fn trace_pipe_lifecycle_screen_with_logs() {
+async fn trace_item_lifecycle_item_not_found() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_screen_pipe(&pool, "SCR-TRACE-001", "in_stock", "N80")
+    let err = TraceService::trace_item_lifecycle(&pool, 99999)
         .await
-        .unwrap();
-
-    sqlx::query(
-        "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, notes, created_at)
-         VALUES ('screen', $1, 'inbound', 'purchase', 101, 'received', NOW())",
-    )
-    .bind(pipe_id)
-    .execute(&pool)
-    .await
-    .unwrap();
-
-    let result = TraceService::trace_pipe_lifecycle(&pool, "screen", pipe_id)
-        .await
-        .expect("trace_pipe_lifecycle for screen must succeed");
-
-    assert_eq!(
-        result["pipe"]["pipe_number"].as_str(),
-        Some("SCR-TRACE-001")
-    );
-    assert_eq!(result["pipe"]["current_status"].as_str(), Some("in_stock"));
-
-    let events = result["events"].as_array().unwrap();
-    assert_eq!(events.len(), 1);
-}
-
-#[tokio::test]
-async fn trace_pipe_lifecycle_pipe_not_found() {
-    let pool = common::test_pool().await;
-
-    let err = TraceService::trace_pipe_lifecycle(&pool, "seamless", 99999)
-        .await
-        .expect_err("must reject non-existent pipe");
+        .expect_err("must reject non-existent item");
 
     assert!(err.to_string().contains("not found"));
 }
 
 #[tokio::test]
-async fn trace_pipe_lifecycle_invalid_pipe_type() {
+async fn trace_item_lifecycle_events_sorted_by_time() {
     let pool = common::test_pool().await;
 
-    let err = TraceService::trace_pipe_lifecycle(&pool, "bogus", 1)
-        .await
-        .expect_err("must reject invalid pipe type");
-
-    assert!(err.to_string().contains("Unknown pipe_type"));
-}
-
-#[tokio::test]
-async fn trace_pipe_lifecycle_events_sorted_by_time() {
-    let pool = common::test_pool().await;
-
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-TRACE-003", "in_stock", "L80")
-        .await
-        .unwrap();
+    let item_id = seed_item(&pool, "SKU-TRACE-003", "排序商品").await;
 
     // Insert events out of order (older first is correct, but we interleave)
     sqlx::query(
-        "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, notes, created_at)
-         VALUES ('seamless', $1, 'outbound', 'sales', 300, 'shipped to customer', NOW() + '+1 days'::interval)",
+        "INSERT INTO inventory_logs (item_id, quantity, change_type, ref_type, ref_id, notes, created_at)
+         VALUES (?, 5.0, 'outbound', 'sales', 300, 'shipped', datetime('now', '+1 days'))",
     )
-    .bind(pipe_id)
+    .bind(item_id)
     .execute(&pool)
     .await
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO inventory_logs (pipe_type, pipe_id, change_type, ref_type, ref_id, notes, created_at)
-         VALUES ('seamless', $1, 'inbound', 'purchase', 301, 'received', NOW() + '-1 days'::interval)",
+        "INSERT INTO inventory_logs (item_id, quantity, change_type, ref_type, ref_id, notes, created_at)
+         VALUES (?, 8.0, 'inbound', 'purchase', 301, 'received', datetime('now', '-1 days'))",
     )
-    .bind(pipe_id)
+    .bind(item_id)
     .execute(&pool)
     .await
     .unwrap();
 
-    let result = TraceService::trace_pipe_lifecycle(&pool, "seamless", pipe_id)
+    let result = TraceService::trace_item_lifecycle(&pool, item_id)
         .await
-        .expect("trace_pipe_lifecycle must succeed");
+        .expect("trace_item_lifecycle must succeed");
 
     let events = result["events"].as_array().unwrap();
     assert_eq!(events.len(), 2);
@@ -169,115 +132,6 @@ async fn trace_pipe_lifecycle_events_sorted_by_time() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// trace_by_heat_number
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-#[tokio::test]
-async fn trace_by_heat_number_finds_pipes() {
-    let pool = common::test_pool().await;
-
-    let pid1 = common::seed_seamless_pipe(&pool, "PN-HEAT-001", "in_stock", "L80")
-        .await
-        .unwrap();
-
-    // Update heat numbers via SQL (seed doesn't set custom heat_number)
-    sqlx::query("UPDATE seamless_pipes SET heat_number = 'HEAT-TEST-001' WHERE id = $1")
-        .bind(pid1)
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    let pid2 = common::seed_seamless_pipe(&pool, "PN-HEAT-002", "in_stock", "J55")
-        .await
-        .unwrap();
-    sqlx::query("UPDATE seamless_pipes SET heat_number = 'HEAT-TEST-001' WHERE id = $1")
-        .bind(pid2)
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    let results = TraceService::trace_by_heat_number(&pool, "HEAT-TEST-001")
-        .await
-        .expect("trace_by_heat_number must succeed");
-
-    assert_eq!(results.len(), 2);
-    let nums: Vec<&str> = results
-        .iter()
-        .filter_map(|v| v["pipe_number"].as_str())
-        .collect();
-    assert!(nums.contains(&"PN-HEAT-001"));
-    assert!(nums.contains(&"PN-HEAT-002"));
-}
-
-#[tokio::test]
-async fn trace_by_heat_number_finds_screen_pipes() {
-    let pool = common::test_pool().await;
-
-    let pid = common::seed_screen_pipe(&pool, "SCR-HEAT-001", "in_stock", "N80")
-        .await
-        .unwrap();
-    sqlx::query("UPDATE screen_pipes SET heat_number = 'HEAT-SCR-TEST' WHERE id = $1")
-        .bind(pid)
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    let results = TraceService::trace_by_heat_number(&pool, "HEAT-SCR-TEST")
-        .await
-        .expect("trace_by_heat_number must succeed");
-
-    assert_eq!(results.len(), 1);
-    assert_eq!(results[0]["pipe_number"].as_str(), Some("SCR-HEAT-001"));
-    assert_eq!(results[0]["pipe_type"].as_str(), Some("screen"));
-}
-
-#[tokio::test]
-async fn trace_by_heat_number_no_matches() {
-    let pool = common::test_pool().await;
-
-    let results = TraceService::trace_by_heat_number(&pool, "HEAT-NONEXISTENT")
-        .await
-        .expect("trace_by_heat_number with no matches must succeed");
-
-    assert!(results.is_empty());
-}
-
-#[tokio::test]
-async fn trace_by_heat_number_returns_both_types() {
-    let pool = common::test_pool().await;
-
-    let seamless_id = common::seed_seamless_pipe(&pool, "PN-HEAT-BOTH", "in_stock", "L80")
-        .await
-        .unwrap();
-    sqlx::query("UPDATE seamless_pipes SET heat_number = 'HEAT-BOTH' WHERE id = $1")
-        .bind(seamless_id)
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    let screen_id = common::seed_screen_pipe(&pool, "SCR-HEAT-BOTH", "in_stock", "N80")
-        .await
-        .unwrap();
-    sqlx::query("UPDATE screen_pipes SET heat_number = 'HEAT-BOTH' WHERE id = $1")
-        .bind(screen_id)
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    let results = TraceService::trace_by_heat_number(&pool, "HEAT-BOTH")
-        .await
-        .expect("trace_by_heat_number must succeed");
-
-    assert_eq!(results.len(), 2);
-    let types: Vec<&str> = results
-        .iter()
-        .filter_map(|v| v["pipe_type"].as_str())
-        .collect();
-    assert!(types.contains(&"seamless"));
-    assert!(types.contains(&"screen"));
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // trace_by_order — inbound
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -285,14 +139,12 @@ async fn trace_by_heat_number_returns_both_types() {
 async fn trace_by_order_inbound() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-ORD-IN-001", "in_stock", "L80")
-        .await
-        .unwrap();
+    let item_id = seed_item(&pool, "SKU-ORD-IN-001", "入库商品").await;
 
     // Create inbound record linked to a purchase order
     let inbound_id: i64 = sqlx::query_scalar(
         "INSERT INTO inbound_records (inbound_no, inbound_type, order_id, approval_status, notes, created_at, updated_at)
-         VALUES ('IN-ORD-001', 'purchase', 42, 'approved', 'test inbound', NOW(), NOW())
+         VALUES ('IN-ORD-001', 'purchase', 42, 'approved', 'test inbound', datetime('now'), datetime('now'))
          RETURNING id",
     )
     .fetch_one(&pool)
@@ -301,11 +153,11 @@ async fn trace_by_order_inbound() {
 
     // Create inbound item
     sqlx::query(
-        "INSERT INTO inbound_items (inbound_id, pipe_type, pipe_id, created_at)
-         VALUES ($1, 'seamless', $2, NOW())",
+        "INSERT INTO inbound_items (inbound_id, item_id, quantity, created_at)
+         VALUES (?, ?, 10.0, datetime('now'))",
     )
     .bind(inbound_id)
-    .bind(pipe_id)
+    .bind(item_id)
     .execute(&pool)
     .await
     .unwrap();
@@ -321,9 +173,10 @@ async fn trace_by_order_inbound() {
     assert_eq!(records.len(), 1);
     assert_eq!(records[0]["approval_status"].as_str(), Some("approved"));
 
-    let related_pipes = result["related_pipes"].as_array().unwrap();
-    assert_eq!(related_pipes.len(), 1);
-    assert_eq!(related_pipes[0]["pipe_id"].as_i64(), Some(pipe_id));
+    let related_items = result["related_items"].as_array().unwrap();
+    assert_eq!(related_items.len(), 1);
+    assert_eq!(related_items[0]["item_id"].as_i64(), Some(item_id));
+    assert_eq!(related_items[0]["quantity"].as_f64(), Some(10.0));
 }
 
 #[tokio::test]
@@ -336,7 +189,7 @@ async fn trace_by_order_inbound_no_records() {
 
     assert_eq!(result["order_id"].as_i64(), Some(999));
     assert!(result["records"].as_array().unwrap().is_empty());
-    assert!(result["related_pipes"].as_array().unwrap().is_empty());
+    assert!(result["related_items"].as_array().unwrap().is_empty());
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -347,13 +200,11 @@ async fn trace_by_order_inbound_no_records() {
 async fn trace_by_order_outbound() {
     let pool = common::test_pool().await;
 
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-ORD-OUT-001", "outbound", "J55")
-        .await
-        .unwrap();
+    let item_id = seed_item(&pool, "SKU-ORD-OUT-001", "出库商品").await;
 
     let outbound_id: i64 = sqlx::query_scalar(
         "INSERT INTO outbound_records (outbound_no, outbound_type, order_id, approval_status, notes, created_at, updated_at)
-         VALUES ('OUT-ORD-001', 'sales', 55, 'approved', 'test outbound', NOW(), NOW())
+         VALUES ('OUT-ORD-001', 'sales', 55, 'approved', 'test outbound', datetime('now'), datetime('now'))
          RETURNING id",
     )
     .fetch_one(&pool)
@@ -361,11 +212,11 @@ async fn trace_by_order_outbound() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO outbound_items (outbound_id, pipe_type, pipe_id, created_at)
-         VALUES ($1, 'seamless', $2, NOW())",
+        "INSERT INTO outbound_items (outbound_id, item_id, quantity, created_at)
+         VALUES (?, ?, 4.0, datetime('now'))",
     )
     .bind(outbound_id)
-    .bind(pipe_id)
+    .bind(item_id)
     .execute(&pool)
     .await
     .unwrap();
@@ -381,9 +232,9 @@ async fn trace_by_order_outbound() {
     assert_eq!(records.len(), 1);
     assert_eq!(records[0]["approval_status"].as_str(), Some("approved"));
 
-    let related_pipes = result["related_pipes"].as_array().unwrap();
-    assert_eq!(related_pipes.len(), 1);
-    assert_eq!(related_pipes[0]["pipe_id"].as_i64(), Some(pipe_id));
+    let related_items = result["related_items"].as_array().unwrap();
+    assert_eq!(related_items.len(), 1);
+    assert_eq!(related_items[0]["item_id"].as_i64(), Some(item_id));
 }
 
 #[tokio::test]
@@ -395,7 +246,7 @@ async fn trace_by_order_outbound_no_records() {
         .expect("trace_by_order with no records must succeed");
 
     assert!(result["records"].as_array().unwrap().is_empty());
-    assert!(result["related_pipes"].as_array().unwrap().is_empty());
+    assert!(result["related_items"].as_array().unwrap().is_empty());
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

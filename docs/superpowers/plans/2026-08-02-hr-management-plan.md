@@ -2,16 +2,26 @@
 
 **Goal:** Build HR module with employees, departments, attendance, salary, contracts management.
 
-**Architecture:** New `crates/hr/` in Rust. PostgreSQL schema `hr`. Frontend `features/hr/` with employee list/form, attendance table, salary polygon page.
+**Architecture:** New `backend/src/hr/` in Rust. SQLite tables with `hr_` prefix. Frontend `features/hr/` with employee list/form, attendance table, salary page.
+
+**Database:** SQLite3 (`sqlite://data/erp.db?mode=rwc`)
 
 ---
 
-### Task 1: Create `hr` schema tables
+### Task 1: Create `hr` tables
 
 ```sql
-CREATE TABLE hr.employees (id BIGSERIAL PRIMARY KEY, user_id BIGINT, employee_no VARCHAR(50) UNIQUE, hire_date DATE, status VARCHAR(20), ...);
-CREATE TABLE hr.attendances (id BIGSERIAL, clock_in TIMESTAMPTZ, ...);
-CREATE TABLE hr.salaries (id, month DATE, gross NUMERIC, net NUMERIC, status VARCHAR);
+CREATE TABLE IF NOT EXISTS hr_employees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER, employee_no TEXT UNIQUE, hire_date TEXT, status TEXT, ...
+);
+CREATE TABLE IF NOT EXISTS hr_attendances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, clock_in TEXT, ...
+);
+CREATE TABLE IF NOT EXISTS hr_salaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    month TEXT, gross REAL, net REAL, status TEXT
+);
 ```
 
 ### Task 2: Employee CRUD service + API

@@ -1,6 +1,8 @@
 # `backend/src/` — Module Wiring & Router
 
-This directory is where all the backend source modules get wired together. Don't drop new feature files here — those belong in `handlers/`, `services/`, `repositories/`, etc.
+All modules below belong to the single backend crate **`erp-server`** (documented target for the code phase).
+
+This directory is where all the backend source modules get wired together. Don't drop new feature files here — those belong in `handlers/`, `services/`, `repositories/`, or the feature module directories (`workflow/`, `hr/`, `finance/`, `procurement/`, `sales_crm/`, `inventory_atp/`, `manufacturing/`, `project/`, `assets/`, `notification/`, `portal/`, `bi/`, `auth/`).
 
 ## Module Registration
 
@@ -10,6 +12,8 @@ This directory is where all the backend source modules get wired together. Don't
 2. Add `pub mod new_thing_handler;` to that subdirectory's `mod.rs`
 3. Wire up the route in `router.rs`
 4. Expose the handler in the handler `mod.rs`
+
+Feature modules are self-contained: each has its own `mod.rs` + `handlers.rs` + `repos.rs` + `services.rs` and is registered from `lib.rs` (e.g. `pub mod workflow;`).
 
 ## `main.rs` — Entry Point
 
@@ -41,12 +45,12 @@ This directory is where all the backend source modules get wired together. Don't
 
 ```rust
 pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
-    // ~70 endpoints, grouped by entity via .merge()
+    // ~200 endpoints, grouped by entity via .merge()
     Router::new()
         .route("/api/v1/auth/login", post(handlers::auth_handler::login))
-        .route("/api/v1/pipes", get(handlers::pipe_handler::list))
+        .route("/api/v1/items", get(handlers::item_handler::list))
         // ...
-        .merge(pipe_routes)
+        .merge(item_routes)
         .merge(inventory_routes)
         // ...
         .layer(CorsLayer::permissive())
@@ -59,6 +63,7 @@ pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
 - Handlers get DI through `Extension<SqlitePool>` and auth handlers use `Extension<JwtSecret>`
 - Auth middleware wraps individual sub-routers, not the whole app
 - Request ID middleware sets/propagates `x-request-id`; CORS exposes that header to the browser
+- Routes are grouped by domain: auth, items (商品/SKU), inventory (inbound/outbound/locations/count sessions/ATP), purchases (采购订单), sales (销售订单), contracts, customers, suppliers, workflow, hr, finance, procurement, sales_crm, manufacturing, projects, fixed assets, notifications, portal, bi, data-io
 
 ## `error.rs` — Error Handling (Numeric Error Codes)
 
@@ -75,10 +80,10 @@ Domain breakdown:
 |---------|--------------|
 | 100xx   | General (Internal, Validation, NotFound, BadRequest) |
 | 110xx   | Auth (Unauthorized, TokenExpired, Forbidden) |
-| 120xx   | Pipe (NotFound, Duplicate, StatusConflict) |
-| 130xx   | Inventory (InsufficientStock, LocationFull) |
+| 120xx   | Item 商品 (NotFound, Duplicate, StatusConflict) |
+| 130xx   | Inventory (InsufficientStock, LocationNotFound) |
 | 140xx   | Orders (CannotModify, NotFound) |
-| 150xx   | Quality (CertNotFound, AttachmentNotFound) |
+| 150xx   | Inspection 质检 (NotFound, StatusConflict) |
 | 160xx   | Supplier (NotFound, CodeDuplicate) |
 | 170xx   | Customer (NotFound, CodeDuplicate) |
 | 180xx   | Data IO (ImportError, ExportError) |
@@ -103,3 +108,20 @@ Domain breakdown:
   - On failure: returns 401 with `ApiErrorResponse` (includes `success: false`, `request_id`, numeric error code 11001/11002)
 - Middleware wraps individual sub-routers (not the whole app)
 - Token generation lives in the **handler/service layer**, not in middleware
+
+## RBAC Quick Reference (route groups in `router.rs`)
+
+| Domain     | Read (any auth) | Write (roles)                    |
+|------------|:---------------:|----------------------------------|
+| Users      | admin           | admin                            |
+| Items      | ✅              | admin, warehouse                 |
+| Inbound    | ✅              | admin, warehouse                 |
+| Outbound   | ✅              | admin, warehouse                 |
+| Inventory  | ✅              | admin, warehouse                 |
+| Sales      | ✅              | admin, sales                     |
+| Purchases  | ✅              | admin, warehouse, sales          |
+| Suppliers  | ✅              | admin, warehouse, sales          |
+| Customers  | ✅              | admin, warehouse, sales          |
+| Contracts  | ✅              | admin, warehouse, sales          |
+| Data IO    | templates       | admin (import/logs), admin/warehouse/sales (export) |
+| Reports    | ✅              | — (read-only)                    |

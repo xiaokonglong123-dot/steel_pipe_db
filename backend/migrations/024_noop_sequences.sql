@@ -1,0 +1,9 @@
+-- 024_noop_sequences.sql
+-- This migration previously advanced PostgreSQL BIGSERIAL sequences with
+-- setval() after 022 seeded tenants/roles with explicit ids.
+--
+-- SQLite's INTEGER PRIMARY KEY AUTOINCREMENT tracks the maximum id in
+-- sqlite_sequence automatically: inserting explicit ids (tenants.id = 1,
+-- roles.id = 1..4) updates sqlite_sequence, so the next auto-generated id can
+-- never collide. No equivalent statement is needed.
+-- This migration intentionally contains no statements.

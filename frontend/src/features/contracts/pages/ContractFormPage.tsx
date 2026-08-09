@@ -1,4 +1,4 @@
-// 合同新增/编辑表单 — 使用 PageLayout
+// 合同新增/编辑表单 — 使用 PageLayout，行项按商品(SKU)选择
 import { useEffect, useState } from 'react';
 import {
   Form,
@@ -13,23 +13,13 @@ import {
   Card,
   message,
 } from 'antd';
-import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { PageLayout } from '@/shared/components/PageLayout';
+import { PageLayout, ItemPicker } from '@/shared/components';
+import type { ItemOption } from '@/shared/components';
 import { useContract, useCreateContract, useUpdateContract } from '../hooks/useContracts';
-import type { ContractItem } from '../types';
-
-interface ItemFormValue {
-  pipe_type: 'seamless' | 'screen';
-  grade: string;
-  od: number;
-  wt: number;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
-  notes?: string;
-}
+import type { ContractItem, CreateContractItemData } from '../types';
 
 interface FormValues {
   title: string;
@@ -41,7 +31,7 @@ interface FormValues {
   end_date?: string;
   total_amount: number;
   notes?: string;
-  items: ItemFormValue[];
+  items: CreateContractItemData[];
 }
 
 export default function ContractFormPage() {
@@ -50,7 +40,8 @@ export default function ContractFormPage() {
   const { id } = useParams<{ id: string }>();
   const isEdit = !!id;
   const [form] = Form.useForm<FormValues>();
-  const [items, setItems] = useState<ItemFormValue[]>([]);
+  const [items, setItems] = useState<CreateContractItemData[]>([]);
+  const [itemModalOpen, setItemModalOpen] = useState(false);
 
   const { data: contract } = useContract(Number(id));
   const createMutation = useCreateContract();
@@ -69,16 +60,14 @@ export default function ContractFormPage() {
         total_amount: contract.total_amount ?? 0,
         notes: contract.notes ?? undefined,
       });
-      if (contract.items) {
+      if (contract.items && contract.items.length > 0) {
         setItems(
           contract.items.map((item: ContractItem) => ({
-            pipe_type: item.pipe_type,
-            grade: item.grade,
-            od: item.od,
-            wt: item.wt,
+            item_id: item.item_id,
+            sku: item.sku,
+            name: item.name,
             quantity: item.quantity,
             unit_price: item.unit_price ?? 0,
-            total_price: item.total_price ?? 0,
             notes: item.notes ?? undefined,
           })),
         );
@@ -87,13 +76,25 @@ export default function ContractFormPage() {
   }, [contract, isEdit, form]);
 
   const handleFinish = async (values: FormValues) => {
+    if (items.length === 0) {
+      message.warning(t('contracts.items_required', '请至少添加一个商品'));
+      return;
+    }
     try {
-      const payload = { ...values, items };
+      const payload = {
+        ...values,
+        items: items.map((it) => ({
+          item_id: it.item_id,
+          quantity: it.quantity,
+          unit_price: it.unit_price ?? 0,
+          notes: it.notes ?? null,
+        })),
+      };
       if (isEdit) {
-        await updateMutation.mutateAsync(payload);
+        await updateMutation.mutateAsync(payload as Parameters<typeof updateMutation.mutateAsync>[0]);
         message.success(t('common.updateSuccess'));
       } else {
-        await createMutation.mutateAsync(payload);
+        await createMutation.mutateAsync(payload as Parameters<typeof createMutation.mutateAsync>[0]);
         message.success(t('common.createSuccess'));
       }
       navigate('/contracts');
@@ -102,105 +103,49 @@ export default function ContractFormPage() {
     }
   };
 
-  const addItem = () => {
-    setItems((prev) => [
-      ...prev,
-      {
-        pipe_type: 'seamless',
-        grade: '',
-        od: 0,
-        wt: 0,
-        quantity: 1,
-        unit_price: 0,
-        total_price: 0,
-      },
-    ]);
+  const addItems = (picked: ItemOption[]) => {
+    const additions: CreateContractItemData[] = picked.map((it) => ({
+      item_id: it.id,
+      sku: it.sku,
+      name: it.name,
+      quantity: 1,
+      unit_price: 0,
+      notes: undefined,
+    }));
+    setItems((prev) => [...prev, ...additions]);
+    setItemModalOpen(false);
   };
 
   const removeItem = (index: number) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const updateItem = (index: number, field: keyof ItemFormValue, value: unknown) => {
+  const updateItem = (index: number, field: keyof CreateContractItemData, value: unknown) => {
     setItems((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
-      const item = next[index];
-      if (field === 'quantity' || field === 'unit_price') {
-        item.total_price = item.quantity * item.unit_price;
-      }
       return next;
     });
   };
 
   const itemColumns = [
     {
-      title: t('contracts.pipe_type'),
-      dataIndex: 'pipe_type',
-      key: 'pipe_type',
-      width: 100,
-      render: (_: unknown, __: unknown, index: number) => (
-        <Select
-          value={items[index]?.pipe_type}
-          onChange={(v) => updateItem(index, 'pipe_type', v)}
-          style={{ width: 100 }}
-          options={[
-            { label: t('labels.pipe_type.seamless'), value: 'seamless' },
-            { label: t('labels.pipe_type.screen'), value: 'screen' },
-          ]}
-        />
-      ),
-    },
-    {
-      title: t('contracts.grade'),
-      dataIndex: 'grade',
-      key: 'grade',
-      width: 100,
-      render: (_: unknown, __: unknown, index: number) => (
-        <Input
-          value={items[index]?.grade}
-          onChange={(e) => updateItem(index, 'grade', e.target.value)}
-          style={{ width: 80 }}
-        />
-      ),
-    },
-    {
-      title: t('contracts.od'),
-      dataIndex: 'od',
-      key: 'od',
-      width: 80,
-      render: (_: unknown, __: unknown, index: number) => (
-        <InputNumber
-          value={items[index]?.od}
-          onChange={(v) => updateItem(index, 'od', v ?? 0)}
-          style={{ width: 80 }}
-        />
-      ),
-    },
-    {
-      title: t('contracts.wt'),
-      dataIndex: 'wt',
-      key: 'wt',
-      width: 80,
-      render: (_: unknown, __: unknown, index: number) => (
-        <InputNumber
-          value={items[index]?.wt}
-          onChange={(v) => updateItem(index, 'wt', v ?? 0)}
-          style={{ width: 80 }}
-        />
-      ),
+      title: t('contracts.item', '商品'),
+      key: 'item',
+      render: (_: unknown, record: CreateContractItemData) =>
+        record.name ? `${record.sku ?? ''} — ${record.name}` : record.sku || `#${record.item_id}`,
     },
     {
       title: t('contracts.quantity'),
       dataIndex: 'quantity',
       key: 'quantity',
-      width: 80,
-      render: (_: unknown, __: unknown, index: number) => (
+      width: 90,
+      render: (_: unknown, record: CreateContractItemData, index: number) => (
         <InputNumber
-          value={items[index]?.quantity}
+          value={record.quantity}
           min={1}
           onChange={(v) => updateItem(index, 'quantity', v ?? 1)}
-          style={{ width: 70 }}
+          style={{ width: 80 }}
         />
       ),
     },
@@ -208,24 +153,34 @@ export default function ContractFormPage() {
       title: t('contracts.unit_price'),
       dataIndex: 'unit_price',
       key: 'unit_price',
-      width: 100,
-      render: (_: unknown, __: unknown, index: number) => (
+      width: 110,
+      render: (_: unknown, record: CreateContractItemData, index: number) => (
         <InputNumber
-          value={items[index]?.unit_price}
+          value={record.unit_price}
           min={0}
           step={0.01}
           onChange={(v) => updateItem(index, 'unit_price', v ?? 0)}
-          style={{ width: 100 }}
+          style={{ width: 110 }}
         />
       ),
     },
     {
       title: t('contracts.total_price'),
-      dataIndex: 'total_price',
       key: 'total_price',
-      width: 100,
-      render: (_: unknown, __: unknown, index: number) => (
-        <InputNumber value={items[index]?.total_price} disabled style={{ width: 100 }} />
+      width: 110,
+      render: (_: unknown, record: CreateContractItemData) =>
+        ((record.quantity ?? 0) * (record.unit_price ?? 0)).toLocaleString(),
+    },
+    {
+      title: t('contracts.notes'),
+      dataIndex: 'notes',
+      key: 'notes',
+      width: 150,
+      render: (_: unknown, record: CreateContractItemData, index: number) => (
+        <Input
+          value={record.notes ?? ''}
+          onChange={(e) => updateItem(index, 'notes', e.target.value)}
+        />
       ),
     },
     {
@@ -233,7 +188,7 @@ export default function ContractFormPage() {
       width: 50,
       render: (_: unknown, __: unknown, index: number) => (
         <Popconfirm title={t('common.confirm_delete')} onConfirm={() => removeItem(index)}>
-          <MinusCircleOutlined style={{ color: '#ff4d4f' }} />
+          <DeleteOutlined style={{ color: '#ff4d4f' }} />
         </Popconfirm>
       ),
     },
@@ -312,23 +267,23 @@ export default function ContractFormPage() {
             </Form.Item>
           </Space>
 
-        <Card title={t('contracts.contract_items')} style={{ marginBottom: 16 }}>
+        <Card
+          title={t('contracts.contract_items')}
+          extra={
+            <Button type="dashed" icon={<PlusOutlined />} onClick={() => setItemModalOpen(true)}>
+              {t('contracts.add_item')}
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        >
           <Table
             columns={itemColumns}
-            dataSource={items.map((_, i) => ({ key: i }))}
+            dataSource={items.map((item, i) => ({ ...item, key: i }))}
             rowKey="key"
             pagination={false}
             bordered
             size="small"
           />
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={addItem}
-            style={{ width: '100%', marginTop: 8 }}
-          >
-            {t('contracts.add_item')}
-          </Button>
         </Card>
 
         <Form.Item>
@@ -342,6 +297,12 @@ export default function ContractFormPage() {
           </Space>
         </Form.Item>
       </Form>
+
+      <ItemPicker
+        open={itemModalOpen}
+        onCancel={() => setItemModalOpen(false)}
+        onSelect={addItems}
+      />
     </PageLayout>
   );
 }

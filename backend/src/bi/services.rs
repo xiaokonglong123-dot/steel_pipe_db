@@ -1,7 +1,7 @@
 //! BI analytics services — aggregate queries over existing tables.
-//! No dedicated tables; every query reads from pipes/orders/finance/inventory.
+//! No dedicated tables; every query reads from items/inventory/orders/finance.
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::error::AppError;
 
@@ -9,29 +9,36 @@ pub struct BiService;
 
 impl BiService {
     /// Monthly sales totals (order_date month × status).
-    pub async fn sales_trend(pool: &PgPool, tenant_id: i64, months: i32) -> Result<Vec<SalesTrendRow>, AppError> {
+    ///
+    /// `tenant_id` is unused: `sales_orders` has no tenant column (single-tenant
+    /// system — see docs/refactor-issue-list-2026-08-09.md). Kept in the signature
+    /// to avoid churn; removed when the tenant cleanup lands.
+    pub async fn sales_trend(pool: &SqlitePool, tenant_id: i64, months: i32) -> Result<Vec<SalesTrendRow>, AppError> {
+        let _ = tenant_id;
         sqlx::query_as::<_, SalesTrendRow>(
-            "SELECT to_char(order_date, 'YYYY-MM') AS month, status, COUNT(*) AS order_count, \
-                    COALESCE(SUM(total_amount), 0)::NUMERIC AS total_amount \
-             FROM sales_orders WHERE order_date >= NOW() - ($2::int || ' months')::interval \
+            "SELECT strftime('%Y-%m', order_date) AS month, status, COUNT(*) AS order_count, \
+                    CAST(COALESCE(SUM(total_amount), 0.0) AS REAL) AS total_amount \
+             FROM sales_orders WHERE order_date >= datetime('now', '-' || ? || ' months') \
              GROUP BY 1, 2 ORDER BY 1 DESC, 2",
         )
-        .bind(tenant_id)
         .bind(months)
         .fetch_all(pool)
         .await
         .map_err(AppError::from)
     }
 
-    /// Inventory value by pipe type (on-hand count × nominal weight × price proxy).
-    pub async fn inventory_value(pool: &PgPool) -> Result<Vec<InventoryValueRow>, AppError> {
+    /// Inventory value by item (net on-hand quantity from inventory movements).
+    pub async fn inventory_value(pool: &SqlitePool) -> Result<Vec<InventoryValueRow>, AppError> {
         sqlx::query_as::<_, InventoryValueRow>(
-            "SELECT 'seamless' AS pipe_type, COUNT(*) AS on_hand \
-             FROM seamless_pipes WHERE status = 'in_stock' \
-             UNION ALL \
-             SELECT 'screen', COUNT(*) FROM screen_pipes WHERE status = 'in_stock' \
-             UNION ALL \
-             SELECT 'welded', COUNT(*) FROM welded_pipes WHERE status = 'in_stock'",
+            "SELECT i.sku, i.name, \
+                    CAST(COALESCE(SUM(CASE WHEN l.change_type = 'inbound' THEN l.quantity \
+                                      WHEN l.change_type = 'outbound' THEN -l.quantity \
+                                      ELSE 0 END), 0.0) AS REAL) AS on_hand \
+             FROM items i \
+             LEFT JOIN inventory_logs l ON l.item_id = i.id \
+             WHERE i.deleted_at IS NULL \
+             GROUP BY i.id, i.sku, i.name \
+             ORDER BY on_hand DESC LIMIT 50",
         )
         .fetch_all(pool)
         .await
@@ -39,32 +46,32 @@ impl BiService {
     }
 
     /// Finance summary: posted entries, AR/AP open invoices, payments.
-    pub async fn finance_summary(pool: &PgPool, tenant_id: i64) -> Result<FinanceSummary, AppError> {
+    pub async fn finance_summary(pool: &SqlitePool, tenant_id: i64) -> Result<FinanceSummary, AppError> {
         let posted_entries: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1 AND status = 'posted'",
+            "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = ? AND status = 'posted'",
         )
         .bind(tenant_id)
         .fetch_one(pool)
         .await
         .map_err(AppError::from)?;
-        let open_ar: rust_decimal::Decimal = sqlx::query_scalar(
-            "SELECT COALESCE(SUM(total_amount), 0) FROM finance_invoices \
-             WHERE tenant_id = $1 AND invoice_type = 'sales' AND status IN ('confirmed', 'draft')",
+        let open_ar: f64 = sqlx::query_scalar(
+            "SELECT CAST(COALESCE(SUM(total_amount), 0.0) AS REAL) FROM finance_invoices \
+             WHERE tenant_id = ? AND invoice_type = 'sales' AND status IN ('confirmed', 'draft')",
         )
         .bind(tenant_id)
         .fetch_one(pool)
         .await
         .map_err(AppError::from)?;
-        let open_ap: rust_decimal::Decimal = sqlx::query_scalar(
-            "SELECT COALESCE(SUM(total_amount), 0) FROM finance_invoices \
-             WHERE tenant_id = $1 AND invoice_type = 'purchase' AND status IN ('confirmed', 'draft')",
+        let open_ap: f64 = sqlx::query_scalar(
+            "SELECT CAST(COALESCE(SUM(total_amount), 0.0) AS REAL) FROM finance_invoices \
+             WHERE tenant_id = ? AND invoice_type = 'purchase' AND status IN ('confirmed', 'draft')",
         )
         .bind(tenant_id)
         .fetch_one(pool)
         .await
         .map_err(AppError::from)?;
         let payments: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM finance_payments WHERE tenant_id = $1",
+            "SELECT COUNT(*) FROM finance_payments WHERE tenant_id = ?",
         )
         .bind(tenant_id)
         .fetch_one(pool)
@@ -74,11 +81,11 @@ impl BiService {
     }
 
     /// Supplier performance: order counts + totals per supplier.
-    pub async fn supplier_performance(pool: &PgPool, _tenant_id: i64) -> Result<Vec<SupplierPerfRow>, AppError> {
+    pub async fn supplier_performance(pool: &SqlitePool, _tenant_id: i64) -> Result<Vec<SupplierPerfRow>, AppError> {
         sqlx::query_as::<_, SupplierPerfRow>(
             "SELECT s.id AS supplier_id, s.name AS supplier_name, \
                     COUNT(po.id) AS order_count, \
-                    COALESCE(SUM(po.total_amount), 0)::NUMERIC AS order_total \
+                    CAST(COALESCE(SUM(po.total_amount), 0.0) AS REAL) AS order_total \
              FROM suppliers s \
              LEFT JOIN purchase_orders po ON po.supplier_id = s.id AND po.deleted_at IS NULL \
              WHERE s.deleted_at IS NULL \
@@ -95,20 +102,21 @@ pub struct SalesTrendRow {
     pub month: String,
     pub status: String,
     pub order_count: i64,
-    pub total_amount: rust_decimal::Decimal,
+    pub total_amount: f64,
 }
 
 #[derive(Debug, serde::Serialize, sqlx::FromRow)]
 pub struct InventoryValueRow {
-    pub pipe_type: String,
-    pub on_hand: i64,
+    pub sku: String,
+    pub name: String,
+    pub on_hand: f64,
 }
 
 #[derive(Debug, serde::Serialize)]
 pub struct FinanceSummary {
     pub posted_entries: i64,
-    pub open_ar: rust_decimal::Decimal,
-    pub open_ap: rust_decimal::Decimal,
+    pub open_ar: f64,
+    pub open_ap: f64,
     pub payment_count: i64,
 }
 
@@ -117,5 +125,5 @@ pub struct SupplierPerfRow {
     pub supplier_id: i64,
     pub supplier_name: String,
     pub order_count: i64,
-    pub order_total: rust_decimal::Decimal,
+    pub order_total: f64,
 }

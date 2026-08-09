@@ -1,25 +1,27 @@
-# Steel Pipe DB — Frontend Design
+# ERP — Frontend Design
 
-> **Doc Version**: v1.2 (updated from the implementation, not from some idealized design doc)
-> **Date**: 2026-05-27
+> **Doc Version**: v2.0 (general-purpose ERP rewrite)
+> **Date**: 2026-08
 > **Stack**: React 19 + Ant Design 5 + TypeScript 5 + Vite 6
 > **Status**: Living doc — what's actually running is what matters
+> **History**: This system was refactored from a steel-pipe industry system; the legacy pipe module is replaced by the generic Item/SKU module.
 
 ---
 
 ## Revision History
 
 | Version | Date | Changes | Author |
-|---------|------|---------|--------|
-| v1.0 | 2026-05-19 | Initial version | — |
+| --------- | ------ | --------- | -------- |
+| v2.0 | 2026-08 | General-purpose ERP rewrite: Item module replaces the legacy pipes module; removed quality/labels pages; added workflow/hr/finance/procurement/manufacturing/projects/assets/notifications/portal/bi routes | — |
+| v1.0 | 2026-05-19 | Initial version (legacy steel-pipe system era) | — |
 | v1.1 | 2026-05-19 | Axios 401 → refresh-then-logout; Zustand pure state; removed global loading; removed route loader; system fonts; MSW mock design added; staleTime → 2min | — |
-| v1.2 | 2026-05-27 | Rewrote with casual tone. Removed MSW/mock sections (not actually used). Fixed dir structure to match real code. Updated route list from actual `routes/index.tsx`. Removed phantom deps (charts, dnd, qrcode, jsbarcode, xlsx). Stripped `ProLayout` references. | — |
+| v1.2 | 2026-05-27 | Rewrote with casual tone. Removed MSW/mock sections (not actually used). Fixed dir structure to match real code. Updated route list from actual `routes/index.tsx`. Removed phantom deps. | — |
 
 ---
 
 ## TL;DR
 
-React 19 + Ant Design 5 + TanStack Query + Zustand. Feature-based layout. 13 feature modules, ~35 pages. Chinese-first i18n, 15 namespaces. Axios auto-injects JWT, handles 401 → refresh → retry. No Redux. No route loaders. No fancy patterns — just stuff that works.
+React 19 + Ant Design 5 + TanStack Query + Zustand. Feature-based layout. ~20 feature modules (items, inventory, workflow, hr, finance, procurement, manufacturing, projects, assets, notifications, portal, ...), ~45 pages. Chinese-first i18n, 20 namespaces. Axios auto-injects JWT, handles 401 → refresh → retry. No Redux. No route loaders. No fancy patterns — just stuff that works.
 
 ---
 
@@ -45,16 +47,16 @@ React 19 + Ant Design 5 + TanStack Query + Zustand. Feature-based layout. 13 fea
 ### 1.1 What We Actually Use
 
 | Layer | Choice | Version | Notes |
-|-------|--------|---------|-------|
+| ------- | -------- | --------- | ------- |
 | **Build** | Vite | 6.x | Fast. ESBuild. No Webpack pain. |
 | **UI** | React | 19.x | Latest stable. No class components. |
 | **Lang** | TypeScript | 5.x | Strict mode. No `as any`, no `@ts-ignore`. Enforced in CI. |
-| **Components** | Ant Design | 5.x | Enterprise-grade. Tables, forms, menus are solid. CSS-in-JS (no less/sass needed for most stuff). |
+| **Components** | Ant Design | 5.x | Enterprise-grade. Tables, forms, menus are solid. CSS-in-JS. |
 | **Routing** | React Router | 7.x | `createBrowserRouter`. Nested layouts via `Outlet`. |
 | **Server State** | TanStack Query | 5.x | 2min staleTime, 5min gcTime. No manual loading states. |
 | **Client State** | Zustand | 5.x | authStore, appStore, unitStore. Tiny, no boilerplate. |
-| **HTTP** | Axios | 1.x | Interceptors for token injection + 401 refresh. Nukes the need for manual header management. |
-| **i18n** | react-i18next | 15.x | 15 namespaces, zh-CN primary. |
+| **HTTP** | Axios | 1.x | Interceptors for token injection + 401 refresh. |
+| **i18n** | react-i18next | 15.x | 20 namespaces, zh-CN primary. |
 | **Dates** | dayjs | 1.x | Bundled with Ant Design 5. |
 | **Validation** | zod | 3.x | Runtime response validation via `validateResponse.ts`. |
 
@@ -87,7 +89,7 @@ React 19 + Ant Design 5 + TanStack Query + Zustand. Feature-based layout. 13 fea
 }
 ```
 
-**Not used**: no chart library (dashboard uses Ant Design Statistic + custom CSS), no MSW (we test against real API), no SheetJS/`xlsx` (Excel export is backend-generated), no `@dnd-kit`, no `jsbarcode`, no `qrcode.react`. If you need barcodes, the backend generates PDFs.
+**Not used**: no chart library (dashboard uses Ant Design Statistic + custom CSS), no MSW (we test against real API), no SheetJS/`xlsx` (Excel export is backend-generated), no `@dnd-kit`, no barcode/QR libraries (the labels module was removed in the ERP refactor).
 
 ---
 
@@ -108,7 +110,7 @@ frontend/
 │   ├── vite-env.d.ts
 │   │
 │   ├── routes/
-│   │   ├── index.tsx           # createBrowserRouter config (~40 routes)
+│   │   ├── index.tsx           # createBrowserRouter config (~45 routes)
 │   │   └── ProtectedRoute.tsx  # Auth guard (wraps MainLayout)
 │   │
 │   ├── layouts/
@@ -116,17 +118,24 @@ frontend/
 │   │
 │   ├── features/               # One directory per business module
 │   │   ├── auth/               # LoginPage, UserManagementPage (admin)
-│   │   ├── pipes/              # Seamless + Screen pipe CRUD (List/Detail/Form)
-│   │   ├── inventory/          # Inbound, Outbound, StockQuery, Locations, Stocktake
+│   │   ├── items/              # Item/SKU CRUD (List/Detail/Form/Search)
+│   │   ├── inventory/          # Inbound, Outbound, StockQuery, Locations, Checks, Reservations
 │   │   ├── suppliers/          # Supplier list + form
 │   │   ├── customers/          # Customer list + form
 │   │   ├── purchases/          # PO list/detail/form
-│   │   ├── sales/              # SO list/detail/form
-│   │   ├── quality/            # Cert list/detail/form
+│   │   ├── sales/              # SO list/detail/form, ATP query
+│   │   ├── workflow/           # Definitions, instances, tasks
+│   │   ├── hr/                 # Employees, attendance, salaries, labor contracts
+│   │   ├── finance/            # Accounts, journal, invoices, payments, trial balance
+│   │   ├── procurement/        # Requisitions, supplier quotes, receipts, scorecards
+│   │   ├── manufacturing/      # BOMs, work orders, inspections, NCRs
+│   │   ├── projects/           # Projects, WBS, budget
+│   │   ├── assets/             # Fixed assets, depreciation, disposal
+│   │   ├── notifications/      # Notification inbox
+│   │   ├── portal/             # Portal accounts
 │   │   ├── contracts/          # Contract list/detail/form
-│   │   ├── reports/            # ReportListPage, DashboardPage
-│   │   ├── labels/             # LabelPrintPage
-│   │   ├── search/             # SearchPage (cross-type search)
+│   │   ├── reports/            # ReportListPage, DashboardPage, BI analytics
+│   │   ├── search/             # SearchPage (generic item search)
 │   │   └── profile/            # ProfileSettingsPage
 │   │
 │   ├── shared/                 # Reusable bits
@@ -136,7 +145,7 @@ frontend/
 │   ├── api/                    # Axios instance + interceptors
 │   ├── lib/                    # validateResponse.ts (zod runtime validation)
 │   ├── stores/                 # authStore, appStore, unitStore
-│   ├── i18n/                   # 15 namespaces × 2 locales
+│   ├── i18n/                   # 20 namespaces × 2 locales
 │   ├── styles/                 # theme.ts (Ant Design 5 tokens)
 │   ├── types/                  # Shared TypeScript types
 │   ├── zod-schemas/            # Zod schemas for API response validation
@@ -148,13 +157,13 @@ frontend/
 ### 2.2 Shared Components (9 of them)
 
 | Component | Path | What It Does |
-|-----------|------|-------------|
+| ----------- | ------ | ------------- |
 | `PageHeader` | `shared/components` | Title + breadcrumb + action buttons |
 | `PageContainer` | `shared/components` | White card wrapper, unified padding |
 | `SearchBar` | `shared/components` | Debounced search input |
 | `ConfirmModal` | `shared/components` | Confirm/cancel dialog (delete, approve, etc.) |
 | `LoadingSpin` | `shared/components` | Centered spinner (fullscreen or inline) |
-| `EmptyState` | `shared/components` | Empty data placeholder (no pipes found) |
+| `EmptyState` | `shared/components` | Empty data placeholder (no items found) |
 | `ErrorBoundary` | `shared/components` | Catches render errors, shows fallback + retry |
 | `StatusTag` | `shared/components` | Colored badge by status |
 | `FileUploader` | `shared/components` | Drag-and-drop file upload |
@@ -180,14 +189,11 @@ No separate `components/` or `hooks/` or `stores/` per module — if something's
 ```
 /login                          ← public, no auth needed
 /                               ← ProtectedRoute → MainLayout → Outlet
-  /pipes/seamless               ← Default redirect target
-  /pipes/seamless/new
-  /pipes/seamless/:id
-  /pipes/seamless/:id/edit
-  /pipes/screen
-  /pipes/screen/new
-  /pipes/screen/:id
-  /pipes/screen/:id/edit
+  /items/list                   ← Default redirect target
+  /items/list/new
+  /items/:id
+  /items/:id/edit
+  /items/search
   /inventory/inbound
   /inventory/inbound/new
   /inventory/inbound/:id/edit
@@ -197,6 +203,7 @@ No separate `components/` or `hooks/` or `stores/` per module — if something's
   /inventory/stock
   /inventory/locations
   /inventory/check
+  /inventory/reservations
   /suppliers
   /suppliers/new
   /suppliers/:id/edit
@@ -211,19 +218,45 @@ No separate `components/` or `hooks/` or `stores/` per module — if something's
   /sales/new
   /sales/:id
   /sales/:id/edit
-  /quality/certs
-  /quality/certs/new
-  /quality/certs/:id
-  /quality/certs/:id/edit
+  /sales/atp
+  /workflow/definitions
+  /workflow/instances
+  /workflow/tasks
+  /hr/employees
+  /hr/attendance
+  /hr/salaries
+  /hr/labor-contracts
+  /finance/accounts
+  /finance/journal
+  /finance/invoices
+  /finance/payments
+  /finance/trial-balance
+  /procurement/requisitions
+  /procurement/quotes
+  /procurement/receipts
+  /procurement/scorecards
+  /manufacturing/boms
+  /manufacturing/work-orders
+  /manufacturing/inspections
+  /manufacturing/ncrs
+  /projects/list
+  /projects/:id/wbs
+  /projects/:id/budget
+  /assets/list
+  /assets/:id/depreciation
+  /assets/:id/disposal
+  /notifications/inbox
+  /portal/accounts
   /contracts
   /contracts/new
   /contracts/:id
   /contracts/:id/edit
   /reports
   /reports/dashboard
-  /labels
-  /system/users
+  /reports/bi
   /search
+  /system/users
+  /system/roles
   /profile/settings
 ```
 
@@ -244,16 +277,16 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Navigate to="/pipes/seamless" replace /> },
-      { path: 'pipes/seamless', element: <SeamlessPipeListPage /> },
-      { path: 'pipes/seamless/new', element: <SeamlessPipeFormPage /> },
+      { index: true, element: <Navigate to="/items/list" replace /> },
+      { path: 'items/list', element: <ItemListPage /> },
+      { path: 'items/list/new', element: <ItemFormPage /> },
       // ... rest of routes
     ],
   },
 ]);
 ```
 
-**No lazy loading yet.** All pages are eagerly imported. With ~35 pages and chunk splitting already configured in `vite.config.ts`, the initial bundle is manageable (~162 kB gzip for app code). If it grows, add `React.lazy()` per route.
+**No lazy loading yet.** All pages are eagerly imported. With ~45 pages and chunk splitting already configured in `vite.config.ts`, the initial bundle is manageable. If it grows, add `React.lazy()` per route.
 
 **No route loaders.** We don't use React Router loaders/actions for data fetching — all data dependencies are handled inside components via TanStack Query hooks. This keeps routing simple and data concerns where they belong.
 
@@ -286,14 +319,16 @@ Standard Ant Design Pro layout pattern, but we don't use `ProLayout` — it's ju
 │  Menu    │  Content (Outlet)                        │
 │  ────────│  ┌─────────────────────────────────────┐ │
 │  📊 Dash │  │                                     │ │
-│  🔩 Pipe │  │  Page content goes here             │ │
+│  📦 Items│  │  Page content goes here             │ │
 │  📦 Inv  │  │                                     │ │
-│  ✅ Qual │  │                                     │ │
 │  📋 Purch│  └─────────────────────────────────────┘ │
 │  💰 Sales│                                          │
+│  ✅ Workflow│                                       │
+│  👥 HR   │                                          │
+│  💹 Fin  │                                          │
+│  🏭 Mfg  │                                          │
 │  🤝 Contr│                                          │
 │  📊 Rprts│                                          │
-│  🏷 Labels│                                         │
 │  ⚙ System│                                          │
 └──────────┴──────────────────────────────────────────┘
 ```
@@ -301,7 +336,7 @@ Standard Ant Design Pro layout pattern, but we don't use `ProLayout` — it's ju
 ### 4.2 Breakpoints
 
 | Breakpoint | Width | Sider Behavior |
-|------------|-------|----------------|
+| ------------ | ------- | ---------------- |
 | `xxl` | ≥1600px | Expanded, ~220px |
 | `xl` | 1200-1599px | Expanded, ~220px |
 | `lg` | 992-1199px | Collapsed to icons |
@@ -310,11 +345,12 @@ Standard Ant Design Pro layout pattern, but we don't use `ProLayout` — it's ju
 ### 4.3 Header Bits
 
 | Area | What | Notes |
-|------|------|-------|
+| ------ | ------ | ------- |
 | Left | Collapse button | Toggles sider collapsed state in appStore |
 | Center | Global search | Navigates to `/search` |
 | Right | Language toggle | zh-CN / en-US |
-| | Unit switch | Metric / Imperial (stored in unitStore) |
+| | Unit switch | Unit conversion preference (stored in unitStore) |
+| | Notification bell | Unread count from `/notifications` |
 | | User dropdown | Profile, logout |
 
 ---
@@ -336,15 +372,16 @@ Standard Ant Design Pro layout pattern, but we don't use `ProLayout` — it's ju
                       ├── <Layout.Header>
                       │   ├── <Breadcrumb />
                       │   ├── <LanguageSwitcher />
+                      │   ├── <NotificationBell />
                       │   └── <UserDropdown />
                       └── <Layout.Content>
                             └── <Outlet />
-                                  ├── SeamlessPipeListPage
+                                  ├── ItemListPage
                                   │   ├── PageHeader
                                   │   ├── FilterBar (inline)
                                   │   ├── Table
                                   │   └── Pagination
-                                  ├── SeamlessPipeFormPage
+                                  ├── ItemFormPage
                                   │   └── Form (Ant Design)
                                   ├── InboundListPage
                                   │   └── ...
@@ -364,17 +401,18 @@ Standard Ant Design Pro layout pattern, but we don't use `ProLayout` — it's ju
 │  authStore         appStore           unitStore       │
 │  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐  │
 │  │ token       │  │ siderCollapsed│  │ unitSystem  │  │
-│  │ user        │  │ theme        │  │ (metric /   │  │
-│  │ isAuth      │  │ currentLang  │  │  imperial)  │  │
+│  │ user        │  │ theme        │  │ (conversion │  │
+│  │ isAuth      │  │ currentLang  │  │  preference)│  │
 │  └─────────────┘  └──────────────┘  └─────────────┘  │
 │                                                       │
 ├──────────────────────────────────────────────────────┤
 │               Server State (TanStack Query)            │
 │                                                       │
-│  useSeamlessPipes(['seamless_pipes', filters])        │
-│  useScreenPipes(['screen_pipes', filters])            │
+│  useItems(['items', filters])                         │
+│  useItemDetail(['items', id])                         │
 │  useInboundRecords(['inbound', filters])              │
 │  useSupplierList(['suppliers', filters])              │
+│  useWorkflowTasks(['workflow_tasks', filters])        │
 │  ... (one hook per list/detail view)                  │
 └──────────────────────────────────────────────────────┘
 ```
@@ -416,31 +454,32 @@ const queryClient = new QueryClient({
 Cache invalidation pattern: after a mutation (create/update/delete), invalidate the related feature key factory:
 
 ```
-Create pipe → invalidateQueries({ queryKey: pipeQueryKeys.seamlessLists() })
+Create item → invalidateQueries({ queryKey: itemQueryKeys.lists() })
 Create inbound → invalidateQueries({ queryKey: inventoryQueryKeys.inbound.all }) + stock keys
 Create outbound → invalidateQueries({ queryKey: inventoryQueryKeys.outbound.all }) + stock keys
+Approve task → invalidateQueries({ queryKey: workflowQueryKeys.tasks.all }) + instance keys
 ```
 
 ### 6.4 Typical Hook
 
 ```ts
-// features/pipes/api/useSeamlessPipes.ts
-import { seamlessPipeQueryKeys } from '../queryKeys';
+// features/items/api/useItems.ts
+import { itemQueryKeys } from '../queryKeys';
 
-export function useSeamlessPipes(filters: PipeFilter, page: number, pageSize: number) {
+export function useItems(filters: ItemFilter, page: number, pageSize: number) {
   return useQuery({
-    queryKey: seamlessPipeQueryKeys.list({ ...filters, page, page_size: pageSize }),
-    queryFn: () => pipeApi.getSeamlessPipes(filters, page, pageSize),
+    queryKey: itemQueryKeys.list({ ...filters, page, page_size: pageSize }),
+    queryFn: () => itemApi.getItems(filters, page, pageSize),
     placeholderData: keepPreviousData,  // Keep showing old data while next page loads
   });
 }
 
-export function useCreateSeamlessPipe() {
+export function useCreateItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: CreateSeamlessPipeDto) => pipeApi.createSeamlessPipe(data),
+    mutationFn: (data: CreateItemDto) => itemApi.createItem(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: seamlessPipeQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: itemQueryKeys.all });
     },
   });
 }
@@ -526,24 +565,27 @@ apiClient.interceptors.response.use(
 ### 7.3 API Function Pattern
 
 ```ts
-// features/pipes/api/pipeApi.ts
-export const pipeApi = {
-  getSeamlessPipes(filters: PipeFilter, page: number, pageSize: number) {
-    return apiClient.get<PaginatedResponse<SeamlessPipe>>('/seamless-pipes', {
+// features/items/api/itemApi.ts
+export const itemApi = {
+  getItems(filters: ItemFilter, page: number, pageSize: number) {
+    return apiClient.get<PaginatedResponse<Item>>('/items', {
       params: { ...filters, page, page_size: pageSize },
     });
   },
-  getSeamlessPipe(id: number) {
-    return apiClient.get<SeamlessPipe>(`/seamless-pipes/${id}`);
+  getItem(id: number) {
+    return apiClient.get<Item>(`/items/${id}`);
   },
-  createSeamlessPipe(data: CreateSeamlessPipeDto) {
-    return apiClient.post<SeamlessPipe>('/seamless-pipes', data);
+  createItem(data: CreateItemDto) {
+    return apiClient.post<Item>('/items', data);
   },
-  updateSeamlessPipe(id: number, data: CreateSeamlessPipeDto) {
-    return apiClient.put<SeamlessPipe>(`/seamless-pipes/${id}`, data);
+  updateItem(id: number, data: CreateItemDto) {
+    return apiClient.put<Item>(`/items/${id}`, data);
   },
-  deleteSeamlessPipe(id: number) {
-    return apiClient.delete(`/seamless-pipes/${id}`);
+  deleteItem(id: number) {
+    return apiClient.delete(`/items/${id}`);
+  },
+  searchItems(query: string) {
+    return apiClient.get<PaginatedResponse<Item>>('/items/search', { params: { q: query } });
   },
 };
 ```
@@ -571,7 +613,7 @@ interface PaginationMeta {
 
 interface ApiErrorResponse {
   success: false;
-  code: number;                // e.g., 11001 (auth), 12001 (pipe not found)
+  code: number;                // e.g., 11001 (auth), 12001 (item not found)
   message: string;
   request_id: string;
   details: Record<string, unknown> | null;
@@ -626,7 +668,7 @@ Response: { access_token, refresh_token, expires_in, user }
     │
     ├── useAuth hook calls authStore.setToken()
     ├── Persisted to localStorage
-    └── Navigate to /pipes/seamless
+    └── Navigate to /items/list
 ```
 
 ### 8.2 Token Refresh
@@ -646,11 +688,11 @@ POST /api/v1/auth/refresh { refresh_token }
 
 ### 8.3 RBAC (Role-Based Menu)
 
-Roles: `admin`, `warehouse`, `qc`, `sales`.
+Roles: `admin`, `warehouse`, `sales`, `procurement`.
 
 - Routes don't check roles (the backend enforces access).
 - The sidebar menu filters items by role so users don't see what they can't use.
-- Admin sees everything. Warehouse sees pipes/inventory. QC sees quality. Sales sees sales/customers.
+- Admin sees everything. Warehouse sees items/inventory. Sales sees sales/customers. Procurement sees purchases/suppliers.
 
 ---
 
@@ -664,44 +706,43 @@ i18n/
 ├── locales/
 │   ├── zh/           ← Chinese (primary)
 │   │   ├── common.json
-│   │   ├── pipes.json
+│   │   ├── items.json
 │   │   ├── inventory.json
-│   │   ├── inbound.json
-│   │   ├── outbound.json
-│   │   ├── stock.json
-│   │   ├── screen_pipes.json
-│   │   ├── inventory_check.json
-│   │   ├── location.json
 │   │   ├── purchase.json
 │   │   ├── sales.json
-│   │   ├── quality.json
+│   │   ├── workflow.json
+│   │   ├── hr.json
+│   │   ├── finance.json
+│   │   ├── procurement.json
+│   │   ├── manufacturing.json
+│   │   ├── projects.json
+│   │   ├── assets.json
+│   │   ├── notifications.json
+│   │   ├── portal.json
 │   │   ├── contracts.json
-│   │   ├── suppliers.json
-│   │   ├── customers.json
 │   │   ├── reports.json
-│   │   ├── labels.json
-│   │   ├── profile.json
 │   │   ├── search.json
+│   │   ├── profile.json
 │   │   ├── system.json
 │   │   └── validation.json
-│   └── en/           ← English (same 21 files)
+│   └── en/           ← English (same 20 files)
 └── locale.ts         ← dayjs locale config
 ```
 
-21 namespaces, mirrored between zh and en. Chinese is the default and primary language. English translations exist for all UI text but may lag behind on new features.
+20 namespaces, mirrored between zh and en. Chinese is the default and primary language. English translations exist for all UI text but may lag behind on new features.
 
 ### 9.2 Usage
 
 ```tsx
 import { useTranslation } from 'react-i18next';
 
-function PipeTable() {
-  const { t } = useTranslation('pipes');
+function ItemTable() {
+  const { t } = useTranslation('items');
 
   return (
     <Table columns={[
-      { title: t('pipe_number'), dataIndex: 'pipe_number' },
-      { title: t('grade'), dataIndex: 'grade' },
+      { title: t('sku'), dataIndex: 'sku' },
+      { title: t('name'), dataIndex: 'name' },
     ]} />
   );
 }
@@ -719,9 +760,9 @@ const theme: ThemeConfig = {
   token: {
     colorPrimary: '#1B3A5C',       // Deep sea blue — industrial, not playful
     colorInfo: '#1B3A5C',
-    colorSuccess: '#389E0D',       // Jungle green for "in stock"
+    colorSuccess: '#389E0D',       // Jungle green for "active/in stock"
     colorWarning: '#D48806',       // Golden yellow
-    colorError: '#CF1322',         // Red for errors/scrapped
+    colorError: '#CF1322',         // Red for errors/disabled
 
     colorBgLayout: '#F0F2F5',     // Page background
     colorBgContainer: '#FFFFFF',  // Card background
@@ -757,15 +798,14 @@ const theme: ThemeConfig = {
 ### 10.2 Status Color Mapping
 
 | Status | Color |
-|--------|-------|
-| In Stock | Green (`colorSuccess`) |
-| Outbound | Orange (`colorWarning`) |
-| Scrapped | Red (`colorError`) |
-| Draft | Gray (default) |
+| -------- | ------- |
+| Active / In Stock | Green (`colorSuccess`) |
 | Pending | Gold |
 | Approved | Blue |
 | Completed | Green |
-| Cancelled | Gray |
+| Rejected / Failed | Red |
+| Disabled / Cancelled | Gray |
+| Draft | Gray (default) |
 
 ---
 
@@ -782,7 +822,7 @@ React Component
     └── Server data request → TanStack Query hook
             │
             ▼
-        API function (pipeApi.getSeamlessPipes)
+        API function (itemApi.getItems)
             │
             ▼
         Axios interceptor (injects token)
@@ -827,7 +867,7 @@ Mutations (create/update/delete):
 
 5. **TanStack Query's `placeholderData: keepPreviousData` is your friend.** Without it, pagination causes a loading flash. With it, users see the old data until the new page loads.
 
-6. **`key` prop on form pages for edit vs new.** We use `<InboundFormPage key="new" />` vs `<InboundFormPage key="edit" />` so React unmounts and remounts the form component when switching between new and edit modes. Without this, Ant Design form fields don't reset properly.
+6. **`key` prop on form pages for edit vs new.** We use `<ItemFormPage key="new" />` vs `<ItemFormPage key="edit" />` so React unmounts and remounts the form component when switching between new and edit modes. Without this, Ant Design form fields don't reset properly.
 
 7. **No MSW.** We planned to use MSW for mock API while developing the frontend independently. In practice, running both frontend and backend together was faster than maintaining mock handlers. MSW is great for testing but not worth it for daily development here.
 
@@ -836,3 +876,5 @@ Mutations (create/update/delete):
 9. **Route paths use `:id` syntax (React Router v7).** This is standard. The backend uses `{id}` syntax (Axum 0.8). Don't confuse them.
 
 10. **System fonts are fine.** We don't need to download custom fonts. PingFang SC / Microsoft YaHei for Chinese, SF Pro / Segoe UI for English. Zero extra network requests.
+
+11. **Workflow approvals touch multiple query keys.** When an approval task is acted on, invalidate the workflow task list AND the underlying business document detail (PO/SO/requisition) so both views stay in sync.

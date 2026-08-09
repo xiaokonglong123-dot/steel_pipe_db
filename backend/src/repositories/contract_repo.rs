@@ -1,4 +1,4 @@
-use sqlx::{postgres::PgConnection, QueryBuilder, Postgres, PgPool};
+use sqlx::{QueryBuilder, Sqlite, SqliteConnection, SqlitePool};
 
 use crate::domain::date_utils::{parse_date, parse_opt_date};
 use crate::domain::money::{from_decimal, from_decimal_opt};
@@ -16,7 +16,7 @@ pub struct ContractRepo;
 impl ContractRepo {
     /// Generated the next sequential contract number (`CT-SAL-000001` / `CT-PUR-000001`).
     async fn next_contract_no(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_type: &str,
     ) -> Result<String, sqlx::Error> {
         let prefix = match contract_type {
@@ -26,7 +26,7 @@ impl ContractRepo {
         };
         let like = format!("{}%", prefix);
         let row: (Option<String>,) =
-            sqlx::query_as("SELECT MAX(contract_no) FROM contracts WHERE contract_no LIKE $1")
+            sqlx::query_as("SELECT MAX(contract_no) FROM contracts WHERE contract_no LIKE ?")
                 .bind(&like)
                 .fetch_optional(pool)
                 .await?
@@ -48,7 +48,7 @@ impl ContractRepo {
     /// INSERT a new contract with auto-generated `contract_no`. Status starts as `draft`.
     /// Returns the created `Contract`.
     pub async fn create(
-        pool: &PgPool,
+        pool: &SqlitePool,
         dto: &CreateContractRequest,
     ) -> Result<Contract, sqlx::Error> {
         let contract_no = Self::next_contract_no(pool, &dto.contract_type).await?;
@@ -56,7 +56,7 @@ impl ContractRepo {
         sqlx::query_as::<_, Contract>(
             "INSERT INTO contracts (contract_no, contract_type, title, party_a, party_b, \
              sign_date, start_date, end_date, total_amount, status, notes) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, 'draft', $9) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'draft', ?) \
              RETURNING id, contract_no, contract_type, title, party_a, party_b, \
                sign_date, start_date, end_date, total_amount, status, notes, created_by, \
                created_at, updated_at, deleted_at",
@@ -77,12 +77,12 @@ impl ContractRepo {
     /// Dynamic UPDATE of contract fields (title, party_a, party_b, dates, notes).
     /// Only supplied fields change. Returns the updated `Contract`.
     pub async fn update(
-        pool: &PgPool,
+        pool: &SqlitePool,
         id: i64,
         dto: &UpdateContractRequest,
     ) -> Result<Contract, sqlx::Error> {
-        let mut builder: QueryBuilder<Postgres> =
-            QueryBuilder::new("UPDATE contracts SET updated_at = NOW()");
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE contracts SET updated_at = datetime('now')");
 
         if let Some(ref val) = dto.title {
             builder.push(", title = ");
@@ -125,12 +125,12 @@ impl ContractRepo {
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
-    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<Contract>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Contract>, sqlx::Error> {
         sqlx::query_as::<_, Contract>(
             "SELECT id, contract_no, contract_type, title, party_a, party_b, sign_date, \
              start_date, end_date, total_amount, status, notes, created_by, created_at, \
              updated_at, deleted_at \
-             FROM contracts WHERE id = $1 AND deleted_at IS NULL",
+             FROM contracts WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -138,10 +138,10 @@ impl ContractRepo {
     }
 
     /// Soft-delete: sets `deleted_at` and `updated_at`.
-    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE contracts SET deleted_at = NOW(), \
-             updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+            "UPDATE contracts SET deleted_at = datetime('now'), \
+             updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
@@ -151,13 +151,13 @@ impl ContractRepo {
 
     /// UPDATE `status`. Returns the updated `Contract`.
     pub async fn update_status(
-        pool: &PgPool,
+        pool: &SqlitePool,
         id: i64,
         status: &str,
     ) -> Result<Contract, sqlx::Error> {
         sqlx::query_as::<_, Contract>(
-            "UPDATE contracts SET status = $1, updated_at = NOW() \
-             WHERE id = $2 AND deleted_at IS NULL \
+            "UPDATE contracts SET status = ?, updated_at = datetime('now') \
+             WHERE id = ? AND deleted_at IS NULL \
              RETURNING id, contract_no, contract_type, title, party_a, party_b, sign_date, \
                start_date, end_date, total_amount, status, notes, created_by, created_at, \
                updated_at, deleted_at",
@@ -169,11 +169,11 @@ impl ContractRepo {
     }
 
     /// Recalculate `total_amount` from contract_items SUM. Called after item changes.
-    pub async fn update_total_amount(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn update_total_amount(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE contracts SET total_amount = (SELECT COALESCE(SUM(total_price), 0) \
-             FROM contract_items WHERE contract_id = $1), updated_at = NOW() \
-             WHERE id = $2 AND deleted_at IS NULL",
+            "UPDATE contracts SET total_amount = (SELECT CAST(COALESCE(SUM(total_price), 0.0) AS REAL) \
+             FROM contract_items WHERE contract_id = ?), updated_at = datetime('now') \
+             WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .bind(id)
@@ -186,7 +186,7 @@ impl ContractRepo {
     /// Supports sorting by contract_no, contract_type, title, status, sign_date, total_amount.
     /// Returns `(items, total)`.
     pub async fn list(
-        pool: &PgPool,
+        pool: &SqlitePool,
         filter: &ContractFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<Contract>, u64), sqlx::Error> {
@@ -198,15 +198,11 @@ impl ContractRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                let base = bind_values.len() + 1;
-                conditions.push(format!(
-                    "(c.contract_no LIKE ${} OR c.title LIKE ${} \
-                 OR c.party_a LIKE ${} OR c.party_b LIKE ${})",
-                    base,
-                    base + 1,
-                    base + 2,
-                    base + 3
-                ));
+                conditions.push(
+                    "(c.contract_no LIKE ? OR c.title LIKE ? \
+                 OR c.party_a LIKE ? OR c.party_b LIKE ?)"
+                        .into(),
+                );
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern.clone());
@@ -215,19 +211,19 @@ impl ContractRepo {
             }
         }
         if let Some(ref contract_type) = filter.contract_type {
-            conditions.push(format!("c.contract_type = ${}", bind_values.len() + 1));
+            conditions.push("c.contract_type = ?".into());
             bind_values.push(contract_type.clone());
         }
         if let Some(ref status) = filter.status {
-            conditions.push(format!("c.status = ${}", bind_values.len() + 1));
+            conditions.push("c.status = ?".into());
             bind_values.push(status.clone());
         }
         if let Some(ref date_from) = filter.date_from {
-            conditions.push(format!("c.sign_date >= ${}", bind_values.len() + 1));
+            conditions.push("c.sign_date >= ?".into());
             bind_values.push(date_from.clone());
         }
         if let Some(ref date_to) = filter.date_to {
-            conditions.push(format!("c.sign_date <= ${}", bind_values.len() + 1));
+            conditions.push("c.sign_date <= ?".into());
             bind_values.push(date_to.clone());
         }
 
@@ -259,12 +255,8 @@ impl ContractRepo {
              c.sign_date, c.start_date, c.end_date, c.total_amount, c.status, c.notes, \
              c.created_by, c.created_at, c.updated_at, c.deleted_at \
              FROM contracts c WHERE {} \
-             ORDER BY {} {} LIMIT ${} OFFSET ${}",
-            where_clause,
-            sort_by,
-            sort_order,
-            bind_values.len() + 1,
-            bind_values.len() + 2
+             ORDER BY {} {} LIMIT ? OFFSET ?",
+            where_clause, sort_by, sort_order
         );
         let mut list_q = sqlx::query_as::<_, Contract>(&list_sql);
         for val in &bind_values {
@@ -282,7 +274,7 @@ impl ContractRepo {
     /// INSERT multiple items for a contract. Computes `total_price = quantity * unit_price`.
     /// Returns all created `ContractItem` rows.
     pub async fn create_items(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
         items: &[CreateContractItemRequest],
     ) -> Result<Vec<ContractItem>, sqlx::Error> {
@@ -290,20 +282,17 @@ impl ContractRepo {
         for item in items {
             let total_price = item
                 .unit_price
-                .map(|p| from_decimal(p) * item.quantity as f64)
+                .map(|p| from_decimal(p) * item.quantity)
                 .unwrap_or(0.0);
             let row = sqlx::query_as::<_, ContractItem>(
-                "INSERT INTO contract_items (contract_id, pipe_type, grade, od, wt, \
+                "INSERT INTO contract_items (contract_id, item_id, \
                  quantity, unit_price, total_price, notes) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
-                 RETURNING id, contract_id, pipe_type, grade, od, wt, quantity, \
+                 VALUES (?, ?, ?, ?, ?, ?) \
+                 RETURNING id, contract_id, item_id, quantity, \
                    unit_price, total_price, notes, created_at",
             )
             .bind(contract_id)
-            .bind(&item.pipe_type)
-            .bind(&item.grade)
-            .bind(item.od)
-            .bind(item.wt)
+            .bind(item.item_id)
             .bind(item.quantity)
             .bind(from_decimal_opt(item.unit_price))
             .bind(total_price)
@@ -317,13 +306,13 @@ impl ContractRepo {
 
     /// SELECT items for a contract, ordered by `id`.
     pub async fn find_items_by_contract(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
     ) -> Result<Vec<ContractItem>, sqlx::Error> {
         sqlx::query_as::<_, ContractItem>(
-            "SELECT id, contract_id, pipe_type, grade, od, wt, quantity, unit_price, \
+            "SELECT id, contract_id, item_id, quantity, unit_price, \
              total_price, notes, created_at \
-             FROM contract_items WHERE contract_id = $1 ORDER BY id",
+             FROM contract_items WHERE contract_id = ? ORDER BY id",
         )
         .bind(contract_id)
         .fetch_all(pool)
@@ -332,13 +321,13 @@ impl ContractRepo {
 
     /// SELECT a single item by primary key. Returns `None` if not found.
     pub async fn find_item_by_id(
-        pool: &PgPool,
+        pool: &SqlitePool,
         item_id: i64,
     ) -> Result<Option<ContractItem>, sqlx::Error> {
         sqlx::query_as::<_, ContractItem>(
-            "SELECT id, contract_id, pipe_type, grade, od, wt, quantity, unit_price, \
+            "SELECT id, contract_id, item_id, quantity, unit_price, \
              total_price, notes, created_at \
-             FROM contract_items WHERE id = $1",
+             FROM contract_items WHERE id = ?",
         )
         .bind(item_id)
         .fetch_optional(pool)
@@ -348,42 +337,18 @@ impl ContractRepo {
     /// Dynamic UPDATE of item fields. Recomputes `total_price` when `unit_price` or `quantity`
     /// changes. Returns the updated `ContractItem`.
     pub async fn update_item(
-        pool: &PgPool,
+        pool: &SqlitePool,
         item_id: i64,
         dto: &UpdateContractItemRequest,
     ) -> Result<ContractItem, sqlx::Error> {
-        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE contract_items SET");
+        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE contract_items SET");
 
         let mut sep = false;
-        if let Some(ref val) = dto.pipe_type {
+        if let Some(val) = dto.item_id {
             if sep {
                 builder.push(", ");
             }
-            builder.push(" pipe_type = ");
-            builder.push_bind(val);
-            sep = true;
-        }
-        if let Some(ref val) = dto.grade {
-            if sep {
-                builder.push(", ");
-            }
-            builder.push(" grade = ");
-            builder.push_bind(val);
-            sep = true;
-        }
-        if let Some(val) = dto.od {
-            if sep {
-                builder.push(", ");
-            }
-            builder.push(" od = ");
-            builder.push_bind(val);
-            sep = true;
-        }
-        if let Some(val) = dto.wt {
-            if sep {
-                builder.push(", ");
-            }
-            builder.push(" wt = ");
+            builder.push(" item_id = ");
             builder.push_bind(val);
             sep = true;
         }
@@ -414,8 +379,8 @@ impl ContractRepo {
 
         if !sep {
             return sqlx::query_as::<_, ContractItem>(
-                "SELECT id, contract_id, pipe_type, grade, od, wt, quantity, unit_price, \
-                 total_price, notes, created_at FROM contract_items WHERE id = $1",
+                "SELECT id, contract_id, item_id, quantity, unit_price, \
+                 total_price, notes, created_at FROM contract_items WHERE id = ?",
             )
             .bind(item_id)
             .fetch_one(pool)
@@ -425,7 +390,7 @@ impl ContractRepo {
         builder.push(" WHERE id = ");
         builder.push_bind(item_id);
         builder.push(
-            " RETURNING id, contract_id, pipe_type, grade, od, wt, quantity, \
+            " RETURNING id, contract_id, item_id, quantity, \
             unit_price, total_price, notes, created_at",
         );
 
@@ -441,16 +406,16 @@ impl ContractRepo {
                 .map(from_decimal)
                 .or(item.unit_price)
                 .unwrap_or(0.0);
-            let new_total = qty as f64 * price;
-            sqlx::query("UPDATE contract_items SET total_price = $1 WHERE id = $2")
+            let new_total = qty * price;
+            sqlx::query("UPDATE contract_items SET total_price = ? WHERE id = ?")
                 .bind(new_total)
                 .bind(item_id)
                 .execute(pool)
                 .await?;
 
             return sqlx::query_as::<_, ContractItem>(
-                "SELECT id, contract_id, pipe_type, grade, od, wt, quantity, unit_price, \
-                 total_price, notes, created_at FROM contract_items WHERE id = $1",
+                "SELECT id, contract_id, item_id, quantity, unit_price, \
+                 total_price, notes, created_at FROM contract_items WHERE id = ?",
             )
             .bind(item_id)
             .fetch_one(pool)
@@ -461,8 +426,8 @@ impl ContractRepo {
     }
 
     /// Hard DELETE from `contract_items`.
-    pub async fn delete_item(pool: &PgPool, item_id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM contract_items WHERE id = $1")
+    pub async fn delete_item(pool: &SqlitePool, item_id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM contract_items WHERE id = ?")
             .bind(item_id)
             .execute(pool)
             .await?;
@@ -471,13 +436,13 @@ impl ContractRepo {
 
     /// INSERT a payment milestone.
     pub async fn create_payment(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
         dto: &CreatePaymentRequest,
     ) -> Result<ContractPayment, sqlx::Error> {
         sqlx::query_as::<_, ContractPayment>(
             "INSERT INTO contract_payments (contract_id, due_date, amount, payment_type, notes) \
-             VALUES ($1, $2, $3, $4, $5) \
+             VALUES (?, ?, ?, ?, ?) \
              RETURNING id, contract_id, due_date, amount, payment_type, is_paid, paid_date, \
                notes, created_at",
         )
@@ -493,11 +458,11 @@ impl ContractRepo {
     /// Dynamic UPDATE of payment fields (due_date, amount, is_paid, etc.).
     /// Only supplied fields change. Returns the updated `ContractPayment`.
     pub async fn update_payment(
-        pool: &PgPool,
+        pool: &SqlitePool,
         payment_id: i64,
         dto: &UpdatePaymentRequest,
     ) -> Result<ContractPayment, sqlx::Error> {
-        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE contract_payments SET");
+        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE contract_payments SET");
 
         let mut sep = false;
         if let Some(ref val) = dto.due_date {
@@ -552,7 +517,7 @@ impl ContractRepo {
         if !sep {
             return sqlx::query_as::<_, ContractPayment>(
                 "SELECT id, contract_id, due_date, amount, payment_type, is_paid, \
-                 paid_date, notes, created_at FROM contract_payments WHERE id = $1",
+                 paid_date, notes, created_at FROM contract_payments WHERE id = ?",
             )
             .bind(payment_id)
             .fetch_one(pool)
@@ -574,13 +539,13 @@ impl ContractRepo {
 
     /// SELECT payments by contract, ordered by `due_date`.
     pub async fn find_payments_by_contract(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
     ) -> Result<Vec<ContractPayment>, sqlx::Error> {
         sqlx::query_as::<_, ContractPayment>(
             "SELECT id, contract_id, due_date, amount, payment_type, is_paid, paid_date, \
              notes, created_at \
-             FROM contract_payments WHERE contract_id = $1 ORDER BY due_date",
+             FROM contract_payments WHERE contract_id = ? ORDER BY due_date",
         )
         .bind(contract_id)
         .fetch_all(pool)
@@ -589,13 +554,13 @@ impl ContractRepo {
 
     /// SELECT a payment by primary key. Returns `None` if not found.
     pub async fn find_payment_by_id(
-        pool: &PgPool,
+        pool: &SqlitePool,
         payment_id: i64,
     ) -> Result<Option<ContractPayment>, sqlx::Error> {
         sqlx::query_as::<_, ContractPayment>(
             "SELECT id, contract_id, due_date, amount, payment_type, is_paid, paid_date, \
              notes, created_at \
-             FROM contract_payments WHERE id = $1",
+             FROM contract_payments WHERE id = ?",
         )
         .bind(payment_id)
         .fetch_optional(pool)
@@ -606,7 +571,7 @@ impl ContractRepo {
 
     /// [`next_contract_no`] variant that runs on an existing connection (inside a tx).
     async fn next_contract_no_conn(
-        executor: &mut PgConnection,
+        executor: &mut SqliteConnection,
         contract_type: &str,
     ) -> Result<String, sqlx::Error> {
         let prefix = match contract_type {
@@ -616,7 +581,7 @@ impl ContractRepo {
         };
         let like = format!("{}%", prefix);
         let row: (Option<String>,) =
-            sqlx::query_as("SELECT MAX(contract_no) FROM contracts WHERE contract_no LIKE $1")
+            sqlx::query_as("SELECT MAX(contract_no) FROM contracts WHERE contract_no LIKE ?")
                 .bind(&like)
                 .fetch_optional(executor)
                 .await?
@@ -637,7 +602,7 @@ impl ContractRepo {
 
     /// [`create`] variant that runs on an existing connection (inside a tx).
     pub async fn create_conn(
-        executor: &mut PgConnection,
+        executor: &mut SqliteConnection,
         dto: &CreateContractRequest,
     ) -> Result<Contract, sqlx::Error> {
         let contract_no = Self::next_contract_no_conn(&mut *executor, &dto.contract_type).await?;
@@ -645,7 +610,7 @@ impl ContractRepo {
         sqlx::query_as::<_, Contract>(
             "INSERT INTO contracts (contract_no, contract_type, title, party_a, party_b, \
              sign_date, start_date, end_date, total_amount, status, notes) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, 'draft', $9) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'draft', ?) \
              RETURNING id, contract_no, contract_type, title, party_a, party_b, \
                sign_date, start_date, end_date, total_amount, status, notes, created_by, \
                created_at, updated_at, deleted_at",
@@ -665,7 +630,7 @@ impl ContractRepo {
 
     /// [`create_items`] variant that runs on an existing connection (inside a tx).
     pub async fn create_items_conn(
-        executor: &mut PgConnection,
+        executor: &mut SqliteConnection,
         contract_id: i64,
         items: &[CreateContractItemRequest],
     ) -> Result<Vec<ContractItem>, sqlx::Error> {
@@ -673,20 +638,17 @@ impl ContractRepo {
         for item in items {
             let total_price = item
                 .unit_price
-                .map(|p| from_decimal(p) * item.quantity as f64)
+                .map(|p| from_decimal(p) * item.quantity)
                 .unwrap_or(0.0);
             let row = sqlx::query_as::<_, ContractItem>(
-                "INSERT INTO contract_items (contract_id, pipe_type, grade, od, wt, \
+                "INSERT INTO contract_items (contract_id, item_id, \
                  quantity, unit_price, total_price, notes) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
-                 RETURNING id, contract_id, pipe_type, grade, od, wt, quantity, \
+                 VALUES (?, ?, ?, ?, ?, ?) \
+                 RETURNING id, contract_id, item_id, quantity, \
                    unit_price, total_price, notes, created_at",
             )
             .bind(contract_id)
-            .bind(&item.pipe_type)
-            .bind(&item.grade)
-            .bind(item.od)
-            .bind(item.wt)
+            .bind(item.item_id)
             .bind(item.quantity)
             .bind(from_decimal_opt(item.unit_price))
             .bind(total_price)
@@ -701,14 +663,14 @@ impl ContractRepo {
     /// Guarded status UPDATE: only succeeds when current status matches `current_status`.
     /// Returns `None` when no row was updated (TOCTOU detected).
     pub async fn update_status_if_current(
-        executor: &mut PgConnection,
+        executor: &mut SqliteConnection,
         id: i64,
         current_status: &str,
         new_status: &str,
     ) -> Result<Option<Contract>, sqlx::Error> {
         sqlx::query_as::<_, Contract>(
-            "UPDATE contracts SET status = $1, updated_at = NOW() \
-             WHERE id = $2 AND status = $3 AND deleted_at IS NULL \
+            "UPDATE contracts SET status = ?, updated_at = datetime('now') \
+             WHERE id = ? AND status = ? AND deleted_at IS NULL \
              RETURNING id, contract_no, contract_type, title, party_a, party_b, sign_date, \
                start_date, end_date, total_amount, status, notes, created_by, created_at, \
                updated_at, deleted_at",
@@ -722,13 +684,13 @@ impl ContractRepo {
 
     /// [`update_total_amount`] variant that runs on an existing connection (inside a tx).
     pub async fn update_total_amount_conn(
-        executor: &mut PgConnection,
+        executor: &mut SqliteConnection,
         id: i64,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE contracts SET total_amount = (SELECT COALESCE(SUM(total_price), 0) \
-             FROM contract_items WHERE contract_id = $1), updated_at = NOW() \
-             WHERE id = $2 AND deleted_at IS NULL",
+            "UPDATE contracts SET total_amount = (SELECT CAST(COALESCE(SUM(total_price), 0.0) AS REAL) \
+             FROM contract_items WHERE contract_id = ?), updated_at = datetime('now') \
+             WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .bind(id)
@@ -739,12 +701,12 @@ impl ContractRepo {
 
     /// [`update`] variant that runs on an existing connection (inside a tx).
     pub async fn update_conn(
-        executor: &mut PgConnection,
+        executor: &mut SqliteConnection,
         id: i64,
         dto: &UpdateContractRequest,
     ) -> Result<Contract, sqlx::Error> {
-        let mut builder: QueryBuilder<Postgres> =
-            QueryBuilder::new("UPDATE contracts SET updated_at = NOW()");
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE contracts SET updated_at = datetime('now')");
 
         if let Some(ref val) = dto.title {
             builder.push(", title = ");
@@ -788,14 +750,14 @@ impl ContractRepo {
 
     /// [`find_by_id`] variant that runs on an existing connection (inside a tx).
     pub async fn find_by_id_conn(
-        executor: &mut PgConnection,
+        executor: &mut SqliteConnection,
         id: i64,
     ) -> Result<Option<Contract>, sqlx::Error> {
         sqlx::query_as::<_, Contract>(
             "SELECT id, contract_no, contract_type, title, party_a, party_b, sign_date, \
              start_date, end_date, total_amount, status, notes, created_by, created_at, \
              updated_at, deleted_at \
-             FROM contracts WHERE id = $1 AND deleted_at IS NULL",
+             FROM contracts WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(executor)
@@ -804,42 +766,18 @@ impl ContractRepo {
 
     /// [`update_item`] variant that runs on an existing connection (inside a tx).
     pub async fn update_item_conn(
-        executor: &mut PgConnection,
+        executor: &mut SqliteConnection,
         item_id: i64,
         dto: &UpdateContractItemRequest,
     ) -> Result<ContractItem, sqlx::Error> {
-        let mut builder: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE contract_items SET");
+        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE contract_items SET");
 
         let mut sep = false;
-        if let Some(ref val) = dto.pipe_type {
+        if let Some(val) = dto.item_id {
             if sep {
                 builder.push(", ");
             }
-            builder.push(" pipe_type = ");
-            builder.push_bind(val);
-            sep = true;
-        }
-        if let Some(ref val) = dto.grade {
-            if sep {
-                builder.push(", ");
-            }
-            builder.push(" grade = ");
-            builder.push_bind(val);
-            sep = true;
-        }
-        if let Some(val) = dto.od {
-            if sep {
-                builder.push(", ");
-            }
-            builder.push(" od = ");
-            builder.push_bind(val);
-            sep = true;
-        }
-        if let Some(val) = dto.wt {
-            if sep {
-                builder.push(", ");
-            }
-            builder.push(" wt = ");
+            builder.push(" item_id = ");
             builder.push_bind(val);
             sep = true;
         }
@@ -870,8 +808,8 @@ impl ContractRepo {
 
         if !sep {
             return sqlx::query_as::<_, ContractItem>(
-                "SELECT id, contract_id, pipe_type, grade, od, wt, quantity, unit_price, \
-                 total_price, notes, created_at FROM contract_items WHERE id = $1",
+                "SELECT id, contract_id, item_id, quantity, unit_price, \
+                 total_price, notes, created_at FROM contract_items WHERE id = ?",
             )
             .bind(item_id)
             .fetch_one(&mut *executor)
@@ -881,7 +819,7 @@ impl ContractRepo {
         builder.push(" WHERE id = ");
         builder.push_bind(item_id);
         builder.push(
-            " RETURNING id, contract_id, pipe_type, grade, od, wt, quantity, \
+            " RETURNING id, contract_id, item_id, quantity, \
              unit_price, total_price, notes, created_at",
         );
 
@@ -897,16 +835,16 @@ impl ContractRepo {
                 .map(from_decimal)
                 .or(item.unit_price)
                 .unwrap_or(0.0);
-            let new_total = qty as f64 * price;
-            sqlx::query("UPDATE contract_items SET total_price = $1 WHERE id = $2")
+            let new_total = qty * price;
+            sqlx::query("UPDATE contract_items SET total_price = ? WHERE id = ?")
                 .bind(new_total)
                 .bind(item_id)
                 .execute(&mut *executor)
                 .await?;
 
             return sqlx::query_as::<_, ContractItem>(
-                "SELECT id, contract_id, pipe_type, grade, od, wt, quantity, unit_price, \
-                 total_price, notes, created_at FROM contract_items WHERE id = $1",
+                "SELECT id, contract_id, item_id, quantity, unit_price, \
+                 total_price, notes, created_at FROM contract_items WHERE id = ?",
             )
             .bind(item_id)
             .fetch_one(&mut *executor)
@@ -918,10 +856,10 @@ impl ContractRepo {
 
     /// [`delete_item`] variant that runs on an existing connection (inside a tx).
     pub async fn delete_item_conn(
-        executor: &mut PgConnection,
+        executor: &mut SqliteConnection,
         item_id: i64,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM contract_items WHERE id = $1")
+        sqlx::query("DELETE FROM contract_items WHERE id = ?")
             .bind(item_id)
             .execute(&mut *executor)
             .await?;
@@ -932,20 +870,20 @@ impl ContractRepo {
     /// Used during bulk item replacement on contract update.
     /// When `keep_ids` is empty, deletes ALL items for the contract.
     pub async fn delete_items_not_in_conn(
-        executor: &mut PgConnection,
+        executor: &mut SqliteConnection,
         contract_id: i64,
         keep_ids: &[i64],
     ) -> Result<(), sqlx::Error> {
         if keep_ids.is_empty() {
-            sqlx::query("DELETE FROM contract_items WHERE contract_id = $1")
+            sqlx::query("DELETE FROM contract_items WHERE contract_id = ?")
                 .bind(contract_id)
                 .execute(&mut *executor)
                 .await?;
         } else {
             let placeholders: Vec<String> =
-                keep_ids.iter().enumerate().map(|(i, _)| format!("${}", i + 2)).collect();
+                keep_ids.iter().map(|_| "?".to_string()).collect();
             let sql = format!(
-                "DELETE FROM contract_items WHERE contract_id = $1 AND id NOT IN ({})",
+                "DELETE FROM contract_items WHERE contract_id = ? AND id NOT IN ({})",
                 placeholders.join(",")
             );
             let mut q = sqlx::query(&sql);
@@ -959,8 +897,8 @@ impl ContractRepo {
     }
 
     /// Hard DELETE from `contract_payments`.
-    pub async fn delete_payment(pool: &PgPool, payment_id: i64) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM contract_payments WHERE id = $1")
+    pub async fn delete_payment(pool: &SqlitePool, payment_id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM contract_payments WHERE id = ?")
             .bind(payment_id)
             .execute(pool)
             .await?;

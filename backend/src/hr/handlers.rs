@@ -3,7 +3,7 @@
 use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::common::PaginationParams;
 use crate::dto::hr_dto::{
@@ -29,7 +29,7 @@ pub struct EmployeeFilter {
 // ---------------------------------------------------------------------------
 
 pub async fn list_employees(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(filter): Query<EmployeeFilter>,
     Query(pagination): Query<PaginationParams>,
@@ -50,7 +50,7 @@ pub async fn list_employees(
 }
 
 pub async fn get_employee(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<HrEmployee>>, AppError> {
@@ -59,7 +59,7 @@ pub async fn get_employee(
 }
 
 pub async fn create_employee(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateEmployeeRequest>,
 ) -> Result<Json<ApiResponse<HrEmployee>>, AppError> {
@@ -68,7 +68,7 @@ pub async fn create_employee(
 }
 
 pub async fn update_employee(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(payload): Json<UpdateEmployeeRequest>,
@@ -78,7 +78,7 @@ pub async fn update_employee(
 }
 
 pub async fn terminate_employee(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(payload): Json<TerminateEmployeeRequest>,
@@ -88,7 +88,7 @@ pub async fn terminate_employee(
 }
 
 pub async fn delete_employee(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -101,7 +101,7 @@ pub async fn delete_employee(
 // ---------------------------------------------------------------------------
 
 pub async fn list_positions(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<HrPosition>>>, AppError> {
     let items = HrService::list_positions(&pool, user.0.tenant_id).await?;
@@ -109,7 +109,7 @@ pub async fn list_positions(
 }
 
 pub async fn create_position(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreatePositionRequest>,
 ) -> Result<Json<ApiResponse<HrPosition>>, AppError> {
@@ -122,7 +122,7 @@ pub async fn create_position(
 // ---------------------------------------------------------------------------
 
 pub async fn list_attendance(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
     Query(query): Query<AttendanceQuery>,
 ) -> Result<Json<ApiResponse<Vec<HrAttendance>>>, AppError> {
@@ -131,7 +131,7 @@ pub async fn list_attendance(
 }
 
 pub async fn check_in(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
     Json(payload): Json<CheckInRequest>,
 ) -> Result<Json<ApiResponse<HrAttendance>>, AppError> {
@@ -140,7 +140,7 @@ pub async fn check_in(
 }
 
 pub async fn list_rules(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<HrAttendanceRule>>>, AppError> {
     let items = HrService::list_rules(&pool, user.0.tenant_id).await?;
@@ -157,7 +157,7 @@ pub struct SalaryFilter {
 }
 
 pub async fn list_salaries(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(filter): Query<SalaryFilter>,
 ) -> Result<Json<ApiResponse<Vec<HrSalary>>>, AppError> {
@@ -166,7 +166,7 @@ pub async fn list_salaries(
 }
 
 pub async fn get_salary(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<HrSalary>>, AppError> {
@@ -175,7 +175,7 @@ pub async fn get_salary(
 }
 
 pub async fn generate_salaries(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<GenerateSalaryRequest>,
 ) -> Result<Json<ApiResponse<Vec<HrSalary>>>, AppError> {
@@ -188,7 +188,7 @@ pub async fn generate_salaries(
 // ---------------------------------------------------------------------------
 
 pub async fn create_contract(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateContractRequest>,
 ) -> Result<Json<ApiResponse<HrContract>>, AppError> {
@@ -197,7 +197,7 @@ pub async fn create_contract(
 }
 
 pub async fn list_contracts(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
     Path(employee_id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<HrContract>>>, AppError> {

@@ -10,7 +10,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::auth::services::IdentityService;
 use crate::dto::rbac_dto::{
@@ -23,7 +23,7 @@ use crate::response::ApiResponse;
 
 /// GET `/api/v1/auth/tenants/{id}` — tenant details (self-tenant only).
 pub async fn get_tenant(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<crate::models::rbac::Tenant>>, AppError> {
@@ -36,7 +36,7 @@ pub async fn get_tenant(
 
 /// GET `/api/v1/auth/permissions` — the full permission dictionary.
 pub async fn list_permissions(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
 ) -> Result<Json<ApiResponse<Vec<crate::models::rbac::Permission>>>, AppError> {
     let permissions = IdentityService::list_permissions(&pool).await?;
     Ok(ApiResponse::ok(permissions))
@@ -44,7 +44,7 @@ pub async fn list_permissions(
 
 /// GET `/api/v1/auth/roles` — roles of the caller's tenant.
 pub async fn list_roles(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<crate::models::rbac::Role>>>, AppError> {
     let roles = IdentityService::list_roles(&pool, user.0.tenant_id).await?;
@@ -53,7 +53,7 @@ pub async fn list_roles(
 
 /// POST `/api/v1/auth/roles` — create a custom role in the caller's tenant.
 pub async fn create_role(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateRoleRequest>,
 ) -> Result<Response, AppError> {
@@ -69,7 +69,7 @@ pub async fn create_role(
 
 /// PUT `/api/v1/auth/roles/{id}` — rename / re-describe a role.
 pub async fn update_role(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(payload): Json<UpdateRoleRequest>,
@@ -87,7 +87,7 @@ pub async fn update_role(
 
 /// DELETE `/api/v1/auth/roles/{id}` — delete a non-system role.
 pub async fn delete_role(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -97,7 +97,7 @@ pub async fn delete_role(
 
 /// GET `/api/v1/auth/roles/{id}/permissions` — permission keys of a role.
 pub async fn get_role_permissions(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<String>>>, AppError> {
@@ -107,7 +107,7 @@ pub async fn get_role_permissions(
 
 /// PUT `/api/v1/auth/roles/{id}/permissions` — replace a role's permission set.
 pub async fn set_role_permissions(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(payload): Json<AssignPermissionsRequest>,
@@ -120,7 +120,7 @@ pub async fn set_role_permissions(
 
 /// GET `/api/v1/auth/departments` — department tree of the caller's tenant.
 pub async fn list_departments(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(params): Query<DepartmentListParams>,
 ) -> Result<Json<ApiResponse<Vec<crate::models::rbac::Department>>>, AppError> {
@@ -131,7 +131,7 @@ pub async fn list_departments(
 
 /// POST `/api/v1/auth/departments` — create a department.
 pub async fn create_department(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateDepartmentRequest>,
 ) -> Result<Response, AppError> {
@@ -148,7 +148,7 @@ pub async fn create_department(
 
 /// PUT `/api/v1/auth/departments/{id}` — update a department.
 pub async fn update_department(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(payload): Json<UpdateDepartmentRequest>,
@@ -167,7 +167,7 @@ pub async fn update_department(
 
 /// DELETE `/api/v1/auth/departments/{id}` — delete a leaf department.
 pub async fn delete_department(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -177,7 +177,7 @@ pub async fn delete_department(
 
 /// GET `/api/v1/auth/users/{user_id}/roles` — role ids bound to a user.
 pub async fn get_user_roles(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(user_id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<i64>>>, AppError> {
@@ -191,7 +191,7 @@ pub async fn get_user_roles(
 
 /// PUT `/api/v1/auth/users/{user_id}/roles` — replace a user's role set.
 pub async fn assign_user_roles(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(user_id): Path<i64>,
     Json(payload): Json<AssignUserRolesRequest>,
@@ -204,7 +204,7 @@ pub async fn assign_user_roles(
 
 /// GET `/api/v1/auth/users/{user_id}/permissions` — effective permissions.
 pub async fn get_user_permissions(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(user_id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<String>>>, AppError> {

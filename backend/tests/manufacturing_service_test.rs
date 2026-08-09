@@ -3,12 +3,11 @@
 
 mod common;
 
-use rust_decimal_macros::dec;
-use steel_pipe_db::dto::manufacturing_dto::{
+use erp_server::dto::manufacturing_dto::{
     CreateBomRequest, CreateInspectionRequest, CreateNcrRequest, CreateWorkOrderRequest,
     BomItemInput,
 };
-use steel_pipe_db::manufacturing::services::ManufacturingService;
+use erp_server::manufacturing::services::ManufacturingService;
 
 #[tokio::test]
 async fn bom_lifecycle() {
@@ -17,12 +16,12 @@ async fn bom_lifecycle() {
         &pool,
         1,
         &CreateBomRequest {
-            name: "N80 套管 BOM".into(),
-            product_type: "seamless".into(),
+            name: "成品 A BOM".into(),
+            product_type: "finished".into(),
             notes: None,
             items: vec![
-                BomItemInput { material: "steel_billet".into(), quantity: dec!(1), unit: Some("t".into()), notes: None },
-                BomItemInput { material: "thread_compound".into(), quantity: dec!(0.5), unit: Some("kg".into()), notes: None },
+                BomItemInput { material: "raw_material".into(), quantity: 1.0, unit: Some("kg".into()), notes: None },
+                BomItemInput { material: "component".into(), quantity: 0.5, unit: Some("pcs".into()), notes: None },
             ],
         },
     )
@@ -32,7 +31,7 @@ async fn bom_lifecycle() {
     assert_eq!(bom.version, 1);
 
     let (got, items) = ManufacturingService::get_bom(&pool, 1, bom.id).await.unwrap();
-    assert_eq!(got.name, "N80 套管 BOM");
+    assert_eq!(got.name, "成品 A BOM");
     assert_eq!(items.len(), 2);
 }
 
@@ -42,7 +41,7 @@ async fn empty_bom_rejected() {
     let err = ManufacturingService::create_bom(
         &pool,
         1,
-        &CreateBomRequest { name: "空 BOM".into(), product_type: "seamless".into(), notes: None, items: vec![] },
+        &CreateBomRequest { name: "空 BOM".into(), product_type: "finished".into(), notes: None, items: vec![] },
     )
     .await;
     assert!(err.is_err(), "BOM without items must be rejected");
@@ -56,8 +55,8 @@ async fn work_order_step_machine() {
         1,
         &CreateWorkOrderRequest {
             bom_id: None,
-            product_type: "seamless".into(),
-            quantity: dec!(10),
+            product_type: "finished".into(),
+            quantity: 10.0,
             assigned_to: None,
             due_date: None,
             notes: None,
@@ -98,11 +97,11 @@ async fn work_order_from_bom_steps() {
         1,
         &CreateBomRequest {
             name: "BOM-2".into(),
-            product_type: "welded".into(),
+            product_type: "semi_finished".into(),
             notes: None,
             items: vec![
-                BomItemInput { material: "coil".into(), quantity: dec!(1), unit: None, notes: None },
-                BomItemInput { material: "coupling".into(), quantity: dec!(2), unit: None, notes: None },
+                BomItemInput { material: "raw_material".into(), quantity: 1.0, unit: None, notes: None },
+                BomItemInput { material: "component".into(), quantity: 2.0, unit: None, notes: None },
             ],
         },
     )
@@ -111,7 +110,7 @@ async fn work_order_from_bom_steps() {
     let wo = ManufacturingService::create_work_order(
         &pool,
         1,
-        &CreateWorkOrderRequest { bom_id: Some(bom.id), product_type: "welded".into(), quantity: dec!(5), assigned_to: None, due_date: None, notes: None },
+        &CreateWorkOrderRequest { bom_id: Some(bom.id), product_type: "semi_finished".into(), quantity: 5.0, assigned_to: None, due_date: None, notes: None },
     )
     .await
     .unwrap();
@@ -126,7 +125,7 @@ async fn inspection_and_ncr_flow() {
     let wo = ManufacturingService::create_work_order(
         &pool,
         1,
-        &CreateWorkOrderRequest { bom_id: None, product_type: "seamless".into(), quantity: dec!(1), assigned_to: None, due_date: None, notes: None },
+        &CreateWorkOrderRequest { bom_id: None, product_type: "finished".into(), quantity: 1.0, assigned_to: None, due_date: None, notes: None },
     )
     .await
     .unwrap();
@@ -135,10 +134,10 @@ async fn inspection_and_ncr_flow() {
         1,
         &CreateInspectionRequest {
             work_order_id: Some(wo.id),
-            pipe_id: None,
-            inspection_type: "hydrostatic".into(),
+            item_id: None,
+            inspection_type: "functional".into(),
             result: "fail".into(),
-            notes: Some("压力不足".into()),
+            notes: Some("功能测试未通过".into()),
         },
         Some(1),
     )
@@ -152,8 +151,8 @@ async fn inspection_and_ncr_flow() {
         1,
         &CreateNcrRequest {
             work_order_id: Some(wo.id),
-            pipe_id: None,
-            description: "水压试验不合格".into(),
+            item_id: None,
+            description: "功能测试不合格".into(),
             severity: Some("major".into()),
         },
         Some(1),

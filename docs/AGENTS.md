@@ -2,6 +2,16 @@
 
 This is where the design rationale lives. Not everything is written down, but the important stuff is.
 
+## Current Architecture (ERP Refactor)
+
+> 历史沿革：本系统由钢管行业系统重构而来，已重构为通用 ERP（企业资源计划系统）。
+
+- **Project**: ERP（通用企业资源计划系统）— backend crate `erp-server` (documented target for the code phase)
+- **Database**: SQLite3, connection string `sqlite://data/erp.db?mode=rwc`, sqlx 0.8 `sqlite` feature. The legacy 37 migrations are rewritten to SQLite syntax with pipe-specific tables dropped.
+- **Kept modules**: auth/RBAC, workflow 审批, hr, finance, procurement, sales_crm, inventory (generalized to 商品/Item+SKU: sku/名称/分类/单位/规格), manufacturing, project, assets, notification, portal, bi, customers, suppliers, contracts, purchases, sales
+- **Removed modules**: pipe master data, label printing, quality certification records, industry reference data, and pipe-specific search / import-export logic
+- **Terminology**: all docs must use the terms from `specs/UBIQUITOUS_LANGUAGE_LATEST.md` (商品/Item+SKU, 采购订单, 销售订单, 质检/Inspection, 工单)
+
 ## Structure
 
 ```
@@ -16,7 +26,7 @@ docs/
 ├── frontend-design.en.md  ← Frontend design (English)
 ├── tasks/                 ← Task breakdown
 │   ├── progress.md
-│   ├── phase1/            ← Auth, pipes, inventory
+│   ├── phase1/            ← Auth, items, inventory, purchases, sales
 │   ├── phase2/            ← Business features
 │   └── phase3/            ← Enterprise features
 └── superpowers/           ← Architecture specs
@@ -30,7 +40,7 @@ docs/
 - No external DB server to set up or maintain.
 - Single-file database — easy to backup, move, or deploy.
 - SQLx checks queries at compile time, so SQL errors get caught early.
-- Plenty fast for single-warehouse or multi-warehouse scale.
+- Plenty fast for single-site or multi-site ERP scale.
 
 ### Why Rust + React?
 
@@ -39,7 +49,7 @@ docs/
 
 ### Why Feature-based Frontend?
 
-- Each feature (pipes, inventory, purchases, etc.) is self-contained.
+- Each feature (items, inventory, purchases, etc.) is self-contained.
 - Clear boundaries = no cross-module spaghetti.
 - Multiple devs (or agents) can work on different features at the same time.
 - Adding or removing features doesn't touch unrelated code.
@@ -53,8 +63,8 @@ docs/
 ## Decision Records
 
 | Decision | Choice | Alternative | Why |
-|----------|--------|-------------|-----|
-| Database | SQLite | PostgreSQL | Simpler deployment, adequate scale |
+| ---------- | -------- | ------------- | ----- |
+| Database | SQLite3 | Client-server RDBMS | Simpler deployment, adequate scale |
 | HTTP framework | Axum 0.8 | Actix, Rocket | Good ergonomics, tower middleware ecosystem |
 | ORM | SQLx | Diesel, SeaORM | Compile-time SQL checking, no ORM overhead |
 | UI library | Ant Design 5 | MUI, ShadCN | Enterprise focus, solid table component, Chinese ecosystem |

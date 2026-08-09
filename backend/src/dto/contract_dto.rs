@@ -92,21 +92,12 @@ pub struct ContractDetailResponse {
 /// Create contract item request DTO.
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct CreateContractItemRequest {
-    /// Pipe type: seamless or screen.
-    #[validate(length(min = 1))]
-    pub pipe_type: String,
-    /// Steel grade.
-    #[validate(length(min = 1))]
-    pub grade: String,
-    /// Outer diameter (mm).
-    #[validate(range(min = 0.0))]
-    pub od: f64,
-    /// Wall thickness (mm).
-    #[validate(range(min = 0.0))]
-    pub wt: f64,
-    /// Quantity.
+    /// Item master ID (`items.id`).
     #[validate(range(min = 1))]
-    pub quantity: i64,
+    pub item_id: i64,
+    /// Quantity.
+    #[validate(range(min = 0.0))]
+    pub quantity: f64,
     /// Unit price.
     pub unit_price: Option<Decimal>,
     /// Notes.
@@ -120,11 +111,10 @@ pub struct CreateContractItemRequest {
 pub struct UpdateContractItemRequest {
     /// Existing item ID for updates. `None` for new items.
     pub id: Option<i64>,
-    pub pipe_type: Option<String>,
-    pub grade: Option<String>,
-    pub od: Option<f64>,
-    pub wt: Option<f64>,
-    pub quantity: Option<i64>,
+    /// Item master ID (`items.id`).
+    #[validate(range(min = 1))]
+    pub item_id: Option<i64>,
+    pub quantity: Option<f64>,
     pub unit_price: Option<Decimal>,
     pub notes: Option<String>,
 }

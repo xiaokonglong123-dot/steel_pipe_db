@@ -14,7 +14,7 @@ pub struct CreateBomRequest {
 #[derive(Debug, Deserialize)]
 pub struct BomItemInput {
     pub material: String,
-    pub quantity: rust_decimal::Decimal,
+    pub quantity: f64,
     pub unit: Option<String>,
     pub notes: Option<String>,
 }
@@ -23,7 +23,7 @@ pub struct BomItemInput {
 pub struct CreateWorkOrderRequest {
     pub bom_id: Option<i64>,
     pub product_type: String,
-    pub quantity: rust_decimal::Decimal,
+    pub quantity: f64,
     pub assigned_to: Option<i64>,
     pub due_date: Option<NaiveDate>,
     pub notes: Option<String>,
@@ -32,7 +32,7 @@ pub struct CreateWorkOrderRequest {
 #[derive(Debug, Deserialize)]
 pub struct CreateInspectionRequest {
     pub work_order_id: Option<i64>,
-    pub pipe_id: Option<i64>,
+    pub item_id: Option<i64>,
     pub inspection_type: String,
     pub result: String,
     pub notes: Option<String>,
@@ -41,7 +41,7 @@ pub struct CreateInspectionRequest {
 #[derive(Debug, Deserialize)]
 pub struct CreateNcrRequest {
     pub work_order_id: Option<i64>,
-    pub pipe_id: Option<i64>,
+    pub item_id: Option<i64>,
     pub description: String,
     pub severity: Option<String>,
 }

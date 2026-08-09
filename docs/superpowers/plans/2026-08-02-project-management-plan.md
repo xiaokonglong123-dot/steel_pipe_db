@@ -2,7 +2,9 @@
 
 **Goal:** Project life cycle management with WBS, budget tracking, and linking PO/SO to project.
 
-**Architecture:** New `projects` crate with projects, wbs_elements, milestones, project_transactions tables.
+**Architecture:** New `backend/src/project/` module with projects, wbs_elements, milestones, project_transactions tables.
+
+**Database:** SQLite3 (`sqlite://data/erp.db?mode=rwc`)
 
 ---
 

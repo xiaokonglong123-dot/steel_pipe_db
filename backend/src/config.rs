@@ -18,8 +18,8 @@ pub struct Config {
     /// Deployment environment: `development` (default) or `production`.
     /// In production, missing/placeholder/weak secrets cause a fail-closed panic.
     pub app_env: String,
-    /// PostgreSQL connection string (e.g., `postgres://user:pass@host:5432/dbname`).
-    /// Default: `postgres://postgres@localhost:5432/steel_pipe_erp` (local dev server).
+    /// SQLite connection string (file-based, e.g., `sqlite://data/erp.db?mode=rwc`).
+    /// Default: `sqlite://data/erp.db?mode=rwc` (local dev database, auto-created).
     pub database_url: String,
     /// HMAC secret for signing and verifying JWT tokens.
     /// Default is a placeholder — must be changed in production.
@@ -44,7 +44,7 @@ pub struct Config {
     pub server_port: u16,
     /// Comma-separated list of allowed CORS origins.
     /// Default: `http://localhost:5173` (Vite dev server).
-    /// Production example: `https://pipe.example.com,https://pipe2.example.com`
+    /// Production example: `https://erp.example.com,https://erp2.example.com`
     pub cors_origins: String,
 }
 
@@ -60,7 +60,7 @@ impl Config {
         Self {
             app_env,
             database_url: env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://postgres@localhost:5432/steel_pipe_erp".to_string()),
+                .unwrap_or_else(|_| "sqlite://data/erp.db?mode=rwc".to_string()),
             jwt_secret,
             jwt_expiry_hours: env::var("JWT_EXPIRY_HOURS")
                 .ok()

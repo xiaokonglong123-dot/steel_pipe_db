@@ -11,43 +11,45 @@
 ## 2. 功能
 
 | 子模块 | 描述 |
-|--------|------|
+| -------- | ------ |
 | 资产登记 | 编号、名称、采购、折旧类、年限、生产日期 |
-| 折旧计算 | 直线法 / 双倍余额递减、按会计周期生成摊款分录 |
+| 折旧计算 | 直线法 / 双倍余额递减、按会计周期生成折旧分录 |
 | 资产调拨 | 公司/部门/项目之间的资产移动 |
-| 资产处置 | 报废或卖 —  计提 同时关闭 |
+| 资产处置 | 报废或卖出 — 计提折旧同时关闭 |
 
 ## 3. 数据模型
 
+> 数据库为 SQLite3（`sqlite://data/erp.db?mode=rwc`）。
+
 ```sql
-CREATE TABLE assets.fixed_assets (
-    id BIGSERIAL PRIMARY KEY,
-    asset_no VARCHAR(100) UNIQUE,
-    name VARCHAR(400),
-    asset_category VARCHAR(50),
-    acquisition_cost NUMERIC(18,2),
-    useful_life_years INT,
-    residual_value NUMERIC(18,2),
-    ials INT DEFAULT 0, -- 当前累计天数
-     current_depreciation_method VARCHAR(20) DEFAULT 'straight_line',
-    location_id BIGINT,
-    created_at TIMESTAMPTZ
+CREATE TABLE fixed_assets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_no TEXT UNIQUE,
+    name TEXT,
+    asset_category TEXT,
+    acquisition_cost REAL,
+    useful_life_years INTEGER,
+    residual_value REAL,
+    periods INTEGER DEFAULT 0, -- 当前累计期间数
+    current_depreciation_method TEXT DEFAULT 'straight_line',
+    location_id INTEGER,
+    created_at TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE assets.depreciation_entries (
-    id BIGSERIAL PRIMARY KEY,
-    asset_id BIGINT REFERENCES assets.fixed_assets(id),
-    period DATE,   -- month
-    depreciated_amount NUMERIC(18,2),
-    journal_entry_rel_id BIGINT,       --> finance.journal_entries.id
-    created_at TIMESTAMPTZ
+CREATE TABLE depreciation_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id INTEGER REFERENCES fixed_assets(id),
+    period TEXT,   -- month
+    depreciated_amount REAL,
+    journal_entry_rel_id INTEGER,       --> journal_entries.id
+    created_at TEXT DEFAULT (datetime('now'))
 );
 ```
 
 ## 4. API
 
 | Method | Path | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | GET | `/api/assets` | List |
 | POST | `/api/assets` | Create |
 | PUT | `/api/assets/:id` | Update |

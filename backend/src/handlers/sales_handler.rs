@@ -4,7 +4,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use validator::Validate;
 
@@ -24,7 +24,7 @@ use crate::services::sales_service::SalesService;
 /// Supports filtering by status, customer, date range, etc.
 /// Returns paginated sales order results.
 pub async fn list_sales_orders_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Query(filter): Query<SalesOrderFilterParams>,
 ) -> Result<Json<PaginatedResponse<SalesOrder>>, AppError> {
     let pagination = PaginationParams {
@@ -47,7 +47,7 @@ pub async fn list_sales_orders_handler(
 /// Creates a new sales order with line items.
 /// Validates request body. Returns the created order.
 pub async fn create_sales_order_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Json(req): Json<CreateSalesOrderRequest>,
 ) -> Result<axum::response::Response, AppError> {
     req.validate()
@@ -61,7 +61,7 @@ pub async fn create_sales_order_handler(
 /// Returns the sales order header plus its line items in a standard ApiResponse envelope.
 /// Returns 404 if not found.
 pub async fn get_sales_order_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<SalesOrderDetailResponse>>, AppError> {
     let (order, items) = SalesService::get_sales_order(&pool, id).await?;
@@ -73,7 +73,7 @@ pub async fn get_sales_order_handler(
 /// Updates an existing sales order (items, dates, terms, etc.).
 /// Validates the request body. Returns 404 if not found.
 pub async fn update_sales_order_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<SalesOrder>>, AppError> {
@@ -87,7 +87,7 @@ pub async fn update_sales_order_handler(
 ///
 /// Soft-deletes a sales order. Returns 404 if not found.
 pub async fn delete_sales_order_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
     SalesService::delete_sales_order(&pool, id).await?;
@@ -99,7 +99,7 @@ pub async fn delete_sales_order_handler(
 /// Transitions the sales order status (e.g., confirmed, shipped, completed).
 /// Validates the status transition. Returns 400 on invalid transition.
 pub async fn transition_sales_order_status_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
     Json(req): Json<SalesOrderStatusTransitionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -117,7 +117,7 @@ pub async fn transition_sales_order_status_handler(
 /// Updates a specific line item within a sales order (quantity, price, spec, etc.).
 /// Validates request body. Returns 404 if order or item not found.
 pub async fn update_sales_item_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path((order_id, item_id)): Path<(i64, i64)>,
     Json(req): Json<UpdateSalesItemRequest>,
 ) -> Result<Json<ApiResponse<SalesOrder>>, AppError> {
@@ -132,7 +132,7 @@ pub async fn update_sales_item_handler(
 ///
 /// Removes a line item from a sales order. Returns 404 if order or item not found.
 pub async fn delete_sales_item_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path((order_id, item_id)): Path<(i64, i64)>,
 ) -> Result<axum::response::Response, AppError> {
     SalesService::delete_sales_item(&pool, order_id, item_id).await?;
@@ -144,7 +144,7 @@ pub async fn delete_sales_item_handler(
 /// Approves a sales order, typically after ATP check passes.
 /// Admin/sales role required. Returns 404 if not found.
 pub async fn approve_sales_order_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
     Json(dto): Json<ApproveOrderRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -156,7 +156,7 @@ pub async fn approve_sales_order_handler(
 ///
 /// Rejects a sales order with a reason. Returns 404 if not found.
 pub async fn reject_sales_order_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(id): Path<i64>,
     Json(dto): Json<RejectOrderRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -169,7 +169,7 @@ pub async fn reject_sales_order_handler(
 /// Links an existing outbound record to a sales order for traceability.
 /// Returns 404 if order or outbound record not found.
 pub async fn link_outbound_to_order_handler(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     Path(order_id): Path<i64>,
     Json(req): Json<LinkOutboundRequest>,
 ) -> Result<axum::response::Response, AppError> {

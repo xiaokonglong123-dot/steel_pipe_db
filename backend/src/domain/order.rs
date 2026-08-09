@@ -51,7 +51,7 @@ impl OrderStatus {
     }
 
     /// Custom serde deserializer that accepts both the enum form and a plain string.
-    /// This allows seamless reading from JSON (`"approved"`) and from sqlx string columns.
+    /// This allows direct reading from JSON (`"approved"`) and from sqlx string columns.
     pub fn deserialize_from_string<'de, D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,

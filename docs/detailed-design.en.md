@@ -1,18 +1,20 @@
-# Seamless Steel Pipe & Screen Pipe Management System — Detailed Design
+# ERP (Enterprise Resource Planning) System — Detailed Design
 
-> **Version**: v1.1
-> **Date**: 2026-05-19
-> **Based on**: docs/requirements.en.md v1.0
-> **Stack**: Rust + Axum + SQLx + SQLite (WAL) | React 19 + Ant Design 5
+> **Version**: v2.0 (general-purpose ERP rewrite)
+> **Date**: 2026-08
+> **Based on**: docs/requirements.en.md v1.1
+> **Stack**: Rust (crate `erp-server`) + Axum + SQLx + SQLite3 (WAL) | React 19 + Ant Design 5
+> **History**: This system was refactored from a steel-pipe industry system; the legacy pipe module is replaced by the generic Item/SKU module.
 
 ---
 
 ## Revision History
 
 | Version | Date | Changes | Author |
-|---------|------|---------|--------|
-| v1.0 | 2026-05-19 | Initial version | - |
-| v1.1 | 2026-05-19 | Inbound/outbound changed to Header+Items structure; inventory check changed to per-pipe verification; added attachments table; numbering format follows API 5CT standard; removed PATCH endpoints; fixed sort_by injection vulnerability | - |
+| --------- | ------ | --------- | -------- |
+| v2.0 | 2026-08 | General-purpose ERP rewrite: Item (Item+SKU) master data replaces the pipe master data; removed quality-cert/labels/threading modules; migrated to SQLite3 (the 37 legacy migrations rewritten to SQLite syntax minus the pipe tables); added workflow/HR/finance/manufacturing/project/asset/notification/portal/BI module designs | — |
+| v1.0 | 2026-05-19 | Initial version (legacy steel-pipe system era) | - |
+| v1.1 | 2026-05-19 | Inbound/outbound changed to Header+Items structure; inventory check changed to per-item verification; added attachments table; removed PATCH endpoints; fixed sort_by injection vulnerability | - |
 
 ---
 
@@ -28,7 +30,7 @@
 8. [Error Handling & Response Spec](#8-error-handling--response-specification)
 9. [Non-Functional Design](#9-non-functional-design)
 10. [Security Design](#10-security-design)
-11. [i18n & Unit Switching](#11-internationalization--unit-switching-design)
+11. [i18n & Unit Switching Design](#11-internationalization--unit-switching-design)
 
 ---
 
@@ -36,17 +38,21 @@
 
 ### 1.1 What This Thing Is
 
-A web-based inventory management system for seamless steel pipes (Casing / Tubing) and screen pipes. It tracks the full lifecycle of every pipe from receipt to dispatch, all based on API 5CT / ISO 11960 standards.
+A general-purpose ERP (Enterprise Resource Planning) system covering Item (Item+SKU) master data, inventory, procurement, sales, manufacturing inspection, finance, HR, projects, fixed assets, workflow approvals, notifications and portal. The backend crate is `erp-server`; the database is SQLite3 at `sqlite://data/erp.db?mode=rwc`.
 
 ### 1.2 Core Capabilities
 
 | Capability | Description |
-|------------|-------------|
-| Full lifecycle tracking | Every pipe tracked from procurement receipt to sales dispatch |
+| ------------ | ------------- |
+| Item lifecycle tracking | Full traceability from purchase receipt to sales dispatch |
 | Integrated inventory | Procurement, stock, and sales all linked together |
-| Quality traceability | Trace by heat number or pipe number |
-| Multi-user RBAC | 4 roles: warehouse, QC, sales/procurement, admin |
-| i18n | Chinese/English UI + metric/imperial units |
+| Manufacturing & inspection | BOMs, work orders, inspections, NCRs in one loop |
+| Workflow approvals | Definition/instance/task engine for business documents |
+| Multi-user RBAC | Roles/permissions/departments/tenants (4 sample roles: admin/warehouse/sales/procurement) |
+| HR & finance | Employees/attendance/salaries/labor contracts; accounts/journal/invoices/payments/trial balance |
+| Projects & fixed assets | Projects/WBS/budget; registration/straight-line depreciation/disposal |
+| Notifications & portal | Inbox/templates/preferences; portal accounts (Party) |
+| i18n | Chinese/English UI + item unit conversion |
 
 ---
 
@@ -55,24 +61,24 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 ### 2.1 Backend
 
 | Layer | Choice | Version | Why |
-|-------|--------|---------|-----|
+| ------- | -------- | --------- | ----- |
 | **Web Framework** | Axum | 0.8+ | Mainstream Rust async framework, tower middleware, great ecosystem |
-| **SQL Layer** | SQLx | 0.8+ | Compile-time checked SQL, no ORM overhead, native SQLite support |
-| **Database** | SQLite (WAL) | 3.46+ | Zero config, file-level, WAL handles concurrent reads |
+| **SQL Layer** | SQLx | 0.8+ | Compile-time checked SQL, no ORM overhead, native SQLite support via the `sqlite` feature |
+| **Database** | SQLite3 (WAL) | 3.46+ | Zero config, file-level; connection string `sqlite://data/erp.db?mode=rwc` |
 | **Serialization** | Serde + serde_json | 1.x | The Rust standard |
 | **Auth** | JWT (jsonwebtoken) | — | Stateless, works well with SPA |
 | **Password Hashing** | Argon2 | — | OWASP recommended. `m=19456, t=2, p=1` |
 | **Async Runtime** | Tokio | 1.x | Standard Rust async |
 | **Validation** | Validator | 0.19+ | Derive-macro based struct validation |
 | **Logging** | Tracing + tracing-subscriber | — | Structured logging, JSON output |
-| **File Upload** | Axum multipart | — | For QC file uploads |
+| **File Upload** | Axum multipart | — | For attachments (item images, document scans, etc.) |
 | **Excel** | calamine (read) + rust_xlsxwriter (write) | — | Excel import/export |
 | **API Docs** | utoipa + utoipa-swagger-ui | — | OpenAPI 3.0 auto-generated docs |
 
 ### 2.2 Frontend
 
 | Layer | Choice | Version | Why |
-|-------|--------|---------|-----|
+| ------- | -------- | --------- | ----- |
 | **UI Framework** | React | 19.x | Latest stable, mature ecosystem |
 | **Build Tool** | Vite | 6.x | Fast dev server, ESBuild |
 | **Component Lib** | Ant Design | 5.x | Enterprise-grade, great tables/forms |
@@ -82,7 +88,8 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 | **HTTP Client** | Axios | 1.x | Interceptors for auth + refresh |
 | **i18n** | react-i18next | 15.x | Namespace support, lazy loading |
 | **Type Safety** | TypeScript 5 (strict) + Zod 3 | — | Runtime response validation |
-| **Charts** | @ant-design/charts | 2.x | G2Plot-based, matches Ant Design style |
+
+**Feature modules**: auth, items, inventory, suppliers, customers, purchases, sales, workflow, hr, finance, procurement, manufacturing, projects, assets, notifications, portal, contracts, reports, search, profile. Each feature has `api/`, `pages/`, `types/` subdirectories plus `queryKeys.ts`.
 
 ### 2.3 Architecture Style
 
@@ -109,7 +116,7 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
                         │ JWT Bearer Token
                         ▼
 ┌────────────────────────────────────────────────────────────┐
-│                  Rust Backend Service (Axum)                 │
+│            Rust Backend Service (Axum, erp-server)           │
 │                                                             │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐          │
 │  │Middleware│ │ Handler │ │ Service │ │  Data   │          │
@@ -120,8 +127,8 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 │  └─────────┘ └─────────┘ └─────────┘ └────┬────┘          │
 │                                           │                │
 │                                  ┌────────▼────────┐       │
-│                                  │  SQLite (WAL)    │       │
-│                                  │  File Database    │       │
+│                                  │  SQLite3 (WAL)   │       │
+│                                  │  data/erp.db     │       │
 │                                  └─────────────────┘       │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -135,18 +142,20 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 │  Job: Parse params, call service, return JSON                    │
 ├──────────────────────────────────────────────────────┤
 │                    Service Layer                       │
-│  (Business Logic)                                      │
+│  (Business Logic, unit struct + static methods)        │
 │  Job: CRUD orchestration, transactions, permission checks, logging │
 ├──────────────────────────────────────────────────────┤
 │                    Repository Layer                    │
-│  (Data Access + SQL)                                   │
+│  (Data Access + SQL, static methods)                   │
 │  Job: Execute SQLx queries, map rows, paginate, sort   │
 ├──────────────────────────────────────────────────────┤
 │                    Domain Layer                        │
 │  (Data Models + Types)                                 │
-│  Job: Struct definitions, enums, constants, API 5CT ref data │
+│  Job: Struct definitions, enums, business constants    │
 └──────────────────────────────────────────────────────┘
 ```
+
+> **Dependency injection**: `Extension<SqlitePool>` / `Extension<JwtSecret>` — no global state (no `State<AppState>`).
 
 ### 3.3 Module Dependencies
 
@@ -154,29 +163,29 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
                     ┌──────────────┐
                     │ System Admin │
                     │ (Users/Roles/│
-                    │   Logs)      │
+                    │ Departments) │
                     └──────┬───────┘
                            │ depends on
-              ┌────────────┼────────────────┐
-              ▼            ▼                ▼
-        ┌──────────┐ ┌──────────┐ ┌──────────────┐
-        │ Pipe     │ │ Purchase/│ │  Quality     │
-        │ Mgmt     │ │ Sales    │ │  Mgmt        │
-        │ Module   │ │ Module   │ │  Module      │
-        └─────┬────┘ └─────┬────┘ └──────┬───────┘
-              │            │             │
-              ▼            ▼             ▼
-        ┌─────────────────────────────────────┐
-        │          Inventory Mgmt Module       │
-        │  (Inbound/Outbound/Check/Location/   │
-        │   Real-time Stock Query)             │
-        └──────────┬──────────────────────────┘
-                   │
-                   ▼
-        ┌─────────────────────────────────────┐
-        │    History Traceability Module       │
-        │    (Operation Logs)                  │
-        └─────────────────────────────────────┘
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+  ┌──────────┐      ┌──────────┐      ┌──────────────┐
+  │ Item     │      │Purchase/ │      │ Manufacturing│
+  │ Mgmt     │      │ Sales    │      │ (BOM/工单/   │
+  │ Module   │      │ Module   │      │  质检/NCR)   │
+  └─────┬────┘      └─────┬────┘      └──────┬───────┘
+        │                 │                  │
+        ▼                 ▼                  ▼
+  ┌──────────────────────────────────────────────┐
+  │          Inventory Mgmt Module                │
+  │  (Inbound/Outbound/Check/Location/Reserve/    │
+  │   Real-time Stock Query)                      │
+  └──────────┬───────────────────────────────────┘
+             │
+             ▼
+  ┌──────────────────────────────────────────────┐
+  │  Workflow Module + History Traceability       │
+  │  (Operation Logs)                             │
+  └──────────────────────────────────────────────┘
 ```
 
 ---
@@ -186,63 +195,62 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 ### 4.1 Module Overview
 
 | Module | Priority | Core Stuff | Testable Independently? |
-|--------|----------|------------|------------------------|
-| **Pipe Management** | P0 | Seamless/screen pipe CRUD, search, archive | Yes |
-| **Inventory Management** | P0 | Inbound/outbound/check/location/stock query | Yes |
-| **Quality Management** | P1 | QC certs, quality traceability, API 5CT reference | Yes |
-| **Procurement Management** | P1 | Suppliers, POs, inbound linkage | Yes |
-| **Sales Management** | P1 | Customers, SOs, outbound linkage, ATP | Yes |
+| -------- | ---------- | ------------ | ------------------------ |
+| **Item Management** | P0 | Item+SKU CRUD, search, archive | Yes |
+| **Inventory Management** | P0 | Inbound/outbound/check/location/reservation/stock query | Yes |
+| **Manufacturing & Inspection** | P1 | BOMs, work orders, inspections, NCRs | Yes |
+| **Procurement Management** | P1 | Suppliers, POs, receipts, supplier quotes, scorecards | Yes |
+| **Sales Management** | P1 | Customers, SOs, shipments, customer quotes, credit, ATP | Yes |
 | **Contract Management** | P2 | Purchase/sales contracts | Yes |
+| **Workflow** | P1 | Definitions/instances/tasks | Yes |
+| **HR** | P1 | Employees/attendance/salaries/labor contracts | Yes |
+| **Finance** | P1 | Accounts/journal/invoices/payments/trial balance | Yes |
+| **Projects & Assets** | P2 | Projects/WBS/budget; registration/depreciation/disposal | Yes |
+| **Notifications & Portal** | P2 | Inbox/templates/preferences; portal accounts | Yes |
 | **Data Import/Export** | P1 | Excel/CSV import/export | Yes |
-| **Search & Filtering** | P0 | Multi-dimensional combined search (shared) | -- |
-| **Reports & Stats** | P2 | Inventory reports, charts | Yes |
-| **Label Printing** | P2 | Barcode/QR code labels | Yes |
+| **Search & Filtering** | P0 | Multi-dimensional item search (shared) | -- |
+| **BI Analytics** | P2 | Sales trend/inventory value/finance summary/supplier performance | Yes |
 | **History Traceability** | P0 | Full lifecycle operation logs | Yes |
 | **System Management** | P1 | Users, RBAC, audit logs | Yes |
 
-### 4.2 Pipe Management Module
+### 4.2 Item Management Module
 
-**Seamless Steel Pipe & Screen Pipe CRUD**
+**Item+SKU management (generic item master data)**
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│               Pipe Management Module (PipeModule)     │
+│               Item Management Module (ItemModule)     │
 │                                                      │
-│  ┌────────────────────┐ ┌─────────────────────┐     │
-│  │ SeamlessPipeHandler │ │ ScreenPipeHandler    │     │
-│  │  (Seamless Pipe CRUD)│ │ (Screen Pipe CRUD)   │     │
-│  └────────┬───────────┘ └─────────┬───────────┘     │
-│           │                      │                  │
-│  ┌────────▼──────────────────────▼───────────┐     │
-│  │           PipeService                      │     │
-│  │    (General pipe queries, number uniqueness│     │
-│  │     validation)                            │     │
-│  └────────┬──────────────────────┬───────────┘     │
-│           │                      │                  │
-│  ┌────────▼──────────┐ ┌─────────▼──────────┐     │
-│  │ SeamlessPipeRepo   │ │ ScreenPipeRepo      │     │
-│  │ (Seamless pipe     │ │ (Screen pipe        │     │
-│  │  data access)      │ │  data access)       │     │
-│  └───────────────────┘ └────────────────────┘     │
+│  ┌────────────────────┐                              │
+│  │    ItemHandler      │                              │
+│  │  (Item CRUD)        │                              │
+│  └────────┬───────────┘                              │
+│           │                                          │
+│  ┌────────▼──────────────────┐                       │
+│  │         ItemService        │                       │
+│  │  (generic queries, SKU    │                       │
+│  │   uniqueness)              │                       │
+│  └────────┬──────────────────┘                       │
+│           │                                          │
+│  ┌────────▼──────────┐                               │
+│  │    ItemRepo        │                               │
+│  │  (Item data access)│                               │
+│  └───────────────────┘                               │
 └─────────────────────────────────────────────────────┘
 ```
 
 **Core Interfaces:**
 
 | Interface | Description |
-|-----------|-------------|
-| `create_seamless_pipe(dto)` | Create a seamless pipe |
-| `update_seamless_pipe(id, dto)` | Update seamless pipe info |
-| `delete_seamless_pipe(id)` | Soft delete (checks inventory first) |
-| `get_seamless_pipe(id)` | Get single pipe details |
-| `list_seamless_pipes(filters)` | Query with filters + pagination |
-| `create_screen_pipe(dto)` | Create a screen pipe |
-| `update_screen_pipe(id, dto)` | Update screen pipe info |
-| `delete_screen_pipe(id)` | Soft delete |
-| `get_screen_pipe(id)` | Get screen pipe details |
-| `list_screen_pipes(filters)` | Query with filters + pagination |
-| `generate_pipe_number(pipe_type)` | Auto-generate pipe number |
-| `validate_pipe_number_unique(number)` | Check uniqueness |
+| ----------- | ------------- |
+| `create_item(dto)` | Create an item record |
+| `update_item(id, dto)` | Update item info |
+| `delete_item(id)` | Soft delete (checks inventory references first) |
+| `get_item(id)` | Get single item details |
+| `list_items(filters)` | Query items with filters + pagination |
+| `generate_sku(category)` | Auto-generate SKU (`{category-code}-{yyyymm}-{seq}`) |
+| `validate_sku_unique(sku)` | Check SKU global uniqueness |
+| `search_items(filters)` | Multi-dimensional combined search |
 
 ### 4.3 Inventory Management Module
 
@@ -252,19 +260,19 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 │              (InventoryModule)                        │
 │                                                        │
 │  ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐   │
-│  │ Inbound  │ │ Outbound │ │Inventory│ │ Location │   │
-│  │ Handler   │ │ Handler  │ │ Query  │ │ Handler  │   │
+│  │ Inbound  │ │ Outbound │ │ Stock  │ │ Location │   │
+│  │ Handler  │ │ Handler  │ │ Query  │ │ Handler  │   │
 │  └─────┬────┘ └─────┬────┘ └───┬────┘ └─────┬────┘   │
 │        │            │         │           │           │
 │  ┌─────▼────────────▼─────────▼───────────▼─────┐   │
 │  │           InventoryService                    │   │
-│  │    (Inventory changes + transaction logs     │   │
-│  │     + inventory validation)                   │   │
+│  │    (Inventory changes + audit trail +         │   │
+│  │     validation + ATP reservations)            │   │
 │  └─────┬────────────┬────────────────┬──────────┘   │
 │        │            │                │               │
 │  ┌─────▼────┐ ┌─────▼──────┐ ┌──────▼───────┐      │
-│  │ Inbound  │ │ Outbound   │ │ Location     │      │
-│  │ Repo     │ │ Repo       │ │ Repo         │      │
+│  │ Inbound  │ │ Outbound   │ │ Reservation  │      │
+│  │ Repo     │ │ Repo       │ │ / Location   │      │
 │  └──────────┘ └────────────┘ └──────────────┘      │
 └──────────────────────────────────────────────────────┘
 ```
@@ -272,45 +280,49 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 **Core Interfaces:**
 
 | Interface | Description |
-|-----------|-------------|
+| ----------- | ------------- |
 | `create_inbound(dto)` | Create inbound, auto-update stock. **Constraint**: when type='purchase', order_id required + PO must be approved. Production/return types start as `pending` and need supervisor approval. |
 | `approve_inbound(id)` | Approve non-purchase inbound, applies stock changes |
 | `reject_inbound(id, reason)` | Reject non-purchase inbound |
 | `create_outbound(dto)` | Create outbound, deduct stock. Sales type auto-approved. Transfer/scrapped need approval. |
 | `approve_outbound(id)` | Approve non-sales outbound, deducts stock |
 | `reject_outbound(id, reason)` | Reject non-sales outbound |
-| `get_stock_status(pipe_type, pipe_id)` | Check stock for a single pipe |
+| `get_stock_status(item_id)` | Check stock for a single item |
 | `list_inventory(filters)` | Real-time stock query (aggregated) |
 | `list_inventory_logs(filters)` | Transaction log |
 | `create_inventory_check(dto)` | Create a stock check |
 | `submit_check_result(dto)` | Submit results, generate variance report |
+| `create_reservation(dto)` | Reserve stock for a sales order / work order |
+| `get_atp(item_id)` | Available-to-promise: in stock − reserved − in-transit |
 | `create_location(dto)` | Create storage location |
-| `assign_pipe_to_location(pipe_id, location_id)` | Bind pipe to location |
-| `transfer_location(pipe_id, new_location_id)` | Move pipe |
+| `assign_item_to_location(item_id, location_id)` | Bind item to location |
+| `transfer_location(item_id, new_location_id)` | Move item between locations |
 
-### 4.4 Quality Management Module
+### 4.4 Manufacturing & Inspection Module
 
 **Core Interfaces:**
 
 | Interface | Description |
-|-----------|-------------|
-| `create_quality_cert(dto)` | Upload/enter QC cert |
-| `update_quality_cert(id, dto)` | Update QC cert |
-| `get_quality_cert(id)` | Get cert details |
-| `list_quality_certs(filters)` | List with filters |
-| `trace_by_heat_number(heat_no)` | Trace by heat number |
-| `trace_by_pipe_number(pipe_no)` | Trace by pipe number |
-| `get_api_5ct_grade_ref(grade)` | Get API 5CT grade reference data |
+| ----------- | ------------- |
+| `create_bom(dto)` | Create a BOM (product item + component list) |
+| `update_bom(id, dto)` | Update a BOM |
+| `create_work_order(dto)` | Release a work order from a BOM |
+| `complete_work_order(id)` | Complete a work order (consumes items per BOM) |
+| `create_inspection(dto)` | Create an inspection record (linked to a work order) |
+| `update_inspection(id, dto)` | Update an inspection record |
+| `list_inspections(filters)` | List inspections with filters |
+| `create_ncr(dto)` | Create an NCR when inspection fails |
+| `close_ncr(id)` | Close an NCR (corrective loop) |
 
-### 4.5 Procurement Management Module (PurchaseModule)
+### 4.5 Procurement Management Module (ProcurementModule)
 
-**Dependencies**: Inventory (inbound linkage), Pipe Management (spec references)
+**Dependencies**: Inventory (receipt linkage), Item Management (spec references)
 **Depended by**: Inventory references POs when creating purchase inbound
 
 ```
 ┌─────────────────────────────────────────────┐
 │        Procurement Management Module         │
-│           (PurchaseModule)                   │
+│           (ProcurementModule)                │
 │                                              │
 │  ┌────────────────┐ ┌─────────────────────┐ │
 │  │ SupplierHandler │ │ PurchaseOrderHandler │ │
@@ -319,13 +331,11 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 │          │                     │            │
 │  ┌───────▼─────────────────────▼──────────┐ │
 │  │          PurchaseService                │ │
-│  │  (Supplier mgmt + PO + inbound linkage) │ │
+│  │  (Supplier mgmt + PO + receipt linkage) │ │
 │  └───────┬─────────────────────┬──────────┘ │
 │          │                     │            │
 │  ┌───────▼────────┐ ┌──────────▼──────────┐ │
 │  │ SupplierRepo    │ │ PurchaseOrderRepo   │ │
-│  │ (Supplier data  │ │ (PO + line items)   │ │
-│  │  access)        │ │                     │ │
 │  └────────────────┘ └─────────────────────┘ │
 └─────────────────────────────────────────────┘
 ```
@@ -333,7 +343,7 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 **Core Interfaces:**
 
 | Interface | Description |
-|-----------|-------------|
+| ----------- | ------------- |
 | `create_supplier(dto)` | Create supplier |
 | `update_supplier(id, dto)` | Update supplier |
 | `delete_supplier(id)` | Delete supplier |
@@ -341,11 +351,14 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 | `create_purchase_order(dto)` | Create PO (with line items) |
 | `approve_purchase_order(id)` | Approve PO (draft → pending → approved) |
 | `reject_purchase_order(id, reason)` | Reject PO |
-| `link_inbound_to_po(inbound_id, po_id)` | Link inbound to PO, update received qty |
+| `link_receipt_to_po(receipt_id, po_id)` | Link receipt to PO, update received qty |
+| `create_requisition(dto)` | Create a purchase requisition |
+| `create_supplier_quote(dto)` | Record a supplier quote |
+| `create_scorecard(dto)` | Supplier scorecard |
 
 ### 4.6 Sales Management Module (SalesModule)
 
-**Dependencies**: Inventory (outbound linkage + ATP), Pipe Management (specs)
+**Dependencies**: Inventory (outbound linkage + ATP), Item Management (specs)
 **Depended by**: Inventory references SOs when creating sales outbound
 
 ```
@@ -360,14 +373,12 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 │          │                     │              │
 │  ┌───────▼─────────────────────▼────────────┐  │
 │  │           SalesService                    │  │
-│  │  (Customer mgmt + SO + outbound linkage   │  │
-│  │   + ATP)                                  │  │
+│  │  (Customer mgmt + SO + shipment linkage   │  │
+│   │   + ATP)                                  │  │
 │  └───────┬─────────────────────┬────────────┘  │
 │          │                     │               │
 │  ┌───────▼────────┐ ┌──────────▼───────────┐  │
 │  │ CustomerRepo    │ │ SalesOrderRepo        │  │
-│  │ (Customer data  │ │ (SO + line items      │  │
-│  │  access)        │ │  + ATP)              │  │
 │  └────────────────┘ └──────────────────────┘  │
 └──────────────────────────────────────────────┘
 ```
@@ -375,7 +386,7 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 **Core Interfaces:**
 
 | Interface | Description |
-|-----------|-------------|
+| ----------- | ------------- |
 | `create_customer(dto)` | Create customer |
 | `update_customer(id, dto)` | Update customer |
 | `delete_customer(id)` | Delete customer |
@@ -383,19 +394,108 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 | `create_sales_order(dto)` | Create SO (with line items) |
 | `approve_sales_order(id)` | Approve SO |
 | `reject_sales_order(id, reason)` | Reject SO |
-| `link_outbound_to_so(outbound_id, so_id)` | Link outbound to SO, update delivered qty |
-| `get_atp(pipe_type, grade, od, wt)` | Available-to-promise: in_stock - locked SO qty |
+| `link_shipment_to_so(shipment_id, so_id)` | Link shipment to SO, update delivered qty |
+| `create_customer_quote(dto)` | Create a customer quote |
+| `get_atp(item_id)` | Available-to-promise: in stock − reserved |
+| `update_customer_credit(id, dto)` | Customer credit management |
 
-### 4.7 System Management Module
+### 4.7 Workflow Module
 
 **Core Interfaces:**
 
 | Interface | Description |
+| ----------- | ------------- |
+| `create_definition(dto)` | Create a workflow definition (nodes/conditions) |
+| `list_definitions(filter)` | List workflow definitions |
+| `start_instance(definition_id, business_type, business_id)` | Start a workflow instance |
+| `list_instances(filter)` | List workflow instances |
+| `get_pending_tasks(user_id)` | Current user's pending approval tasks |
+| `approve_task(task_id, comment)` | Approve (advance to next node or complete) |
+| `reject_task(task_id, comment)` | Reject |
+
+### 4.8 HR Module
+
+**Core Interfaces:**
+
+| Interface | Description |
+| ----------- | ------------- |
+| `create_employee(dto)` | Create an employee profile |
+| `list_employees(filter)` | List employees |
+| `create_department(dto)` | Create a department |
+| `create_attendance(dto)` | Record attendance |
+| `create_salary(dto)` | Record a salary payment |
+| `create_labor_contract(dto)` | Create a labor contract |
+
+### 4.9 Finance Module
+
+**Core Interfaces:**
+
+| Interface | Description |
+| ----------- | ------------- |
+| `create_account(dto)` | Create a chart-of-accounts entry |
+| `create_journal_entry(dto)` | Create a journal entry |
+| `create_invoice(dto)` | Create an invoice (issued/received) |
+| `create_payment(dto)` | Create a payment record |
+| `get_trial_balance()` | Trial balance report |
+
+### 4.10 Project & Asset Modules
+
+**Core Interfaces (Project):**
+
+| Interface | Description |
+| ----------- | ------------- |
+| `create_project(dto)` | Create a project |
+| `create_wbs(project_id, dto)` | Create a WBS node |
+| `create_budget_item(project_id, dto)` | Create a budget item |
+
+**Core Interfaces (Asset):**
+
+| Interface | Description |
+| ----------- | ------------- |
+| `register_asset(dto)` | Register a fixed asset |
+| `compute_depreciation(asset_id)` | Straight-line depreciation calculation |
+| `dispose_asset(asset_id, dto)` | Dispose of an asset |
+
+### 4.11 Notification & Portal Modules
+
+**Core Interfaces (Notification):**
+
+| Interface | Description |
+| ----------- | ------------- |
+| `list_inbox(user_id)` | Notification inbox |
+| `mark_read(notification_id)` | Mark as read |
+| `create_template(dto)` | Create a notification template |
+| `update_preference(user_id, dto)` | Update notification preferences |
+
+**Core Interfaces (Portal):**
+
+| Interface | Description |
 |-----------|-------------|
+| `create_portal_account(dto)` | Create a portal account (linked to a customer/supplier) |
+| `party_login(credentials)` | Portal login (issues a party JWT) |
+
+### 4.12 BI Module
+
+**Core Interfaces:**
+
+| Interface | Description |
+| ----------- | ------------- |
+| `sales_trend(period)` | Sales trend statistics |
+| `inventory_value()` | Inventory value statistics |
+| `finance_summary(period)` | Finance summary |
+| `supplier_performance(period)` | Supplier performance statistics |
+
+### 4.13 System Management Module
+
+**Core Interfaces:**
+
+| Interface | Description |
+| ----------- | ------------- |
 | `create_user(dto)` | Create user (admin only) |
 | `update_user(id, dto)` | Update user |
 | `list_users(filters)` | List users |
 | `assign_role(user_id, role)` | Assign role |
+| `create_role(dto)` / `create_permission(dto)` / `create_department(dto)` | RBAC management |
 | `login(credentials)` | Login, returns JWT |
 | `refresh_token(token)` | Refresh JWT |
 | `get_current_user()` | Get current user info |
@@ -407,12 +507,13 @@ A web-based inventory management system for seamless steel pipes (Casing / Tubin
 
 ### 5.1 Design Principles
 
-- **SQLite WAL mode**: `PRAGMA journal_mode=WAL;` — concurrent reads without blocking
+- **SQLite3 WAL mode**: `PRAGMA journal_mode=WAL;` — concurrent reads without blocking; connection string `sqlite://data/erp.db?mode=rwc`
 - **No FK constraints**: SQLite FK enforcement has perf overhead; we enforce referential integrity in application code
 - **Indexes**: Index frequently queried fields, composite indexes for combined queries
 - **Timestamps**: ISO 8601 text format (`TEXT`) everywhere
 - **Enums**: Stored as `TEXT` — readable and extensible
 - **Soft deletes**: Key tables have `deleted_at` field; no physical deletion
+- **Migration strategy**: the 37 legacy migration files are rewritten to SQLite syntax, dropping the pipe/threading/labels/quality-cert tables and adding the generic item table plus the new business module tables
 
 ### 5.2 Database Initialization Config
 
@@ -435,34 +536,21 @@ PRAGMA temp_store = MEMORY;
 
 ---
 
-#### 5.3.1 seamless_pipes — Seamless Steel Pipe Table
+#### 5.3.1 items — Item Table (Item + SKU)
 
-**Table**: `seamless_pipes`
+**Table**: `items`
 
-**Purpose**: Every individual seamless steel pipe gets a row here.
+**Purpose**: The single business entity of the whole system. Generic item master data replacing the legacy pipe tables (no industry-specific fields).
 
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
-| `pipe_number` | TEXT | NOT NULL, UNIQUE | Pipe number (globally unique, e.g. `J55 4.500in x 11.60lb SC-H2405-000001`) |
-| `batch_number` | TEXT | -- | Batch number from PO |
-| `pipe_type` | TEXT | NOT NULL, CHECK IN ('casing','tubing') | Casing or tubing |
-| `grade` | TEXT | NOT NULL | Steel grade (H40, J55, K55, N80, etc.) |
-| `od` | REAL | NOT NULL | Outer diameter (inches) |
-| `wt` | REAL | NOT NULL | Wall thickness (inches) |
-| `length` | REAL | -- | Length (feet) |
-| `weight_per_unit` | REAL | -- | Weight per unit length (lb/ft) |
-| `end_type` | TEXT | -- | End type (SC/LC/BC/X, etc.) |
-| `coupling_type` | TEXT | -- | Coupling type |
-| `coupling_od` | REAL | -- | Coupling OD (inches) |
-| `coupling_length` | REAL | -- | Coupling length (inches) |
-| `heat_number` | TEXT | -- | Heat number for traceability |
-| `serial_number` | TEXT | -- | Pipe body serial number |
-| `manufacturer` | TEXT | -- | Manufacturer |
-| `production_date` | TEXT | -- | Production date (ISO 8601) |
-| `cert_number` | TEXT | -- | QC certificate number |
-| `location_id` | INTEGER | -- | Current location ID |
-| `status` | TEXT | NOT NULL, DEFAULT 'in_stock' | in_stock / outbound / scrapped |
+| `sku` | TEXT | NOT NULL, UNIQUE | Unique business code (system-assigned or manual) |
+| `name` | TEXT | NOT NULL | Item name |
+| `category` | TEXT | NOT NULL | Category (raw material / semi-finished / finished goods / spare parts, etc.) |
+| `unit` | TEXT | NOT NULL, DEFAULT 'pc' | Unit (kg / m / pc / piece, etc.) |
+| `spec` | TEXT | -- | Spec (descriptive free text, optional) |
+| `status` | TEXT | NOT NULL, DEFAULT 'draft' | draft / active / disabled |
 | `notes` | TEXT | -- | Notes |
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | Created |
 | `updated_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | Updated |
@@ -471,77 +559,37 @@ PRAGMA temp_store = MEMORY;
 **Indexes:**
 
 ```sql
-CREATE INDEX idx_seamless_pipes_grade ON seamless_pipes(grade);
-CREATE INDEX idx_seamless_pipes_heat_number ON seamless_pipes(heat_number);
-CREATE INDEX idx_seamless_pipes_status ON seamless_pipes(status);
-CREATE INDEX idx_seamless_pipes_location_id ON seamless_pipes(location_id);
-CREATE INDEX idx_seamless_pipes_pipe_type ON seamless_pipes(pipe_type);
-CREATE INDEX idx_seamless_pipes_od_wt ON seamless_pipes(od, wt);
-CREATE INDEX idx_seamless_pipes_manufacturer ON seamless_pipes(manufacturer);
-CREATE INDEX idx_seamless_pipes_search ON seamless_pipes(grade, od, wt, status);
+CREATE UNIQUE INDEX idx_items_sku ON items(sku);
+CREATE INDEX idx_items_category_status ON items(category, status);
+CREATE INDEX idx_items_name ON items(name);
 ```
 
 ---
 
-#### 5.3.2 screen_pipes — Screen Pipe Table
+#### 5.3.2 warehouses / locations — Warehouse & Location Tables
 
-**Table**: `screen_pipes`
-
-**Purpose**: Every individual screen pipe gets a row here.
+**Table**: `warehouses`
 
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
-| `pipe_number` | TEXT | NOT NULL, UNIQUE | Pipe number (globally unique) |
-| `batch_number` | TEXT | -- | Batch number from PO |
-| `screen_type` | TEXT | NOT NULL | wire_wrapped / slotted / punched / metal_felt |
-| `slot_size` | REAL | -- | Slot width / hole diameter (mm) |
-| `filtration_grade` | TEXT | -- | Filtration precision (e.g. '150um', '250um') |
-| `base_od` | REAL | NOT NULL | Base pipe OD (inches) |
-| `base_wt` | REAL | NOT NULL | Base pipe WT (inches) |
-| `base_grade` | TEXT | NOT NULL | Base pipe steel grade |
-| `base_end_type` | TEXT | -- | Base pipe end type |
-| `length` | REAL | -- | Screen pipe length (feet) |
-| `weight_per_unit` | REAL | -- | Weight per unit length (lb/ft) |
-| `heat_number` | TEXT | -- | Heat number |
-| `serial_number` | TEXT | -- | Pipe body serial number |
-| `manufacturer` | TEXT | -- | Manufacturer |
-| `production_date` | TEXT | -- | Production date |
-| `cert_number` | TEXT | -- | QC certificate number |
-| `location_id` | INTEGER | -- | Current location ID |
-| `status` | TEXT | NOT NULL, DEFAULT 'in_stock' | Status |
-| `notes` | TEXT | -- | Notes |
-| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | Created |
-| `updated_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | Updated |
-| `deleted_at` | TEXT | -- | Soft delete |
-
-**Indexes:**
-
-```sql
-CREATE INDEX idx_screen_pipes_type ON screen_pipes(screen_type);
-CREATE INDEX idx_screen_pipes_heat_number ON screen_pipes(heat_number);
-CREATE INDEX idx_screen_pipes_status ON screen_pipes(status);
-CREATE INDEX idx_screen_pipes_location_id ON screen_pipes(location_id);
-CREATE INDEX idx_screen_pipes_base_grade ON screen_pipes(base_grade);
-```
-
----
-
-#### 5.3.3 locations — Location Table
+| `code` | TEXT | NOT NULL, UNIQUE | Warehouse code |
+| `name` | TEXT | NOT NULL | Warehouse name |
+| `is_active` | INTEGER | NOT NULL, DEFAULT 1 | Enabled |
+| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
 
 **Table**: `locations`
 
-**Purpose**: Hierarchical zone / shelf / level management.
+**Purpose**: Locations are the smallest unit inventory belongs to.
 
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
-| `zone_code` | TEXT | NOT NULL | Zone code |
-| `shelf_code` | TEXT | NOT NULL | Shelf code |
-| `level_code` | TEXT | NOT NULL | Level code |
-| `full_code` | TEXT | NOT NULL, UNIQUE | Full code (zone-shelf-level) |
+| `warehouse_id` | INTEGER | NOT NULL | Parent warehouse |
+| `code` | TEXT | NOT NULL | Location code |
+| `full_code` | TEXT | NOT NULL, UNIQUE | Full code (warehouse_code + '-' + code) |
 | `description` | TEXT | -- | Description |
-| `max_capacity` | INTEGER | -- | Max pipes this location can hold |
+| `max_capacity` | INTEGER | -- | Max items this location can hold |
 | `current_usage` | INTEGER | NOT NULL, DEFAULT 0 | Current count |
 | `is_active` | INTEGER | NOT NULL, DEFAULT 1 | Enabled? |
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
@@ -551,12 +599,12 @@ CREATE INDEX idx_screen_pipes_base_grade ON screen_pipes(base_grade);
 
 ```sql
 CREATE UNIQUE INDEX idx_locations_full_code ON locations(full_code);
-CREATE INDEX idx_locations_zone ON locations(zone_code);
+CREATE INDEX idx_locations_warehouse ON locations(warehouse_id);
 ```
 
 ---
 
-#### 5.3.4 inbound_records — Inbound Record Header
+#### 5.3.3 inbound_records — Inbound Record Header
 
 **Table**: `inbound_records`
 
@@ -586,30 +634,30 @@ CREATE INDEX idx_inbound_records_supplier ON inbound_records(supplier_id);
 
 ---
 
-#### 5.3.4a inbound_items — Inbound Line Items
+#### 5.3.3a inbound_items — Inbound Line Items
 
 **Table**: `inbound_items`
 
-**Purpose**: Line items for inbound. One row per pipe. Supports batch inbound (N pipes same spec) and individual inbound.
+**Purpose**: Line items for inbound. Supports batch inbound (N items of the same spec) and individual inbound.
 
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
 | `inbound_id` | INTEGER | NOT NULL | Associated header ID |
-| `pipe_type` | TEXT | NOT NULL, CHECK IN ('seamless','screen') | Pipe type |
-| `pipe_id` | INTEGER | NOT NULL | Pipe ID |
+| `item_id` | INTEGER | NOT NULL | Item ID (auto-created or selected on inbound) |
+| `quantity` | INTEGER | NOT NULL | Quantity |
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
 
 **Indexes:**
 
 ```sql
 CREATE INDEX idx_inbound_items_inbound ON inbound_items(inbound_id);
-CREATE INDEX idx_inbound_items_pipe ON inbound_items(pipe_type, pipe_id);
+CREATE INDEX idx_inbound_items_item ON inbound_items(item_id);
 ```
 
 ---
 
-#### 5.3.5 outbound_records — Outbound Record Header
+#### 5.3.4 outbound_records — Outbound Record Header
 
 **Table**: `outbound_records`
 
@@ -639,40 +687,39 @@ CREATE INDEX idx_outbound_records_customer ON outbound_records(customer_id);
 
 ---
 
-#### 5.3.5a outbound_items — Outbound Line Items
+#### 5.3.4a outbound_items — Outbound Line Items
 
 **Table**: `outbound_items`
 
-**Purpose**: Line items for outbound. One row per pipe.
+**Purpose**: Line items for outbound.
 
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
 | `outbound_id` | INTEGER | NOT NULL | Associated header ID |
-| `pipe_type` | TEXT | NOT NULL, CHECK IN ('seamless','screen') | Pipe type |
-| `pipe_id` | INTEGER | NOT NULL | Pipe ID |
+| `item_id` | INTEGER | NOT NULL | Item ID |
+| `quantity` | INTEGER | NOT NULL | Quantity |
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
 
 **Indexes:**
 
 ```sql
 CREATE INDEX idx_outbound_items_outbound ON outbound_items(outbound_id);
-CREATE INDEX idx_outbound_items_pipe ON outbound_items(pipe_type, pipe_id);
+CREATE INDEX idx_outbound_items_item ON outbound_items(item_id);
 ```
 
 ---
 
-#### 5.3.6 inventory_logs — Inventory Change Log
+#### 5.3.5 inventory_logs — Inventory Change Log
 
 **Table**: `inventory_logs`
 
-**Purpose**: Every inventory change for every pipe. The foundation of lifecycle traceability.
+**Purpose**: Every inventory change for every item. The foundation of lifecycle traceability.
 
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
-| `pipe_type` | TEXT | NOT NULL, CHECK IN ('seamless','screen') | Pipe type |
-| `pipe_id` | INTEGER | NOT NULL | Pipe ID |
+| `item_id` | INTEGER | NOT NULL | Item ID |
 | `change_type` | TEXT | NOT NULL | inbound / outbound / transfer / check_adjust |
 | `reference_id` | INTEGER | -- | Associated doc ID |
 | `reference_no` | TEXT | -- | Associated doc number |
@@ -684,11 +731,29 @@ CREATE INDEX idx_outbound_items_pipe ON outbound_items(pipe_type, pipe_id);
 **Indexes:**
 
 ```sql
-CREATE INDEX idx_inventory_logs_pipe ON inventory_logs(pipe_type, pipe_id);
+CREATE INDEX idx_inventory_logs_item ON inventory_logs(item_id);
 CREATE INDEX idx_inventory_logs_type ON inventory_logs(change_type);
 CREATE INDEX idx_inventory_logs_time ON inventory_logs(created_at);
 CREATE INDEX idx_inventory_logs_operator ON inventory_logs(operator_id);
 ```
+
+---
+
+#### 5.3.6 reservations — Inventory Reservation Table
+
+**Table**: `reservations`
+
+**Purpose**: Reserve available stock for sales orders or work orders (ATP allocation view).
+
+| Field | Type | Constraint | Description |
+|-------|------|------------|-------------|
+| `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
+| `item_id` | INTEGER | NOT NULL | Item ID |
+| `source_type` | TEXT | NOT NULL | sales_order / work_order |
+| `source_id` | INTEGER | NOT NULL | Source doc ID |
+| `quantity` | INTEGER | NOT NULL | Reserved quantity |
+| `status` | TEXT | NOT NULL, DEFAULT 'active' | active / released / consumed |
+| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
 
 ---
 
@@ -699,12 +764,14 @@ CREATE INDEX idx_inventory_logs_operator ON inventory_logs(operator_id);
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
+| `code` | TEXT | NOT NULL, UNIQUE | Supplier code |
 | `name` | TEXT | NOT NULL | Name |
 | `contact_person` | TEXT | -- | Contact |
 | `phone` | TEXT | -- | Phone |
 | `email` | TEXT | -- | Email |
 | `address` | TEXT | -- | Address |
-| `qualification_cert` | TEXT | -- | Qualification cert number |
+| `qualification` | TEXT | -- | Qualification info |
+| `score` | REAL | -- | Latest supplier score |
 | `is_active` | INTEGER | NOT NULL, DEFAULT 1 | Enabled |
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
 | `updated_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
@@ -712,6 +779,7 @@ CREATE INDEX idx_inventory_logs_operator ON inventory_logs(operator_id);
 **Indexes:**
 
 ```sql
+CREATE UNIQUE INDEX idx_suppliers_code ON suppliers(code);
 CREATE INDEX idx_suppliers_name ON suppliers(name);
 ```
 
@@ -724,11 +792,13 @@ CREATE INDEX idx_suppliers_name ON suppliers(name);
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
+| `code` | TEXT | NOT NULL, UNIQUE | Customer code |
 | `name` | TEXT | NOT NULL | Name |
 | `contact_person` | TEXT | -- | Contact |
 | `phone` | TEXT | -- | Phone |
 | `email` | TEXT | -- | Email |
 | `address` | TEXT | -- | Address |
+| `credit_limit` | REAL | -- | Customer credit limit |
 | `is_active` | INTEGER | NOT NULL, DEFAULT 1 | Enabled |
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
 | `updated_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
@@ -749,7 +819,7 @@ CREATE INDEX idx_suppliers_name ON suppliers(name);
 | `status` | TEXT | NOT NULL, DEFAULT 'draft' | draft / pending / approved / completed / cancelled |
 | `total_amount` | REAL | -- | Total |
 | `currency` | TEXT | NOT NULL, DEFAULT 'CNY' | Currency |
-| `contract_id` | INTEGER | -- | Associated contract |
+| `contract_id` | INTEGER | -- | Associated purchase contract |
 | `notes` | TEXT | -- | Notes |
 | `created_by` | INTEGER | -- | Creator |
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
@@ -773,10 +843,7 @@ CREATE INDEX idx_purchase_orders_date ON purchase_orders(order_date);
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
 | `order_id` | INTEGER | NOT NULL | PO ID |
-| `pipe_type` | TEXT | NOT NULL | Pipe type |
-| `grade` | TEXT | NOT NULL | Grade |
-| `od` | REAL | NOT NULL | OD |
-| `wt` | REAL | NOT NULL | WT |
+| `item_id` | INTEGER | NOT NULL | Item ID |
 | `quantity` | INTEGER | NOT NULL | Ordered qty |
 | `received_quantity` | INTEGER | NOT NULL, DEFAULT 0 | Received qty |
 | `unit_price` | REAL | -- | Unit price |
@@ -805,7 +872,7 @@ Symmetric to purchase_orders, but links to `customer_id` instead.
 | `status` | TEXT | NOT NULL, DEFAULT 'draft' | draft / pending / approved / completed / cancelled |
 | `total_amount` | REAL | -- | Total |
 | `currency` | TEXT | NOT NULL, DEFAULT 'CNY' | Currency |
-| `contract_id` | INTEGER | -- | Associated contract |
+| `contract_id` | INTEGER | -- | Associated sales contract |
 | `notes` | TEXT | -- | Notes |
 | `created_by` | INTEGER | -- | -- |
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
@@ -827,10 +894,7 @@ Symmetric to `purchase_order_items`.
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
 | `order_id` | INTEGER | NOT NULL | SO ID |
-| `pipe_type` | TEXT | NOT NULL | Pipe type |
-| `grade` | TEXT | NOT NULL | Grade |
-| `od` | REAL | NOT NULL | OD |
-| `wt` | REAL | NOT NULL | WT |
+| `item_id` | INTEGER | NOT NULL | Item ID |
 | `quantity` | INTEGER | NOT NULL | Ordered qty |
 | `delivered_quantity` | INTEGER | NOT NULL, DEFAULT 0 | Delivered qty |
 | `unit_price` | REAL | -- | Unit price |
@@ -859,54 +923,17 @@ Symmetric to `purchase_order_items`.
 
 ---
 
-#### 5.3.13a contract_items — Contract Line Items
+#### 5.3.14 inspections / ncrs — Inspection & NCR Tables
 
-**Table**: `contract_items`
+**Table**: `inspections`
 
-| Field | Type | Constraint | Description |
-|-------|------|------------|-------------|
-| `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
-| `contract_id` | INTEGER | NOT NULL | Parent contract ID |
-| `pipe_type` | TEXT | NOT NULL | seamless / screen |
-| `grade` | TEXT | NOT NULL | Steel grade |
-| `od` | REAL | NOT NULL | Outer diameter |
-| `wt` | REAL | NOT NULL | Wall thickness |
-| `quantity` | INTEGER | NOT NULL | Quantity |
-| `unit_price` | REAL | -- | Unit price |
-| `total_price` | REAL | -- | Line total |
-| `notes` | TEXT | -- | -- |
-| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
-
----
-
-#### 5.3.13b contract_payments — Contract Payment Milestones
-
-**Table**: `contract_payments`
+**Purpose**: Manufacturing inspection records (Inspection), linked to work orders. Replaces the legacy quality-cert module.
 
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
-| `contract_id` | INTEGER | NOT NULL | Parent contract ID |
-| `due_date` | TEXT | NOT NULL | Payment due date |
-| `amount` | REAL | NOT NULL | Payment amount |
-| `payment_type` | TEXT | NOT NULL | deposit / milestone / final |
-| `is_paid` | INTEGER | NOT NULL, DEFAULT 0 | 0 = unpaid, 1 = paid |
-| `paid_date` | TEXT | -- | Actual payment date |
-| `notes` | TEXT | -- | -- |
-| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
-
----
-
-#### 5.3.14 quality_certs — Quality Certificate Table
-
-**Table**: `quality_certs`
-
-| Field | Type | Constraint | Description |
-|-------|------|------------|-------------|
-| `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
-| `pipe_type` | TEXT | NOT NULL | seamless / screen |
-| `pipe_id` | INTEGER | NOT NULL | Pipe ID |
-| `cert_no` | TEXT | NOT NULL | Cert number |
+| `work_order_id` | INTEGER | NOT NULL | Associated work order |
+| `inspection_no` | TEXT | NOT NULL, UNIQUE | Inspection number |
 | `inspect_date` | TEXT | -- | Inspection date |
 | `inspector` | TEXT | -- | Inspector |
 | `agency` | TEXT | -- | Inspection agency |
@@ -920,13 +947,75 @@ Symmetric to `purchase_order_items`.
 **Indexes:**
 
 ```sql
-CREATE INDEX idx_quality_certs_pipe ON quality_certs(pipe_type, pipe_id);
-CREATE INDEX idx_quality_certs_cert_no ON quality_certs(cert_no);
+CREATE INDEX idx_inspections_work_order ON inspections(work_order_id);
+CREATE INDEX idx_inspections_no ON inspections(inspection_no);
+```
+
+**Table**: `ncrs`
+
+| Field | Type | Constraint | Description |
+|-------|------|------------|-------------|
+| `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
+| `inspection_id` | INTEGER | NOT NULL | Associated inspection |
+| `ncr_no` | TEXT | NOT NULL, UNIQUE | NCR number |
+| `description` | TEXT | NOT NULL | Problem description |
+| `corrective_action` | TEXT | -- | Corrective action |
+| `status` | TEXT | NOT NULL, DEFAULT 'open' | open / closed |
+| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
+| `updated_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
+
+---
+
+#### 5.3.15 workflow_definitions / instances / tasks — Workflow Tables
+
+**Table**: `workflow_definitions`
+
+| Field | Type | Constraint | Description |
+|-------|------|------------|-------------|
+| `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
+| `name` | TEXT | NOT NULL | Definition name |
+| `business_type` | TEXT | NOT NULL | Applicable doc type (purchase_order / sales_order / requisition, etc.) |
+| `nodes` | TEXT | NOT NULL | Node config (JSON) |
+| `conditions` | TEXT | -- | Condition config (JSON) |
+| `is_active` | INTEGER | NOT NULL, DEFAULT 1 | Enabled |
+| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
+
+**Table**: `workflow_instances`
+
+| Field | Type | Constraint | Description |
+|-------|------|------------|-------------|
+| `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
+| `definition_id` | INTEGER | NOT NULL | Workflow definition |
+| `business_type` | TEXT | NOT NULL | Doc type |
+| `business_id` | INTEGER | NOT NULL | Doc ID |
+| `status` | TEXT | NOT NULL, DEFAULT 'running' | running / approved / rejected / cancelled |
+| `current_node` | TEXT | -- | Current node key |
+| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
+| `updated_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
+
+**Table**: `workflow_tasks`
+
+| Field | Type | Constraint | Description |
+|-------|------|------------|-------------|
+| `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
+| `instance_id` | INTEGER | NOT NULL | Workflow instance |
+| `node_key` | TEXT | NOT NULL | Node key |
+| `assignee_id` | INTEGER | NOT NULL | Assignee (user ID) |
+| `status` | TEXT | NOT NULL, DEFAULT 'pending' | pending / approved / rejected |
+| `comment` | TEXT | -- | Approval comment |
+| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
+| `handled_at` | TEXT | -- | Handled at |
+
+**Indexes:**
+
+```sql
+CREATE INDEX idx_wf_tasks_assignee ON workflow_tasks(assignee_id, status);
+CREATE INDEX idx_wf_instances_business ON workflow_instances(business_type, business_id);
 ```
 
 ---
 
-#### 5.3.15 users — User Table
+#### 5.3.16 users — User Table
 
 **Table**: `users`
 
@@ -937,9 +1026,10 @@ CREATE INDEX idx_quality_certs_cert_no ON quality_certs(cert_no);
 | `password_hash` | TEXT | NOT NULL | Argon2 hash |
 | `display_name` | TEXT | NOT NULL | Display name |
 | `email` | TEXT | -- | Email |
-| `role` | TEXT | NOT NULL | admin / warehouse / qc / sales |
+| `role` | TEXT | NOT NULL | admin / warehouse / sales / procurement |
+| `department_id` | INTEGER | -- | Department |
 | `language_pref` | TEXT | NOT NULL, DEFAULT 'zh' | zh / en |
-| `unit_system` | TEXT | NOT NULL, DEFAULT 'metric' | metric / imperial |
+| `unit_pref` | TEXT | NOT NULL, DEFAULT 'standard' | Unit preference |
 | `is_active` | INTEGER | NOT NULL, DEFAULT 1 | Enabled |
 | `last_login_at` | TEXT | -- | Last login |
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
@@ -954,7 +1044,7 @@ CREATE INDEX idx_users_role ON users(role);
 
 ---
 
-#### 5.3.16 operation_logs — Operation Log Table
+#### 5.3.17 operation_logs — Operation Log Table
 
 **Table**: `operation_logs`
 
@@ -966,9 +1056,9 @@ CREATE INDEX idx_users_role ON users(role);
 | `user_id` | INTEGER | -- | User ID |
 | `username` | TEXT | -- | Username (denormalized) |
 | `action` | TEXT | NOT NULL | create / update / delete / login / export |
-| `target_type` | TEXT | NOT NULL | pipe / inbound / outbound / order / user, etc. |
+| `target_type` | TEXT | NOT NULL | item / inbound / outbound / order / user, etc. |
 | `target_id` | INTEGER | -- | Target object ID |
-| `target_summary` | TEXT | -- | Summary (e.g. pipe number) |
+| `target_summary` | TEXT | -- | Summary (e.g. SKU) |
 | `detail` | TEXT | -- | Change details (JSON, before/after) |
 | `ip_address` | TEXT | -- | Source IP |
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | Timestamp |
@@ -984,17 +1074,16 @@ CREATE INDEX idx_operation_logs_time ON operation_logs(created_at);
 
 ---
 
-#### 5.3.17 pipe_attachments — Pipe Attachments Table
+#### 5.3.18 item_attachments — Item Attachments Table
 
-**Table**: `pipe_attachments`
+**Table**: `item_attachments`
 
-**Purpose**: Files/photos linked to pipes (receipt photos, defect photos, inspection reports). One-to-many with pipes.
+**Purpose**: Files/photos linked to items (photos, manuals, inspection reports). One-to-many with items.
 
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
-| `pipe_type` | TEXT | NOT NULL | seamless / screen |
-| `pipe_id` | INTEGER | NOT NULL | Pipe ID |
+| `item_id` | INTEGER | NOT NULL | Item ID |
 | `file_name` | TEXT | NOT NULL | Original filename |
 | `file_path` | TEXT | NOT NULL | Storage path |
 | `file_type` | TEXT | -- | image / pdf / other |
@@ -1005,33 +1094,12 @@ CREATE INDEX idx_operation_logs_time ON operation_logs(created_at);
 **Indexes:**
 
 ```sql
-CREATE INDEX idx_pipe_attachments_target ON pipe_attachments(pipe_type, pipe_id);
+CREATE INDEX idx_item_attachments_target ON item_attachments(item_id);
 ```
 
 ---
 
-#### 5.3.18 api_5ct_grade_ref — API 5CT Grade Reference Table
-
-**Table**: `api_5ct_grade_ref`
-
-**Purpose**: Mechanical properties and chemical composition reference data per API 5CT standard grades. Used for QC comparison and validation.
-
-| Field | Type | Constraint | Description |
-|-------|------|------------|-------------|
-| `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
-| `grade` | TEXT | NOT NULL, UNIQUE | Grade code |
-| `grade_group` | TEXT | -- | H/J/K/N/L/C/T/P/Q |
-| `pipe_type` | TEXT | -- | casing / tubing / both |
-| `min_yield_strength_psi` | INTEGER | -- | Min yield (psi) |
-| `max_yield_strength_psi` | INTEGER | -- | Max yield (psi) |
-| `min_tensile_strength_psi` | INTEGER | -- | Min tensile (psi) |
-| `hardness_max` | REAL | -- | Max hardness (HRC) |
-| `notes` | TEXT | -- | Environment notes |
-| `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
-
----
-
-#### 5.3.19 inventory_check_records — Inventory Check Record Table
+#### 5.3.19 inventory_check_records / items — Stock Check Tables
 
 **Table**: `inventory_check_records`
 
@@ -1046,18 +1114,15 @@ CREATE INDEX idx_pipe_attachments_target ON pipe_attachments(pipe_type, pipe_id)
 | `created_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
 | `updated_at` | TEXT | NOT NULL, DEFAULT (datetime('now')) | -- |
 
-#### 5.3.20 inventory_check_items — Inventory Check Line Items
-
 **Table**: `inventory_check_items`
 
-**Purpose**: One row per pipe per check. System pre-populates expected pipes, checker confirms each one. Each pipe is either "found" or "missing" — no quantity math.
+**Purpose**: One row per item per check. System pre-populates expected items, checker confirms each one. Each item is either "found" or "missing" — no quantity math.
 
 | Field | Type | Constraint | Description |
 |-------|------|------------|-------------|
 | `id` | INTEGER | PK, AUTOINCREMENT | Primary key |
 | `check_id` | INTEGER | NOT NULL | Check record ID |
-| `pipe_type` | TEXT | NOT NULL | Pipe type |
-| `pipe_id` | INTEGER | NOT NULL | Pipe ID |
+| `item_id` | INTEGER | NOT NULL | Item ID |
 | `expected` | INTEGER | NOT NULL, DEFAULT 1 | Expected flag (1 = should be here) |
 | `found` | INTEGER | -- | NULL=not checked, 1=found, 0=missing |
 | `notes` | TEXT | -- | Discrepancy description |
@@ -1068,6 +1133,41 @@ CREATE INDEX idx_pipe_attachments_target ON pipe_attachments(pipe_type, pipe_id)
 CREATE INDEX idx_check_items_check ON inventory_check_items(check_id);
 CREATE INDEX idx_check_items_status ON inventory_check_items(check_id, found);
 ```
+
+---
+
+#### 5.3.20 Extended Module Core Tables (HR / Finance / Manufacturing / Project / Asset / Notification / Portal)
+
+| Module | Table | Core Fields |
+|--------|-------|-------------|
+| HR | `employees` | id, employee_no, name, department_id, position, phone, email, hire_date |
+| HR | `departments` | id, name, parent_id |
+| HR | `attendance` | id, employee_id, date, status |
+| HR | `salaries` | id, employee_id, period, amount, paid_at |
+| HR | `labor_contracts` | id, employee_id, contract_no, start_date, end_date, status |
+| Finance | `accounts` | id, code, name, type(asset/liability/equity/revenue/expense) |
+| Finance | `journal_entries` | id, entry_no, entry_date, account_id, debit, credit, ref_type, ref_id |
+| Finance | `invoices` | id, invoice_no, invoice_type(in/out), party_id, amount, status |
+| Finance | `payments` | id, payment_no, payment_type, party_id, amount, paid_at |
+| Manufacturing | `boms` | id, product_item_id, components(JSON), quantity, unit |
+| Manufacturing | `work_orders` | id, work_order_no, product_item_id, bom_id, quantity, status, start_date, due_date |
+| Project | `projects` | id, project_code, name, owner_id, start_date, end_date, status |
+| Project | `wbs_items` | id, project_id, parent_id, name, weight |
+| Project | `budget_items` | id, project_id, wbs_id, category, planned_amount, actual_amount |
+| Asset | `fixed_assets` | id, asset_code, name, category, purchase_date, original_value, useful_life, salvage_value |
+| Asset | `depreciations` | id, asset_id, period, amount, cumulative_amount |
+| Asset | `disposals` | id, asset_id, dispose_date, dispose_type, proceeds |
+| Notification | `notifications` | id, user_id, title, content, read_at, template_id |
+| Notification | `notification_templates` | id, code, title, content, variables(JSON) |
+| Notification | `notification_preferences` | id, user_id, category, enabled |
+| Portal | `portal_accounts` | id, party_type(customer/supplier), party_id, username, password_hash, is_active |
+| Procurement | `requisitions` | id, requisition_no, requester_id, status, items(JSON) |
+| Procurement | `receipts` | id, receipt_no, purchase_order_id, supplier_id, status, items(JSON) |
+| Procurement | `supplier_quotes` | id, quote_no, supplier_id, item_id, price, valid_until, status |
+| Procurement | `supplier_scorecards` | id, supplier_id, period, score, dimension(JSON) |
+| Sales CRM | `customer_quotes` | id, quote_no, customer_id, item_id, price, valid_until, status |
+| Sales CRM | `shipments` | id, shipment_no, sales_order_id, customer_id, status, items(JSON) |
+| Sales CRM | `customer_credit` | id, customer_id, credit_limit, used_amount, updated_at |
 
 ---
 
@@ -1090,45 +1190,44 @@ CREATE INDEX idx_check_items_status ON inventory_check_items(check_id, found);
                        │ sales_order_items  │
                        └──────────────────┘
 
-┌───────────────┐     ┌──────────────────┐    ┌─────────────────┐
-│ seamless_pipes │──N:1│    locations      │1:N─│  screen_pipes    │
-└───────┬───────┘     └──────────────────┘    └────────┬────────┘
-        │                                             │
-        │ 1:N                                          │ 1:N
-        ▼                                             ▼
-┌─────────────────────────────────────────────────────────┐
-│               inventory_logs                              │
-│     (Records all inventory changes for both pipe types)   │
-└─────────────────────────────────────────────────────────┘
+┌──────────┐      ┌──────────────────┐      ┌───────────────┐
+│   items   │──N:1│    locations      │1:N──│  warehouses    │
+└─────┬────┘      └──────────────────┘      └───────────────┘
+      │
+      │ 1:N
+      ▼
+┌─────────────────────────────────────────┐
+│            inventory_logs                 │
+│  (Records all inventory changes)          │
+└─────────────────────────────────────────┘
 
-┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│ inbound_records │──1:N│   inbound_items   │──N:1│  seamless_pipes  │
-│   (Header)      │     │   (Line Items)    │     │  / screen_pipes  │
-└────────────────┘     └──────────────────┘     └─────────────────┘
+┌────────────────┐     ┌──────────────────┐     ┌─────────┐
+│ inbound_records │──1:N│  inbound_items   │──N:1│  items   │
+│   (Header)      │     │   (Line Items)    │     └─────────┘
+└────────────────┘     └──────────────────┘
 
-┌────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│ outbound_records│──1:N│  outbound_items  │──N:1│  seamless_pipes  │
-│   (Header)      │     │   (Line Items)    │     │  / screen_pipes  │
-└────────────────┘     └──────────────────┘     └─────────────────┘
+┌────────────────┐     ┌──────────────────┐     ┌─────────┐
+│ outbound_records│──1:N│ outbound_items   │──N:1│  items   │
+│   (Header)      │     │   (Line Items)    │     └─────────┘
+└────────────────┘     └──────────────────┘
 
-┌───────────────┐     ┌──────────────────┐    ┌─────────────────┐
-│ seamless_pipes │─────│   quality_certs   │────│  screen_pipes    │
-└───────────────┘     └──────────────────┘    └─────────────────┘
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │ api_5ct_grade_ref │
-                    └──────────────────┘
+┌────────────┐     ┌──────────────────┐
+│ work_orders │──1:N│   inspections     │──1:N── ncrs
+└────────────┘     └──────────────────┘
+
+┌──────────────────────┐
+│ workflow_definitions │──1:N── workflow_instances ──1:N── workflow_tasks
+└──────────────────────┘
 
 ┌──────────┐       ┌──────────────────┐       ┌─────────────────┐
-│   users   │──1:N──│  operation_logs   │       │     contracts    │
+│   users   │──1:N──│  operation_logs   │       │    contracts     │
 └──────────┘       └──────────────────┘       └────────┬────────┘
                                                         │ 1:N
-                                          ┌─────────────┴─────────────┐
-                                          ▼                           ▼
-                                ┌──────────────────┐      ┌──────────────────┐
-                                │  contract_items   │      │ contract_payments │
-                                └──────────────────┘      └──────────────────┘
+                                              ┌─────────┴─────────┐
+                                              ▼                   ▼
+                                     ┌────────────────┐   ┌────────────────┐
+                                     │  purchase_orders│   │  sales_orders   │
+                                     └────────────────┘   └────────────────┘
 ```
 
 ---
@@ -1139,7 +1238,7 @@ CREATE INDEX idx_check_items_status ON inventory_check_items(check_id, found);
 
 **Base path**: `/api/v1`
 
-**Response format**:
+**Response format** (ApiResponse<T> / PaginatedResponse<T>):
 
 ```json
 // Success
@@ -1149,7 +1248,8 @@ CREATE INDEX idx_check_items_status ON inventory_check_items(check_id, found);
   "meta": {
     "page": 1,
     "page_size": 20,
-    "total": 100
+    "total": 100,
+    "total_pages": 5
   },
   "request_id": "req_xxxxx"
 }
@@ -1157,11 +1257,9 @@ CREATE INDEX idx_check_items_status ON inventory_check_items(check_id, found);
 // Error
 {
   "success": false,
-  "error": {
-    "code": "PIPE_NOT_FOUND",
-    "message": "Pipe not found",
-    "details": { "pipe_id": 123 }
-  },
+  "code": 12001,
+  "message": "Item not found",
+  "details": { "item_id": 123 },
   "request_id": "req_xxxxx"
 }
 ```
@@ -1175,115 +1273,76 @@ CREATE INDEX idx_check_items_status ON inventory_check_items(check_id, found);
 | `page` | integer | 1 | Page number |
 | `page_size` | integer | 20 | Items per page (max 100) |
 
-### 6.2 Pipe Management API
+### 6.2 Item Management API
 
-#### 6.2.1 Seamless Steel Pipes
+#### 6.2.1 Item CRUD
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/seamless-pipes` | List with filters |
-| `POST` | `/api/v1/seamless-pipes` | Create |
-| `GET` | `/api/v1/seamless-pipes/{id}` | Get details |
-| `PUT` | `/api/v1/seamless-pipes/{id}` | Update |
-| `DELETE` | `/api/v1/seamless-pipes/{id}` | Soft delete |
+| `GET` | `/api/v1/items` | List with filters |
+| `POST` | `/api/v1/items` | Create |
+| `GET` | `/api/v1/items/{id}` | Get details |
+| `PUT` | `/api/v1/items/{id}` | Update |
+| `DELETE` | `/api/v1/items/{id}` | Soft delete (checks inventory references) |
+| `GET` | `/api/v1/items/search` | Multi-dimensional search |
 
-**GET /api/v1/seamless-pipes query params**:
+**GET /api/v1/items query params**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `q` | string | Fuzzy search (pipe_number / heat_number / serial_number) |
-| `grade` | string | Exact grade match |
-| `pipe_type` | string | casing / tubing |
-| `od_min` / `od_max` | number | OD range |
-| `wt_min` / `wt_max` | number | WT range |
-| `status` | string | Stock status |
-| `location_id` | integer | Location |
-| `manufacturer` | string | Manufacturer |
-| `sort_by` | string | Sort field (whitelist: `created_at`, `pipe_number`, `grade`, `od`, `wt`, `status`) |
+| `q` | string | Fuzzy search (sku / name / spec) |
+| `category` | string | Exact category match |
+| `unit` | string | Unit match |
+| `status` | string | draft / active / disabled |
+| `sort_by` | string | Sort field (whitelist: `created_at`, `sku`, `name`, `category`, `status`) |
 | `sort_order` | string | asc / desc |
 
-**POST /api/v1/seamless-pipes body**:
+**POST /api/v1/items body**:
 
 ```json
 {
-  "pipe_number": "CSG-4.5-J55-001",
-  "pipe_type": "casing",
-  "grade": "J55",
-  "od": 4.5,
-  "wt": 0.250,
-  "length": 40.0,
-  "weight_per_unit": 11.60,
-  "end_type": "SC",
-  "coupling_type": "standard",
-  "coupling_od": 5.0,
-  "coupling_length": 8.0,
-  "heat_number": "HT20260501-01",
-  "serial_number": "SN-20260501-001",
-  "manufacturer": "Some Steel Mill",
-  "production_date": "2026-05-01",
-  "cert_number": "QC-20260501-001",
+  "sku": "FG-202608-0001",
+  "name": "Finished Good A",
+  "category": "finished_goods",
+  "unit": "pc",
+  "spec": "standard",
+  "status": "active",
   "notes": ""
 }
 ```
 
-**GET /api/v1/seamless-pipes/{id} response**:
+**GET /api/v1/items/{id} response**:
 
 ```json
 {
   "success": true,
   "data": {
     "id": 1,
-    "pipe_number": "CSG-4.5-J55-001",
-    "pipe_type": "casing",
-    "grade": "J55",
-    "od": 4.5,
-    "wt": 0.250,
-    "length": 40.0,
-    "weight_per_unit": 11.60,
-    "end_type": "SC",
-    "coupling_type": "standard",
-    "coupling_od": 5.0,
-    "coupling_length": 8.0,
-    "heat_number": "HT20260501-01",
-    "serial_number": "SN-20260501-001",
-    "manufacturer": "Some Steel Mill",
-    "production_date": "2026-05-01",
-    "cert_number": "QC-20260501-001",
-    "location": { "id": 1, "full_code": "A-01-01" },
-    "status": "in_stock",
-    "created_at": "2026-05-19T10:00:00Z",
-    "updated_at": "2026-05-19T10:00:00Z"
+    "sku": "FG-202608-0001",
+    "name": "Finished Good A",
+    "category": "finished_goods",
+    "unit": "pc",
+    "spec": "standard",
+    "status": "active",
+    "location": { "id": 1, "full_code": "WH1-A-01" },
+    "created_at": "2026-08-01T10:00:00Z",
+    "updated_at": "2026-08-01T10:00:00Z"
   }
 }
 ```
 
-#### 6.2.2 Screen Pipes
+#### 6.2.2 Item Search
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/screen-pipes` | List |
-| `POST` | `/api/v1/screen-pipes` | Create |
-| `GET` | `/api/v1/screen-pipes/{id}` | Details |
-| `PUT` | `/api/v1/screen-pipes/{id}` | Update |
-| `DELETE` | `/api/v1/screen-pipes/{id}` | Soft delete |
-
-Query params similar to seamless, plus screen-specific fields (`screen_type`, `slot_size`, etc.)
-
-#### 6.2.3 Unified Pipe Search
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/pipes/search` | Cross-type search (seamless + screen) |
+| `GET` | `/api/v1/items/search` | Generic multi-dimensional search (SKU/name/category/unit/spec/status/location) |
 
 ```json
 // Response
 {
   "success": true,
-  "data": {
-    "seamless_pipes": [ ... ],
-    "screen_pipes": [ ... ]
-  },
-  "meta": { "total_seamless": 50, "total_screen": 10 }
+  "data": { "items": [ ... ] },
+  "meta": { "total": 60, "page": 1, "page_size": 20, "total_pages": 3 }
 }
 ```
 
@@ -1306,14 +1365,14 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 ```json
 {
   "inbound_type": "purchase",
-  "inbound_date": "2026-05-19",
+  "inbound_date": "2026-08-01",
   "order_id": 1,
   "supplier_id": 1,
   "operator_id": 1,
   "remark": "Purchase inbound",
-  "pipes": [
-    { "pipe_type": "seamless", "pipe_id": 1 },
-    { "pipe_type": "seamless", "pipe_id": 2 }
+  "items": [
+    { "item_id": 1, "quantity": 100 },
+    { "item_id": 2, "quantity": 50 }
   ]
 }
 ```
@@ -1323,39 +1382,35 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 ```json
 {
   "inbound_type": "production",
-  "inbound_date": "2026-05-19",
-  "supplier_id": 1,
+  "inbound_date": "2026-08-01",
   "operator_id": 1,
   "remark": "Production inbound",
-  "pipes": [
-    { "pipe_type": "seamless", "pipe_id": 100 }
+  "items": [
+    { "item_id": 100, "quantity": 10 }
   ]
 }
 ```
 
 > **Approval flow**: production/return inbound are created as `pending`, must be approved before stock is updated.
-> **Batch inbound**: If `pipes` is empty + `batch_create` provided, system auto-creates N pipes of same spec.
+> **Batch inbound**: If `items` is empty + `batch_create` provided, system auto-creates N items of same spec.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/v1/inbound-records/batch` | Batch create pipes + single-step inbound |
+| `POST` | `/api/v1/inbound-records/batch` | Batch create items + single-step inbound |
 
 ```json
 {
   "inbound_type": "purchase",
-  "inbound_date": "2026-05-19",
+  "inbound_date": "2026-08-01",
   "order_id": 1,
   "supplier_id": 1,
   "operator_id": 1,
   "remark": "Batch purchase inbound",
-  "pipe_spec": {
-    "pipe_type": "seamless",
-    "grade": "J55",
-    "od": 4.5,
-    "wt": 0.250,
-    "length": 40.0,
-    "heat_number": "HT20260501-01",
-    "manufacturer": "Some Steel Mill"
+  "item_spec": {
+    "name": "Raw Material B",
+    "category": "raw_material",
+    "unit": "kg",
+    "spec": "Type A"
   },
   "quantity": 100
 }
@@ -1378,14 +1433,13 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 ```json
 {
   "outbound_type": "sales",
-  "outbound_date": "2026-05-19",
+  "outbound_date": "2026-08-01",
   "order_id": 1,
   "customer_id": 1,
   "operator_id": 1,
   "remark": "Sales outbound",
-  "pipes": [
-    { "pipe_type": "seamless", "pipe_id": 1 },
-    { "pipe_type": "seamless", "pipe_id": 2 }
+  "items": [
+    { "item_id": 1, "quantity": 100 }
   ]
 }
 ```
@@ -1395,11 +1449,11 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 ```json
 {
   "outbound_type": "scrapped",
-  "outbound_date": "2026-05-19",
+  "outbound_date": "2026-08-01",
   "operator_id": 1,
   "remark": "Scrapped outbound",
-  "pipes": [
-    { "pipe_type": "seamless", "pipe_id": 50 }
+  "items": [
+    { "item_id": 50, "quantity": 5 }
   ]
 }
 ```
@@ -1411,15 +1465,14 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 | `GET` | `/api/v1/inventory` | Aggregated stock list |
 | `GET` | `/api/v1/inventory/statistics` | Statistics summary |
 | `GET` | `/api/v1/inventory/logs` | Transaction logs |
+| `GET` | `/api/v1/atp` | ATP query (params: item_id) |
 
 **GET /api/v1/inventory query params**:
 
 | Parameter | Description |
 |-----------|-------------|
-| `pipe_type` | seamless / screen |
-| `grade` | Grade |
-| `od` | OD |
-| `wt` | WT |
+| `item_id` | Item ID |
+| `category` | Category |
 | `status` | Status |
 | `location_id` | Location |
 
@@ -1430,14 +1483,13 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
   "success": true,
   "data": [
     {
-      "pipe_type": "seamless",
-      "grade": "J55",
-      "od": 4.5,
-      "wt": 0.250,
+      "item_id": 1,
+      "sku": "FG-202608-0001",
+      "name": "Finished Good A",
       "total_quantity": 500,
       "in_stock": 480,
-      "outbound": 20,
-      "locations": ["A-01-01", "A-01-02"]
+      "reserved": 20,
+      "locations": ["WH1-A-01", "WH1-A-02"]
     }
   ],
   "meta": { "total": 25, "page": 1, "page_size": 20 }
@@ -1454,30 +1506,33 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 | `PUT` | `/api/v1/inventory-checks/{id}` | Update |
 | `POST` | `/api/v1/inventory-checks/{id}/complete` | Complete, generate variance report |
 
-#### 6.3.5 Location Management
+#### 6.3.5 Location & Reservation Management
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/locations` | List |
-| `POST` | `/api/v1/locations` | Create |
-| `PUT` | `/api/v1/locations/{id}` | Update |
-| `DELETE` | `/api/v1/locations/{id}` | Delete |
-| `POST` | `/api/v1/locations/{id}/assign` | Bind pipe to location |
-| `POST` | `/api/v1/pipes/{pipe_id}/transfer-location` | Transfer pipe |
+| `GET` | `/api/v1/warehouses` / `/api/v1/locations` | Warehouse/location list |
+| `POST` | `/api/v1/locations` | Create location |
+| `PUT` | `/api/v1/locations/{id}` | Update location |
+| `DELETE` | `/api/v1/locations/{id}` | Delete location |
+| `POST` | `/api/v1/locations/{id}/assign` | Bind item to location |
+| `POST` | `/api/v1/items/{item_id}/transfer-location` | Transfer item location |
+| `GET/POST` | `/api/v1/inventory/reservations` | Reservation list/create |
+| `DELETE` | `/api/v1/inventory/reservations/{id}` | Release reservation |
 
-### 6.4 Quality Management API
+### 6.4 Manufacturing & Inspection API
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/quality-certs` | List |
-| `POST` | `/api/v1/quality-certs` | Create |
-| `GET` | `/api/v1/quality-certs/{id}` | Details |
-| `PUT` | `/api/v1/quality-certs/{id}` | Update |
-| `DELETE` | `/api/v1/quality-certs/{id}` | Delete |
-| `GET` | `/api/v1/trace/heat-number/{heat_no}` | Trace by heat number |
-| `GET` | `/api/v1/trace/pipe-number/{pipe_no}` | Trace by pipe number |
-| `GET` | `/api/v1/api-5ct-grades` | API 5CT grade reference |
-| `GET` | `/api/v1/api-5ct-grades/{grade}` | Single grade reference |
+| `GET/POST` | `/api/v1/manufacturing/boms` | BOM list/create |
+| `GET/POST` | `/api/v1/manufacturing/work-orders` | Work order list/create |
+| `GET` | `/api/v1/manufacturing/work-orders/{id}` | Work order details |
+| `POST` | `/api/v1/manufacturing/work-orders/{id}/complete` | Complete work order |
+| `GET/POST` | `/api/v1/manufacturing/inspections` | Inspection list/create |
+| `GET` | `/api/v1/manufacturing/inspections/{id}` | Inspection details |
+| `PUT` | `/api/v1/manufacturing/inspections/{id}` | Update inspection |
+| `GET/POST` | `/api/v1/manufacturing/ncrs` | NCR list/create |
+| `POST` | `/api/v1/manufacturing/ncrs/{id}/close` | Close NCR |
+| `GET` | `/api/v1/items/{id}/trace` | Full item lifecycle trace |
 
 ### 6.5 Procurement Management API
 
@@ -1499,9 +1554,18 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 | `POST` | `/api/v1/purchase-orders` | Create |
 | `GET` | `/api/v1/purchase-orders/{id}` | Details |
 | `PUT` | `/api/v1/purchase-orders/{id}` | Update |
-| `POST` | `/api/v1/purchase-orders/{id}/approve` | Approve |
+| `POST` | `/api/v1/purchase-orders/{id}/approve` | Approve (runs through workflow) |
 | `POST` | `/api/v1/purchase-orders/{id}/reject` | Reject |
 | `POST` | `/api/v1/purchase-orders/{id}/link-inbound` | Link to inbound |
+
+#### Requisitions / Supplier Quotes / Receipts / Scorecards
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET/POST` | `/api/v1/requisitions` | Requisition list/create |
+| `GET/POST` | `/api/v1/supplier-quotes` | Supplier quote list/create |
+| `GET/POST` | `/api/v1/receipts` | Receipt list/create |
+| `GET/POST` | `/api/v1/supplier-scorecards` | Scorecard list/create |
 
 ### 6.6 Sales Management API
 
@@ -1523,10 +1587,18 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 | `POST` | `/api/v1/sales-orders` | Create |
 | `GET` | `/api/v1/sales-orders/{id}` | Details |
 | `PUT` | `/api/v1/sales-orders/{id}` | Update |
-| `POST` | `/api/v1/sales-orders/{id}/approve` | Approve |
+| `POST` | `/api/v1/sales-orders/{id}/approve` | Approve (runs through workflow) |
 | `POST` | `/api/v1/sales-orders/{id}/reject` | Reject |
-| `GET` | `/api/v1/atp` | ATP query (pipe_type, grade, od, wt) |
 | `POST` | `/api/v1/sales-orders/{id}/link-outbound` | Link to outbound |
+| `GET` | `/api/v1/atp` | ATP query (params: item_id) |
+
+#### Customer Quotes / Shipments / Customer Credit
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET/POST` | `/api/v1/customer-quotes` | Customer quote list/create |
+| `GET/POST` | `/api/v1/shipments` | Shipment list/create |
+| `GET/PUT` | `/api/v1/customer-credit/{customer_id}` | Customer credit get/update |
 
 ### 6.7 Contract Management API
 
@@ -1541,11 +1613,10 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/v1/import/seamless-pipes` | Import seamless pipes (Excel/CSV) |
-| `POST` | `/api/v1/import/screen-pipes` | Import screen pipes |
+| `POST` | `/api/v1/import/items` | Import items (Excel/CSV) |
 | `POST` | `/api/v1/import/inventory` | Import inventory data |
-| `GET` | `/api/v1/export/seamless-pipes` | Export seamless pipes |
-| `GET` | `/api/v1/export/screen-pipes` | Export screen pipes |
+| `POST` | `/api/v1/import/purchase-orders` | Import purchase orders |
+| `GET` | `/api/v1/export/items` | Export items |
 | `GET` | `/api/v1/export/inventory` | Export inventory report |
 | `GET` | `/api/v1/export/inventory-logs` | Export inventory logs |
 
@@ -1561,8 +1632,8 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
     "success_rows": 985,
     "failed_rows": 15,
     "errors": [
-      { "row": 23, "reason": "Duplicate pipe number: CSG-4.5-J55-001" },
-      { "row": 67, "reason": "Grade 'H50' is not in the allowed range" }
+      { "row": 23, "reason": "Duplicate SKU: FG-202608-0001" },
+      { "row": 67, "reason": "Category 'unknown' is not in the allowed list" }
     ]
   }
 }
@@ -1583,6 +1654,9 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 | `PUT` | `/api/v1/users/{id}` | Update |
 | `PUT` | `/api/v1/users/{id}/role` | Change role (admin) |
 | `DELETE` | `/api/v1/users/{id}` | Disable user |
+| `GET/POST` | `/api/v1/roles` | Role list/create |
+| `GET/POST` | `/api/v1/permissions` | Permission list/create |
+| `GET/POST` | `/api/v1/departments` | Department list/create |
 
 **POST /api/v1/auth/login**:
 
@@ -1608,7 +1682,7 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
       "display_name": "Administrator",
       "role": "admin",
       "language_pref": "zh",
-      "unit_system": "metric"
+      "unit_pref": "standard"
     }
   }
 }
@@ -1622,7 +1696,17 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 
 **Query params**: `user_id`, `action`, `target_type`, `date_from`/`date_to`, `q`
 
-### 6.10 Reports & Statistics API (P2)
+### 6.10 Workflow API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET/POST` | `/api/v1/workflow/definitions` | Definition list/create |
+| `GET/POST` | `/api/v1/workflow/instances` | Instance list/start |
+| `GET` | `/api/v1/workflow/tasks` | Task list (filter by assignee_id / status) |
+| `POST` | `/api/v1/workflow/tasks/{id}/approve` | Approve |
+| `POST` | `/api/v1/workflow/tasks/{id}/reject` | Reject |
+
+### 6.11 Reports & BI Analytics API
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -1630,132 +1714,234 @@ Query params similar to seamless, plus screen-specific fields (`screen_type`, `s
 | `GET` | `/api/v1/reports/inventory-monthly` | Monthly changes |
 | `GET` | `/api/v1/reports/in-out-statistics` | In/out stats |
 | `GET` | `/api/v1/reports/turnover-rate` | Turnover rate |
+| `GET` | `/api/v1/bi/sales-trend` | Sales trend (BI) |
+| `GET` | `/api/v1/bi/inventory-value` | Inventory value (BI) |
+| `GET` | `/api/v1/bi/finance-summary` | Finance summary (BI) |
+| `GET` | `/api/v1/bi/supplier-performance` | Supplier performance (BI) |
 
-### 6.11 Label Printing API (P2)
+### 6.12 HR / Finance / Project / Asset / Notification / Portal API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/labels/generate` | Generate label (PDF/image) |
-| `POST` | `/api/v1/labels/batch-generate` | Batch generate |
+| Module | Method | Path | Description |
+|--------|--------|------|-------------|
+| HR | `GET/POST` | `/api/v1/hr/employees` | Employee list/create |
+| HR | `GET/POST` | `/api/v1/hr/attendance` | Attendance list/record |
+| HR | `GET/POST` | `/api/v1/hr/salaries` | Salary list/record |
+| HR | `GET/POST` | `/api/v1/hr/labor-contracts` | Labor contract list/create |
+| Finance | `GET/POST` | `/api/v1/finance/accounts` | Account list/create |
+| Finance | `GET/POST` | `/api/v1/finance/journal` | Journal list/create |
+| Finance | `GET/POST` | `/api/v1/finance/invoices` | Invoice list/create |
+| Finance | `GET/POST` | `/api/v1/finance/payments` | Payment list/create |
+| Finance | `GET` | `/api/v1/finance/trial-balance` | Trial balance |
+| Project | `GET/POST` | `/api/v1/projects` | Project list/create |
+| Project | `GET/POST` | `/api/v1/projects/{id}/wbs` | WBS list/create |
+| Project | `GET/POST` | `/api/v1/projects/{id}/budget` | Budget list/create |
+| Asset | `GET/POST` | `/api/v1/assets` | Asset list/register |
+| Asset | `GET` | `/api/v1/assets/{id}/depreciation` | Depreciation |
+| Asset | `POST` | `/api/v1/assets/{id}/disposal` | Disposal |
+| Notification | `GET` | `/api/v1/notifications` | Inbox |
+| Notification | `POST` | `/api/v1/notifications/{id}/read` | Mark read |
+| Notification | `GET/POST` | `/api/v1/notifications/templates` | Templates |
+| Notification | `PUT` | `/api/v1/notifications/preferences` | Preferences |
+| Portal | `GET/POST` | `/api/v1/portal/accounts` | Portal account list/create |
+| Portal | `POST` | `/api/v1/portal/login` | Portal login (party JWT) |
 
 ---
 
 ## 7. Project Directory Structure
 
-### 7.1 Backend (Rust)
+### 7.1 Backend (Rust, crate `erp-server`)
 
 ```
-pipe-management/
-├── Cargo.toml                    # Dependencies
+erp-server/
+├── Cargo.toml                    # Dependencies (sqlx 0.8 sqlite feature)
 ├── Cargo.lock
-├── .env                          # Env vars (DB path, JWT Secret, etc.)
+├── .env                          # Env vars (DATABASE_URL=sqlite://data/erp.db?mode=rwc, JWT_SECRET, etc.)
 ├── .env.example                  # Template
 ├── sqlx-data.json                # SQLx offline check data
-├── migrations/
+├── migrations/                   # 37 legacy migrations rewritten to SQLite syntax, pipe tables dropped
 │   ├── 001_create_users.sql
-│   ├── 002_create_seamless_pipes.sql
-│   ├── 003_create_screen_pipes.sql
-│   ├── 004_create_locations.sql
-│   ├── 005_create_inventory.sql
-│   ├── 006_create_orders.sql
-│   ├── 007_create_quality.sql
-│   ├── 008_create_logs.sql
-│   ├── 009_create_ref_data.sql
-│   ├── 010_seed_api_5ct_data.sql
-│   └── 011_add_rejection_reason.sql
+│   ├── 002_create_items.sql      # Item table (replaces legacy industry-specific master tables)
+│   ├── 003_create_locations.sql
+│   ├── 004_create_inventory.sql
+│   ├── 005_create_orders.sql
+│   ├── 006_create_procurement.sql
+│   ├── 007_create_sales_crm.sql
+│   ├── 008_create_workflow.sql
+│   ├── 009_create_hr.sql
+│   ├── 010_create_finance.sql
+│   ├── 011_create_manufacturing.sql
+│   ├── 012_create_projects.sql
+│   ├── 013_create_assets.sql
+│   ├── 014_create_notifications.sql
+│   ├── 015_create_portal.sql
+│   ├── 016_create_bi_views.sql
+│   └── 017_create_logs.sql
 ├── src/
 │   ├── main.rs                   # Entry: server startup, config
 │   ├── lib.rs                    # Library entry
 │   ├── config.rs                 # Config (env → Config struct)
 │   ├── router.rs                 # Route registration (~70 endpoints)
-│   ├── error.rs                  # AppError enum
+│   ├── error.rs                  # AppError enum + numeric error codes
 │   ├── response.rs               # ApiResponse, PaginatedResponse
+│   ├── cache.rs                  # TTL in-memory cache
 │   ├── middleware/
 │   │   ├── mod.rs
 │   │   ├── auth.rs               # JWT auth middleware
 │   │   ├── rbac.rs               # Role-based access control
 │   │   ├── logging.rs            # Request logging
 │   │   └── request_id.rs         # Request ID generation
+│   ├── auth/                     # RBAC: roles/permissions/departments/tenants
+│   │   ├── repos.rs
+│   │   ├── services.rs           # IdentityService
+│   │   └── handlers.rs
+│   ├── workflow/                 # Approval engine
+│   │   ├── repos.rs
+│   │   ├── services.rs           # WorkflowService
+│   │   └── handlers.rs
+│   ├── hr/                       # HR
+│   │   ├── repos.rs
+│   │   ├── services.rs           # HrService
+│   │   └── handlers.rs
+│   ├── finance/                  # Finance
+│   │   ├── repos.rs
+│   │   ├── services.rs           # FinanceService
+│   │   └── handlers.rs
+│   ├── procurement/              # Procurement
+│   │   ├── repos.rs
+│   │   ├── services.rs
+│   │   └── handlers.rs
+│   ├── sales_crm/                # Sales CRM
+│   │   ├── repos.rs
+│   │   ├── services.rs
+│   │   └── handlers.rs
+│   ├── inventory_atp/            # Inventory (items/stock/reservations/transfers/count)
+│   │   ├── repos.rs
+│   │   ├── services.rs           # ItemService / InventoryService / ReservationService
+│   │   └── handlers.rs           # item_handler / inventory_handler / atp_handler
+│   ├── manufacturing/            # Manufacturing (BOMs/work orders/inspections/NCRs)
+│   │   ├── repos.rs
+│   │   ├── services.rs
+│   │   └── handlers.rs
+│   ├── project/                  # Projects (projects/WBS/budget)
+│   │   ├── repos.rs
+│   │   ├── services.rs
+│   │   └── handlers.rs
+│   ├── assets/                   # Fixed assets
+│   │   ├── repos.rs
+│   │   ├── services.rs
+│   │   └── handlers.rs
+│   ├── notification/             # Notifications
+│   │   ├── repos.rs
+│   │   ├── services.rs
+│   │   └── handlers.rs
+│   ├── portal/                   # Portal
+│   │   ├── repos.rs
+│   │   ├── services.rs
+│   │   └── handlers.rs
+│   ├── bi/                       # BI analytics
+│   │   ├── services.rs
+│   │   └── handlers.rs
 │   ├── domain/
 │   │   ├── mod.rs
-│   │   ├── pipe.rs               # Pipe enums, constants
-│   │   ├── api_5ct.rs            # API 5CT ref data
-│   │   └── error.rs              # Domain error types
+│   │   ├── item.rs               # Item enums, constants
+│   │   └── order.rs              # Order status enums
 │   ├── models/
 │   │   ├── mod.rs
-│   │   ├── seamless_pipe.rs
-│   │   ├── screen_pipe.rs
+│   │   ├── item.rs               # Item struct
 │   │   ├── location.rs
-│   │   ├── inbound.rs
-│   │   ├── outbound.rs
+│   │   ├── inbound.rs            # InboundRecord + InboundItem
+│   │   ├── outbound.rs           # OutboundRecord + OutboundItem
 │   │   ├── inventory_log.rs
+│   │   ├── reservation.rs
 │   │   ├── supplier.rs
 │   │   ├── customer.rs
 │   │   ├── purchase_order.rs
 │   │   ├── sales_order.rs
 │   │   ├── contract.rs
-│   │   ├── quality_cert.rs
-│   │   ├── inventory_check.rs
+│   │   ├── inspection.rs         # Inspection + Ncr
+│   │   ├── work_order.rs
+│   │   ├── workflow.rs           # Definition + Instance + Task
+│   │   ├── inventory_check.rs    # Check + CheckItem
 │   │   ├── user.rs
 │   │   └── operation_log.rs
 │   ├── dto/
 │   │   ├── mod.rs
-│   │   ├── pipe_dto.rs
+│   │   ├── item_dto.rs           # Item create/update/query DTO
 │   │   ├── inventory_dto.rs
 │   │   ├── order_dto.rs
 │   │   ├── auth_dto.rs
-│   │   └── common.rs
-│   ├── handlers/                 # 13 handler files
+│   │   └── common.rs             # Pagination / sort / search params
+│   ├── handlers/                 # Thin HTTP layer
 │   │   ├── mod.rs
-│   │   ├── pipe_handler.rs
+│   │   ├── item_handler.rs
 │   │   ├── inventory_handler.rs
-│   │   ├── quality_handler.rs
+│   │   ├── manufacturing_handler.rs
 │   │   ├── purchase_handler.rs
 │   │   ├── sales_handler.rs
 │   │   ├── supplier_handler.rs
 │   │   ├── customer_handler.rs
 │   │   ├── contract_handler.rs
-│   │   ├── report_handler.rs
-│   │   ├── label_handler.rs
+│   │   ├── location_handler.rs
 │   │   ├── data_io_handler.rs
 │   │   ├── auth_handler.rs
+│   │   ├── user_handler.rs
+│   │   ├── workflow_handler.rs
+│   │   ├── hr_handler.rs
+│   │   ├── finance_handler.rs
+│   │   ├── project_handler.rs
+│   │   ├── asset_handler.rs
+│   │   ├── notification_handler.rs
+│   │   ├── portal_handler.rs
+│   │   ├── bi_handler.rs
+│   │   ├── log_handler.rs
+│   │   ├── report_handler.rs
 │   │   └── atp_handler.rs
-│   ├── services/                 # 12 service files
+│   ├── services/                 # Unit struct + static methods
 │   │   ├── mod.rs
-│   │   ├── pipe_service.rs
+│   │   ├── item_service.rs
 │   │   ├── inventory_service.rs
-│   │   ├── quality_service.rs
-│   │   ├── purchase_sales_service.rs
-│   │   ├── contract_service.rs
-│   │   ├── customer_service.rs
-│   │   ├── supplier_service.rs
-│   │   ├── label_service.rs
-│   │   ├── report_service.rs
+│   │   ├── location_service.rs
+│   │   ├── manufacturing_service.rs
+│   │   ├── purchase_service.rs
+│   │   ├── sales_service.rs
 │   │   ├── data_io_service.rs
 │   │   ├── auth_service.rs
-│   │   └── trace_service.rs
-│   └── repositories/            # 13 repo files
+│   │   ├── user_service.rs
+│   │   ├── report_service.rs
+│   │   ├── contract_service.rs
+│   │   ├── trace_service.rs
+│   │   ├── customer_service.rs
+│   │   └── supplier_service.rs
+│   └── repositories/             # Static methods + soft-delete aware
 │       ├── mod.rs
-│       ├── pipe_repo.rs
-│       ├── inventory_repo.rs
+│       ├── item_repo.rs
+│       ├── location_repo.rs
+│       ├── warehouse_repo.rs
+│       ├── inbound_repo.rs
+│       ├── outbound_repo.rs
+│       ├── inventory_log_repo.rs
+│       ├── reservation_repo.rs
+│       ├── supplier_repo.rs
+│       ├── customer_repo.rs
 │       ├── purchase_order_repo.rs
 │       ├── sales_order_repo.rs
-│       ├── quality_repo.rs
 │       ├── contract_repo.rs
-│       ├── customer_repo.rs
-│       ├── supplier_repo.rs
-│       ├── label_repo.rs
-│       ├── report_repo.rs
-│       ├── data_io_repo.rs
+│       ├── inspection_repo.rs
+│       ├── work_order_repo.rs
+│       ├── workflow_repo.rs
+│       ├── inventory_check_repo.rs
 │       ├── user_repo.rs
-│       └── operation_log_repo.rs
+│       ├── operation_log_repo.rs
+│       ├── report_repo.rs
+│       └── data_io_repo.rs
 └── tests/
     ├── common/
     │   ├── mod.rs
-    │   └── test_db.rs
-    ├── pipe_tests.rs
+    │   └── test_db.rs            # In-memory SQLite DB init for tests
+    ├── item_tests.rs
     ├── inventory_tests.rs
     ├── order_tests.rs
+    ├── workflow_tests.rs
     ├── auth_tests.rs
     └── api_integration_tests.rs
 ```
@@ -1763,7 +1949,7 @@ pipe-management/
 ### 7.2 Frontend (React 19)
 
 ```
-pipe-management-frontend/
+erp-frontend/
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
@@ -1777,18 +1963,27 @@ pipe-management-frontend/
 │   │   └── ProtectedRoute.tsx      # Auth guard + role check
 │   ├── layouts/
 │   │   └── MainLayout.tsx          # Sidebar + Header + Outlet
-│   ├── features/                   # 11 feature modules
-│   │   ├── auth/                   # Login, authStore, authApi
-│   │   ├── pipes/                  # Seamless/screen pipe CRUD, search
-│   │   ├── inventory/              # Inbound/outbound/stock/check/locations
-│   │   ├── quality/                # QC certs, traceability, API 5CT ref
-│   │   ├── purchases/              # POs, suppliers
-│   │   ├── sales/                  # SOs, customers, ATP
-│   │   ├── contracts/              # Contract management
-│   │   ├── reports/                # Dashboard, inventory reports, trends
-│   │   ├── labels/                 # Label printing
-│   │   ├── data-io/                # Excel/CSV import/export
-│   │   └── system/                 # Users, operation logs, profile
+│   ├── features/                   # 20 feature modules
+│   │   ├── auth/                   # Login, user management
+│   │   ├── items/                  # Item/SKU CRUD, search
+│   │   ├── inventory/              # Inbound/outbound/stock/check/locations/reservations
+│   │   ├── suppliers/
+│   │   ├── customers/
+│   │   ├── purchases/              # POs
+│   │   ├── sales/                  # SOs, ATP
+│   │   ├── workflow/               # Definitions, instances, tasks
+│   │   ├── hr/                     # Employees, attendance, salaries, labor contracts
+│   │   ├── finance/                # Accounts, journal, invoices, payments, trial balance
+│   │   ├── procurement/            # Requisitions, supplier quotes, receipts, scorecards
+│   │   ├── manufacturing/          # BOMs, work orders, inspections, NCRs
+│   │   ├── projects/               # Projects, WBS, budget
+│   │   ├── assets/                 # Fixed assets
+│   │   ├── notifications/          # Inbox
+│   │   ├── portal/                 # Portal accounts
+│   │   ├── contracts/
+│   │   ├── reports/                # Dashboard, reports, BI
+│   │   ├── search/                 # Global search
+│   │   └── profile/                # Profile settings
 │   ├── shared/
 │   │   ├── components/             # 9 shared components
 │   │   ├── hooks/
@@ -1822,7 +2017,7 @@ pipe-management-frontend/
 | `401` | Unauthenticated |
 | `403` | Forbidden (wrong role) |
 | `404` | Not found |
-| `409` | Conflict (e.g. duplicate pipe number) |
+| `409` | Conflict (e.g. duplicate SKU) |
 | `422` | Validation failure (Validator crate) |
 | `500` | Internal server error |
 
@@ -1840,10 +2035,10 @@ pub enum AppErrorCode {
     TokenExpired,           // 11002
     Forbidden,              // 11003
 
-    // Pipes (120xx)
-    PipeNotFound,           // 12001
-    PipeNumberDuplicate,    // 12002
-    PipeStatusConflict,     // 12003
+    // Item/商品 (120xx)
+    ItemNotFound,           // 12001
+    SkuDuplicate,           // 12002
+    ItemStatusConflict,     // 12003 (e.g. can't delete a disabled/outbound item)
 
     // Inventory (130xx)
     InsufficientStock,      // 13001
@@ -1855,27 +2050,30 @@ pub enum AppErrorCode {
     OrderNotFound,          // 14002
     OrderNotApproved,       // 14003
 
-    // Inventory (130xx continued)
-    InboundOrderIdRequired,         // 13004
-    OutboundOrderIdRequired,        // 13005
-    InboundNotApprovedYet,          // 13006
-    OutboundNotApprovedYet,         // 13007
-    InboundAlreadyApproved,         // 13008
-    OutboundAlreadyApproved,        // 13009
-    InboundItemMismatch,            // 13010
-    OutboundItemMismatch,           // 13011
-    InboundApprovalNotAllowed,      // 13012
-    OutboundApprovalNotAllowed,     // 13013
+    // Inspection/质检 (150xx)
+    InspectionNotFound,     // 15001
+    AttachmentNotFound,     // 15002
 
-    // Import/Export (150xx)
-    ImportFileParseError,   // 15001
-    ImportValidationError,  // 15002
+    // Suppliers (160xx)
+    SupplierNotFound,       // 16001
+    SupplierCodeDuplicate,  // 16002
+
+    // Customers (170xx)
+    CustomerNotFound,       // 17001
+    CustomerCodeDuplicate,  // 17002
+
+    // Data IO (180xx)
+    ExportError,            // 18001
+    ImportError,            // 18002
+
+    // Database
+    DatabaseError,          // 50001
 }
 ```
 
 ### 8.3 Global Error Handling
 
-All errors are caught by Axum's `FromRequestParts` or middleware and converted to the unified `ApiResponse::error(...)` format. Every response includes `success: false` and `request_id` — no exceptions.
+All errors are caught by Axum's `FromRequestParts` or middleware and converted to the unified `ApiErrorResponse` format (`success: false` + `request_id`). The `x-request-id` response header is propagated via tower-http.
 
 ---
 
@@ -1888,23 +2086,24 @@ All errors are caught by Axum's `FromRequestParts` or middleware and converted t
 | **Query ≤ 2s (100k rows)** | Proper indexes, pagination, avoid N+1 |
 | **Import 100k rows ≤ 60s** | Batch inserts (1000 rows/transaction) |
 | **20+ concurrent users** | SQLite WAL for concurrent reads; write serialization via `busy_timeout` |
-| **Large queries** | Materialized aggregate views or app-level caching if needed |
+| **Large queries** | BI aggregate views or app-level caching if needed |
 
 **SQLite Concurrency**:
 
 ```
 1. WAL mode: reads don't block writes
 2. Writes serialized via Tokio Mutex to avoid SQLITE_BUSY
-3. Connection pool: deadpool-sqlite, max 5 connections
+3. Connection pool: SQLx SqlitePool, max 5 connections
 4. Long writes split into smaller batch transactions
 5. Periodic PRAGMA wal_checkpoint(TRUNCATE) to limit WAL size
+6. Connection string fixed: sqlite://data/erp.db?mode=rwc
 ```
 
 ### 9.2 Config Management
 
 ```rust
 pub struct AppConfig {
-    pub database_url: String,
+    pub database_url: String,       // sqlite://data/erp.db?mode=rwc
     pub jwt_secret: String,
     pub jwt_expires_in: u64,
     pub host: String,
@@ -1913,7 +2112,7 @@ pub struct AppConfig {
     pub upload_dir: String,
     pub max_file_size: usize,
     pub default_language: String,
-    pub default_unit_system: String,
+    pub default_unit_pref: String,
 }
 ```
 
@@ -1946,29 +2145,29 @@ pub struct AppConfig {
 |-------|----------|
 | **Password storage** | Argon2id (m=19456, t=2, p=1) |
 | **Session** | JWT (access_token 1h + refresh_token 7d) |
-| **API auth** | JWT Bearer middleware |
-| **RBAC** | Axum middleware extracts role from token, matches route permissions |
+| **API auth** | JWT Bearer middleware (`Extension<JwtSecret>`) |
+| **RBAC** | Axum middleware extracts role from token, matches route permissions (role → permission → user, with departments and optional tenants) |
 | **Sensitive ops** | DELETE/critical mods require confirmation (frontend + backend audit) |
 
 ### 10.2 Role Permission Matrix
 
-| Feature / Role | Admin | Warehouse | QC | Sales |
-|----------------|:-----:|:---------:|:--:|:-----:|
-| Pipe view | ✅ | ✅ | ✅ | ✅ |
-| Pipe create/update/delete | ✅ | ✅ | ✅ | -- |
+| Feature / Role | Admin | Warehouse | Sales | Procurement |
+|----------------|:-----:|:---------:|:-----:|:-----------:|
+| Item view | ✅ | ✅ | ✅ | ✅ |
+| Item create/update/delete | ✅ | ✅ | -- | -- |
 | Inbound operations | ✅ | ✅ | -- | ✅ (purchase only) |
-| Outbound operations | ✅ | ✅ | -- | ✅ (sales only) |
-| Inbound approval | ✅ | ✅ | -- | -- |
-| Outbound approval | ✅ | ✅ | -- | -- |
+| Outbound operations | ✅ | ✅ | ✅ (sales only) | -- |
+| Inbound approval (non-purchase) | ✅ | ✅ | -- | -- |
+| Outbound approval (non-sales) | ✅ | ✅ | -- | -- |
 | Inventory query | ✅ | ✅ | ✅ | ✅ |
 | Inventory check | ✅ | ✅ | -- | -- |
-| Location management | ✅ | ✅ | -- | -- |
-| Quality management | ✅ | -- | ✅ | -- |
+| Location/reservation management | ✅ | ✅ | -- | -- |
+| Manufacturing & inspection | ✅ | ✅ | -- | -- |
 | Purchase orders | ✅ | -- | -- | ✅ |
-| Sales orders | ✅ | -- | -- | ✅ |
-| Suppliers/Customers | ✅ | -- | -- | ✅ |
+| Sales orders | ✅ | -- | ✅ | -- |
+| Suppliers/Customers | ✅ | -- | customers | suppliers |
 | Import/Export | ✅ | ✅ | ✅ | ✅ |
-| Reports | ✅ | ✅ | ✅ | ✅ |
+| Reports/BI | ✅ | ✅ | ✅ | ✅ |
 | User management | ✅ | -- | -- | -- |
 | Operation logs | ✅ | self only | self only | self only |
 | System config | ✅ | -- | -- | -- |
@@ -1998,29 +2197,33 @@ Every data modification (create / update / delete) is auto-logged:
 
 ### 11.1 i18n
 
-**Backend**: Error messages and status labels returned based on user's `language_pref` setting or `Accept-Language` header. Currently the i18n is primarily on the frontend side via `react-i18next`.
-
 **Frontend** (`react-i18next`):
 
 ```
 i18n/
 ├── resources/
-│   ├── zh/                     # Chinese
+│   ├── zh/                     # Chinese (primary)
 │   │   ├── common.json
-│   │   ├── pipes.json
+│   │   ├── items.json
 │   │   ├── inventory.json
-│   │   ├── quality.json
 │   │   ├── purchase.json
 │   │   ├── sales.json
+│   │   ├── workflow.json
+│   │   ├── hr.json
+│   │   ├── finance.json
+│   │   ├── manufacturing.json
 │   │   ├── system.json
 │   │   └── validation.json
 │   └── en/                     # English
 │       ├── common.json
-│       ├── pipes.json
+│       ├── items.json
 │       ├── inventory.json
-│       ├── quality.json
 │       ├── purchase.json
 │       ├── sales.json
+│       ├── workflow.json
+│       ├── hr.json
+│       ├── finance.json
+│       ├── manufacturing.json
 │       ├── system.json
 │       └── validation.json
 ```
@@ -2029,40 +2232,27 @@ Namespaces are per-feature, lazy-loaded. Switching language updates `language_pr
 
 ### 11.2 Unit Switching
 
-**Strategy**: Database stores everything in **imperial units** (API 5CT native). Conversion happens at API layer based on user preference.
-
-| Parameter | Storage (Imperial) | Metric Display | Formula |
-|-----------|-------------------|----------------|---------|
-| OD | inch | mm | mm = in × 25.4 |
-| WT | inch | mm | mm = in × 25.4 |
-| Length | foot | m | m = ft × 0.3048 |
-| Weight | lb/ft | kg/m | kg/m = lb/ft × 1.48816 |
-| Yield | psi | MPa | MPa = psi × 0.00689476 |
+**Strategy**: Items carry a `unit` field (kg / m / pc / etc.). Cross-unit conversion (e.g. kg ↔ t, m ↔ km) is handled client-side in `unitStore` by conversion factors; backend storage stays consistent with the item's unit field.
 
 **API**:
 
 ```json
-// Request optionally specifies unit system
-POST /api/v1/seamless-pipes?unit_system=metric
-
-// Response includes unit markers
+// Item unit is returned with master data
 {
   "data": {
-    "od": 114.3,
-    "od_unit": "mm",
-    "wt": 6.35,
-    "wt_unit": "mm",
-    "length": 12.19,
-    "length_unit": "m"
+    "sku": "FG-202608-0001",
+    "name": "Finished Good A",
+    "unit": "kg",
+    "quantity": 1000
   }
 }
 ```
 
 **Implementation**:
-- `Measurement<T>` wrapper type at DTO layer carries unit info
-- Auth middleware extracts user's unit preference
-- Handler layer converts based on preference
-- Frontend can also do client-side conversion for display
+- `items.unit` defines the item's measurement unit
+- Frontend `unitStore` keeps the user's conversion preference (standard/metric/imperial)
+- Display layer converts per user preference without changing backend storage
+- Optional `Measurement<T>` wrapper type at the DTO layer carries unit info
 
 ---
 
@@ -2077,52 +2267,56 @@ POST /api/v1/seamless-pipes?unit_system=metric
 | **Why** | Less operational complexity; SQLite doesn't do distributed; can split later if needed |
 | **Cost** | Must enforce module boundaries rigorously |
 
-### ADR-002: SQLite over PostgreSQL
+### ADR-002: SQLite as the Only Database
 
 | Item | Content |
 |------|---------|
 | **Context** | 100K+ rows, 20+ concurrent users |
-| **Decision** | SQLite WAL + connection pool + write serialization |
-| **Why** | Zero config, file-level, plenty for this scale |
-| **Cost** | If scale explodes, SQLx makes migration to PostgreSQL straightforward |
+| **Decision** | SQLite3 (`sqlite://data/erp.db?mode=rwc`) WAL + connection pool + write serialization |
+| **Why** | Zero config, file-level, plenty for this scale. The 37 legacy migrations are rewritten to SQLite syntax minus the pipe tables. |
+| **Cost** | Keep the app-layer referential integrity design; if scale explodes, the SQLx abstraction keeps options open. |
 
-### ADR-003: Imperial Units as Internal Standard
-
-| Item | Content |
-|------|---------|
-| **Context** | API 5CT is imperial; Chinese users prefer metric |
-| **Decision** | Store imperial in DB, convert at API layer |
-| **Why** | Avoid precision loss from back-and-forth conversion; spec-native |
-| **Cost** | All internal math is imperial; conversion at boundaries |
-
-### ADR-004: Separate Tables for Seamless and Screen Pipes
+### ADR-003: Single Item Table as the Single Business Entity
 
 | Item | Content |
 |------|---------|
-| **Context** | Both are pipes but have different fields |
-| **Decision** | Two independent tables |
-| **Why** | Fields are significantly different (screen pipes have base pipe params, filtration specs, etc.); cross-type queries are rare; separate tables are cleaner |
-| **Cost** | Cross-type search needs UNION or two queries + merge |
+| **Context** | The legacy system split tables by industry type, producing field drift and UNION-based cross-type queries |
+| **Decision** | One `items` table: sku / name / category / unit / spec / status — no industry-specific fields |
+| **Why** | Generic ERP items come in many shapes; a single table with category + spec is more flexible; no UNION needed |
+| **Cost** | Industry-specific validation fields are dropped; category and spec become the two generic dimensions |
+
+### ADR-004: Module Keep/Delete Boundary
+
+| Item | Content |
+|------|---------|
+| **Context** | The steel-pipe-era modules (pipes/threading/labels/quality certs) no longer apply |
+| **Decision** | Delete the pipes/threading/labels/quality-cert modules; keep and generalize inventory; manufacturing inspection (BOM/work orders/Inspection/NCR) carries the quality capability; add workflow/HR/finance/project/asset/notification/portal/BI |
+| **Why** | A general-purpose ERP must cover procurement, sales, inventory, manufacturing, finance, and HR end-to-end |
+| **Cost** | Import/export, search, and reporting all shift to generic items/documents |
 
 ---
 
-## Appendix B: API 5CT Grade Reference Data
+## Appendix B: Item Category & Unit Reference Data (Seed Data)
 
-Pre-seeded in `migrations/010_seed_api_5ct_data.sql`:
+Seeded with the `002_create_items.sql` migration:
 
 ```sql
-INSERT INTO api_5ct_grade_ref (grade, grade_group, pipe_type, min_yield_strength_psi, max_yield_strength_psi, min_tensile_strength_psi, notes) VALUES
-('H40',  'H', 'both',   40000, 80000, 60000, 'Minimum strength, non-critical wells'),
-('J55',  'J', 'both',   55000, 80000, 75000, 'Medium strength, medium-depth wells'),
-('K55',  'K', 'both',   55000, 80000, 95000, 'Medium strength, medium-depth wells'),
-('N80-1','N', 'both',   80000, 110000, 100000, 'Higher strength, N80-1 normalized'),
-('N80-Q','N', 'both',   80000, 110000, 100000, 'Higher strength, N80-Q quenched + tempered'),
-('L80-1','L', 'both',   80000, 95000, 95000, 'Corrosion resistant, contains Cr, for H2S environments'),
-('C90',  'C', 'both',   90000, 105000, 100000, 'Corrosion resistant, for sour environments'),
-('C95',  'C', 'both',   95000, 110000, 105000, 'Corrosion resistant, for sour environments'),
-('T95',  'T', 'casing', 95000, 110000, 105000, 'High collapse resistance, suitable for sour environments'),
-('P110', 'P', 'both',   110000, 140000, 125000, 'High strength, deep wells'),
-('Q125', 'Q', 'casing', 125000, 150000, 135000, 'Ultra-high strength, ultra-deep wells');
+-- Item category reference data
+INSERT INTO item_categories (code, name) VALUES
+('RM', 'Raw material'),
+('SF', 'Semi-finished'),
+('FG', 'Finished goods'),
+('SP', 'Spare parts');
+
+-- Item unit reference data
+INSERT INTO item_units (code, name) VALUES
+('kg', 'Kilogram'),
+('m',   'Meter'),
+('pc',  'Piece'),
+('box', 'Box'),
+('L',   'Liter');
 ```
+
+> Categories and units are sample seeds only — enterprises can extend them. The SKU auto-generation rule is `{category-code}-{yyyymm}-{seq}`, e.g. `FG-202608-0001`.
 
 ---

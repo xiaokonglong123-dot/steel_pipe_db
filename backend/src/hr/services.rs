@@ -1,7 +1,7 @@
 //! HR services — employee/position/attendance/salary/contract business logic.
 
 use chrono::NaiveDate;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::hr_dto::{
     CheckInRequest, CreateContractRequest, CreateEmployeeRequest, CreatePositionRequest,
@@ -24,7 +24,7 @@ impl HrService {
     // -----------------------------------------------------------------------
 
     pub async fn list_employees(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         department_id: Option<i64>,
         status: Option<&str>,
@@ -37,14 +37,14 @@ impl HrService {
             .map_err(AppError::from)
     }
 
-    pub async fn get_employee(pool: &PgPool, tenant_id: i64, id: i64) -> Result<HrEmployee, AppError> {
+    pub async fn get_employee(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<HrEmployee, AppError> {
         HrEmployeeRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Employee not found: {}", id)))
     }
 
     pub async fn create_employee(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreateEmployeeRequest,
     ) -> Result<HrEmployee, AppError> {
@@ -56,7 +56,7 @@ impl HrService {
         }
         // Duplicate employee_no guard.
         let dup = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM hr_employees WHERE tenant_id = $1 AND employee_no = $2 AND deleted_at IS NULL",
+            "SELECT COUNT(*) FROM hr_employees WHERE tenant_id = ? AND employee_no = ? AND deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(&dto.employee_no)
@@ -102,7 +102,7 @@ impl HrService {
     }
 
     pub async fn update_employee(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         dto: &UpdateEmployeeRequest,
@@ -147,7 +147,7 @@ impl HrService {
     }
 
     pub async fn terminate_employee(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         reason: Option<&str>,
@@ -162,7 +162,7 @@ impl HrService {
             .ok_or_else(|| AppError::NotFound(format!("Employee not found: {}", id)))
     }
 
-    pub async fn delete_employee(pool: &PgPool, tenant_id: i64, id: i64) -> Result<(), AppError> {
+    pub async fn delete_employee(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<(), AppError> {
         let deleted = HrEmployeeRepo::delete(pool, tenant_id, id)
             .await
             .map_err(AppError::from)?;
@@ -176,12 +176,12 @@ impl HrService {
     // Positions
     // -----------------------------------------------------------------------
 
-    pub async fn list_positions(pool: &PgPool, tenant_id: i64) -> Result<Vec<HrPosition>, AppError> {
+    pub async fn list_positions(pool: &SqlitePool, tenant_id: i64) -> Result<Vec<HrPosition>, AppError> {
         HrPositionRepo::list(pool, tenant_id).await.map_err(AppError::from)
     }
 
     pub async fn create_position(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreatePositionRequest,
     ) -> Result<HrPosition, AppError> {
@@ -205,7 +205,7 @@ impl HrService {
     // -----------------------------------------------------------------------
 
     pub async fn list_attendance(
-        pool: &PgPool,
+        pool: &SqlitePool,
         employee_id: Option<i64>,
         from: Option<NaiveDate>,
         to: Option<NaiveDate>,
@@ -215,10 +215,10 @@ impl HrService {
             .map_err(AppError::from)
     }
 
-    pub async fn check_in(pool: &PgPool, dto: &CheckInRequest) -> Result<HrAttendance, AppError> {
+    pub async fn check_in(pool: &SqlitePool, dto: &CheckInRequest) -> Result<HrAttendance, AppError> {
         // Employee must exist.
         let _ = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM hr_employees WHERE id = $1 AND deleted_at IS NULL",
+            "SELECT COUNT(*) FROM hr_employees WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(dto.employee_id)
         .fetch_one(pool)
@@ -239,7 +239,7 @@ impl HrService {
         .map_err(AppError::from)
     }
 
-    pub async fn list_rules(pool: &PgPool, tenant_id: i64) -> Result<Vec<HrAttendanceRule>, AppError> {
+    pub async fn list_rules(pool: &SqlitePool, tenant_id: i64) -> Result<Vec<HrAttendanceRule>, AppError> {
         HrAttendanceRuleRepo::list(pool, tenant_id).await.map_err(AppError::from)
     }
 
@@ -248,14 +248,14 @@ impl HrService {
     // -----------------------------------------------------------------------
 
     pub async fn list_salaries(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         period: Option<&str>,
     ) -> Result<Vec<HrSalary>, AppError> {
         HrSalaryRepo::list(pool, tenant_id, period).await.map_err(AppError::from)
     }
 
-    pub async fn get_salary(pool: &PgPool, tenant_id: i64, id: i64) -> Result<HrSalary, AppError> {
+    pub async fn get_salary(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<HrSalary, AppError> {
         HrSalaryRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Salary not found: {}", id)))
@@ -264,13 +264,13 @@ impl HrService {
     /// Generate payroll for a period: one row per active employee using their
     /// base salary (v1 — allowances/deductions via later phases).
     pub async fn generate_salaries(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         period: &str,
     ) -> Result<Vec<HrSalary>, AppError> {
-        let employees = sqlx::query_as::<_, (i64, rust_decimal::Decimal)>(
+        let employees = sqlx::query_as::<_, (i64, f64)>(
             "SELECT id, COALESCE(base_salary, 0) FROM hr_employees \
-             WHERE tenant_id = $1 AND deleted_at IS NULL AND status = 'active'",
+             WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active'",
         )
         .bind(tenant_id)
         .fetch_all(pool)
@@ -292,7 +292,7 @@ impl HrService {
     // -----------------------------------------------------------------------
 
     pub async fn create_contract(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreateContractRequest,
     ) -> Result<HrContract, AppError> {
@@ -312,7 +312,7 @@ impl HrService {
         .map_err(AppError::from)
     }
 
-    pub async fn list_contracts(pool: &PgPool, employee_id: i64) -> Result<Vec<HrContract>, AppError> {
+    pub async fn list_contracts(pool: &SqlitePool, employee_id: i64) -> Result<Vec<HrContract>, AppError> {
         HrContractRepo::list_for_employee(pool, employee_id)
             .await
             .map_err(AppError::from)

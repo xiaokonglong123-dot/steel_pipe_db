@@ -1,78 +1,84 @@
 //! Integration tests for DataIOService.
 //!
 //! Covers:
-//! - Export entities (CSV + XLSX) for all supported types
+//! - Export entities (CSV + XLSX) for items / inventory / orders
 //! - Download import templates (CSV + XLSX)
-//! - Import entities from CSV data
+//! - Import items from CSV data
 //! - Operation log recording and querying
 //! - Utility functions (content_type, file_extension)
 //!
-//! All tests use an in-memory SQLite database with fresh migrations.
+//! All tests use a fresh SQLite database with migrations applied.
 
 mod common;
 
 use std::io::Cursor;
 
 use calamine::{open_workbook_from_rs, Data, Reader, Xlsx};
-use steel_pipe_db::dto::data_io_dto::OperationLogQuery;
-use steel_pipe_db::services::data_io_service::DataIOService;
+use erp_server::dto::data_io_dto::OperationLogQuery;
+use erp_server::services::data_io_service::DataIOService;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Item helpers
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Seed an item master row; returns its id.
+async fn seed_item(pool: &sqlx::SqlitePool, sku: &str) -> i64 {
+    sqlx::query_scalar(
+        "INSERT INTO items (sku, name, category, unit, spec, price, status) \
+         VALUES (?, 'Test Item', '原材料', '个', 'spec', 10.0, 'active') \
+         RETURNING id",
+    )
+    .bind(sku)
+    .fetch_one(pool)
+    .await
+    .expect("seed_item must succeed")
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // export_entity — CSV
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[tokio::test]
-async fn export_entity_seamless_pipes_csv() {
+async fn export_entity_items_csv() {
     let pool = common::test_pool().await;
 
-    common::seed_seamless_pipe(&pool, "PN-EXP-001", "in_stock", "L80")
-        .await
-        .unwrap();
+    seed_item(&pool, "ITM-EXP-001").await;
 
-    let data = DataIOService::export_entity(&pool, "seamless_pipes", "csv")
+    let data = DataIOService::export_entity(&pool, "items", "csv")
         .await
-        .expect("export_entity seamless_pipes csv must succeed");
+        .expect("export_entity items csv must succeed");
 
     assert!(!data.is_empty(), "CSV data must not be empty");
 
     let content = String::from_utf8_lossy(&data);
-    assert!(content.contains("pipe_number"), "CSV should have header");
+    assert!(content.contains("sku"), "CSV should have header");
     assert!(
-        content.contains("PN-EXP-001"),
-        "CSV should contain pipe data"
+        content.contains("ITM-EXP-001"),
+        "CSV should contain item data"
     );
-}
-
-#[tokio::test]
-async fn export_entity_screen_pipes_csv() {
-    let pool = common::test_pool().await;
-
-    common::seed_screen_pipe(&pool, "SCR-EXP-001", "in_stock", "N80")
-        .await
-        .unwrap();
-
-    let data = DataIOService::export_entity(&pool, "screen_pipes", "csv")
-        .await
-        .expect("export_entity screen_pipes csv must succeed");
-
-    let content = String::from_utf8_lossy(&data);
-    assert!(content.contains("SCR-EXP-001"));
 }
 
 #[tokio::test]
 async fn export_entity_inventory_csv() {
     let pool = common::test_pool().await;
 
-    common::seed_seamless_pipe(&pool, "PN-INV-EXP", "in_stock", "L80")
-        .await
-        .unwrap();
+    let item_id = seed_item(&pool, "ITM-INV-EXP").await;
+    sqlx::query(
+        "INSERT INTO inventory_logs (item_id, quantity, change_type, created_at) \
+         VALUES (?, 5.0, 'inbound', datetime('now'))",
+    )
+    .bind(item_id)
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let data = DataIOService::export_entity(&pool, "inventory", "csv")
         .await
         .expect("export_entity inventory csv must succeed");
 
     let content = String::from_utf8_lossy(&data);
-    assert!(content.contains("pipe_number"));
+    assert!(content.contains("sku"));
+    assert!(content.contains("ITM-INV-EXP"));
 }
 
 #[tokio::test]
@@ -114,34 +120,15 @@ async fn export_entity_sales_orders_csv() {
 }
 
 #[tokio::test]
-async fn export_entity_quality_certs_csv() {
-    let pool = common::test_pool().await;
-
-    let pipe_id = common::seed_seamless_pipe(&pool, "PN-QC-EXP", "in_stock", "L80")
-        .await
-        .unwrap();
-    common::seed_quality_cert(&pool, "QC-EXP-001", "seamless", pipe_id, "pass")
-        .await
-        .unwrap();
-
-    let data = DataIOService::export_entity(&pool, "quality_certs", "csv")
-        .await
-        .expect("export_entity quality_certs csv must succeed");
-
-    let content = String::from_utf8_lossy(&data);
-    assert!(content.contains("QC-EXP-001"));
-}
-
-#[tokio::test]
 async fn export_entity_empty_database_returns_headers_only() {
     let pool = common::test_pool().await;
 
-    let data = DataIOService::export_entity(&pool, "seamless_pipes", "csv")
+    let data = DataIOService::export_entity(&pool, "items", "csv")
         .await
         .expect("export_entity on empty DB must succeed");
 
     let content = String::from_utf8_lossy(&data);
-    assert!(content.contains("pipe_number"), "should have header row");
+    assert!(content.contains("sku"), "should have header row");
     // Should only have header (1 line) or header + no data (just header)
     let lines: Vec<&str> = content.lines().collect();
     assert!(lines.len() >= 1, "should have at least header line");
@@ -151,13 +138,11 @@ async fn export_entity_empty_database_returns_headers_only() {
 async fn export_entity_csv_escapes_spreadsheet_formula_prefixes() {
     let pool = common::test_pool().await;
 
-    common::seed_seamless_pipe(&pool, "=cmd|'/C calc'!A0", "in_stock", "L80")
-        .await
-        .unwrap();
+    seed_item(&pool, "=cmd|'/C calc'!A0").await;
 
-    let data = DataIOService::export_entity(&pool, "seamless_pipes", "csv")
+    let data = DataIOService::export_entity(&pool, "items", "csv")
         .await
-        .expect("export_entity seamless_pipes csv must succeed");
+        .expect("export_entity items csv must succeed");
 
     let content = String::from_utf8_lossy(&data);
     assert!(content.contains("'=cmd|'/C calc'!A0"));
@@ -168,16 +153,14 @@ async fn export_entity_csv_escapes_spreadsheet_formula_prefixes() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[tokio::test]
-async fn export_entity_seamless_pipes_xlsx() {
+async fn export_entity_items_xlsx() {
     let pool = common::test_pool().await;
 
-    common::seed_seamless_pipe(&pool, "PN-XLSX-001", "in_stock", "L80")
-        .await
-        .unwrap();
+    seed_item(&pool, "ITM-XLSX-001").await;
 
-    let data = DataIOService::export_entity(&pool, "seamless_pipes", "xlsx")
+    let data = DataIOService::export_entity(&pool, "items", "xlsx")
         .await
-        .expect("export_entity seamless_pipes xlsx must succeed");
+        .expect("export_entity items xlsx must succeed");
 
     assert!(!data.is_empty(), "XLSX data must not be empty");
     // XLSX starts with the ZIP magic bytes (PK\x03\x04)
@@ -188,32 +171,14 @@ async fn export_entity_seamless_pipes_xlsx() {
 }
 
 #[tokio::test]
-async fn export_entity_xlsx_screen_pipes() {
-    let pool = common::test_pool().await;
-
-    common::seed_screen_pipe(&pool, "SCR-XLSX", "in_stock", "N80")
-        .await
-        .unwrap();
-
-    let data = DataIOService::export_entity(&pool, "screen_pipes", "xlsx")
-        .await
-        .expect("export_entity screen_pipes xlsx must succeed");
-
-    assert!(!data.is_empty());
-    assert!(data.starts_with(&[0x50, 0x4b, 0x03, 0x04]));
-}
-
-#[tokio::test]
 async fn export_entity_xlsx_escapes_spreadsheet_formula_prefixes() {
     let pool = common::test_pool().await;
 
-    common::seed_seamless_pipe(&pool, "@SUM(1,1)", "in_stock", "L80")
-        .await
-        .unwrap();
+    seed_item(&pool, "@SUM(1,1)").await;
 
-    let data = DataIOService::export_entity(&pool, "seamless_pipes", "xlsx")
+    let data = DataIOService::export_entity(&pool, "items", "xlsx")
         .await
-        .expect("export_entity seamless_pipes xlsx must succeed");
+        .expect("export_entity items xlsx must succeed");
 
     let cursor = Cursor::new(data);
     let mut workbook: Xlsx<_> = open_workbook_from_rs(cursor).expect("xlsx must open");
@@ -260,17 +225,17 @@ async fn export_entity_invalid_entity_type() {
 async fn download_template_csv() {
     let _pool = common::test_pool().await;
 
-    let data = DataIOService::download_template("seamless_pipes", "csv")
+    let data = DataIOService::download_template("items", "csv")
         .await
         .expect("download_template csv must succeed");
 
     let content = String::from_utf8_lossy(&data);
     assert!(
-        content.contains("pipe_number"),
+        content.contains("sku"),
         "CSV template should have headers"
     );
     assert!(
-        content.contains("heat_number"),
+        content.contains("category"),
         "should have raw column name"
     );
     // Template should have exactly one line (headers only)
@@ -279,7 +244,7 @@ async fn download_template_csv() {
 
 #[tokio::test]
 async fn download_template_xlsx() {
-    let data = DataIOService::download_template("seamless_pipes", "xlsx")
+    let data = DataIOService::download_template("items", "xlsx")
         .await
         .expect("download_template xlsx must succeed");
 
@@ -304,52 +269,54 @@ async fn download_template_invalid_entity() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[tokio::test]
-async fn import_entity_seamless_pipes_csv() {
+async fn import_entity_items_csv() {
     let pool = common::test_pool().await;
 
-    let csv_data = "pipe_number,batch_number,pipe_type,grade,od,wt,length,weight_per_unit,end_type,coupling_type,coupling_od,coupling_length,heat_number,serial_number,manufacturer,production_date,cert_number,status,notes\n\
-                     PN-IMP-001,BN-001,casing,L80,177.8,9.19,9.5,40.0,BTC,N80Q,200.0,200.0,HN-IMP-001,SN-001,Test Mfr,2025-06-01,CERT-001,in_stock,test import";
+    let csv_data = "sku,name,category,unit,spec,price,status\n\
+                     ITM-IMP-001,Steel Plate,原材料,张,8mm,4280.0,active";
 
-    let result =
-        DataIOService::import_entity(&pool, "seamless_pipes", csv_data.as_bytes(), "import.csv")
-            .await
-            .expect("import_entity seamless_pipes must succeed");
+    let result = DataIOService::import_entity(&pool, "items", csv_data.as_bytes(), "import.csv")
+        .await
+        .expect("import_entity items must succeed");
 
     assert_eq!(result.imported_count, 1);
     assert_eq!(result.failed_count, 0);
     assert!(result.errors.is_empty());
-    assert_eq!(result.entity_type, "seamless_pipes");
+    assert_eq!(result.entity_type, "items");
 }
 
 #[tokio::test]
-async fn import_entity_screen_pipes_csv() {
+async fn import_entity_items_csv_duplicate_sku_skipped() {
     let pool = common::test_pool().await;
 
-    let csv_data = "pipe_number,batch_number,screen_type,slot_size,filtration_grade,base_od,base_wt,base_grade,base_end_type,length,weight_per_unit,heat_number,serial_number,manufacturer,production_date,cert_number,status,notes\n\
-                     SCR-IMP-001,BN-001,slotted,0.02,standard,177.8,9.19,N80,BTC,9.5,40.0,HN-IMP-002,SN-002,Test Mfr,2025-06-01,CERT-002,in_stock,test screen import";
+    seed_item(&pool, "ITM-DUP-001").await;
 
-    let result =
-        DataIOService::import_entity(&pool, "screen_pipes", csv_data.as_bytes(), "import.csv")
-            .await
-            .expect("import_entity screen_pipes must succeed");
+    let csv_data = "sku,name,category,unit,spec,price,status\n\
+                     ITM-DUP-001,Duplicate,原材料,个,spec,10.0,active";
 
-    assert_eq!(result.imported_count, 1);
-    assert_eq!(result.failed_count, 0);
-    assert_eq!(result.entity_type, "screen_pipes");
+    let result = DataIOService::import_entity(&pool, "items", csv_data.as_bytes(), "import.csv")
+        .await
+        .expect("import_entity items must succeed");
+
+    assert_eq!(result.imported_count, 0);
+    assert_eq!(result.failed_count, 1);
+    assert!(
+        result.errors[0].contains("already exists"),
+        "should report duplicate sku"
+    );
 }
 
 #[tokio::test]
 async fn import_entity_multiple_rows_csv() {
     let pool = common::test_pool().await;
 
-    let csv_data = "pipe_number,batch_number,pipe_type,grade,od,wt,length,weight_per_unit,end_type,coupling_type,coupling_od,coupling_length,heat_number,serial_number,manufacturer,production_date,cert_number,status,notes\n\
-                     PN-IMP-010,BN-001,casing,L80,177.8,9.19,9.5,40.0,BTC,N80Q,200.0,200.0,HN-010,SN-010,Test,2025-06-01,C-010,in_stock,\n\
-                     PN-IMP-011,BN-001,casing,J55,177.8,9.19,9.5,40.0,BTC,N80Q,200.0,200.0,HN-011,SN-011,Test,2025-06-01,C-011,in_stock,";
+    let csv_data = "sku,name,category,unit,spec,price,status\n\
+                     ITM-IMP-010,Item Ten,原材料,个,spec,10.0,active\n\
+                     ITM-IMP-011,Item Eleven,标准件,个,spec,20.0,active";
 
-    let result =
-        DataIOService::import_entity(&pool, "seamless_pipes", csv_data.as_bytes(), "import.csv")
-            .await
-            .expect("import_entity multiple rows must succeed");
+    let result = DataIOService::import_entity(&pool, "items", csv_data.as_bytes(), "import.csv")
+        .await
+        .expect("import_entity multiple rows must succeed");
 
     assert_eq!(result.imported_count, 2);
     assert_eq!(result.failed_count, 0);
@@ -371,12 +338,11 @@ async fn import_entity_empty_data_error() {
     let pool = common::test_pool().await;
 
     // CSV with header but no data rows
-    let csv_data = "pipe_number,batch_number,pipe_type,grade,od,wt,length,weight_per_unit,end_type,coupling_type,coupling_od,coupling_length,heat_number,serial_number,manufacturer,production_date,cert_number,status,notes";
+    let csv_data = "sku,name,category,unit,spec,price,status";
 
-    let err =
-        DataIOService::import_entity(&pool, "seamless_pipes", csv_data.as_bytes(), "file.csv")
-            .await
-            .expect_err("must reject empty data");
+    let err = DataIOService::import_entity(&pool, "items", csv_data.as_bytes(), "file.csv")
+        .await
+        .expect_err("must reject empty data");
 
     assert!(err.to_string().contains("No data rows"));
 }
@@ -426,10 +392,10 @@ async fn list_operation_logs_with_data() {
         .await
         .unwrap();
 
-    common::seed_operation_log(&pool, "import", "seamless_pipes", 1, user_id)
+    common::seed_operation_log(&pool, "import", "items", 1, user_id)
         .await
         .unwrap();
-    common::seed_operation_log(&pool, "export", "seamless_pipes", 1, user_id)
+    common::seed_operation_log(&pool, "export", "items", 1, user_id)
         .await
         .unwrap();
 
@@ -457,10 +423,10 @@ async fn list_operation_logs_filtered_by_action() {
         .await
         .unwrap();
 
-    common::seed_operation_log(&pool, "import", "seamless_pipes", 1, user_id)
+    common::seed_operation_log(&pool, "import", "items", 1, user_id)
         .await
         .unwrap();
-    common::seed_operation_log(&pool, "export", "seamless_pipes", 1, user_id)
+    common::seed_operation_log(&pool, "export", "items", 1, user_id)
         .await
         .unwrap();
 
@@ -523,9 +489,9 @@ async fn log_operation_creates_entry() {
         Some(1),
         Some("admin".into()),
         "import",
-        "seamless_pipes",
+        "items",
         Some(100),
-        Some("imported 10 pipes".into()),
+        Some("imported 10 items".into()),
         Some("127.0.0.1".into()),
     )
     .await
@@ -545,7 +511,7 @@ async fn log_operation_creates_entry() {
 
     assert_eq!(total, 1);
     assert_eq!(logs[0].action, "import");
-    assert_eq!(logs[0].entity_type, "seamless_pipes");
+    assert_eq!(logs[0].entity_type, "items");
     assert_eq!(logs[0].entity_id, Some(100));
     assert!(logs[0].details.is_some());
 }

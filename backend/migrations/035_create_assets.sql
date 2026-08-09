@@ -1,34 +1,39 @@
 -- 035_create_assets.sql
 -- Fixed assets: registration, straight-line depreciation, disposal.
+-- KEPT in the generic-ERP rewrite (固定资产 assets module stays).
+--
+-- SQLite port: BIGSERIAL -> INTEGER PRIMARY KEY AUTOINCREMENT,
+-- TIMESTAMPTZ -> TEXT, NOW() -> datetime('now'), DATE -> TEXT,
+-- NUMERIC -> NUMERIC.
 
 CREATE TABLE IF NOT EXISTS fixed_assets (
-    id              BIGSERIAL PRIMARY KEY,
-    tenant_id       BIGINT NOT NULL DEFAULT 1,
-    asset_no        VARCHAR(40) NOT NULL,
-    name            VARCHAR(200) NOT NULL,
-    category        VARCHAR(50) NOT NULL DEFAULT 'equipment',  -- equipment | vehicle | building | tooling
-    purchase_date   DATE NOT NULL,
-    purchase_cost   NUMERIC(18,2) NOT NULL DEFAULT 0,
-    salvage_value   NUMERIC(18,2) NOT NULL DEFAULT 0,
-    useful_life_months INT NOT NULL DEFAULT 60,
-    current_value   NUMERIC(18,2) NOT NULL DEFAULT 0,
-    status          VARCHAR(20) NOT NULL DEFAULT 'active',  -- active | disposed
-    location        VARCHAR(100),
-    department_id   BIGINT,
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id       INTEGER NOT NULL DEFAULT 1.0,
+    asset_no        TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    category        TEXT NOT NULL DEFAULT 'equipment',  -- equipment | vehicle | building | tooling
+    purchase_date   TEXT NOT NULL,              -- DATE -> TEXT
+    purchase_cost   REAL NOT NULL DEFAULT 0.0,
+    salvage_value   REAL NOT NULL DEFAULT 0.0,
+    useful_life_months INTEGER NOT NULL DEFAULT 60,
+    current_value   REAL NOT NULL DEFAULT 0.0,
+    status          TEXT NOT NULL DEFAULT 'active',  -- active | disposed
+    location        TEXT,
+    department_id   INTEGER,
     notes           TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at      TIMESTAMPTZ,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at      TEXT,
     UNIQUE (tenant_id, asset_no)
 );
 
 CREATE TABLE IF NOT EXISTS depreciation_entries (
-    id          BIGSERIAL PRIMARY KEY,
-    asset_id    BIGINT NOT NULL REFERENCES fixed_assets(id) ON DELETE CASCADE,
-    period      VARCHAR(7) NOT NULL,           -- 'YYYY-MM'
-    amount      NUMERIC(18,2) NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id    INTEGER NOT NULL REFERENCES fixed_assets(id) ON DELETE CASCADE,
+    period      TEXT NOT NULL,                  -- 'YYYY-MM'
+    amount      REAL NOT NULL DEFAULT 0.0,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (asset_id, period)
 );
 
-CREATE INDEX idx_dep_asset ON depreciation_entries(asset_id);
+CREATE INDEX IF NOT EXISTS idx_dep_asset ON depreciation_entries(asset_id);

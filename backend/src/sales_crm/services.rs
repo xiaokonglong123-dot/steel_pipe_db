@@ -1,6 +1,6 @@
 //! Sales CRM services — shipments lifecycle, quotes, quote→order conversion.
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::sales_crm_dto::{CreateSalesQuoteRequest, CreateShipmentRequest};
 use crate::error::AppError;
@@ -15,7 +15,7 @@ impl SalesCrmService {
     // -----------------------------------------------------------------------
 
     pub async fn create_shipment(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         created_by: Option<i64>,
         dto: &CreateShipmentRequest,
@@ -34,7 +34,7 @@ impl SalesCrmService {
     }
 
     pub async fn update_shipment_status(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         status: &str,
@@ -48,7 +48,7 @@ impl SalesCrmService {
     }
 
     pub async fn list_shipments(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         sales_order_id: Option<i64>,
     ) -> Result<Vec<SalesShipment>, AppError> {
@@ -60,7 +60,7 @@ impl SalesCrmService {
     // -----------------------------------------------------------------------
 
     pub async fn create_quote(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreateSalesQuoteRequest,
     ) -> Result<SalesQuote, AppError> {
@@ -73,18 +73,18 @@ impl SalesCrmService {
         .map_err(AppError::from)
     }
 
-    pub async fn list_quotes(pool: &PgPool, tenant_id: i64, customer_id: Option<i64>) -> Result<Vec<SalesQuote>, AppError> {
+    pub async fn list_quotes(pool: &SqlitePool, tenant_id: i64, customer_id: Option<i64>) -> Result<Vec<SalesQuote>, AppError> {
         SalesQuoteRepo::list(pool, tenant_id, customer_id).await.map_err(AppError::from)
     }
 
-    pub async fn get_quote(pool: &PgPool, tenant_id: i64, id: i64) -> Result<SalesQuote, AppError> {
+    pub async fn get_quote(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<SalesQuote, AppError> {
         SalesQuoteRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Quote not found: {}", id)))
     }
 
     /// Convert a confirmed quote into a draft sales order; marks the quote converted.
-    pub async fn convert_quote(pool: &PgPool, tenant_id: i64, id: i64) -> Result<i64, AppError> {
+    pub async fn convert_quote(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<i64, AppError> {
         let quote = Self::get_quote(pool, tenant_id, id).await?;
         if quote.status != "confirmed" {
             return Err(AppError::Validation(format!(
@@ -103,7 +103,7 @@ impl SalesCrmService {
     }
 
     pub async fn update_quote_status(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         status: &str,
@@ -116,13 +116,13 @@ impl SalesCrmService {
             .ok_or_else(|| AppError::NotFound(format!("Quote not found: {}", id)))
     }
 
-    pub async fn customer_credit(pool: &PgPool, tenant_id: i64, customer_id: i64) -> Result<CustomerCredit, AppError> {
+    pub async fn customer_credit(pool: &SqlitePool, tenant_id: i64, customer_id: i64) -> Result<CustomerCredit, AppError> {
         SalesQuoteRepo::credit(pool, tenant_id, customer_id).await.map_err(AppError::from)
     }
 }
 
 /// Per-table sequence helper for document numbers.
-async fn seq(pool: &PgPool, table: &str) -> Result<i64, AppError> {
+async fn seq(pool: &SqlitePool, table: &str) -> Result<i64, AppError> {
     let n: i64 = sqlx::query_scalar(&format!("SELECT COALESCE(MAX(id), 0) + 1 FROM {}", table))
         .fetch_one(pool)
         .await

@@ -1,9 +1,9 @@
 //! Identity services — role/permission/department/tenant business logic.
 //!
 //! Follows the project convention: unit struct with static methods taking
-//! `pool: &PgPool`, returning `Result<_, AppError>`.
+//! `pool: &SqlitePool`, returning `Result<_, AppError>`.
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::auth::repos::{DepartmentRepo, PermissionRepo, RoleRepo, TenantRepo, UserRoleRepo};
 use crate::error::AppError;
@@ -16,7 +16,7 @@ impl IdentityService {
     // Tenants
     // -----------------------------------------------------------------------
 
-    pub async fn get_tenant(pool: &PgPool, id: i64) -> Result<Tenant, AppError> {
+    pub async fn get_tenant(pool: &SqlitePool, id: i64) -> Result<Tenant, AppError> {
         TenantRepo::find_by_id(pool, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Tenant not found: {}", id)))
@@ -26,7 +26,7 @@ impl IdentityService {
     // Permissions
     // -----------------------------------------------------------------------
 
-    pub async fn list_permissions(pool: &PgPool) -> Result<Vec<Permission>, AppError> {
+    pub async fn list_permissions(pool: &SqlitePool) -> Result<Vec<Permission>, AppError> {
         PermissionRepo::list(pool).await.map_err(AppError::from)
     }
 
@@ -34,18 +34,18 @@ impl IdentityService {
     // Roles
     // -----------------------------------------------------------------------
 
-    pub async fn list_roles(pool: &PgPool, tenant_id: i64) -> Result<Vec<Role>, AppError> {
+    pub async fn list_roles(pool: &SqlitePool, tenant_id: i64) -> Result<Vec<Role>, AppError> {
         RoleRepo::list(pool, tenant_id).await.map_err(AppError::from)
     }
 
-    pub async fn get_role(pool: &PgPool, tenant_id: i64, id: i64) -> Result<Role, AppError> {
+    pub async fn get_role(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<Role, AppError> {
         RoleRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Role not found: {}", id)))
     }
 
     pub async fn create_role(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         name: &str,
         description: Option<&str>,
@@ -68,7 +68,7 @@ impl IdentityService {
     }
 
     pub async fn update_role(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         name: Option<&str>,
@@ -101,7 +101,7 @@ impl IdentityService {
             .ok_or_else(|| AppError::NotFound(format!("Role not found: {}", id)))
     }
 
-    pub async fn delete_role(pool: &PgPool, tenant_id: i64, id: i64) -> Result<(), AppError> {
+    pub async fn delete_role(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<(), AppError> {
         let role = RoleRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Role not found: {}", id)))?;
@@ -119,7 +119,7 @@ impl IdentityService {
     /// Replace the full permission set of a role. Unknown keys are rejected
     /// so a typo in the frontend never silently strips permissions.
     pub async fn set_role_permissions(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         role_id: i64,
         permission_keys: &[String],
@@ -144,7 +144,7 @@ impl IdentityService {
     }
 
     pub async fn role_permission_keys(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         role_id: i64,
     ) -> Result<Vec<String>, AppError> {
@@ -161,7 +161,7 @@ impl IdentityService {
     // -----------------------------------------------------------------------
 
     pub async fn list_departments(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         parent_id: Option<i64>,
     ) -> Result<Vec<Department>, AppError> {
@@ -171,7 +171,7 @@ impl IdentityService {
     }
 
     pub async fn create_department(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         name: &str,
         parent_id: Option<i64>,
@@ -201,7 +201,7 @@ impl IdentityService {
     }
 
     pub async fn update_department(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         name: Option<&str>,
@@ -230,7 +230,7 @@ impl IdentityService {
             .ok_or_else(|| AppError::NotFound(format!("Department not found: {}", id)))
     }
 
-    pub async fn delete_department(pool: &PgPool, tenant_id: i64, id: i64) -> Result<(), AppError> {
+    pub async fn delete_department(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<(), AppError> {
         // Block deletion when child departments exist.
         let children = DepartmentRepo::list(pool, tenant_id, Some(id))
             .await
@@ -252,7 +252,7 @@ impl IdentityService {
 
     /// Replace a user's role set; returns the new effective permission keys.
     pub async fn assign_user_roles(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         user_id: i64,
         role_ids: &[i64],
@@ -273,14 +273,14 @@ impl IdentityService {
         Self::user_permission_keys(pool, user_id).await
     }
 
-    pub async fn user_role_ids(pool: &PgPool, user_id: i64) -> Result<Vec<i64>, AppError> {
+    pub async fn user_role_ids(pool: &SqlitePool, user_id: i64) -> Result<Vec<i64>, AppError> {
         UserRoleRepo::role_ids_for_user(pool, user_id)
             .await
             .map_err(AppError::from)
     }
 
     /// Effective permission keys for a user across all their roles.
-    pub async fn user_permission_keys(pool: &PgPool, user_id: i64) -> Result<Vec<String>, AppError> {
+    pub async fn user_permission_keys(pool: &SqlitePool, user_id: i64) -> Result<Vec<String>, AppError> {
         UserRoleRepo::permission_keys_for_user(pool, user_id)
             .await
             .map_err(AppError::from)

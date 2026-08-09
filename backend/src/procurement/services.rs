@@ -1,7 +1,7 @@
 //! Procurement services — requisitions (submit/approve), goods receipts,
 //! supplier quotes, scorecard.
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::procurement_dto::{
     CreateQuoteRequest, CreateReceiptRequest, CreateRequisitionRequest, UpdateQuoteStatusRequest,
@@ -20,7 +20,7 @@ impl ProcurementService {
     // -----------------------------------------------------------------------
 
     pub async fn create_requisition(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         applicant_id: Option<i64>,
         dto: &CreateRequisitionRequest,
@@ -38,14 +38,14 @@ impl ProcurementService {
     }
 
     pub async fn list_requisitions(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         status: Option<&str>,
     ) -> Result<Vec<PurchaseRequisition>, AppError> {
         RequisitionRepo::list(pool, tenant_id, status).await.map_err(AppError::from)
     }
 
-    pub async fn get_requisition(pool: &PgPool, tenant_id: i64, id: i64) -> Result<PurchaseRequisition, AppError> {
+    pub async fn get_requisition(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<PurchaseRequisition, AppError> {
         RequisitionRepo::find_by_id(pool, tenant_id, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Requisition not found: {}", id)))
@@ -53,7 +53,7 @@ impl ProcurementService {
 
     /// Transition a requisition's status with a simple state guard.
     pub async fn update_requisition_status(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         status: &str,
@@ -76,7 +76,7 @@ impl ProcurementService {
     // -----------------------------------------------------------------------
 
     pub async fn create_receipt(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         created_by: Option<i64>,
         dto: &CreateReceiptRequest,
@@ -90,7 +90,7 @@ impl ProcurementService {
             .map_err(AppError::from)?;
         for item in &dto.items {
             ReceiptRepo::insert_item(
-                pool, receipt.id, item.pipe_id, item.pipe_number.as_deref(), item.quantity, item.remark.as_deref(),
+                pool, receipt.id, item.item_id, item.sku.as_deref(), item.quantity, item.remark.as_deref(),
             )
             .await
             .map_err(AppError::from)?;
@@ -99,14 +99,14 @@ impl ProcurementService {
     }
 
     pub async fn list_receipts(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         purchase_order_id: Option<i64>,
     ) -> Result<Vec<PoReceipt>, AppError> {
         ReceiptRepo::list(pool, tenant_id, purchase_order_id).await.map_err(AppError::from)
     }
 
-    pub async fn get_receipt(pool: &PgPool, tenant_id: i64, id: i64) -> Result<(PoReceipt, Vec<PoReceiptItem>), AppError> {
+    pub async fn get_receipt(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<(PoReceipt, Vec<PoReceiptItem>), AppError> {
         let receipts = ReceiptRepo::list(pool, tenant_id, None).await.map_err(AppError::from)?;
         let receipt = receipts.into_iter().find(|r| r.id == id)
             .ok_or_else(|| AppError::NotFound(format!("Receipt not found: {}", id)))?;
@@ -119,7 +119,7 @@ impl ProcurementService {
     // -----------------------------------------------------------------------
 
     pub async fn create_quote(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         dto: &CreateQuoteRequest,
     ) -> Result<SupplierQuote, AppError> {
@@ -132,12 +132,12 @@ impl ProcurementService {
         .map_err(AppError::from)
     }
 
-    pub async fn list_quotes(pool: &PgPool, tenant_id: i64, supplier_id: Option<i64>) -> Result<Vec<SupplierQuote>, AppError> {
+    pub async fn list_quotes(pool: &SqlitePool, tenant_id: i64, supplier_id: Option<i64>) -> Result<Vec<SupplierQuote>, AppError> {
         QuoteRepo::list(pool, tenant_id, supplier_id).await.map_err(AppError::from)
     }
 
     pub async fn update_quote_status(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         dto: &UpdateQuoteStatusRequest,
@@ -150,13 +150,13 @@ impl ProcurementService {
             .ok_or_else(|| AppError::NotFound(format!("Quote not found: {}", id)))
     }
 
-    pub async fn supplier_scorecard(pool: &PgPool, tenant_id: i64, supplier_id: i64) -> Result<SupplierScorecard, AppError> {
+    pub async fn supplier_scorecard(pool: &SqlitePool, tenant_id: i64, supplier_id: i64) -> Result<SupplierScorecard, AppError> {
         QuoteRepo::scorecard(pool, tenant_id, supplier_id).await.map_err(AppError::from)
     }
 }
 
 /// Per-table sequence helper for document numbers.
-async fn seq(pool: &PgPool, table: &str) -> Result<i64, AppError> {
+async fn seq(pool: &SqlitePool, table: &str) -> Result<i64, AppError> {
     let n: i64 = sqlx::query_scalar(&format!("SELECT COALESCE(MAX(id), 0) + 1 FROM {}", table))
         .fetch_one(pool)
         .await

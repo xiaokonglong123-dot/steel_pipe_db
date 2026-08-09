@@ -3,7 +3,7 @@
 use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::manufacturing_dto::{
     CreateBomRequest, CreateInspectionRequest, CreateNcrRequest, CreateWorkOrderRequest,
@@ -27,14 +27,14 @@ pub struct WoFilter {
 
 // BOMs
 pub async fn list_boms(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<Bom>>>, AppError> {
     Ok(ApiResponse::ok(ManufacturingService::list_boms(&pool, user.0.tenant_id).await?))
 }
 
 pub async fn get_bom(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<BomDetail>>, AppError> {
@@ -49,7 +49,7 @@ pub struct BomDetail {
 }
 
 pub async fn create_bom(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateBomRequest>,
 ) -> Result<Json<ApiResponse<Bom>>, AppError> {
@@ -58,7 +58,7 @@ pub async fn create_bom(
 
 // Work orders
 pub async fn list_work_orders(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<StatusFilter>,
 ) -> Result<Json<ApiResponse<Vec<WorkOrder>>>, AppError> {
@@ -66,7 +66,7 @@ pub async fn list_work_orders(
 }
 
 pub async fn get_work_order(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<WorkOrderDetail>>, AppError> {
@@ -81,7 +81,7 @@ pub struct WorkOrderDetail {
 }
 
 pub async fn create_work_order(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateWorkOrderRequest>,
 ) -> Result<Json<ApiResponse<WorkOrder>>, AppError> {
@@ -89,7 +89,7 @@ pub async fn create_work_order(
 }
 
 pub async fn start_work_order(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<WorkOrder>>, AppError> {
@@ -97,7 +97,7 @@ pub async fn start_work_order(
 }
 
 pub async fn complete_step(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<WorkOrder>>, AppError> {
@@ -106,7 +106,7 @@ pub async fn complete_step(
 
 // Inspections
 pub async fn list_inspections(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<WoFilter>,
 ) -> Result<Json<ApiResponse<Vec<Inspection>>>, AppError> {
@@ -114,7 +114,7 @@ pub async fn list_inspections(
 }
 
 pub async fn create_inspection(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateInspectionRequest>,
 ) -> Result<Json<ApiResponse<Inspection>>, AppError> {
@@ -123,7 +123,7 @@ pub async fn create_inspection(
 
 // NCRs
 pub async fn list_ncrs(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<StatusFilter>,
 ) -> Result<Json<ApiResponse<Vec<Ncr>>>, AppError> {
@@ -131,7 +131,7 @@ pub async fn list_ncrs(
 }
 
 pub async fn create_ncr(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateNcrRequest>,
 ) -> Result<Json<ApiResponse<Ncr>>, AppError> {
@@ -139,7 +139,7 @@ pub async fn create_ncr(
 }
 
 pub async fn resolve_ncr(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(p): Json<ResolveNcrRequest>,

@@ -1,4 +1,4 @@
-use sqlx::{QueryBuilder, Postgres, PgPool};
+use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::dto::common::PaginationParams;
 use crate::dto::supplier_dto::{
@@ -12,14 +12,14 @@ pub struct SupplierRepo;
 impl SupplierRepo {
     /// INSERT a new supplier with the given `code`. `is_active` defaults to `1`. Returns the created `Supplier`.
     pub async fn create(
-        pool: &PgPool,
+        pool: &SqlitePool,
         dto: &CreateSupplierRequest,
         code: &str,
     ) -> Result<Supplier, sqlx::Error> {
         sqlx::query_as::<_, Supplier>(
             "INSERT INTO suppliers (supplier_code, name, contact_person, phone, email, address, \
              is_active, notes) \
-             VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7) \
+             VALUES (?, ?, ?, ?, ?, ?, 1, ?) \
              RETURNING id, supplier_code, name, contact_person, phone, email, address, \
                is_active, notes, created_at, updated_at, deleted_at",
         )
@@ -36,12 +36,12 @@ impl SupplierRepo {
 
     /// Dynamic UPDATE of supplier fields. Only supplied fields change. Returns the updated `Supplier`.
     pub async fn update(
-        pool: &PgPool,
+        pool: &SqlitePool,
         id: i64,
         dto: &UpdateSupplierRequest,
     ) -> Result<Supplier, sqlx::Error> {
-        let mut builder: QueryBuilder<Postgres> =
-            QueryBuilder::new("UPDATE suppliers SET updated_at = NOW()");
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("UPDATE suppliers SET updated_at = datetime('now')");
 
         if let Some(ref val) = dto.name {
             builder.push(", name = ");
@@ -83,11 +83,11 @@ impl SupplierRepo {
     }
 
     /// SELECT by primary key. Returns `None` if soft-deleted or missing.
-    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<Supplier>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Supplier>, sqlx::Error> {
         sqlx::query_as::<_, Supplier>(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
-             FROM suppliers WHERE id = $1 AND deleted_at IS NULL",
+             FROM suppliers WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -96,13 +96,13 @@ impl SupplierRepo {
 
     /// SELECT by unique `supplier_code`. Returns `None` if soft-deleted or missing.
     pub async fn find_by_code(
-        pool: &PgPool,
+        pool: &SqlitePool,
         code: &str,
     ) -> Result<Option<Supplier>, sqlx::Error> {
         sqlx::query_as::<_, Supplier>(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
-             FROM suppliers WHERE supplier_code = $1 AND deleted_at IS NULL",
+             FROM suppliers WHERE supplier_code = ? AND deleted_at IS NULL",
         )
         .bind(code)
         .fetch_optional(pool)
@@ -111,10 +111,10 @@ impl SupplierRepo {
 
     /// Soft-delete: sets `deleted_at` and `updated_at`.
     /// Returns `sqlx::Error::RowNotFound` when no row was updated (already deleted or missing).
-    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
         let result = sqlx::query(
-            "UPDATE suppliers SET deleted_at = NOW(), \
-             updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+            "UPDATE suppliers SET deleted_at = datetime('now'), \
+             updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .execute(pool)
@@ -128,7 +128,7 @@ impl SupplierRepo {
     /// Paginated SELECT with dynamic filters (q, is_active).
     /// Supports sorting by supplier_code, name, created_at. Returns `(items, total)`.
     pub async fn list(
-        pool: &PgPool,
+        pool: &SqlitePool,
         filter: &SupplierFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<Supplier>, u64), sqlx::Error> {
@@ -140,9 +140,8 @@ impl SupplierRepo {
 
         if let Some(ref q) = filter.q {
             if !q.is_empty() {
-                let base = bind_values.len() + 1;
                 conditions
-                    .push(format!("(name LIKE ${} OR supplier_code LIKE ${} OR contact_person LIKE ${})", base, base + 1, base + 2));
+                    .push("(name LIKE ? OR supplier_code LIKE ? OR contact_person LIKE ?)".into());
                 let pattern = format!("%{}%", q);
                 bind_values.push(pattern.clone());
                 bind_values.push(pattern.clone());
@@ -151,9 +150,9 @@ impl SupplierRepo {
         }
         if let Some(val) = filter.is_active {
             conditions.push(if val {
-                "is_active = TRUE".to_string()
+                "is_active = 1".to_string()
             } else {
-                "is_active = FALSE".to_string()
+                "is_active = 0".to_string()
             });
         }
 
@@ -180,12 +179,8 @@ impl SupplierRepo {
         let list_sql = format!(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
-             FROM suppliers WHERE {} ORDER BY {} {} LIMIT ${} OFFSET ${}",
-            where_clause,
-            sort_by,
-            sort_order,
-            bind_values.len() + 1,
-            bind_values.len() + 2
+             FROM suppliers WHERE {} ORDER BY {} {} LIMIT ? OFFSET ?",
+            where_clause, sort_by, sort_order
         );
         let mut list_q = sqlx::query_as::<_, Supplier>(&list_sql);
         for val in &bind_values {
@@ -201,13 +196,13 @@ impl SupplierRepo {
     }
 
     /// Quick name/code search (LIKE) with LIMIT 50 results.
-    pub async fn search(pool: &PgPool, query: &str) -> Result<Vec<Supplier>, sqlx::Error> {
+    pub async fn search(pool: &SqlitePool, query: &str) -> Result<Vec<Supplier>, sqlx::Error> {
         let like = format!("%{}%", query);
         sqlx::query_as::<_, Supplier>(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
              FROM suppliers \
-             WHERE deleted_at IS NULL AND (name LIKE $1 OR supplier_code LIKE $2) \
+             WHERE deleted_at IS NULL AND (name LIKE ? OR supplier_code LIKE ?) \
              ORDER BY name ASC LIMIT 50",
         )
         .bind(&like)
@@ -217,11 +212,11 @@ impl SupplierRepo {
     }
 
     /// SELECT all active suppliers, ordered by `name ASC`. Used for dropdowns.
-    pub async fn find_all_active(pool: &PgPool) -> Result<Vec<Supplier>, sqlx::Error> {
+    pub async fn find_all_active(pool: &SqlitePool) -> Result<Vec<Supplier>, sqlx::Error> {
         sqlx::query_as::<_, Supplier>(
             "SELECT id, supplier_code, name, contact_person, phone, email, address, \
              is_active, notes, created_at, updated_at, deleted_at \
-             FROM suppliers WHERE deleted_at IS NULL AND is_active = TRUE \
+             FROM suppliers WHERE deleted_at IS NULL AND is_active = 1 \
              ORDER BY name ASC",
         )
         .fetch_all(pool)

@@ -2,6 +2,10 @@
 
 **Goal:** in_app + email + wechat推送 pushes.
 
+**Architecture:** New `backend/src/notification/` module.
+
+**Database:** SQLite3 (`sqlite://data/erp.db?mode=rwc`)
+
 ---
 
 ### Task 1: Tables — templates, notifications, user_preferences

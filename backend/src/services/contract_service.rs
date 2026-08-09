@@ -1,5 +1,5 @@
 use rust_decimal::Decimal;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::domain::money::{from_decimal, from_decimal_opt};
 use crate::dto::common::PaginationParams;
@@ -50,7 +50,7 @@ impl ContractService {
     /// # Errors
     /// - `AppError::Validation` — bad type, empty items, or quantity ≤ 0
     pub async fn create_contract(
-        pool: &PgPool,
+        pool: &SqlitePool,
         dto: &CreateContractRequest,
     ) -> Result<ContractDetailResponse, AppError> {
         if !Self::valid_contract_type(&dto.contract_type) {
@@ -67,7 +67,7 @@ impl ContractService {
         }
 
         for item in &dto.items {
-            if item.quantity <= 0 {
+            if item.quantity <= 0.0 {
                 return Err(AppError::Validation(
                     "Item quantity must be positive".into(),
                 ));
@@ -137,7 +137,7 @@ impl ContractService {
     /// - `AppError::NotFound` — ID doesn't exist or was deleted
     /// - `AppError::Validation` — current status doesn't allow edits, or quantity ≤ 0
     pub async fn update_contract(
-        pool: &PgPool,
+        pool: &SqlitePool,
         id: i64,
         dto: &UpdateContractRequest,
     ) -> Result<Contract, AppError> {
@@ -168,7 +168,7 @@ impl ContractService {
         if let Some(ref items) = dto.items {
             for item in items {
                 if let Some(qty) = item.quantity {
-                    if qty <= 0 {
+                    if qty <= 0.0 {
                         sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
                         return Err(AppError::Validation(
                             "Item quantity must be positive".into(),
@@ -195,27 +195,21 @@ impl ContractService {
                         return Err(AppError::from(e));
                     }
                 } else {
-                    let pipe_type = item.pipe_type.as_deref().unwrap_or("");
-                    let grade = item.grade.as_deref().unwrap_or("");
-                    let od = item.od.unwrap_or(0.0);
-                    let wt = item.wt.unwrap_or(0.0);
-                    let quantity = item.quantity.unwrap_or(0);
+                    let item_master_id = item.item_id.unwrap_or(0);
+                    let quantity = item.quantity.unwrap_or(0.0);
 
                     let total_price = item
                         .unit_price
-                        .map(|p| from_decimal(p) * quantity as f64)
+                        .map(|p| from_decimal(p) * quantity)
                         .unwrap_or(0.0);
 
                     match sqlx::query(
-                        "INSERT INTO contract_items (contract_id, pipe_type, grade, od, wt, \
+                        "INSERT INTO contract_items (contract_id, item_id, \
                          quantity, unit_price, total_price, notes) \
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         VALUES (?, ?, ?, ?, ?, ?)",
                     )
                     .bind(id)
-                    .bind(pipe_type)
-                    .bind(grade)
-                    .bind(od)
-                    .bind(wt)
+                    .bind(item_master_id)
                     .bind(quantity)
                     .bind(from_decimal_opt(item.unit_price))
                     .bind(total_price)
@@ -254,7 +248,7 @@ impl ContractService {
     /// # Errors
     /// - `AppError::NotFound` — ID doesn't exist
     /// - `AppError::Validation` — current status doesn't allow deletion
-    pub async fn delete_contract(pool: &PgPool, id: i64) -> Result<(), AppError> {
+    pub async fn delete_contract(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
         let existing = ContractRepo::find_by_id(pool, id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Contract id={} not found", id)))?;
@@ -275,7 +269,7 @@ impl ContractService {
     /// # Errors
     /// - `AppError::NotFound` — ID doesn't exist or was deleted
     pub async fn get_contract_detail(
-        pool: &PgPool,
+        pool: &SqlitePool,
         id: i64,
     ) -> Result<ContractDetailResponse, AppError> {
         let contract = ContractRepo::find_by_id(pool, id)
@@ -294,7 +288,7 @@ impl ContractService {
 
     /// Paginates contracts with filters for type, status, party, etc.
     pub async fn list_contracts(
-        pool: &PgPool,
+        pool: &SqlitePool,
         filter: &ContractFilterParams,
         params: &PaginationParams,
     ) -> Result<(Vec<Contract>, u64), AppError> {
@@ -315,7 +309,7 @@ impl ContractService {
     /// - `AppError::Validation` — invalid status, illegal transition, or missing sign date
     /// - `AppError::OrderCannotModify` — status changed by another request before commit
     pub async fn update_status(
-        pool: &PgPool,
+        pool: &SqlitePool,
         id: i64,
         new_status: &str,
     ) -> Result<Contract, AppError> {
@@ -415,11 +409,11 @@ impl ContractService {
     /// - `AppError::NotFound` — contract doesn't exist
     /// - `AppError::Validation` — quantity ≤ 0 or contract isn't in draft
     pub async fn add_item(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
         dto: &CreateContractItemRequest,
     ) -> Result<ContractItem, AppError> {
-        if dto.quantity <= 0 {
+        if dto.quantity <= 0.0 {
             return Err(AppError::Validation("Quantity must be positive".into()));
         }
 
@@ -479,7 +473,7 @@ impl ContractService {
     /// - `AppError::NotFound` — contract or item doesn't exist
     /// - `AppError::Validation` — not in draft, item doesn't belong, or quantity ≤ 0
     pub async fn update_item(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
         item_id: i64,
         dto: &UpdateContractItemRequest,
@@ -506,7 +500,7 @@ impl ContractService {
         }
 
         if let Some(qty) = dto.quantity {
-            if qty <= 0 {
+            if qty <= 0.0 {
                 return Err(AppError::Validation("Quantity must be positive".into()));
             }
         }
@@ -546,7 +540,7 @@ impl ContractService {
     /// - `AppError::NotFound` — contract or item doesn't exist
     /// - `AppError::Validation` — not in draft or item doesn't belong to this contract
     pub async fn delete_item(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
         item_id: i64,
     ) -> Result<(), AppError> {
@@ -603,7 +597,7 @@ impl ContractService {
     /// - `AppError::NotFound` — contract doesn't exist
     /// - `AppError::Validation` — amount ≤ 0, bad payment type, or contract is terminated
     pub async fn add_payment(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
         dto: &CreatePaymentRequest,
     ) -> Result<ContractPayment, AppError> {
@@ -642,7 +636,7 @@ impl ContractService {
     /// - `AppError::NotFound` — contract or payment doesn't exist
     /// - `AppError::Validation` — amount ≤ 0, bad type, wrong contract, or terminated
     pub async fn update_payment(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
         payment_id: i64,
         dto: &UpdatePaymentRequest,
@@ -695,7 +689,7 @@ impl ContractService {
     /// - `AppError::NotFound` — contract or payment doesn't exist
     /// - `AppError::Validation` — payment doesn't belong to this contract or terminated
     pub async fn delete_payment(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
         payment_id: i64,
     ) -> Result<(), AppError> {
@@ -728,7 +722,7 @@ impl ContractService {
     /// # Errors
     /// - `AppError::NotFound` — contract doesn't exist
     pub async fn get_payments(
-        pool: &PgPool,
+        pool: &SqlitePool,
         contract_id: i64,
     ) -> Result<Vec<ContractPayment>, AppError> {
         ContractRepo::find_by_id(pool, contract_id)

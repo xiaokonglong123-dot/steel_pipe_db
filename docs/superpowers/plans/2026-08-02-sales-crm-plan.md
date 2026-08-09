@@ -2,16 +2,18 @@
 
 **Goal:** Deepen sales orders with shipment tracking, credit control, quote management.
 
-**Architecture:** Extend existing orders crate. Add tables: `sales_quotes`, `shipments`. Update `customers` with credit fields.
+**Architecture:** Extend existing `backend/src/sales_crm/` module. Add tables: `sales_quotes`, `shipments`. Update `customers` with credit fields.
+
+**Database:** SQLite3 (`sqlite://data/erp.db?mode=rwc`), 无 schema 前缀
 
 ---
 
 ### Task 1: Make table migrations
 
 ```sql
-CREATE TABLE orders.sales_quotes (...);
-CREATE TABLE orders.shipments (...);
-ALTER TABLE orders.customers ADD COLUMN credit_limit ...
+CREATE TABLE IF NOT EXISTS sales_quotes (...);
+CREATE TABLE IF NOT EXISTS shipments (...);
+ALTER TABLE customers ADD COLUMN credit_limit REAL DEFAULT 0;
 ```
 
 ### Task 2: Create shipment service

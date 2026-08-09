@@ -1,6 +1,6 @@
 # `frontend/src/` — App Structure & Shared Infrastructure
 
-How the app is wired up, what the shared pieces do, and how to add new stuff.
+How the app is wired up, what the shared pieces do, and how to add new stuff. Frontend of the **ERP（通用企业资源计划系统）** monorepo — backend crate `erp-server`, backend data layer **SQLite3** (`sqlite://data/erp.db?mode=rwc`, sqlx 0.8 sqlite feature).
 
 ## Entry Points
 
@@ -66,34 +66,48 @@ const api = axios.create({ baseURL: '/api/v1' })
 
 - `authStore.ts` — Token, user, login/logout.
 - `appStore.ts` — Global UI state (sidebar collapsed, theme).
-- `unitStore.ts` — Metric/imperial toggle.
+- `unitStore.ts` — Unit conversion state.
 
 ### `i18n/` — Translations
 
 ```
 i18n/
 ├── index.ts        ← i18next init
-├── zh/             ← Chinese translations (15 namespaces)
+├── zh/             ← Chinese translations (per-feature namespaces)
 │   ├── common.json
-│   ├── pipes.json
+│   ├── auth.json
 │   ├── inventory.json
+│   ├── inbound.json
+│   ├── outbound.json
+│   ├── stock.json
+│   ├── location.json
+│   ├── inventory_check.json
 │   ├── purchase.json
 │   ├── sales.json
-│   ├── quality.json
 │   ├── contracts.json
 │   ├── suppliers.json
 │   ├── customers.json
+│   ├── manufacturing.json
+│   ├── project.json
+│   ├── assets.json
+│   ├── hr.json
+│   ├── finance.json
+│   ├── procurement.json
+│   ├── workflow.json
+│   ├── notification.json
+│   ├── portal.json
 │   ├── reports.json
-│   ├── labels.json
-│   ├── profile.json
+│   ├── bi.json
 │   ├── search.json
+│   ├── profile.json
+│   ├── data_io.json
 │   ├── system.json
 │   └── validation.json
 └── en/             ← English translations (same structure)
 ```
 
-- 15 namespaces mirrored in zh/ and en/.
-- Namespace per feature: `'common'`, `'pipes'`, `'inventory'`, etc.
+- Namespaces mirrored in zh/ and en/.
+- Namespace per feature: `'common'`, `'inventory'`, `'purchase'`, `'sales'`, etc.
 - Components use `useTranslation('feature_name')`.
 
 ### `routes/` — Route Config (react-router-dom v7)
@@ -101,11 +115,6 @@ i18n/
 ```
 /login                     ← public
 /                          ← ProtectedRoute → MainLayout → Outlet
-  /pipes/seamless          ← SeamlessPipeListPage
-  /pipes/seamless/new      ← SeamlessPipeFormPage
-  /pipes/seamless/:id      ← SeamlessPipeDetailPage
-  /pipes/seamless/:id/edit ← SeamlessPipeFormPage
-  /pipes/screen/*          ← same pattern
   /inventory/inbound       ← InboundListPage
   /inventory/inbound/new   ← InboundFormPage
   /inventory/outbound      ← OutboundListPage
@@ -113,15 +122,38 @@ i18n/
   /inventory/stock         ← StockQueryPage
   /inventory/locations     ← LocationListPage
   /inventory/check         ← InventoryCheckListPage
+  /inventory/logs          ← InventoryLogsPage
+  /inventory/atp           ← InventoryAtpPage
   /suppliers               ← SupplierListPage (+ /new, /:id/edit)
   /customers               ← CustomerListPage (+ /new, /:id/edit)
   /purchases               ← (+ /new, /:id, /:id/edit)
   /sales                   ← (+ /new, /:id, /:id/edit)
-  /quality/certs           ← (+ /new, /:id, /:id/edit)
+  /sales/atp               ← AtpPage
+  /sales/crm               ← SalesCrmPage
   /contracts               ← (+ /new, /:id, /:id/edit)
+  /manufacturing           ← ManufacturingPage
+  /projects                ← ProjectPage
+  /assets                  ← AssetsPage
+  /hr/employees            ← EmployeeListPage
+  /hr/salaries             ← SalaryPage
+  /finance                 ← FinancePage
+  /procurement             ← ProcurementPage
+  /workflow/definitions    ← WorkflowListPage
+  /workflow/my-tasks       ← MyTasksPage
+  /notifications           ← NotificationsPage
+  /portal                  ← PortalAdminPage
   /reports                 ← ReportListPage
   /reports/dashboard       ← DashboardPage
-  /labels                  ← LabelPrintPage
+  /reports/inventory       ← InventoryReportPage
+  /reports/orders          ← OrderReportPage
+  /reports/trends          ← TrendsPage
+  /bi                      ← BiDashboardPage
+  /data-io/import          ← DataImportPage
+  /data-io/export          ← DataExportPage
+  /data-io/logs            ← OperationLogPage
+  /system/users            ← UserManagementPage
+  /system/roles            ← RoleManagementPage
+  /system/departments      ← DepartmentPage
   /profile/settings        ← ProfileSettingsPage
   /search                  ← SearchPage
 ```
@@ -166,11 +198,10 @@ const theme: ThemeConfig = {
 ```
 zod-schemas/
 ├── core.ts        ← Common wrappers (PaginatedResponse, ApiResponse)
-├── orders.ts      ← Purchase/Sales order schemas
-├── inventory.ts   ← Inventory, inbound, outbound
-├── quality.ts     ← Quality certificate schemas
+├── orders.ts      ← 采购订单/销售订单 schemas
+├── inventory.ts   ← 商品/SKU, 入库, 出库
 ├── reports.ts     ← Report parameter schemas
-├── labels.ts      ← Label data schemas
+├── search.ts      ← Search query schemas
 ```
 
 - Each file exports Zod types for request/response validation.

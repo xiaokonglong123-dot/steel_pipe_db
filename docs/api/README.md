@@ -1,6 +1,7 @@
-# Steel Pipe DB API 文档
+# ERP API 文档
 
-> API 5CT 无缝钢管与筛管库存管理系统 — 后端 REST API 参考
+> 通用 ERP（企业资源计划系统）— 后端 REST API 参考
+> 历史沿革：本系统由钢管行业系统重构而来，后端 crate 名为 `erp-server`。
 
 **Base URL:** `http://localhost:3000/api/v1`
 
@@ -15,22 +16,27 @@
 - [错误码速查表](#错误码速查表)
 - [接口一览](#接口一览)
   - [认证与用户管理](#1-认证与用户管理)
-  - [无缝钢管管理](#2-无缝钢管管理)
-  - [筛管管理](#3-筛管管理)
-  - [库存管理（入库/出库/库存/库位/盘点/统计/追溯）](#4-库存管理)
-  - [供应商管理](#5-供应商管理)
-  - [客户管理](#6-客户管理)
-  - [采购订单](#7-采购订单)
-  - [销售订单](#8-销售订单)
-  - [质量证书](#9-质量证书)
-  - [合同管理](#10-合同管理)
-  - [报告与仪表盘](#11-报告与仪表盘)
-  - [标签打印](#12-标签打印)
-  - [数据导入导出](#13-数据导入导出)
-  - [ATP 可用库存检查](#14-atp-可用库存检查)
-  - [全局搜索](#15-全局搜索)
-  - [个人信息](#16-个人信息)
-  - [健康检查](#17-健康检查)
+  - [商品管理](#2-商品管理)
+  - [库存管理（入库/出库/库存/库位/盘点/追溯）](#3-库存管理)
+  - [供应商管理](#4-供应商管理)
+  - [客户管理](#5-客户管理)
+  - [采购订单](#6-采购订单)
+  - [销售订单](#7-销售订单)
+  - [合同管理](#8-合同管理)
+  - [制造管理（BOM/工单/质检）](#9-制造管理)
+  - [审批流](#10-审批流)
+  - [人力资源](#11-人力资源)
+  - [财务](#12-财务)
+  - [采购管理（申请/收货/采购报价/评分）](#13-采购管理)
+  - [项目与固定资产](#14-项目与固定资产)
+  - [通知与门户](#15-通知与门户)
+  - [销售 CRM（发货/销售报价/信用）](#16-销售-crm)
+  - [报告与 BI](#17-报告与-bi)
+  - [数据导入导出](#18-数据导入导出)
+  - [ATP 可用库存检查](#19-atp-可用库存检查)
+  - [全局搜索](#20-全局搜索)
+  - [个人信息](#21-个人信息)
+  - [健康检查](#22-健康检查)
 
 ---
 
@@ -116,31 +122,35 @@ Authorization: Bearer <access_token>
 ## RBAC 角色模型
 
 | 角色 | 说明 | 权限范围 |
-|------|------|---------|
-| `admin` | 系统管理员 | 所有功能，包括用户管理 |
-| `warehouse` | 仓库管理员 | 钢管增删改、入库出库、库位、盘点 |
-| `qc` | 质检员 | 质量证书增删改 |
-| `sales` | 销售人员 | 采购/销售订单、客户管理、合同、标签、数据导入导出 |
+| ------ | ------ | --------- |
+| `admin` | 系统管理员 | 所有功能，包括用户/角色/权限管理 |
+| `warehouse` | 仓库管理员 | 商品维护、入库出库、库位、盘点 |
+| `sales` | 业务人员 | 采购/销售订单、客户/供应商、合同、数据导入导出 |
+
+> 角色、权限、部门、租户均可通过 `/api/v1/auth/roles`、`/api/v1/auth/permissions`、
+> `/api/v1/auth/departments` 动态配置（auth/RBAC 模块）。
 
 ### 各功能模块角色矩阵
 
 | 功能模块 | 读取 | 写入 |
-|---------|------|------|
+| --------- | ------ | ------ |
 | 用户管理 | admin | admin |
-| 钢管（无缝/筛管） | 所有已认证用户 | admin, warehouse |
+| 商品（Item/SKU） | 所有已认证用户 | admin, warehouse |
 | 入库/出库 | 所有已认证用户 | admin, warehouse |
 | 库存/库位/盘点 | 所有已认证用户 | admin, warehouse |
 | 供应商 | 所有已认证用户 | admin, warehouse, sales |
 | 客户 | 所有已认证用户 | admin, warehouse, sales |
 | 采购订单 | 所有已认证用户 | admin, warehouse, sales |
 | 销售订单 | 所有已认证用户 | admin, warehouse, sales |
-| 质量证书 | 所有已认证用户 | admin, qc |
 | 合同 | 所有已认证用户 | admin, warehouse, sales |
-| 报告/仪表盘 | 所有已认证用户 | — |
-| 标签打印 | 所有已认证用户 | admin |
+| 制造（BOM/工单/质检） | 所有已认证用户 | 按 RBAC 角色配置 |
+| 审批流 | 所有已认证用户 | 按 RBAC 角色配置 |
+| 人力资源 / 财务 | 按 RBAC 角色配置 | admin 或按角色配置 |
+| 报告/BI | 所有已认证用户 | — |
 | 数据导入导出 | 所有已认证用户 | admin, warehouse, sales |
 | ATP 可用库存 | 所有已认证用户 | — |
 | 全局搜索 | 所有已认证用户 | — |
+| 门户 | 所有已认证用户 | admin（门户账户管理） |
 
 ---
 
@@ -199,7 +209,7 @@ Authorization: Bearer <access_token>
   "success": false,
   "code": 12001,
   "request_id": "req_<uuid-v4>",
-  "message": "Pipe not found: 42",
+  "message": "Item not found: 42",
   "details": null
 }
 ```
@@ -211,7 +221,7 @@ Authorization: Bearer <access_token>
 所有列表接口支持分页，使用 Query 参数：
 
 | 参数 | 类型 | 默认值 | 说明 |
-|------|------|-------|------|
+| ------ | ------ | ------- | ------ |
 | `page` | u64 | 1 | 页码 |
 | `page_size` | u64 | 20 | 每页条数 |
 
@@ -235,7 +245,7 @@ Authorization: Bearer <access_token>
 ### 通用错误 (100xx)
 
 | 错误码 | 说明 | HTTP 状态 |
-|--------|------|----------|
+| -------- | ------ | ---------- |
 | 10001 | 服务器内部错误 | 500 |
 | 10002 | 参数验证失败 | 400 |
 | 10003 | 资源不存在 | 404 |
@@ -244,60 +254,60 @@ Authorization: Bearer <access_token>
 ### 认证与权限 (110xx)
 
 | 错误码 | 说明 | HTTP 状态 |
-|--------|------|----------|
+| -------- | ------ | ---------- |
 | 11001 | 未登录/认证令牌无效 | 401 |
 | 11002 | 登录失败（用户名或密码错误） | 401 |
 | 11003 | 权限不足 | 403 |
 | 11004 | 认证令牌已过期 | 401 |
 | 11005 | Refresh Token 无效 | 401 |
 
-### 钢管 (120xx)
+### 商品 (120xx)
 
 | 错误码 | 说明 | HTTP 状态 |
-|--------|------|----------|
-| 12001 | 钢管不存在 | 404 |
-| 12002 | 管号重复 | 409 |
-| 12003 | 钢管状态不允许此操作 | 409 |
+| -------- | ------ | ---------- |
+| 12001 | 商品不存在 | 404 |
+| 12002 | SKU 重复 | 409 |
+| 12003 | 商品状态不允许此操作 | 409 |
 
 ### 库存 (130xx)
 
 | 错误码 | 说明 | HTTP 状态 |
-|--------|------|----------|
+| -------- | ------ | ---------- |
 | 13001 | 库存不足 | 409 |
 | 13002 | 库位不存在 | 404 |
 
 ### 订单 (140xx)
 
 | 错误码 | 说明 | HTTP 状态 |
-|--------|------|----------|
+| -------- | ------ | ---------- |
 | 14001 | 订单不存在 | 404 |
 | 14002 | 订单状态不允许此操作 | 409 |
 
-### 质量 (150xx)
+### 质检 (150xx)
 
 | 错误码 | 说明 | HTTP 状态 |
-|--------|------|----------|
-| 15001 | 质量证书不存在 | 404 |
+| -------- | ------ | ---------- |
+| 15001 | 质检记录不存在 | 404 |
 | 15002 | 附件不存在 | 404 |
 
 ### 供应商 (160xx)
 
 | 错误码 | 说明 | HTTP 状态 |
-|--------|------|----------|
+| -------- | ------ | ---------- |
 | 16001 | 供应商不存在 | 404 |
 | 16002 | 供应商编码重复 | 409 |
 
 ### 客户 (170xx)
 
 | 错误码 | 说明 | HTTP 状态 |
-|--------|------|----------|
+| -------- | ------ | ---------- |
 | 17001 | 客户不存在 | 404 |
 | 17002 | 客户编码重复 | 409 |
 
 ### 数据导入导出 (180xx)
 
 | 错误码 | 说明 | HTTP 状态 |
-|--------|------|----------|
+| -------- | ------ | ---------- |
 | 18001 | 导入失败 | 400 |
 | 18002 | 导出失败 | 400 |
 
@@ -394,6 +404,21 @@ Authorization: Bearer <access_token>
 
 ---
 
+#### PUT `/api/v1/auth/me` — 更新个人信息
+
+**认证:** Bearer Token
+
+**请求体:**
+
+```json
+{
+  "display_name": "新名称",
+  "email": "user@example.com"
+}
+```
+
+---
+
 #### GET `/api/v1/users` — 用户列表（管理员）
 
 **认证:** Bearer Token + admin 角色
@@ -417,7 +442,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-**角色可选值:** `admin`, `warehouse`, `qc`, `sales`
+**角色可选值:** `admin`, `warehouse`, `sales`（也可通过 RBAC 模块自定义角色）
 
 ---
 
@@ -443,13 +468,13 @@ Authorization: Bearer <access_token>
 
 ```json
 {
-  "role": "qc"
+  "role": "warehouse"
 }
 ```
 
 ---
 
-#### PUT `/api/v1/auth/password/{id}` — 修改密码
+#### POST `/api/v1/users/{id}/change-password` — 修改密码
 
 **认证:** Bearer Token（管理员可修改任意用户；普通用户只能修改自己的密码）
 
@@ -464,21 +489,42 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 2. 无缝钢管管理
+#### RBAC 管理接口
 
-#### GET `/api/v1/seamless-pipes` — 列表（分页）
+| 方法 | 路径 | 说明 | 认证 |
+| ------ | ------ | ------ | ------ |
+| GET | `/api/v1/auth/permissions` | 权限列表 | admin |
+| GET/POST | `/api/v1/auth/roles` | 角色列表/创建 | admin |
+| GET/PUT/DELETE | `/api/v1/auth/roles/{id}` | 角色详情/更新/删除 | admin |
+| PUT | `/api/v1/auth/roles/{id}/permissions` | 角色授权 | admin |
+| GET/POST | `/api/v1/auth/departments` | 部门列表/创建 | admin |
+| GET/PUT/DELETE | `/api/v1/auth/departments/{id}` | 部门详情/更新/删除 | admin |
+| GET | `/api/v1/auth/tenants/{id}` | 租户详情 | admin |
+| PUT | `/api/v1/auth/users/{user_id}/roles` | 分配用户角色 | admin |
+| GET | `/api/v1/auth/users/{user_id}/permissions` | 查询用户权限 | admin |
+
+---
+
+### 2. 商品管理
+
+> 商品（Item）是全系统的唯一业务实体，SKU 为其唯一业务编码。
+> 商品表字段：`sku`、`name`（名称）、`category`（分类）、`unit`（单位）、`spec`（规格）、`status` 等。
+
+#### GET `/api/v1/items` — 商品列表（分页）
 
 **认证:** Bearer Token
 
-**Query 参数:** `page`, `page_size`, `pipe_number`, `grade`, `spec`, `status` 等
+**Query 参数:** `page`, `page_size`, `sku`, `name`, `category`, `status` 等
 
 ---
 
-#### GET `/api/v1/seamless-pipes/{id}` — 详情
+#### GET `/api/v1/items/{id}` — 商品详情
+
+**认证:** Bearer Token
 
 ---
 
-#### POST `/api/v1/seamless-pipes` — 新增
+#### POST `/api/v1/items` — 新增商品
 
 **认证:** Bearer Token + admin/warehouse
 
@@ -486,27 +532,24 @@ Authorization: Bearer <access_token>
 
 ```json
 {
-  "pipe_number": "SP-2025-001",
-  "grade": "J55",
-  "outer_diameter": 139.7,
-  "wall_thickness": 7.72,
-  "length": 9.6,
-  "steel_grade": "J55",
-  "heat_number": "HT2025001",
-  "manufacturer": "宝钢",
-  "status": "in_stock"
+  "sku": "ITEM-2025-0001",
+  "name": "示例商品",
+  "category": "原材料",
+  "unit": "件",
+  "spec": "标准规格",
+  "status": "active"
 }
 ```
 
 ---
 
-#### PUT `/api/v1/seamless-pipes/{id}` — 更新
+#### PUT `/api/v1/items/{id}` — 更新商品
 
 **认证:** Bearer Token + admin/warehouse
 
 ---
 
-#### DELETE `/api/v1/seamless-pipes/{id}` — 删除（软删除）
+#### DELETE `/api/v1/items/{id}` — 删除商品（软删除）
 
 **认证:** Bearer Token + admin/warehouse
 
@@ -514,33 +557,15 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 3. 筛管管理
-
-接口路径和参数结构与无缝钢管相同，路径为 `/api/v1/screen-pipes`。
-
-#### GET `/api/v1/screen-pipes` — 列表
-
-#### GET `/api/v1/screen-pipes/{id}` — 详情
-
-#### POST `/api/v1/screen-pipes` — 新增
-
-**认证:** Bearer Token + admin/warehouse
-
-#### PUT `/api/v1/screen-pipes/{id}` — 更新
-
-#### DELETE `/api/v1/screen-pipes/{id}` — 删除
-
----
-
-#### GET `/api/v1/pipes/search` — 全局钢管搜索
+#### GET `/api/v1/items/search` — 商品搜索
 
 **认证:** Bearer Token
 
-**Query 参数:** `q`（关键词），支持管号、等级、规格等模糊搜索。
+**Query 参数:** `q`（关键词），支持 SKU、名称、分类、规格等模糊搜索。
 
 ---
 
-### 4. 库存管理
+### 3. 库存管理
 
 #### 入库记录
 
@@ -565,7 +590,7 @@ Authorization: Bearer <access_token>
   "purchase_order_id": 10,
   "items": [
     {
-      "pipe_id": 1,
+      "item_id": 1,
       "quantity": 50,
       "location_id": 1
     }
@@ -576,9 +601,15 @@ Authorization: Bearer <access_token>
 
 **入库类型:** `purchase`（采购入库）、`production`（生产退料）、`return`（退货入库）
 
+##### POST `/api/v1/inbound-records/batch` — 批量创建入库记录
+
 ##### PUT `/api/v1/inbound-records/{id}` — 更新入库记录
 
 ##### DELETE `/api/v1/inbound-records/{id}` — 删除入库记录
+
+##### POST `/api/v1/inbound-records/{id}/approve` — 审批通过
+
+##### POST `/api/v1/inbound-records/{id}/reject` — 审批驳回
 
 ---
 
@@ -603,7 +634,7 @@ Authorization: Bearer <access_token>
   "sales_order_id": 5,
   "items": [
     {
-      "pipe_id": 1,
+      "item_id": 1,
       "quantity": 20,
       "location_id": 1
     }
@@ -611,6 +642,14 @@ Authorization: Bearer <access_token>
   "notes": "销售出库"
 }
 ```
+
+##### PUT `/api/v1/outbound-records/{id}` — 更新出库记录
+
+##### DELETE `/api/v1/outbound-records/{id}` — 删除出库记录
+
+##### POST `/api/v1/outbound-records/{id}/approve` — 审批通过
+
+##### POST `/api/v1/outbound-records/{id}/reject` — 审批驳回
 
 ---
 
@@ -620,11 +659,15 @@ Authorization: Bearer <access_token>
 
 **认证:** Bearer Token
 
-**Query 参数:** `page`, `page_size`, `pipe_id`, `location_id` 等
+**Query 参数:** `page`, `page_size`, `item_id`, `location_id` 等
 
 ##### GET `/api/v1/inventory/logs` — 库存变动日志
 
 ##### GET `/api/v1/inventory/statistics` — 库存统计
+
+##### GET `/api/v1/inventory/inbound/search` — 入库记录搜索
+
+##### GET `/api/v1/inventory/outbound/search` — 出库记录搜索
 
 ---
 
@@ -642,6 +685,8 @@ Authorization: Bearer <access_token>
 
 ##### DELETE `/api/v1/locations/{id}` — 删除库位
 
+##### PUT `/api/v1/inventory/locations/{id}/assign` — 库位分配
+
 ---
 
 #### 盘点
@@ -654,19 +699,25 @@ Authorization: Bearer <access_token>
 
 **认证:** Bearer Token + admin/warehouse
 
+##### POST `/api/v1/inventory/checks/{id}/complete` — 完成盘点
+
+##### PUT `/api/v1/inventory/checks/{check_id}/items/{item_id}` — 盘点明细更新
+
 ---
 
 #### 追溯
 
-##### GET `/api/v1/trace/pipe/{pipe_type}/{pipe_id}` — 钢管追溯
+##### GET `/api/v1/trace/item/{item_id}` — 商品追溯
 
 **认证:** Bearer Token
+
+##### GET `/api/v1/trace/sku/{sku}` — 按 SKU 追溯
 
 ##### GET `/api/v1/trace/order/{order_type}/{order_id}` — 订单追溯
 
 ---
 
-### 5. 供应商管理
+### 4. 供应商管理
 
 #### GET `/api/v1/suppliers` — 供应商列表
 
@@ -687,11 +738,11 @@ Authorization: Bearer <access_token>
 ```json
 {
   "code": "SUP-001",
-  "name": "宝钢集团",
+  "name": "供应商名称",
   "contact_person": "张三",
   "phone": "13800138000",
-  "email": "zhangsan@baosteel.com",
-  "address": "上海市宝山区",
+  "email": "zhangsan@example.com",
+  "address": "示例地址",
   "status": "active"
 }
 ```
@@ -702,7 +753,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 6. 客户管理
+### 5. 客户管理
 
 #### GET `/api/v1/customers` — 客户列表
 
@@ -723,11 +774,11 @@ Authorization: Bearer <access_token>
 ```json
 {
   "code": "CUS-001",
-  "name": "中石油",
+  "name": "客户名称",
   "contact_person": "李四",
   "phone": "13900139000",
-  "email": "lisi@cnpc.com",
-  "address": "北京市东城区",
+  "email": "lisi@example.com",
+  "address": "示例地址",
   "status": "active"
 }
 ```
@@ -738,13 +789,15 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 7. 采购订单
+### 6. 采购订单
 
 #### GET `/api/v1/purchase-orders` — 采购订单列表
 
 **认证:** Bearer Token
 
 #### GET `/api/v1/purchase-orders/{id}` — 采购订单详情
+
+#### GET `/api/v1/purchase-orders/search` — 采购订单搜索
 
 #### POST `/api/v1/purchase-orders` — 创建采购订单
 
@@ -760,9 +813,8 @@ Authorization: Bearer <access_token>
   "expected_date": "2025-02-15",
   "items": [
     {
-      "pipe_number": "SP-2025-001",
-      "grade": "J55",
-      "spec": "139.7x7.72",
+      "sku": "ITEM-2025-0001",
+      "spec": "标准规格",
       "quantity": 100,
       "unit_price": 3500.00
     }
@@ -774,7 +826,7 @@ Authorization: Bearer <access_token>
 
 #### DELETE `/api/v1/purchase-orders/{id}` — 删除采购订单
 
-#### PUT `/api/v1/purchase-orders/{id}/status` — 订单状态流转
+#### PUT `/api/v1/purchase-orders/{id}/transition` — 订单状态流转
 
 **请求体:**
 
@@ -785,6 +837,7 @@ Authorization: Bearer <access_token>
 ```
 
 **订单状态流转:**
+
 - `draft` → `pending` | `cancelled`
 - `pending` → `approved` | `rejected`
 - `rejected` → `draft`
@@ -794,17 +847,21 @@ Authorization: Bearer <access_token>
 
 #### POST `/api/v1/purchase-orders/{id}/reject` — 审批驳回
 
+#### PUT `/api/v1/purchase-orders/{order_id}/items/{item_id}` — 更新订单明细
+
 #### POST `/api/v1/purchase-orders/{id}/link-inbound` — 关联入库记录
 
 ---
 
-### 8. 销售订单
+### 7. 销售订单
 
 接口结构与采购订单对称，路径为 `/api/v1/sales-orders`。
 
 #### GET `/api/v1/sales-orders` — 列表
 
 #### GET `/api/v1/sales-orders/{id}` — 详情
+
+#### GET `/api/v1/sales-orders/search` — 搜索
 
 #### POST `/api/v1/sales-orders` — 创建
 
@@ -814,55 +871,19 @@ Authorization: Bearer <access_token>
 
 #### DELETE `/api/v1/sales-orders/{id}` — 删除
 
-#### PUT `/api/v1/sales-orders/{id}/status` — 状态流转
+#### PUT `/api/v1/sales-orders/{id}/transition` — 状态流转
 
 #### POST `/api/v1/sales-orders/{id}/approve` — 审批通过
 
 #### POST `/api/v1/sales-orders/{id}/reject` — 审批驳回
 
+#### PUT `/api/v1/sales-orders/{order_id}/items/{item_id}` — 更新订单明细
+
 #### POST `/api/v1/sales-orders/{id}/link-outbound` — 关联出库记录
 
 ---
 
-### 9. 质量证书
-
-#### GET `/api/v1/quality/certs` — 质量证书列表
-
-**认证:** Bearer Token
-
-#### GET `/api/v1/quality/certs/{id}` — 证书详情
-
-#### POST `/api/v1/quality/certs` — 新增证书
-
-**认证:** Bearer Token + admin/qc
-
-**请求体:**
-
-```json
-{
-  "pipe_id": 1,
-  "cert_number": "QC-2025-001",
-  "issue_date": "2025-01-20",
-  "expiry_date": "2027-01-20",
-  "result": "pass",
-  "inspector": "王五",
-  "notes": "各项指标合格"
-}
-```
-
-#### PUT `/api/v1/quality/certs/{id}` — 更新证书
-
-#### DELETE `/api/v1/quality/certs/{id}` — 删除证书
-
----
-
-#### GET `/api/v1/quality/grades` — 质量等级列表
-
-#### GET `/api/v1/quality/grades/query` — 查询质量等级
-
----
-
-### 10. 合同管理
+### 8. 合同管理
 
 #### GET `/api/v1/contracts` — 合同列表
 
@@ -879,9 +900,9 @@ Authorization: Bearer <access_token>
 ```json
 {
   "contract_number": "CON-2025-001",
-  "title": "2025年度无缝钢管采购合同",
+  "title": "2025年度采购合同",
   "party_a": "我方公司",
-  "party_b": "宝钢集团",
+  "party_b": "供应商名称",
   "type": "purchase",
   "signing_date": "2025-01-01",
   "effective_date": "2025-01-01",
@@ -894,43 +915,337 @@ Authorization: Bearer <access_token>
 
 #### DELETE `/api/v1/contracts/{id}` — 删除合同
 
+#### PUT `/api/v1/contracts/{id}/status` — 合同状态流转
+
+#### GET/POST `/api/v1/contracts/{contract_id}/items` — 合同明细列表/添加
+
+#### PUT/DELETE `/api/v1/contracts/{contract_id}/items/{item_id}` — 合同明细更新/删除
+
+#### GET/POST `/api/v1/contracts/{contract_id}/payments` — 合同付款计划列表/添加
+
+#### PUT/DELETE `/api/v1/contracts/{contract_id}/payments/{payment_id}` — 合同付款计划更新/删除
+
 ---
 
-### 11. 报告与仪表盘
+### 9. 制造管理
 
-#### GET `/api/v1/reports` — 报告列表
+#### BOM（物料清单）
+
+##### GET/POST `/api/v1/manufacturing/boms` — BOM 列表/创建
+
+**认证:** Bearer Token（写入需对应角色）
+
+##### GET/PUT/DELETE `/api/v1/manufacturing/boms/{id}` — BOM 详情/更新/删除
+
+---
+
+#### 工单（Work Order）
+
+##### GET/POST `/api/v1/manufacturing/work-orders` — 工单列表/创建
+
+##### GET/PUT/DELETE `/api/v1/manufacturing/work-orders/{id}` — 工单详情/更新/删除
+
+##### POST `/api/v1/manufacturing/work-orders/{id}/start` — 开始工单
+
+##### POST `/api/v1/manufacturing/work-orders/{id}/complete-step` — 完成工序
+
+---
+
+#### 质检（Inspection）
+
+##### GET/POST `/api/v1/manufacturing/inspections` — 质检记录列表/创建
+
+**认证:** Bearer Token（写入需对应角色）
+
+质检记录关联**工单**，记录检验结果（`pass` / `fail`）与附件。
+
+---
+
+#### 不合格品单（NCR）
+
+##### GET/POST `/api/v1/manufacturing/ncrs` — 不合格品单列表/创建
+
+##### POST `/api/v1/manufacturing/ncrs/{id}/resolve` — 处理不合格品单
+
+---
+
+### 10. 审批流
+
+#### 审批流定义（Workflow Definition）
+
+##### GET/POST `/api/v1/workflows/definitions` — 审批流定义列表/创建
+
+**认证:** Bearer Token（admin 可管理）
+
+##### GET/PUT/DELETE `/api/v1/workflows/definitions/{id}` — 定义详情/更新/删除
+
+---
+
+#### 审批流实例（Workflow Instance）
+
+##### GET/POST `/api/v1/workflows/instances` — 实例列表/发起审批
+
+---
+
+#### 审批任务（Workflow Task）
+
+##### GET `/api/v1/workflows/my-tasks` — 我的待办
+
+##### GET `/api/v1/workflows/tasks/{node_id}` — 任务详情
+
+##### POST `/api/v1/workflows/tasks/{node_id}/approve` — 审批通过
+
+##### POST `/api/v1/workflows/tasks/{node_id}/reject` — 审批驳回
+
+##### GET/POST `/api/v1/workflows/delegations` — 任务委托
+
+---
+
+### 11. 人力资源
+
+##### GET/POST `/api/v1/hr/employees` — 员工列表/创建
+
+**认证:** Bearer Token（写入需对应角色）
+
+##### GET/PUT/DELETE `/api/v1/hr/employees/{id}` — 员工详情/更新/删除
+
+##### POST `/api/v1/hr/employees/{id}/terminate` — 员工离职
+
+##### GET/POST `/api/v1/hr/employees/{id}/contracts` — 员工劳动合同列表/添加
+
+##### GET/POST `/api/v1/hr/contracts` — 劳动合同列表/创建
+
+##### GET/POST `/api/v1/hr/positions` — 岗位列表/创建
+
+##### GET/POST `/api/v1/hr/attendance` — 考勤记录列表/登记
+
+##### POST `/api/v1/hr/attendance/check-in` — 打卡
+
+##### GET/PUT `/api/v1/hr/attendance/rules` — 考勤规则
+
+##### GET/POST `/api/v1/hr/salaries` — 薪资记录列表/发放
+
+##### GET/PUT/DELETE `/api/v1/hr/salaries/{id}` — 薪资记录详情/更新/删除
+
+---
+
+### 12. 财务
+
+#### 会计科目（Account）
+
+##### GET/POST `/api/v1/chart-of-accounts` — 科目列表/创建
+
+**认证:** Bearer Token（写入需对应角色）
+
+##### GET/PUT/DELETE `/api/v1/chart-of-accounts/{id}` — 科目详情/更新/删除
+
+---
+
+#### 日记账（Journal Entry）
+
+##### GET/POST `/api/v1/journal-entries` — 分录列表/创建
+
+##### GET/PUT/DELETE `/api/v1/journal-entries/{id}` — 分录详情/更新/删除
+
+---
+
+#### 试算平衡（Trial Balance）
+
+##### GET `/api/v1/finance/trial-balance` — 试算平衡表
+
+---
+
+#### 发票（Invoice）
+
+##### GET/POST `/api/v1/invoices` — 发票列表/创建
+
+##### GET/PUT/DELETE `/api/v1/invoices/{id}` — 发票详情/更新/删除
+
+##### POST `/api/v1/invoices/{id}/confirm` — 确认发票
+
+##### POST `/api/v1/invoices/{id}/void` — 作废发票
+
+---
+
+#### 付款（Payment）
+
+##### GET/POST `/api/v1/payments` — 付款记录列表/创建
+
+---
+
+### 13. 采购管理
+
+#### 采购申请（Requisition）
+
+##### GET/POST `/api/v1/purchase-requisitions` — 采购申请列表/创建
+
+**认证:** Bearer Token（写入需对应角色）
+
+##### GET/PUT/DELETE `/api/v1/purchase-requisitions/{id}` — 申请详情/更新/删除
+
+---
+
+#### 采购收货（Receipt）
+
+##### GET/POST `/api/v1/po-receipts` — 采购收货列表/创建
+
+##### GET/PUT/DELETE `/api/v1/po-receipts/{id}` — 收货详情/更新/删除
+
+---
+
+#### 采购报价（Supplier Quote）
+
+##### GET/POST `/api/v1/supplier-quotes` — 采购报价列表/创建
+
+##### PUT `/api/v1/supplier-quotes/{id}/status` — 采购报价状态流转
+
+---
+
+#### 供应商评分（Scorecard）
+
+##### GET/POST `/api/v1/suppliers/{supplier_id}/scorecard` — 供应商评分列表/评分
+
+---
+
+### 14. 项目与固定资产
+
+#### 项目（Project）
+
+##### GET/POST `/api/v1/projects` — 项目列表/创建
+
+**认证:** Bearer Token（写入需对应角色）
+
+##### GET/PUT/DELETE `/api/v1/projects/{id}` — 项目详情/更新/删除
+
+##### GET/POST `/api/v1/projects/{id}/wbs` — WBS 列表/创建
+
+##### GET/PUT/DELETE `/api/v1/projects/{project_id}/wbs/{id}` — WBS 节点详情/更新/删除
+
+##### GET `/api/v1/projects/{id}/financials` — 项目预算与财务汇总
+
+##### GET `/api/v1/projects/{id}/transactions` — 项目资金流水
+
+---
+
+#### 固定资产（Fixed Asset）
+
+##### GET/POST `/api/v1/assets` — 固定资产列表/登记
+
+**认证:** Bearer Token（写入需对应角色）
+
+##### GET/PUT/DELETE `/api/v1/assets/{id}` — 资产详情/更新/删除
+
+##### POST `/api/v1/assets/{id}/depreciate` — 计提折旧（直线法）
+
+##### POST `/api/v1/assets/{id}/dispose` — 资产处置
+
+---
+
+### 15. 通知与门户
+
+#### 通知（Notification）
+
+##### GET `/api/v1/notifications` — 通知收件箱
 
 **认证:** Bearer Token
 
-#### GET `/api/v1/reports/dashboard` — 仪表盘数据
+##### GET `/api/v1/notifications/unread-count` — 未读数
 
-#### GET `/api/v1/reports/inventory` — 库存报告
+##### POST `/api/v1/notifications/{id}/read` — 标记已读
 
-#### GET `/api/v1/reports/orders` — 订单报告
+##### GET/PUT `/api/v1/notifications/preferences` — 通知偏好
 
-#### GET `/api/v1/reports/quality` — 质量报告
-
----
-
-### 12. 标签打印
-
-#### GET `/api/v1/labels` — 获取标签数据
-
-**认证:** Bearer Token + admin
-
-#### POST `/api/v1/labels/print` — 打印标签
-
-**认证:** Bearer Token + admin
+##### GET/POST `/api/v1/notifications/templates` — 通知模板
 
 ---
 
-### 13. 数据导入导出
+#### 门户（Portal）
+
+##### GET/POST `/api/v1/portal/accounts` — 门户账户列表/创建
+
+**认证:** Bearer Token + admin
+
+##### POST `/api/v1/portal-api/login` — 门户登录（客户/供应商）
+
+**认证:** 无需（使用门户账户凭证）
+
+##### GET `/api/v1/portal-api/purchases` — 门户查看采购订单
+
+##### POST `/api/v1/portal-api/purchases/{id}/accept` — 门户确认采购订单
+
+##### GET `/api/v1/portal-api/sales` — 门户查看销售订单
+
+##### POST `/api/v1/portal-api/sales/{id}/acknowledge` — 门户确认销售订单
+
+##### GET `/api/v1/portal-api/events` — 门户事件流
+
+---
+
+### 16. 销售 CRM
+
+#### 发货（Shipment）
+
+##### GET/POST `/api/v1/shipments` — 发货记录列表/创建
+
+**认证:** Bearer Token（写入需对应角色）
+
+##### PUT `/api/v1/shipments/{id}/status` — 发货状态流转
+
+---
+
+#### 销售报价（Customer Quote）
+
+##### GET/POST `/api/v1/sales-quotes` — 销售报价列表/创建
+
+##### GET/PUT/DELETE `/api/v1/sales-quotes/{id}` — 销售报价详情/更新/删除
+
+##### PUT `/api/v1/sales-quotes/{id}/status` — 销售报价状态流转
+
+##### POST `/api/v1/sales-quotes/{id}/convert` — 报价转销售订单
+
+---
+
+#### 客户信用（Customer Credit）
+
+##### GET/PUT `/api/v1/customers/{customer_id}/credit` — 客户信用查询/调整
+
+---
+
+### 17. 报告与 BI
+
+#### 报告（Reports）
+
+##### GET `/api/v1/reports/dashboard` — 仪表盘数据
+
+**认证:** Bearer Token
+
+##### GET `/api/v1/reports/inventory-summary` — 库存汇总报告
+
+##### GET `/api/v1/reports/order-report` — 订单报告
+
+---
+
+#### BI 分析（Analytics）
+
+##### GET `/api/v1/bi/sales-trend` — 销售趋势
+
+**认证:** Bearer Token
+
+##### GET `/api/v1/bi/inventory-value` — 库存价值
+
+##### GET `/api/v1/bi/finance-summary` — 财务汇总
+
+##### GET `/api/v1/bi/supplier-performance` — 供应商绩效
+
+---
+
+### 18. 数据导入导出
 
 #### GET `/api/v1/data-io/templates/{entity_type}` — 下载导入模板
 
 **认证:** Bearer Token
 
-**entity_type 可选值:** `seamless_pipes`, `screen_pipes`, `suppliers`, `customers`, `purchase_orders`, `sales_orders`, `quality_certs`
+**entity_type 可选值:** `items`, `suppliers`, `customers`, `purchase_orders`, `sales_orders`, `contracts`, `employees`, `assets`
 
 #### POST `/api/v1/data-io/import/{entity_type}` — 批量导入
 
@@ -944,23 +1259,51 @@ Authorization: Bearer <access_token>
 
 **响应:** 文件下载（`.xlsx` 或 `.csv`）
 
-#### GET `/api/v1/data-io/logs` — 操作日志
+#### GET `/api/v1/data-io/operation-logs` — 操作日志
 
 **认证:** Bearer Token + admin
 
 ---
 
-### 14. ATP 可用库存检查
+### 19. ATP 可用库存检查
 
 #### GET `/api/v1/atp` — 可用库存查询
 
 **认证:** Bearer Token
 
-**Query 参数:** `pipe_id`, `grade`, `spec` 等
+**Query 参数:** `item_id`, `spec` 等
+
+#### GET `/api/v1/inventory/atp/overview` — ATP 总览
+
+#### GET `/api/v1/inventory/atp/item` — 按商品查询 ATP
 
 ---
 
-### 15. 全局搜索
+#### 库存预留（Reservation）
+
+##### GET/POST `/api/v1/inventory/reservations` — 预留列表/创建
+
+##### POST `/api/v1/inventory/reservations/{id}/release` — 释放预留
+
+---
+
+#### 库存转移（Transfer）
+
+##### GET/POST `/api/v1/inventory/transfers` — 转移记录列表/创建
+
+---
+
+#### 盘点模板与会话
+
+##### GET/POST `/api/v1/inventory/count-templates` — 盘点模板列表/创建
+
+##### POST `/api/v1/inventory/count-templates/{template_id}/start` — 启动盘点会话
+
+##### GET/POST `/api/v1/inventory/count-sessions` — 盘点会话列表/创建
+
+---
+
+### 20. 全局搜索
 
 #### GET `/api/v1/search` — 全局搜索
 
@@ -968,25 +1311,25 @@ Authorization: Bearer <access_token>
 
 **Query 参数:** `q`（关键词）
 
-搜索范围覆盖钢管、供应商、客户、订单等所有业务实体。
+搜索范围覆盖商品（Item/SKU）、供应商、客户、采购/销售订单等所有业务实体。
 
 ---
 
-### 16. 个人信息
+### 21. 个人信息
 
-#### GET `/api/v1/profile` — 获取个人信息
+#### GET `/api/v1/auth/me` — 获取个人信息
 
 **认证:** Bearer Token
 
-#### PUT `/api/v1/profile` — 更新个人信息
+#### PUT `/api/v1/auth/me` — 更新个人信息
 
 **认证:** Bearer Token
 
 ---
 
-### 17. 健康检查
+### 22. 健康检查
 
-#### GET `/health` — 服务健康检查
+#### GET `/api/v1/health` — 服务健康检查
 
 **认证:** 无需
 
@@ -998,6 +1341,8 @@ Authorization: Bearer <access_token>
 }
 ```
 
+#### GET `/api/v1/health/ready` — 就绪检查
+
 ---
 
 ## 通用查询参数
@@ -1005,7 +1350,7 @@ Authorization: Bearer <access_token>
 ### 分页参数
 
 | 参数 | 类型 | 默认值 | 说明 |
-|------|------|-------|------|
+| ------ | ------ | ------- | ------ |
 | `page` | u64 | 1 | 页码（从 1 开始） |
 | `page_size` | u64 | 20 | 每页条数 |
 
@@ -1022,8 +1367,8 @@ Authorization: Bearer <access_token>
 ## 附录：环境变量
 
 | 变量 | 默认值 | 说明 |
-|------|-------|------|
-| `DATABASE_URL` | `sqlite:steel_pipe.db` | 数据库连接字符串 |
+| ------ | ------- | ------ |
+| `DATABASE_URL` | `sqlite://data/erp.db?mode=rwc` | SQLite 数据库连接字符串 |
 | `JWT_SECRET` | — | JWT 签名密钥（必填） |
 | `JWT_EXPIRY_HOURS` | 2 | Access Token 有效期（小时） |
 | `REFRESH_TOKEN_EXPIRY_DAYS` | 30 | Refresh Token 有效期（天） |
@@ -1043,4 +1388,4 @@ Authorization: Bearer <access_token>
 - 修改密码/角色
 - 创建/更新/删除业务实体
 
-操作日志存储在 `operation_logs` 表中，可通过 `/api/v1/data-io/logs` 查询。
+操作日志存储在 `operation_logs` 表中，可通过 `/api/v1/data-io/operation-logs` 查询。

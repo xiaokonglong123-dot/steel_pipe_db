@@ -4,7 +4,7 @@
 use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::auth::services::IdentityService;
 use crate::dto::workflow_dto::{
@@ -23,7 +23,7 @@ pub struct DefinitionFilter {
 }
 
 pub async fn list_definitions(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(filter): Query<DefinitionFilter>,
 ) -> Result<Json<ApiResponse<Vec<WorkflowDefinition>>>, AppError> {
@@ -32,7 +32,7 @@ pub async fn list_definitions(
 }
 
 pub async fn get_definition(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<WorkflowDefinition>>, AppError> {
@@ -41,7 +41,7 @@ pub async fn get_definition(
 }
 
 pub async fn create_definition(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateDefinitionRequest>,
 ) -> Result<Json<ApiResponse<WorkflowDefinition>>, AppError> {
@@ -59,7 +59,7 @@ pub async fn create_definition(
 }
 
 pub async fn update_definition(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(payload): Json<CreateDefinitionRequest>,
@@ -78,7 +78,7 @@ pub async fn update_definition(
 }
 
 pub async fn delete_definition(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -87,7 +87,7 @@ pub async fn delete_definition(
 }
 
 pub async fn start_instance(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<StartInstanceRequest>,
 ) -> Result<Json<ApiResponse<WorkflowInstance>>, AppError> {
@@ -105,7 +105,7 @@ pub async fn start_instance(
 }
 
 pub async fn my_tasks(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<ApprovalNode>>>, AppError> {
     let items = WorkflowService::my_tasks(&pool, user.0.user_id).await?;
@@ -114,7 +114,7 @@ pub async fn my_tasks(
 
 /// Task detail: node + owning instance (entity_type/entity_id for the UI to link back).
 pub async fn get_task(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     _user: AuthenticatedUser,
     Path(node_id): Path<i64>,
 ) -> Result<Json<ApiResponse<TaskDetail>>, AppError> {
@@ -129,7 +129,7 @@ pub struct TaskDetail {
 }
 
 pub async fn approve_task(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(node_id): Path<i64>,
     Json(payload): Json<ApproveTaskRequest>,
@@ -139,7 +139,7 @@ pub async fn approve_task(
 }
 
 pub async fn reject_task(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(node_id): Path<i64>,
     Json(payload): Json<RejectTaskRequest>,
@@ -149,7 +149,7 @@ pub async fn reject_task(
 }
 
 pub async fn delegate_task(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<DelegateTaskRequest>,
 ) -> Result<Json<ApiResponse<WorkflowDelegation>>, AppError> {

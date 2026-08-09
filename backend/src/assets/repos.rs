@@ -1,17 +1,17 @@
 //! Fixed asset repositories.
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use crate::models::assets::{DepreciationEntry, FixedAsset};
 
 pub struct AssetRepo;
 
 impl AssetRepo {
-    pub async fn create(pool: &PgPool, a: &FixedAsset) -> Result<FixedAsset, sqlx::Error> {
+    pub async fn create(pool: &SqlitePool, a: &FixedAsset) -> Result<FixedAsset, sqlx::Error> {
         sqlx::query_as::<_, FixedAsset>(
             "INSERT INTO fixed_assets \
              (tenant_id, asset_no, name, category, purchase_date, purchase_cost, salvage_value, \
               useful_life_months, current_value, location, department_id, notes) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
              RETURNING id, tenant_id, asset_no, name, category, purchase_date, purchase_cost, \
                        salvage_value, useful_life_months, current_value, status, location, \
                        department_id, notes, created_at, updated_at, deleted_at",
@@ -32,26 +32,27 @@ impl AssetRepo {
         .await
     }
 
-    pub async fn list(pool: &PgPool, tenant_id: i64, status: Option<&str>) -> Result<Vec<FixedAsset>, sqlx::Error> {
+    pub async fn list(pool: &SqlitePool, tenant_id: i64, status: Option<&str>) -> Result<Vec<FixedAsset>, sqlx::Error> {
         sqlx::query_as::<_, FixedAsset>(
             "SELECT id, tenant_id, asset_no, name, category, purchase_date, purchase_cost, \
                     salvage_value, useful_life_months, current_value, status, location, \
                     department_id, notes, created_at, updated_at, deleted_at \
-             FROM fixed_assets WHERE tenant_id = $1 AND deleted_at IS NULL \
-             AND ($2::text IS NULL OR status = $2) ORDER BY id DESC LIMIT 500",
+             FROM fixed_assets WHERE tenant_id = ? AND deleted_at IS NULL \
+             AND (? IS NULL OR status = ?) ORDER BY id DESC LIMIT 500",
         )
         .bind(tenant_id)
+        .bind(status)
         .bind(status)
         .fetch_all(pool)
         .await
     }
 
-    pub async fn find_by_id(pool: &PgPool, tenant_id: i64, id: i64) -> Result<Option<FixedAsset>, sqlx::Error> {
+    pub async fn find_by_id(pool: &SqlitePool, tenant_id: i64, id: i64) -> Result<Option<FixedAsset>, sqlx::Error> {
         sqlx::query_as::<_, FixedAsset>(
             "SELECT id, tenant_id, asset_no, name, category, purchase_date, purchase_cost, \
                     salvage_value, useful_life_months, current_value, status, location, \
                     department_id, notes, created_at, updated_at, deleted_at \
-             FROM fixed_assets WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
+             FROM fixed_assets WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(id)
@@ -60,7 +61,7 @@ impl AssetRepo {
     }
 
     pub async fn update(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
         name: Option<&str>,
@@ -69,56 +70,56 @@ impl AssetRepo {
         notes: Option<&str>,
     ) -> Result<Option<FixedAsset>, sqlx::Error> {
         sqlx::query_as::<_, FixedAsset>(
-            "UPDATE fixed_assets SET name = COALESCE($3, name), \
-                    location = COALESCE($4, location), \
-                    department_id = COALESCE($5, department_id), \
-                    notes = COALESCE($6, notes), updated_at = NOW() \
-             WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL \
+            "UPDATE fixed_assets SET name = COALESCE(?, name), \
+                    location = COALESCE(?, location), \
+                    department_id = COALESCE(?, department_id), \
+                    notes = COALESCE(?, notes), updated_at = datetime('now') \
+             WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL \
              RETURNING id, tenant_id, asset_no, name, category, purchase_date, purchase_cost, \
                        salvage_value, useful_life_months, current_value, status, location, \
                        department_id, notes, created_at, updated_at, deleted_at",
         )
-        .bind(tenant_id)
-        .bind(id)
         .bind(name)
         .bind(location)
         .bind(department_id)
         .bind(notes)
+        .bind(tenant_id)
+        .bind(id)
         .fetch_optional(pool)
         .await
     }
 
     pub async fn update_value_and_status(
-        pool: &PgPool,
+        pool: &SqlitePool,
         tenant_id: i64,
         id: i64,
-        current_value: rust_decimal::Decimal,
+        current_value: f64,
         status: &str,
     ) -> Result<Option<FixedAsset>, sqlx::Error> {
         sqlx::query_as::<_, FixedAsset>(
-            "UPDATE fixed_assets SET current_value = $3, status = $4, updated_at = NOW() \
-             WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL \
+            "UPDATE fixed_assets SET current_value = ?, status = ?, updated_at = datetime('now') \
+             WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL \
              RETURNING id, tenant_id, asset_no, name, category, purchase_date, purchase_cost, \
                        salvage_value, useful_life_months, current_value, status, location, \
                        department_id, notes, created_at, updated_at, deleted_at",
         )
-        .bind(tenant_id)
-        .bind(id)
         .bind(current_value)
         .bind(status)
+        .bind(tenant_id)
+        .bind(id)
         .fetch_optional(pool)
         .await
     }
 
     pub async fn insert_depreciation(
-        pool: &PgPool,
+        pool: &SqlitePool,
         asset_id: i64,
         period: &str,
-        amount: rust_decimal::Decimal,
+        amount: f64,
     ) -> Result<DepreciationEntry, sqlx::Error> {
         sqlx::query_as::<_, DepreciationEntry>(
             "INSERT INTO depreciation_entries (asset_id, period, amount) \
-             VALUES ($1, $2, $3) ON CONFLICT (asset_id, period) DO UPDATE SET amount = EXCLUDED.amount \
+             VALUES (?, ?, ?) ON CONFLICT (asset_id, period) DO UPDATE SET amount = EXCLUDED.amount \
              RETURNING id, asset_id, period, amount, created_at",
         )
         .bind(asset_id)
@@ -128,9 +129,9 @@ impl AssetRepo {
         .await
     }
 
-    pub async fn depreciation_total(pool: &PgPool, asset_id: i64) -> Result<rust_decimal::Decimal, sqlx::Error> {
-        let v: rust_decimal::Decimal = sqlx::query_scalar(
-            "SELECT COALESCE(SUM(amount), 0) FROM depreciation_entries WHERE asset_id = $1",
+    pub async fn depreciation_total(pool: &SqlitePool, asset_id: i64) -> Result<f64, sqlx::Error> {
+        let v: f64 = sqlx::query_scalar(
+            "SELECT CAST(COALESCE(SUM(amount), 0.0) AS REAL) FROM depreciation_entries WHERE asset_id = ?",
         )
         .bind(asset_id)
         .fetch_one(pool)

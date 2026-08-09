@@ -3,7 +3,7 @@
 use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::dto::procurement_dto::{
     CreateQuoteRequest, CreateReceiptRequest, CreateRequisitionRequest, UpdateQuoteStatusRequest,
@@ -29,7 +29,7 @@ pub struct IdFilter {
 
 // Requisitions
 pub async fn list_requisitions(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<StatusFilter>,
 ) -> Result<Json<ApiResponse<Vec<PurchaseRequisition>>>, AppError> {
@@ -37,7 +37,7 @@ pub async fn list_requisitions(
 }
 
 pub async fn get_requisition(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PurchaseRequisition>>, AppError> {
@@ -45,7 +45,7 @@ pub async fn get_requisition(
 }
 
 pub async fn create_requisition(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateRequisitionRequest>,
 ) -> Result<Json<ApiResponse<PurchaseRequisition>>, AppError> {
@@ -53,7 +53,7 @@ pub async fn create_requisition(
 }
 
 pub async fn update_requisition_status(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(p): Json<StatusFilter>,
@@ -64,7 +64,7 @@ pub async fn update_requisition_status(
 
 // Goods receipts
 pub async fn list_receipts(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<IdFilter>,
 ) -> Result<Json<ApiResponse<Vec<PoReceipt>>>, AppError> {
@@ -72,7 +72,7 @@ pub async fn list_receipts(
 }
 
 pub async fn get_receipt(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ReceiptDetail>>, AppError> {
@@ -87,7 +87,7 @@ pub struct ReceiptDetail {
 }
 
 pub async fn create_receipt(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateReceiptRequest>,
 ) -> Result<Json<ApiResponse<PoReceipt>>, AppError> {
@@ -96,7 +96,7 @@ pub async fn create_receipt(
 
 // Supplier quotes
 pub async fn list_quotes(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Query(f): Query<IdFilter>,
 ) -> Result<Json<ApiResponse<Vec<SupplierQuote>>>, AppError> {
@@ -104,7 +104,7 @@ pub async fn list_quotes(
 }
 
 pub async fn create_quote(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateQuoteRequest>,
 ) -> Result<Json<ApiResponse<SupplierQuote>>, AppError> {
@@ -112,7 +112,7 @@ pub async fn create_quote(
 }
 
 pub async fn update_quote_status(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
     Json(p): Json<UpdateQuoteStatusRequest>,
@@ -121,7 +121,7 @@ pub async fn update_quote_status(
 }
 
 pub async fn supplier_scorecard(
-    Extension(pool): Extension<PgPool>,
+    Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(supplier_id): Path<i64>,
 ) -> Result<Json<ApiResponse<SupplierScorecard>>, AppError> {
