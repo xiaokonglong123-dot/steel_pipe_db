@@ -108,23 +108,27 @@ impl TraceService {
                     .collect();
 
                 let mut items_out: Vec<serde_json::Value> = Vec::new();
+                // Collect all (item_id, quantity) pairs first, then resolve
+                // current stock in ONE aggregate query (avoids N+1 per item).
+                let mut pairs: Vec<(i64, f64)> = Vec::new();
                 for rec in &records {
                     let record_items = InboundRepo::find_items(pool, rec.id)
                         .await
                         .map_err(AppError::from)?;
-
                     for item in &record_items {
-                        let stock =
-                            match InventoryRepo::stock_on_hand(pool, item.item_id).await {
-                                Ok(s) => s,
-                                Err(_) => 0.0,
-                            };
-                        items_out.push(serde_json::json!({
-                            "item_id": item.item_id,
-                            "quantity": item.quantity,
-                            "current_stock": stock,
-                        }));
+                        pairs.push((item.item_id, item.quantity));
                     }
+                }
+                let item_ids: Vec<i64> = pairs.iter().map(|(id, _)| *id).collect();
+                let stock_map = InventoryRepo::stock_on_hand_map(pool, &item_ids)
+                    .await
+                    .map_err(AppError::from)?;
+                for (item_id, quantity) in pairs {
+                    items_out.push(serde_json::json!({
+                        "item_id": item_id,
+                        "quantity": quantity,
+                        "current_stock": stock_map.get(&item_id).copied().unwrap_or(0.0),
+                    }));
                 }
 
                 (records_json, items_out)
@@ -146,23 +150,26 @@ impl TraceService {
                     .collect();
 
                 let mut items_out: Vec<serde_json::Value> = Vec::new();
+                // Same batching as the inbound branch — one stock query total.
+                let mut pairs: Vec<(i64, f64)> = Vec::new();
                 for rec in &records {
                     let record_items = OutboundRepo::find_items(pool, rec.id)
                         .await
                         .map_err(AppError::from)?;
-
                     for item in &record_items {
-                        let stock =
-                            match InventoryRepo::stock_on_hand(pool, item.item_id).await {
-                                Ok(s) => s,
-                                Err(_) => 0.0,
-                            };
-                        items_out.push(serde_json::json!({
-                            "item_id": item.item_id,
-                            "quantity": item.quantity,
-                            "current_stock": stock,
-                        }));
+                        pairs.push((item.item_id, item.quantity));
                     }
+                }
+                let item_ids: Vec<i64> = pairs.iter().map(|(id, _)| *id).collect();
+                let stock_map = InventoryRepo::stock_on_hand_map(pool, &item_ids)
+                    .await
+                    .map_err(AppError::from)?;
+                for (item_id, quantity) in pairs {
+                    items_out.push(serde_json::json!({
+                        "item_id": item_id,
+                        "quantity": quantity,
+                        "current_stock": stock_map.get(&item_id).copied().unwrap_or(0.0),
+                    }));
                 }
 
                 (records_json, items_out)

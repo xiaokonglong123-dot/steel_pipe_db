@@ -59,6 +59,32 @@ impl InventoryRepo {
         Ok(v)
     }
 
+    /// Signed on-hand quantity for many items at once — one aggregate query
+    /// instead of N per-item `stock_on_hand` calls. Returns `(item_id, stock)`.
+    pub async fn stock_on_hand_map(
+        pool: &SqlitePool,
+        item_ids: &[i64],
+    ) -> Result<std::collections::HashMap<i64, f64>, sqlx::Error> {
+        if item_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let ids: Vec<String> = item_ids.iter().map(|id| id.to_string()).collect();
+        let placeholders = vec!["?"; ids.len()].join(",");
+        let sql = format!(
+            "SELECT l.item_id, \
+                    CAST(COALESCE(SUM(CASE WHEN l.change_type IN ('inbound', 'check_adjust') \
+                                           THEN l.quantity ELSE -l.quantity END), 0.0) AS REAL) AS v \
+             FROM inventory_logs l WHERE l.item_id IN ({}) GROUP BY l.item_id",
+            placeholders
+        );
+        let mut query = sqlx::query_as::<_, (i64, f64)>(&sql);
+        for id in &ids {
+            query = query.bind(id);
+        }
+        let rows = query.fetch_all(pool).await?;
+        Ok(rows.into_iter().collect())
+    }
+
     /// Signed on-hand quantity for a single item scoped to one location.
     /// A log counts toward a location when the location appears on either side
     /// of the movement (from_location_id / to_location_id).

@@ -39,9 +39,17 @@ pub async fn list_locations_handler(
     let page_size = pagination.page_size();
 
     let active_only = query.active_only.unwrap_or(false);
-    let cache_key = if active_only { "locations_active" } else { "locations_all" };
+    // Cache key must include page/page_size: the cached payload is the result
+    // of the *paginated* query (current page's items + total). Without the
+    // pagination in the key, a page-2 request would serve page-1 data.
+    let cache_key = format!(
+        "locations:{}:p{}:s{}",
+        if active_only { "active" } else { "all" },
+        page,
+        page_size
+    );
 
-    if let Some(cached_json) = cache.locations.get(cache_key).await {
+    if let Some(cached_json) = cache.locations.get(&cache_key).await {
         if let Ok(cached) = serde_json::from_value::<(Vec<Location>, u64)>(cached_json) {
             let (items, total) = cached;
             return Ok(PaginatedResponse::ok(items, total, page, page_size));
@@ -49,7 +57,7 @@ pub async fn list_locations_handler(
     }
 
     let (items, total) = LocationService::list_locations(&pool, &pagination, active_only).await?;
-    cache.locations.insert(cache_key.to_string(), serde_json::to_value((&items, total)).map_err(AppError::from)?).await;
+    cache.locations.insert(cache_key, serde_json::to_value((&items, total)).map_err(AppError::from)?).await;
     Ok(PaginatedResponse::ok(items, total, page, page_size))
 }
 
