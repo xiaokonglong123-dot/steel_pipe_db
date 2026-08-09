@@ -10,7 +10,7 @@ use erp_server::dto::auth_dto::{
     ChangePasswordRequest, CreateUserRequest, LoginRequest, RefreshTokenRequest, UpdateUserRequest,
 };
 use erp_server::dto::common::PaginationParams;
-use erp_server::services::auth_service::AuthService;
+use erp_server::auth::services_legacy::AuthService;
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 /// Login

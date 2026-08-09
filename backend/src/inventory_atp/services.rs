@@ -12,8 +12,8 @@ use crate::inventory_atp::repos::{AtpSlotRepo, CountRepo, TransferRepo};
 use crate::models::inventory_atp::{
     AtpOverviewRow, AtpSlot, CountSession, CountTemplate, InternalTransfer,
 };
-use crate::repositories::inventory_log_repo::InventoryLogRepo;
-use crate::repositories::inventory_repo::{CreateInventoryLog, InventoryRepo};
+use crate::inventory::inventory_log_repo::InventoryLogRepo;
+use crate::inventory::inventory_repo::{CreateInventoryLog, InventoryRepo};
 
 pub struct InventoryAtpService;
 
@@ -30,7 +30,7 @@ impl InventoryAtpService {
         if dto.quantity <= 0.0 {
             return Err(AppError::Validation("Reservation quantity must be positive".into()));
         }
-        let item = crate::services::item_service::ItemService::get_item(pool, dto.item_id).await?;
+        let item = crate::items::item_service::ItemService::get_item(pool, dto.item_id).await?;
         let sku = Some(item.sku.as_str());
         // Guard: cannot reserve more than currently available.
         let overview = AtpSlotRepo::item_atp(pool, tenant_id, dto.item_id)
@@ -95,7 +95,7 @@ impl InventoryAtpService {
             return Err(AppError::Validation("One or both locations not found".into()));
         }
         // Item must exist.
-        let item = crate::services::item_service::ItemService::get_item(pool, dto.item_id).await?;
+        let item = crate::items::item_service::ItemService::get_item(pool, dto.item_id).await?;
 
         // Source availability check.
         let available = InventoryRepo::stock_on_hand_at_location(pool, dto.item_id, dto.from_location_id)

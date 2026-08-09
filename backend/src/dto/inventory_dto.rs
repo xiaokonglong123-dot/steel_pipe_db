@@ -268,8 +268,8 @@ pub struct BatchCreateInboundRequest {
 #[derive(Debug, Serialize)]
 pub struct InventoryStatistics {
     pub total_in_stock: f64,
-    pub by_category: Vec<crate::repositories::inventory_repo::CategoryCount>,
-    pub by_location: Vec<crate::repositories::inventory_repo::LocationCount>,
+    pub by_category: Vec<crate::inventory::inventory_repo::CategoryCount>,
+    pub by_location: Vec<crate::inventory::inventory_repo::LocationCount>,
 }
 
 /// Check record detail response DTO — record header + check items.

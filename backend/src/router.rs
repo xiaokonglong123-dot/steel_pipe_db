@@ -55,22 +55,22 @@ use crate::middleware::rate_limit::{
 };
 use crate::middleware::security_headers::security_headers;
 
-use crate::handlers::atp_handler;
-use crate::handlers::auth_handler;
-use crate::handlers::check_handler;
-use crate::handlers::contract_handler;
-use crate::handlers::customer_handler;
-use crate::handlers::data_io_handler;
-use crate::handlers::health_handler;
-use crate::handlers::inbound_handler;
-use crate::handlers::inventory_handler;
-use crate::handlers::item_handler;
-use crate::handlers::location_handler;
-use crate::handlers::outbound_handler;
-use crate::handlers::purchase_handler;
-use crate::handlers::report_handler;
-use crate::handlers::sales_handler;
-use crate::handlers::supplier_handler;
+use crate::inventory::atp_handler;
+use crate::auth::handlers_legacy as auth_handler;
+use crate::inventory::check_handler;
+use crate::contracts::contract_handler;
+use crate::parties::customer_handler;
+use crate::data_io::data_io_handler;
+use crate::health as health_handler;
+use crate::inventory::inbound_handler;
+use crate::inventory::inventory_handler;
+use crate::items::item_handler;
+use crate::inventory::location_handler;
+use crate::inventory::outbound_handler;
+use crate::orders::purchase_handler;
+use crate::reports::report_handler;
+use crate::orders::sales_handler;
+use crate::parties::supplier_handler;
 
 // Helper functions for route groups with role-protected write operations
 // Each returns a Router with auth_middleware + require_role on all endpoints.

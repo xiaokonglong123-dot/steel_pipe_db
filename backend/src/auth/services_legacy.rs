@@ -14,8 +14,8 @@ use crate::dto::auth_dto::{
 use crate::error::AppError;
 use crate::middleware::auth::Claims;
 use crate::models::user::{User, UserInfo};
-use crate::repositories::refresh_token_repo::RefreshTokenRepo;
-use crate::repositories::user_repo::UserRepo;
+use crate::auth::refresh_token_repo::RefreshTokenRepo;
+use crate::auth::repos_legacy::UserRepo;
 
 /// Auth service — handles login, token refresh, password management, and user CRUD.
 /// Under the hood it delegates password verification to Argon2 and JWT generation to jsonwebtoken.

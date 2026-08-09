@@ -80,7 +80,7 @@ macro_rules! party_handler {
 
         pub async fn $search_fn(
             Extension(pool): Extension<SqlitePool>,
-            Query(query): Query<crate::handlers::supplier_handler::SearchQuery>,
+            Query(query): Query<crate::parties::supplier_handler::SearchQuery>,
         ) -> Result<Json<crate::response::ApiResponse<Vec<$model>>>, crate::error::AppError> {
             let results = $service::search(&pool, &query.q).await?;
             Ok(crate::response::ApiResponse::ok(results))

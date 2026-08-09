@@ -18,11 +18,11 @@ use erp_server::dto::inventory_dto::{
     AtpQuery, CreateCheckRequest, CreateInboundRecordRequest, CreateLocationRequest,
     CreateOutboundRecordRequest, InboundItemRequest, OutboundItemRequest, SubmitCheckItemRequest,
 };
-use erp_server::services::check_service::CheckService;
-use erp_server::services::inbound_service::InboundService;
-use erp_server::services::inventory_query_service::InventoryQueryService;
-use erp_server::services::location_service::LocationService;
-use erp_server::services::outbound_service::OutboundService;
+use erp_server::inventory::check_service::CheckService;
+use erp_server::inventory::inbound_service::InboundService;
+use erp_server::inventory::inventory_query_service::InventoryQueryService;
+use erp_server::inventory::location_service::LocationService;
+use erp_server::inventory::outbound_service::OutboundService;
 
 /// Seed a generic item (商品) row; returns item id.
 async fn seed_item(pool: &sqlx::SqlitePool, sku: &str, name: &str) -> i64 {

@@ -9,7 +9,7 @@ use erp_server::dto::common::PaginationParams;
 use erp_server::dto::supplier_dto::{
     CreateSupplierRequest, SupplierFilterParams, UpdateSupplierRequest,
 };
-use erp_server::services::supplier_service::SupplierService;
+use erp_server::parties::supplier_service::SupplierService;
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 /// Create

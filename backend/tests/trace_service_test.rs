@@ -9,7 +9,7 @@
 
 mod common;
 
-use erp_server::services::trace_service::TraceService;
+use erp_server::inventory::trace_service::TraceService;
 
 /// Seed a generic item (商品) row; returns item id.
 async fn seed_item(pool: &sqlx::SqlitePool, sku: &str, name: &str) -> i64 {

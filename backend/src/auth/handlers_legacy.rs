@@ -16,10 +16,10 @@ use crate::dto::common::PaginationParams;
 use crate::error::AppError;
 use crate::middleware::auth::{AuthenticatedUser, JwtSecret};
 use crate::models::user::UserInfo;
-use crate::repositories::operation_log_repo::{CreateOperationLog, OperationLogRepo};
-use crate::repositories::user_repo::UserRepo;
+use crate::operation_log::{CreateOperationLog, OperationLogRepo};
+use crate::auth::repos_legacy::UserRepo;
 use crate::response::ApiResponse;
-use crate::services::auth_service::AuthService;
+use crate::auth::services_legacy::AuthService;
 
 /// POST `/api/v1/auth/login` — User login with access + refresh token pair.
 ///

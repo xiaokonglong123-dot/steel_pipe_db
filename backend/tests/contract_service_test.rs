@@ -29,7 +29,7 @@ use erp_server::dto::contract_dto::{
     ContractFilterParams, CreateContractItemRequest, CreateContractRequest, CreatePaymentRequest,
     UpdateContractItemRequest, UpdateContractRequest, UpdatePaymentRequest,
 };
-use erp_server::services::contract_service::ContractService;
+use erp_server::contracts::contract_service::ContractService;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // create_contract

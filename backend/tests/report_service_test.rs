@@ -10,7 +10,7 @@
 
 mod common;
 
-use erp_server::services::report_service::ReportService;
+use erp_server::reports::report_service::ReportService;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Item helpers

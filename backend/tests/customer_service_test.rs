@@ -9,7 +9,7 @@ use erp_server::dto::common::PaginationParams;
 use erp_server::dto::customer_dto::{
     CreateCustomerRequest, CustomerFilterParams, UpdateCustomerRequest,
 };
-use erp_server::services::customer_service::CustomerService;
+use erp_server::parties::customer_service::CustomerService;
 
 /// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 /// Create

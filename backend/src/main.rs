@@ -6,8 +6,8 @@ use sqlx::sqlite::SqlitePoolOptions;
 use tracing_subscriber::EnvFilter;
 
 use crate::dto::auth_dto::CreateUserRequest;
-use crate::repositories::user_repo::UserRepo;
-use crate::services::auth_service::AuthService;
+use crate::auth::repos_legacy::UserRepo;
+use crate::auth::services_legacy::AuthService;
 
 mod auth;
 mod macros;
@@ -24,17 +24,24 @@ mod bi;
 mod portal;
 mod notification;
 mod assets;
+mod items;
+mod inventory;
+mod orders;
+mod parties;
+mod contracts;
+mod reports;
+mod data_io;
+mod health;
+mod utils;
+mod operation_log;
 mod config;
 mod domain;
 mod dto;
 mod error;
-mod handlers;
 mod middleware;
 mod models;
-mod repositories;
 mod response;
 mod router;
-mod services;
 
 #[tokio::main]
 async fn main() {

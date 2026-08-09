@@ -41,14 +41,22 @@ erp/
 │       ├── main.rs         ← Entry: tracing, DB pool, migrate, start server
 │       ├── lib.rs          ← Module declarations re-exported
 │       ├── router.rs       ← ~190 routes (~170 unique paths), all routes assembled here
-│       ├── handlers/       ← 1 file per entity (thin: extract → call service → respond)
-│       ├── services/       ← business logic (unit structs, static methods)
-│       ├── repositories/   ← pure SQL, soft-delete aware
+│       ├── items/          ← Item (商品) master: handlers.rs + services.rs + repos.rs
+│       ├── inventory/      ← Stock, inbound/outbound, locations, checks, trace, legacy ATP: handlers.rs + services.rs + repos.rs
+│       ├── orders/         ← Purchase & sales orders: handlers.rs + services.rs + repos.rs
+│       ├── contracts/      ← Contract terms & payments: handlers.rs + services.rs + repos.rs
+│       ├── parties/        ← Suppliers & customers: handlers.rs + services.rs + repos.rs
+│       ├── reports/        ← Aggregations & dashboards: handlers.rs + services.rs + repos.rs
+│       ├── data_io/        ← Import/export & operation logs: handlers.rs + services.rs + repos.rs
+│       ├── health.rs       ← Health/readiness endpoints
+│       ├── utils.rs        ← Order number generation + status transition validation
+│       ├── operation_log.rs← Operation log repo
 │       ├── models/         ← DB row structs (sqlx::FromRow)
 │       ├── dto/            ← request/response types
 │       ├── domain/         ← enums/domain types
-│       ├── middleware/     ← auth.rs + rbac.rs + rate_limit.rs + security_headers.rs
-│       ├── auth/           ← RBAC: repos.rs + services.rs (IdentityService) + handlers.rs (roles/permissions/departments/tenants)
+│       ├── middleware/     ← auth.rs (含 AuthenticatedUser extractor) + rbac.rs + rate_limit.rs + security_headers.rs
+│       ├── macros.rs       ← party_handler!/party_service! 宏（suppliers/customers 共用）
+│       ├── auth/           ← RBAC: repos.rs + services.rs (IdentityService) + handlers.rs (roles/permissions/departments/tenants) + handlers_legacy.rs (login/users) + services_legacy.rs + repos_legacy.rs + refresh_token_repo.rs
 │       ├── workflow/       ← approval engine: repos.rs + services.rs (WorkflowService) + handlers.rs (definitions/instances/tasks)
 │       ├── hr/             ← HR: repos.rs + services.rs (HrService) + handlers.rs (employees/attendance/salaries/labor contracts)
 │       ├── finance/        ← Finance: repos.rs + services.rs (FinanceService) + handlers.rs (accounts/journal/invoices/payments/trial-balance)

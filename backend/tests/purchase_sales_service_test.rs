@@ -51,8 +51,8 @@ use erp_server::dto::sales_dto::{
     RejectOrderRequest as SalesRejectReq, SalesOrderFilterParams,
     SalesOrderStatusTransitionRequest, UpdateSalesItemRequest, UpdateSalesOrderRequest,
 };
-use erp_server::services::purchase_service::PurchaseService;
-use erp_server::services::sales_service::SalesService;
+use erp_server::orders::purchase_service::PurchaseService;
+use erp_server::orders::sales_service::SalesService;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Purchase Order — create
