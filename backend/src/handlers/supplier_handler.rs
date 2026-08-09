@@ -11,7 +11,7 @@ pub struct SearchQuery {
     pub q: String,
 }
 
-crate::handlers::macros::party_handler! {
+crate::macros::party_handler! {
     service: SupplierService,
     model: Supplier,
     create_dto: CreateSupplierRequest,

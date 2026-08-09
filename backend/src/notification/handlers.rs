@@ -10,7 +10,7 @@ use crate::dto::notification_dto::{
     CreateTemplateRequest, SendNotificationRequest, UpdatePreferenceRequest,
 };
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::models::notification::{Notification, NotificationPreference};
 use crate::notification::services::NotificationService;
 use crate::response::ApiResponse;

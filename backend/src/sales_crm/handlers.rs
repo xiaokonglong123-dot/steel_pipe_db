@@ -8,7 +8,7 @@ use sqlx::SqlitePool;
 
 use crate::dto::sales_crm_dto::{CreateSalesQuoteRequest, CreateShipmentRequest, UpdateShipmentStatusRequest};
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::models::sales_crm::{CustomerCredit, SalesQuote, SalesShipment};
 use crate::response::ApiResponse;
 use crate::sales_crm::services::SalesCrmService;

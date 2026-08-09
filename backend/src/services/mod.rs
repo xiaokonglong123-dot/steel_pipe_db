@@ -7,7 +7,6 @@ pub mod inbound_service;
 pub mod item_service;
 pub mod inventory_query_service;
 pub mod location_service;
-mod macros;
 pub mod outbound_service;
 pub mod purchase_service;
 pub mod report_service;

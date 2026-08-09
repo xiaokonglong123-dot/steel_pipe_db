@@ -10,7 +10,7 @@ use crate::dto::project_dto::{
     CreateProjectRequest, CreateTransactionRequest, CreateWbsRequest, UpdateWbsProgressRequest,
 };
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::models::project::{Project, ProjectFinancials, ProjectTransaction, WbsElement};
 use crate::project::services::ProjectService;
 use crate::response::ApiResponse;

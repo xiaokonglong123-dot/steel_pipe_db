@@ -9,7 +9,7 @@ use sqlx::SqlitePool;
 use crate::assets::services::AssetService;
 use crate::dto::assets_dto::{CreateAssetRequest, DepreciateRequest, UpdateAssetRequest};
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::models::assets::{DepreciationEntry, FixedAsset};
 use crate::response::ApiResponse;
 

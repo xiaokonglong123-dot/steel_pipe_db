@@ -10,6 +10,7 @@ use crate::repositories::user_repo::UserRepo;
 use crate::services::auth_service::AuthService;
 
 mod auth;
+mod macros;
 mod cache;
 mod workflow;
 mod hr;

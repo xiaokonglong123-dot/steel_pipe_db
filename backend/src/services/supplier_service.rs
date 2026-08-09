@@ -4,7 +4,7 @@ use crate::dto::supplier_dto::{
 use crate::models::supplier::Supplier;
 use crate::repositories::supplier_repo::SupplierRepo;
 
-crate::services::macros::party_service! {
+crate::macros::party_service! {
     service_name: SupplierService,
     model: Supplier,
     repo: SupplierRepo,

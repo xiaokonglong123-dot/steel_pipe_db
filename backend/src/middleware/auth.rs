@@ -1,7 +1,8 @@
 use std::fmt;
 
 use axum::{
-    extract::Request,
+    extract::{FromRequestParts, Request},
+    http::request::Parts,
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
@@ -13,7 +14,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::auth::repos::UserRoleRepo;
-use crate::error::ApiErrorResponse;
+use crate::error::{ApiErrorResponse, AppError};
 
 #[derive(Clone)]
 pub struct JwtSecret(pub String);
@@ -61,6 +62,27 @@ pub struct AuthContext {
     pub username: String,
     pub role: String,
     pub permissions: Vec<String>,
+}
+
+/// Axum extractor for the authenticated user — reads the [`AuthContext`] that
+/// [`auth_middleware`] inserted into request extensions.
+///
+/// Handlers accept `AuthenticatedUser` as an extractor argument instead of
+/// reaching into `Extension<AuthContext>` directly. Rejects with 401
+/// (`AppError::Unauthorized`) when no auth context is present.
+pub struct AuthenticatedUser(pub AuthContext);
+
+impl<S: Sync> FromRequestParts<S> for AuthenticatedUser {
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<AuthContext>()
+            .cloned()
+            .map(AuthenticatedUser)
+            .ok_or_else(|| AppError::Unauthorized("Not authenticated".into()))
+    }
 }
 
 fn err_response(status: StatusCode, code: u32, message: &str) -> Response {

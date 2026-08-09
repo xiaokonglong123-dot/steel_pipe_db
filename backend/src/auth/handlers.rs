@@ -18,7 +18,7 @@ use crate::dto::rbac_dto::{
     UpdateDepartmentRequest, UpdateRoleRequest,
 };
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::response::ApiResponse;
 
 /// GET `/api/v1/auth/tenants/{id}` — tenant details (self-tenant only).

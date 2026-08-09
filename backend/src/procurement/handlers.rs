@@ -10,7 +10,7 @@ use crate::dto::procurement_dto::{
     CreateQuoteRequest, CreateReceiptRequest, CreateRequisitionRequest, UpdateQuoteStatusRequest,
 };
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::models::procurement::{
     PoReceipt, PoReceiptItem, PurchaseRequisition, SupplierQuote, SupplierScorecard,
 };

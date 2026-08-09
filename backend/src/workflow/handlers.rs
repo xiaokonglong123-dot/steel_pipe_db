@@ -13,7 +13,7 @@ use crate::dto::workflow_dto::{
     StartInstanceRequest,
 };
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::models::workflow::{ApprovalNode, WorkflowDefinition, WorkflowDelegation, WorkflowInstance};
 use crate::response::ApiResponse;
 use crate::workflow::services::WorkflowService;

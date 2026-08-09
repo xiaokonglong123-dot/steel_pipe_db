@@ -12,7 +12,7 @@ use crate::dto::finance_dto::{
 };
 use crate::error::AppError;
 use crate::finance::services::FinanceService;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::models::finance::{
     Account, FinanceInvoice, FinanceInvoiceItem, FinancePayment, JournalEntry, JournalEntryDetail,
     TrialBalanceRow,

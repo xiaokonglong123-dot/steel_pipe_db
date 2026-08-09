@@ -9,7 +9,7 @@ use sqlx::SqlitePool;
 
 use crate::dto::portal_dto::{AcceptPurchaseRequest, CreatePortalAccountRequest, PortalLoginRequest};
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::JwtSecret;
 use crate::models::portal::PortalEvent;
 use crate::portal::services::{PortalPurchaseRow, PortalSalesRow, PortalService};

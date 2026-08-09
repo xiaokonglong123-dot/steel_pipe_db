@@ -11,7 +11,7 @@ use crate::dto::inventory_atp_dto::{
     CreateTransferRequest,
 };
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::inventory_atp::services::InventoryAtpService;
 use crate::models::inventory_atp::{
     AtpOverviewRow, AtpSlot, CountSession, CountTemplate, InternalTransfer,

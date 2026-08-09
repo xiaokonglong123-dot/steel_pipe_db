@@ -11,7 +11,7 @@ pub struct SearchQuery {
     pub q: String,
 }
 
-crate::handlers::macros::party_handler! {
+crate::macros::party_handler! {
     service: CustomerService,
     model: Customer,
     create_dto: CreateCustomerRequest,

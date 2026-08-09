@@ -9,7 +9,7 @@ use crate::bi::services::{
     BiService, FinanceSummary, InventoryValueRow, SalesTrendRow, SupplierPerfRow,
 };
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::response::ApiResponse;
 
 #[derive(Debug, Deserialize)]

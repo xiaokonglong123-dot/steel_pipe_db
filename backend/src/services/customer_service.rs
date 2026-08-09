@@ -4,7 +4,7 @@ use crate::dto::customer_dto::{
 use crate::models::customer::Customer;
 use crate::repositories::customer_repo::CustomerRepo;
 
-crate::services::macros::party_service! {
+crate::macros::party_service! {
     service_name: CustomerService,
     model: Customer,
     repo: CustomerRepo,

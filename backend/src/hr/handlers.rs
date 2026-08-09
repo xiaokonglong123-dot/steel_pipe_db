@@ -12,7 +12,7 @@ use crate::dto::hr_dto::{
     CreatePositionRequest, GenerateSalaryRequest, TerminateEmployeeRequest, UpdateEmployeeRequest,
 };
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::hr::services::HrService;
 use crate::models::hr::{
     HrAttendance, HrAttendanceRule, HrContract, HrEmployee, HrPosition, HrSalary,

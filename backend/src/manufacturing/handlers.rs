@@ -11,7 +11,7 @@ use crate::dto::manufacturing_dto::{
     ResolveNcrRequest,
 };
 use crate::error::AppError;
-use crate::handlers::auth_handler::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUser;
 use crate::manufacturing::services::ManufacturingService;
 use crate::models::manufacturing::{Bom, BomItem, Inspection, Ncr, WorkOrder, WorkOrderStep};
 use crate::response::ApiResponse;

@@ -9,7 +9,6 @@ pub mod inbound_handler;
 pub mod item_handler;
 pub mod inventory_handler;
 pub mod location_handler;
-mod macros;
 pub mod outbound_handler;
 pub mod purchase_handler;
 pub mod report_handler;
