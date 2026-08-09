@@ -72,15 +72,22 @@ impl FinanceService {
         if dto.details.is_empty() {
             return Err(AppError::Validation("Journal entry needs at least one detail line".into()));
         }
-        let mut debit_total = 0.0f64;
-        let mut credit_total = 0.0f64;
+        // Accumulate in Decimal to avoid float drift when comparing debit vs credit.
+        // Values are stored as f64 (SQLite REAL), but the balance gate must not
+        // reject an entry because 0.1 + 0.2 != 0.3 in binary float. Amounts are
+        // rounded to 4 decimal places (well beyond currency precision) before
+        // the balance comparison.
+        let mut debit_total = rust_decimal::Decimal::ZERO;
+        let mut credit_total = rust_decimal::Decimal::ZERO;
         for d in &dto.details {
-            let debit = d.debit.unwrap_or_default();
-            let credit = d.credit.unwrap_or_default();
-            if debit == 0.0 && credit == 0.0 {
+            let debit = rust_decimal::Decimal::from_f64_retain(d.debit.unwrap_or_default())
+                .ok_or_else(|| AppError::Validation("Invalid debit amount".into()))?;
+            let credit = rust_decimal::Decimal::from_f64_retain(d.credit.unwrap_or_default())
+                .ok_or_else(|| AppError::Validation("Invalid credit amount".into()))?;
+            if debit.is_zero() && credit.is_zero() {
                 return Err(AppError::Validation("Each detail line needs debit or credit".into()));
             }
-            if debit != 0.0 && credit != 0.0 {
+            if !debit.is_zero() && !credit.is_zero() {
                 return Err(AppError::Validation("A detail line cannot have both debit and credit".into()));
             }
             // Account must exist in this tenant.
@@ -90,7 +97,7 @@ impl FinanceService {
             debit_total += debit;
             credit_total += credit;
         }
-        if debit_total != credit_total {
+        if debit_total.round_dp(4) != credit_total.round_dp(4) {
             return Err(AppError::Validation(format!(
                 "Journal entry is unbalanced: debit {} != credit {}",
                 debit_total, credit_total
