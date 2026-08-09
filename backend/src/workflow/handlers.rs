@@ -2,6 +2,7 @@
 //! Reuses the `AuthenticatedUser` extractor from the legacy auth handler.
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -44,7 +45,7 @@ pub async fn create_definition(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateDefinitionRequest>,
-) -> Result<Json<ApiResponse<WorkflowDefinition>>, AppError> {
+) -> Result<Response, AppError> {
     let item = WorkflowService::create_definition(
         &pool,
         user.0.tenant_id,
@@ -55,7 +56,7 @@ pub async fn create_definition(
         payload.callback_action.as_deref(),
     )
     .await?;
-    Ok(ApiResponse::ok(item))
+    Ok(ApiResponse::created(item))
 }
 
 pub async fn update_definition(
@@ -81,9 +82,9 @@ pub async fn delete_definition(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<()>>, AppError> {
+) -> Result<Response, AppError> {
     WorkflowService::delete_definition(&pool, user.0.tenant_id, id).await?;
-    Ok(ApiResponse::ok(()))
+    Ok(axum::http::StatusCode::NO_CONTENT.into_response())
 }
 
 pub async fn start_instance(

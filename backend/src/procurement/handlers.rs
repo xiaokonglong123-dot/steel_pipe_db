@@ -1,6 +1,7 @@
 //! Procurement HTTP handlers.
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -48,8 +49,8 @@ pub async fn create_requisition(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateRequisitionRequest>,
-) -> Result<Json<ApiResponse<PurchaseRequisition>>, AppError> {
-    Ok(ApiResponse::ok(ProcurementService::create_requisition(&pool, user.0.tenant_id, Some(user.0.user_id), &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(ProcurementService::create_requisition(&pool, user.0.tenant_id, Some(user.0.user_id), &p).await?))
 }
 
 pub async fn update_requisition_status(
@@ -90,8 +91,8 @@ pub async fn create_receipt(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateReceiptRequest>,
-) -> Result<Json<ApiResponse<PoReceipt>>, AppError> {
-    Ok(ApiResponse::ok(ProcurementService::create_receipt(&pool, user.0.tenant_id, Some(user.0.user_id), &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(ProcurementService::create_receipt(&pool, user.0.tenant_id, Some(user.0.user_id), &p).await?))
 }
 
 // Supplier quotes
@@ -107,8 +108,8 @@ pub async fn create_quote(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateQuoteRequest>,
-) -> Result<Json<ApiResponse<SupplierQuote>>, AppError> {
-    Ok(ApiResponse::ok(ProcurementService::create_quote(&pool, user.0.tenant_id, &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(ProcurementService::create_quote(&pool, user.0.tenant_id, &p).await?))
 }
 
 pub async fn update_quote_status(

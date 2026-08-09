@@ -1,6 +1,7 @@
 //! Inventory ATP HTTP handlers.
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -59,8 +60,8 @@ pub async fn create_transfer(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateTransferRequest>,
-) -> Result<Json<ApiResponse<InternalTransfer>>, AppError> {
-    Ok(ApiResponse::ok(InventoryAtpService::create_transfer(&pool, user.0.tenant_id, Some(user.0.user_id), &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(InventoryAtpService::create_transfer(&pool, user.0.tenant_id, Some(user.0.user_id), &p).await?))
 }
 
 pub async fn list_transfers(
@@ -75,8 +76,8 @@ pub async fn create_count_template(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateCountTemplateRequest>,
-) -> Result<Json<ApiResponse<CountTemplate>>, AppError> {
-    Ok(ApiResponse::ok(InventoryAtpService::create_count_template(&pool, user.0.tenant_id, &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(InventoryAtpService::create_count_template(&pool, user.0.tenant_id, &p).await?))
 }
 
 pub async fn list_count_templates(

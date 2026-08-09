@@ -3,6 +3,7 @@
 //! - `/api/v1/portal-api/*` — portal JWT endpoints (login + party-scoped views)
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::Response;
 use axum::Json;
 use sqlx::SqlitePool;
 
@@ -10,7 +11,7 @@ use crate::dto::portal_dto::{AcceptPurchaseRequest, CreatePortalAccountRequest, 
 use crate::error::AppError;
 use crate::handlers::auth_handler::AuthenticatedUser;
 use crate::middleware::auth::JwtSecret;
-use crate::models::portal::{PortalAccount, PortalEvent};
+use crate::models::portal::PortalEvent;
 use crate::portal::services::{PortalPurchaseRow, PortalSalesRow, PortalService};
 use crate::response::ApiResponse;
 
@@ -20,10 +21,10 @@ use crate::response::ApiResponse;
 
 pub async fn create_account(
     Extension(pool): Extension<SqlitePool>,
-    _user: AuthenticatedUser,
+    user: AuthenticatedUser,
     Json(p): Json<CreatePortalAccountRequest>,
-) -> Result<Json<ApiResponse<PortalAccount>>, AppError> {
-    Ok(ApiResponse::ok(PortalService::create_account(&pool, 1, &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(PortalService::create_account(&pool, user.0.tenant_id, &p).await?))
 }
 
 // ---------------------------------------------------------------------------

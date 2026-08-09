@@ -1,6 +1,7 @@
 //! Finance HTTP handlers — accounts, journal entries, invoices, payments.
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -34,9 +35,9 @@ pub async fn create_account(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateAccountRequest>,
-) -> Result<Json<ApiResponse<Account>>, AppError> {
+) -> Result<Response, AppError> {
     let item = FinanceService::create_account(&pool, user.0.tenant_id, &payload).await?;
-    Ok(ApiResponse::ok(item))
+    Ok(ApiResponse::created(item))
 }
 
 pub async fn update_account(
@@ -87,9 +88,9 @@ pub async fn create_journal_entry(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateJournalEntryRequest>,
-) -> Result<Json<ApiResponse<JournalEntry>>, AppError> {
+) -> Result<Response, AppError> {
     let item = FinanceService::create_journal_entry(&pool, user.0.tenant_id, &payload, Some(user.0.user_id)).await?;
-    Ok(ApiResponse::ok(item))
+    Ok(ApiResponse::created(item))
 }
 
 pub async fn trial_balance(
@@ -138,9 +139,9 @@ pub async fn create_invoice(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateInvoiceRequest>,
-) -> Result<Json<ApiResponse<FinanceInvoice>>, AppError> {
+) -> Result<Response, AppError> {
     let item = FinanceService::create_invoice(&pool, user.0.tenant_id, &payload).await?;
-    Ok(ApiResponse::ok(item))
+    Ok(ApiResponse::created(item))
 }
 
 pub async fn confirm_invoice(
@@ -179,7 +180,7 @@ pub async fn create_payment(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreatePaymentRequest>,
-) -> Result<Json<ApiResponse<FinancePayment>>, AppError> {
+) -> Result<Response, AppError> {
     let item = FinanceService::create_payment(&pool, user.0.tenant_id, &payload, Some(user.0.user_id)).await?;
-    Ok(ApiResponse::ok(item))
+    Ok(ApiResponse::created(item))
 }

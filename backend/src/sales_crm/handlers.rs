@@ -1,6 +1,7 @@
 //! Sales CRM HTTP handlers.
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -36,8 +37,8 @@ pub async fn create_shipment(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateShipmentRequest>,
-) -> Result<Json<ApiResponse<SalesShipment>>, AppError> {
-    Ok(ApiResponse::ok(SalesCrmService::create_shipment(&pool, user.0.tenant_id, Some(user.0.user_id), &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(SalesCrmService::create_shipment(&pool, user.0.tenant_id, Some(user.0.user_id), &p).await?))
 }
 
 pub async fn update_shipment_status(
@@ -70,8 +71,8 @@ pub async fn create_quote(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateSalesQuoteRequest>,
-) -> Result<Json<ApiResponse<SalesQuote>>, AppError> {
-    Ok(ApiResponse::ok(SalesCrmService::create_quote(&pool, user.0.tenant_id, &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(SalesCrmService::create_quote(&pool, user.0.tenant_id, &p).await?))
 }
 
 pub async fn update_quote_status(

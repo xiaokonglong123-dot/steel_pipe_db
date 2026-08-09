@@ -1,6 +1,7 @@
 //! Manufacturing HTTP handlers.
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -52,8 +53,8 @@ pub async fn create_bom(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateBomRequest>,
-) -> Result<Json<ApiResponse<Bom>>, AppError> {
-    Ok(ApiResponse::ok(ManufacturingService::create_bom(&pool, user.0.tenant_id, &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(ManufacturingService::create_bom(&pool, user.0.tenant_id, &p).await?))
 }
 
 // Work orders
@@ -84,8 +85,8 @@ pub async fn create_work_order(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateWorkOrderRequest>,
-) -> Result<Json<ApiResponse<WorkOrder>>, AppError> {
-    Ok(ApiResponse::ok(ManufacturingService::create_work_order(&pool, user.0.tenant_id, &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(ManufacturingService::create_work_order(&pool, user.0.tenant_id, &p).await?))
 }
 
 pub async fn start_work_order(
@@ -117,8 +118,8 @@ pub async fn create_inspection(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateInspectionRequest>,
-) -> Result<Json<ApiResponse<Inspection>>, AppError> {
-    Ok(ApiResponse::ok(ManufacturingService::create_inspection(&pool, user.0.tenant_id, &p, Some(user.0.user_id)).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(ManufacturingService::create_inspection(&pool, user.0.tenant_id, &p, Some(user.0.user_id)).await?))
 }
 
 // NCRs
@@ -134,8 +135,8 @@ pub async fn create_ncr(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateNcrRequest>,
-) -> Result<Json<ApiResponse<Ncr>>, AppError> {
-    Ok(ApiResponse::ok(ManufacturingService::create_ncr(&pool, user.0.tenant_id, &p, Some(user.0.user_id)).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(ManufacturingService::create_ncr(&pool, user.0.tenant_id, &p, Some(user.0.user_id)).await?))
 }
 
 pub async fn resolve_ncr(

@@ -19,10 +19,10 @@ pub struct TrendFilter {
 
 pub async fn sales_trend(
     Extension(pool): Extension<SqlitePool>,
-    _user: AuthenticatedUser,
+    user: AuthenticatedUser,
     Query(f): Query<TrendFilter>,
 ) -> Result<Json<ApiResponse<Vec<SalesTrendRow>>>, AppError> {
-    Ok(ApiResponse::ok(BiService::sales_trend(&pool, 1, f.months.unwrap_or(12)).await?))
+    Ok(ApiResponse::ok(BiService::sales_trend(&pool, user.0.tenant_id, f.months.unwrap_or(12)).await?))
 }
 
 pub async fn inventory_value(
@@ -34,14 +34,14 @@ pub async fn inventory_value(
 
 pub async fn finance_summary(
     Extension(pool): Extension<SqlitePool>,
-    _user: AuthenticatedUser,
+    user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<FinanceSummary>>, AppError> {
-    Ok(ApiResponse::ok(BiService::finance_summary(&pool, 1).await?))
+    Ok(ApiResponse::ok(BiService::finance_summary(&pool, user.0.tenant_id).await?))
 }
 
 pub async fn supplier_performance(
     Extension(pool): Extension<SqlitePool>,
-    _user: AuthenticatedUser,
+    user: AuthenticatedUser,
 ) -> Result<Json<ApiResponse<Vec<SupplierPerfRow>>>, AppError> {
-    Ok(ApiResponse::ok(BiService::supplier_performance(&pool, 1).await?))
+    Ok(ApiResponse::ok(BiService::supplier_performance(&pool, user.0.tenant_id).await?))
 }

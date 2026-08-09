@@ -1,6 +1,7 @@
 //! Project HTTP handlers.
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -39,8 +40,8 @@ pub async fn create_project(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateProjectRequest>,
-) -> Result<Json<ApiResponse<Project>>, AppError> {
-    Ok(ApiResponse::ok(ProjectService::create_project(&pool, user.0.tenant_id, &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(ProjectService::create_project(&pool, user.0.tenant_id, &p).await?))
 }
 
 pub async fn update_project_status(
@@ -66,8 +67,8 @@ pub async fn create_wbs(
     user: AuthenticatedUser,
     Path(project_id): Path<i64>,
     Json(p): Json<CreateWbsRequest>,
-) -> Result<Json<ApiResponse<WbsElement>>, AppError> {
-    Ok(ApiResponse::ok(ProjectService::create_wbs(&pool, user.0.tenant_id, project_id, &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(ProjectService::create_wbs(&pool, user.0.tenant_id, project_id, &p).await?))
 }
 
 pub async fn update_wbs_progress(
@@ -100,6 +101,6 @@ pub async fn create_transaction(
     user: AuthenticatedUser,
     Path(project_id): Path<i64>,
     Json(p): Json<CreateTransactionRequest>,
-) -> Result<Json<ApiResponse<ProjectTransaction>>, AppError> {
-    Ok(ApiResponse::ok(ProjectService::create_transaction(&pool, user.0.tenant_id, project_id, &p, Some(user.0.user_id)).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(ProjectService::create_transaction(&pool, user.0.tenant_id, project_id, &p, Some(user.0.user_id)).await?))
 }

@@ -1,6 +1,7 @@
 //! Notification HTTP handlers.
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -10,7 +11,7 @@ use crate::dto::notification_dto::{
 };
 use crate::error::AppError;
 use crate::handlers::auth_handler::AuthenticatedUser;
-use crate::models::notification::{Notification, NotificationPreference, NotificationTemplate};
+use crate::models::notification::{Notification, NotificationPreference};
 use crate::notification::services::NotificationService;
 use crate::response::ApiResponse;
 
@@ -74,6 +75,6 @@ pub async fn create_template(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateTemplateRequest>,
-) -> Result<Json<ApiResponse<NotificationTemplate>>, AppError> {
-    Ok(ApiResponse::ok(NotificationService::create_template(&pool, user.0.tenant_id, &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(NotificationService::create_template(&pool, user.0.tenant_id, &p).await?))
 }

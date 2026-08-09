@@ -1,6 +1,7 @@
 //! Fixed asset HTTP handlers.
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -37,8 +38,8 @@ pub async fn create_asset(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(p): Json<CreateAssetRequest>,
-) -> Result<Json<ApiResponse<FixedAsset>>, AppError> {
-    Ok(ApiResponse::ok(AssetService::create_asset(&pool, user.0.tenant_id, &p).await?))
+) -> Result<Response, AppError> {
+    Ok(ApiResponse::created(AssetService::create_asset(&pool, user.0.tenant_id, &p).await?))
 }
 
 pub async fn update_asset(

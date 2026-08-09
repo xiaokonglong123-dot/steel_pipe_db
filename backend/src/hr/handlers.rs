@@ -1,6 +1,7 @@
 //! HR HTTP handlers — thin: extract → call service → respond.
 
 use axum::extract::{Extension, Path, Query};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -62,9 +63,9 @@ pub async fn create_employee(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateEmployeeRequest>,
-) -> Result<Json<ApiResponse<HrEmployee>>, AppError> {
+) -> Result<Response, AppError> {
     let item = HrService::create_employee(&pool, user.0.tenant_id, &payload).await?;
-    Ok(ApiResponse::ok(item))
+    Ok(ApiResponse::created(item))
 }
 
 pub async fn update_employee(
@@ -91,9 +92,9 @@ pub async fn delete_employee(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<()>>, AppError> {
+) -> Result<Response, AppError> {
     HrService::delete_employee(&pool, user.0.tenant_id, id).await?;
-    Ok(ApiResponse::ok(()))
+    Ok(axum::http::StatusCode::NO_CONTENT.into_response())
 }
 
 // ---------------------------------------------------------------------------
@@ -112,9 +113,9 @@ pub async fn create_position(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreatePositionRequest>,
-) -> Result<Json<ApiResponse<HrPosition>>, AppError> {
+) -> Result<Response, AppError> {
     let item = HrService::create_position(&pool, user.0.tenant_id, &payload).await?;
-    Ok(ApiResponse::ok(item))
+    Ok(ApiResponse::created(item))
 }
 
 // ---------------------------------------------------------------------------
@@ -191,9 +192,9 @@ pub async fn create_contract(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateContractRequest>,
-) -> Result<Json<ApiResponse<HrContract>>, AppError> {
+) -> Result<Response, AppError> {
     let item = HrService::create_contract(&pool, user.0.tenant_id, &payload).await?;
-    Ok(ApiResponse::ok(item))
+    Ok(ApiResponse::created(item))
 }
 
 pub async fn list_contracts(

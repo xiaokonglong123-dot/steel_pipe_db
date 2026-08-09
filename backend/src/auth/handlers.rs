@@ -6,7 +6,7 @@
 
 use axum::{
     extract::{Extension, Path, Query},
-    response::Response,
+    response::{IntoResponse, Response},
     Json,
 };
 use serde::Deserialize;
@@ -90,9 +90,9 @@ pub async fn delete_role(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<()>>, AppError> {
+) -> Result<Response, AppError> {
     IdentityService::delete_role(&pool, user.0.tenant_id, id).await?;
-    Ok(ApiResponse::ok(()))
+    Ok(axum::http::StatusCode::NO_CONTENT.into_response())
 }
 
 /// GET `/api/v1/auth/roles/{id}/permissions` — permission keys of a role.
@@ -170,9 +170,9 @@ pub async fn delete_department(
     Extension(pool): Extension<SqlitePool>,
     user: AuthenticatedUser,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<()>>, AppError> {
+) -> Result<Response, AppError> {
     IdentityService::delete_department(&pool, user.0.tenant_id, id).await?;
-    Ok(ApiResponse::ok(()))
+    Ok(axum::http::StatusCode::NO_CONTENT.into_response())
 }
 
 /// GET `/api/v1/auth/users/{user_id}/roles` — role ids bound to a user.
