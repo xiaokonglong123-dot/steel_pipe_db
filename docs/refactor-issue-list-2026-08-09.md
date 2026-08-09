@@ -191,12 +191,45 @@
 
 | 决策项 | 默认方案 | 依据 / 代价 |
 |--------|----------|-------------|
-| **模块边界** | 全模块化并轨：legacy 顶层 `handlers/ services/ repositories/` 按域拆入 `auth/ hr/ finance/ ...` 模块（删除顶层三兄弟），`dto/ models/ domain/` 保留为共享层 | 13 个新模块已落地此模式，AGENTS.md 已承诺；拆 53 文件工作量大但每步可验证；`dto/models/domain` 是跨域共享，不进模块 |
+| **模块边界** | 全模块化并轨：legacy 顶层 `handlers/ services/ repositories/` 按资源域拆入新模块目录（items/orders/contracts/parties/inventory/reports/data_io + auth 并入），`dto/ models/ domain/` 保留为共享层 | 13 个新模块已落地此模式，AGENTS.md 已承诺；拆 49 文件工作量大但每步可验证；**共享解耦已完成**（f0871f0：AuthenticatedUser→middleware/auth.rs、party 宏→src/macros.rs），搬迁主体见文档末尾「阶段 2f 搬迁指引」 |
 | **多租户** | 明确单租户：移除新模块中 `tenant_id` 硬编码与 tenants 表依赖（保留表但固定=1，或迁移期一并删），核心表不再补 tenant_id | 系统是单厂 ERP，无 SaaS 迹象；半成品（bi/portal 硬编码=1 掩盖问题）比没有更糟 |
-| **金额类型** | 财务全链路 `rust_decimal`：finance/contract/hr 工资/assets 折旧/project 预算的模型、落库（NUMERIC）、计算、比较全用 Decimal；库存数量（quantity）保持 f64 | Cargo.toml 已引入 + sqlx sqlite 已启 feature；`domain/money.rs` 可作切入；需要 REAL→NUMERIC 重建表 + 前端 zod/序列化同步 |
+| **金额类型** | 财务运算/比较域用 rust_decimal（借贷平衡已改 Decimal 累计+round_dp(4)，提交 a8b3f40）；**落库保持 f64**——sqlx-sqlite 0.8 明确不实现 rust_decimal 编解码（SQLite NUMERIC affinity 仅保留 15 位有效数字，官方文档称实现它只是陷阱） | Cargo.toml 已引入；REAL→NUMERIC 重建表方案因 sqlx 不支持 Decimal 而放弃 |
 | **RBAC 校验** | 查库实时校验：`user_roles`/`role_permissions` 为唯一事实源，`users.role` 降级为展示列（或删除）；token 只带 user_id，请求时查库（可加短 TTL 缓存） | 权限变更即时生效；借 P0-1 的 auth 重写窗口一并做，避免二次重写 |
 | **响应语义**（补充） | 统一：成功 `{success, request_id, data}`；创建一律 201 `ApiResponse::created()`；删除一律 204 空 body；错误一律 `{success:false, code, request_id, message, details}` 且**不向客户端暴露 SQL 细节** | 修双轨：15 处裸 204 vs 4 处 ok(())；16 处 201 vs 新模块 200 |
 | **错误码**（补充） | 按 AGENTS.md 现有域表补齐 Item 域错误码（120xx 替换死 Pipe 码），废弃 `PipeNotFound` 等 5 个死码；修正 docs/api/README.md 错误码表 | 120xx 声称是 Item 域但 Item 码根本不存在；文档表与实际定义相反 |
+
+> **阶段 2 执行记录（2026-08-09）**：
+> - ✅ 2a 响应语义统一（f5ee26a）：创建 25 处→201、删除 4 处→204
+> - ✅ 2b 单租户收口（f5ee26a）：bi/portal 有 AuthContext 处改取 tenant_id（portal-api 门户 JWT 保留 1）
+> - ✅ 2c 错误码文档对齐（f5ee26a）：docs/api/README 110xx/140xx/150xx 修正
+> - ✅ 2d 金额（a8b3f40）：借贷平衡 Decimal 累计 + round_dp(4)；**决策修订**：落库保持 f64（sqlx-sqlite 不支持 Decimal）
+> - ✅ 2e ATP 口径 + 限流（91a4b44）：sales 可用量改标准口径（补 check_adjust/transfer）；限流改 TCP 对端 IP（ConnectInfo）
+> - ✅ 2f 共享解耦（f0871f0）：AuthenticatedUser 移 middleware、party 宏移 src/macros.rs
+> - ⏳ 2f 搬迁主体（49 文件）：见下方「阶段 2f 搬迁指引」
+
+## 六·附：阶段 2f 搬迁指引（专门任务用）
+
+目标：删除顶层 `handlers/ services/ repositories/` 三兄弟，legacy 资源域文件按如下映射搬入新模块（每模块 `mod.rs` 声明 handlers/repos/services），`dto/ models/ domain/` 保留共享层。
+
+| 目标模块 | handlers 来源 | services 来源 | repos 来源 |
+|----------|--------------|--------------|-----------|
+| `items/` | item_handler | item_service | item_repo |
+| `orders/` | purchase_handler, sales_handler | purchase_service, sales_service | purchase_order_repo, sales_order_repo |
+| `contracts/` | contract_handler | contract_service | contract_repo |
+| `parties/` | customer_handler, supplier_handler | customer_service, supplier_service | customer_repo, supplier_repo |
+| `inventory/` | atp_handler, check_handler, inbound_handler, inventory_handler, location_handler, outbound_handler | check_service, inbound_service, inventory_query_service, location_service, outbound_service, trace_service | check_repo, inbound_repo, inventory_repo, inventory_log_repo, location_repo, outbound_repo |
+| `reports/` | report_handler | report_service | report_repo |
+| `data_io/` | data_io_handler | data_io_service | data_io_repo |
+| `auth/`（并入现有） | auth_handler→handlers_legacy | auth_service→services_legacy | user_repo→repos_legacy, refresh_token_repo |
+| 顶层单文件 | health_handler→`health.rs` | utils→`utils.rs` | operation_log_repo→`operation_log.rs` |
+
+搬迁步骤（**一次一步、每步 cargo check**，避免覆盖）：
+1. **文件移动用 `git mv`**（不用 rename——本任务初版曾因 rename 覆盖丢失 4 个文件，靠 git 恢复），每步先 `git status` 确认无同名冲突。
+2. 移动后改每个文件内的 `crate::handlers::X` → `crate::<mod>::handlers`（handler 文件名统一 `handlers.rs`、service→`services.rs`、repo→`repos.rs`，与 13 个新模块一致）。
+3. `src/handlers/mod.rs`、`services/mod.rs`、`repositories/mod.rs` 删对应行；`lib.rs`/`main.rs` 加新模块声明（`pub mod items;` 等）；`auth/mod.rs` 追加 `handlers_legacy/services_legacy/repos_legacy` 声明。
+4. router.rs 所有 `crate::handlers::X` 引用改新路径（约 100 处，建议按模块分批）。
+5. 每完成一个模块 `cargo check`，最后 `cargo test` + 全量回归。
+6. 完成删空目录 + 更新 AGENTS.md 架构树。
 
 ## 七、建议执行顺序
 
