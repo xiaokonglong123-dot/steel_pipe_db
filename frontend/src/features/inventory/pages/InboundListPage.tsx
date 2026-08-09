@@ -10,13 +10,15 @@ import {
   Select,
   Popconfirm,
   message,
+  Table,
 } from 'antd';
-import { PlusOutlined, SearchOutlined, InboxOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, InboxOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { PageLayout } from '@/shared/components/PageLayout';
+import { PageLayout, ItemPicker } from '@/shared/components';
+import type { ItemOption } from '@/shared/components';
 import { DataTable } from '@/shared/components/DataTable';
 import { usePagination } from '@/shared/hooks/usePagination';
-import { INBOUND_TYPES, PIPE_TYPES } from '@/shared/constants';
+import { INBOUND_TYPES } from '@/shared/constants';
 import {
   useInboundRecords,
   useCreateInbound,
@@ -41,44 +43,11 @@ const TYPE_LABEL_MAP: Record<string, string> = {
   return: 'inbound.type.return',
 };
 
-interface InboundPipeFormRow {
-  pipe_type?: string;
-  pipe_id?: number;
-}
-
-function parsePipeIds(input: string): number[] {
-  const tokens = input
-    .replace(/[，、；;\r\n\t]+/g, ',')
-    .replace(/\s+/g, ',')
-    .split(',')
-    .map((token) => token.trim())
-    .filter(Boolean);
-
-  const ids: number[] = [];
-  for (const token of tokens) {
-    const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/);
-    if (rangeMatch) {
-      const start = Number(rangeMatch[1]);
-      const end = Number(rangeMatch[2]);
-      if (Number.isInteger(start) && Number.isInteger(end) && start > 0 && end >= start) {
-        for (let id = start; id <= end; id += 1) {
-          ids.push(id);
-        }
-      }
-      continue;
-    }
-
-    const id = Number(token);
-    if (Number.isInteger(id) && id > 0) {
-      ids.push(id);
-    }
-  }
-
-  return [...new Set(ids)];
-}
-
-function pipeRowKey(pipeType: string | undefined, pipeId: number | undefined): string | null {
-  return pipeType && typeof pipeId === 'number' ? `${pipeType}:${pipeId}` : null;
+interface RowItem {
+  item_id: number;
+  sku?: string;
+  name?: string;
+  quantity: number;
 }
 
 export default function InboundListPage() {
@@ -91,22 +60,20 @@ export default function InboundListPage() {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<number | null>(null);
   const [poSelectorOpen, setPoSelectorOpen] = useState(false);
-  const [batchModalOpen, setBatchModalOpen] = useState(false);
-  const [batchPipeType, setBatchPipeType] = useState('casing');
-  const [batchPipeIds, setBatchPipeIds] = useState('');
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [items, setItems] = useState<RowItem[]>([]);
   const [form] = Form.useForm<CreateInboundData>();
   const [rejectForm] = Form.useForm<{ reason: string }>();
 
   const handlePOSelect = useCallback(
     (po: PurchaseOrder) => {
-      const pipes: { pipe_type: string; pipe_id?: number }[] = [];
       form.setFieldsValue({
         inbound_type: 'purchase',
         order_id: po.id,
         supplier_id: po.supplier_id,
         notes: t('inbound.from_po_template', { order_no: po.order_no }),
-        pipes: pipes.length > 0 ? pipes : [{ pipe_type: 'casing', pipe_id: undefined }],
       });
+      setItems([]);
       setPoSelectorOpen(false);
       message.success(t('inbound.template_applied'));
     },
@@ -128,23 +95,24 @@ export default function InboundListPage() {
 
   const openCreateModal = () => {
     form.resetFields();
-    form.setFieldsValue({ pipes: [{ pipe_type: 'casing', pipe_id: undefined }] });
+    setItems([]);
     setModalOpen(true);
   };
 
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      const payload = {
+      const payload: CreateInboundData = {
         ...values,
         order_id: values.order_id != null ? Number(values.order_id) : undefined,
         supplier_id:
           values.supplier_id != null ? Number(values.supplier_id) : undefined,
-        pipes: (values.pipes ?? []).map((pipe) => ({
-          ...pipe,
-          pipe_id: Number(pipe.pipe_id),
-        })),
+        items: items.map((it) => ({ item_id: it.item_id, quantity: it.quantity })),
       };
+      if (items.length === 0) {
+        message.error(t('common.required'));
+        return;
+      }
       await createMutation.mutateAsync(payload);
       message.success(t('common.operate_success'));
       setModalOpen(false);
@@ -152,34 +120,6 @@ export default function InboundListPage() {
       console.error('create inbound failed', err);
       message.error(t('common.operate_failed'));
     }
-  };
-
-  const handleBatchAddPipes = () => {
-    const ids = parsePipeIds(batchPipeIds);
-    if (ids.length === 0) {
-      message.error(t('common.required'));
-      return;
-    }
-
-    const currentPipes = (form.getFieldValue('pipes') || []) as InboundPipeFormRow[];
-    const existingKeys = new Set(
-      currentPipes
-        .map((pipe) => pipeRowKey(pipe.pipe_type, pipe.pipe_id))
-        .filter((key): key is string => key !== null),
-    );
-    const rowsToAdd = ids
-      .filter((pipeId) => !existingKeys.has(pipeRowKey(batchPipeType, pipeId) ?? ''))
-      .map((pipeId) => ({ pipe_type: batchPipeType, pipe_id: pipeId }));
-
-    if (rowsToAdd.length === 0) {
-      message.warning(t('inbound.pipe_already_added', 'This pipe has already been added to the list'));
-      return;
-    }
-
-    form.setFieldsValue({ pipes: [...currentPipes, ...rowsToAdd] });
-    setBatchPipeIds('');
-    setBatchModalOpen(false);
-    message.success(t('common.operate_success'));
   };
 
   const handleApprove = (id: number) => {
@@ -384,94 +324,80 @@ export default function InboundListPage() {
           <Form.Item name="notes" label={t('inbound.notes')}>
             <Input.TextArea rows={3} />
           </Form.Item>
-          <Form.Item label={t('inbound.pipes')}>
-            <Form.List name="pipes" initialValue={[{ pipe_type: 'casing' }]}>
-              {(fields, { add, remove }) => (
-                <>
-                  {fields.map(({ key, name, ...rest }) => (
-                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <Form.Item
-                        {...rest}
-                        name={[name, 'pipe_type']}
-                        rules={[{ required: true }]}
-                        noStyle
-                      >
-                        <Select style={{ width: 140 }}>
-                          {PIPE_TYPES.map((pt) => (
-                            <Select.Option key={pt} value={pt}>
-                              {t('pipe_type.' + pt)}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-                      <Form.Item
-                        {...rest}
-                        name={[name, 'pipe_id']}
-                        rules={[{ required: true, message: t('common.required') }]}
-                        noStyle
-                      >
-                        <InputNumber
-                          placeholder={t('inbound.pipe_id_placeholder')}
-                          min={1}
-                          style={{ width: 120 }}
-                        />
-                      </Form.Item>
-                      {fields.length > 1 && (
-                        <Button size="small" danger onClick={() => remove(name)}>
-                          {t('common.delete')}
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
-                    <Button type="dashed" onClick={() => add({ pipe_type: 'casing' })} block>
-                      + {t('inbound.add_pipe')}
-                    </Button>
-                    <Button
-                      type="dashed"
-                      onClick={() => {
-                        setBatchPipeIds('');
-                        setBatchModalOpen(true);
-                      }}
-                      block
-                    >
-                      {t('inbound.batch_add_pipes', '批量添加管材')}
-                    </Button>
-                  </div>
-                </>
-              )}
-            </Form.List>
-          </Form.Item>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('inbound.items', '入库商品')}</div>
+          <Table<RowItem>
+            rowKey={(_, index) => String(index)}
+            size="small"
+            pagination={false}
+            dataSource={items}
+            columns={[
+              {
+                title: t('inbound.item', '商品'),
+                key: 'item',
+                render: (_: unknown, record: RowItem) =>
+                  record.name ? `${record.sku ?? ''} — ${record.name}` : record.sku || `#${record.item_id}`,
+              },
+              {
+                title: t('inbound.quantity', '数量'),
+                dataIndex: 'quantity',
+                key: 'quantity',
+                width: 110,
+                render: (_: unknown, record: RowItem, index: number) => (
+                  <InputNumber
+                    min={0}
+                    step={1}
+                    value={record.quantity}
+                    style={{ width: '100%' }}
+                    onChange={(v) =>
+                      setItems((prev) =>
+                        prev.map((it, i) => (i === index ? { ...it, quantity: v ?? 0 } : it)),
+                      )
+                    }
+                  />
+                ),
+              },
+              {
+                key: 'actions',
+                width: 50,
+                render: (_: unknown, __: unknown, index: number) => (
+                  <Button
+                    type="link"
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={() => setItems((prev) => prev.filter((_, i) => i !== index))}
+                  />
+                ),
+              },
+            ]}
+            footer={() => (
+              <Button
+                type="dashed"
+                icon={<PlusOutlined />}
+                onClick={() => setItemModalOpen(true)}
+                block
+              >
+                {t('inbound.add_item', '添加商品')}
+              </Button>
+            )}
+          />
         </Form>
       </Modal>
 
-      <Modal
-        title={t('inbound.batch_add_pipes', '批量添加管材')}
-        open={batchModalOpen}
-        onOk={handleBatchAddPipes}
-        onCancel={() => setBatchModalOpen(false)}
-        destroyOnClose
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-          <Select
-            value={batchPipeType}
-            onChange={setBatchPipeType}
-            style={{ width: 200 }}
-          >
-            {PIPE_TYPES.map((type) => (
-              <Select.Option key={type} value={type}>
-                {t(`pipe_type.${type}`, type)}
-              </Select.Option>
-            ))}
-          </Select>
-          <Input.TextArea
-            rows={6}
-            value={batchPipeIds}
-            onChange={(event) => setBatchPipeIds(event.target.value)}
-            placeholder={t('inbound.batch_pipe_ids_placeholder', '例如：1001,1002,1003 或 1001-1010；支持空格、换行、逗号分隔')}
-          />
-        </div>
-      </Modal>
+      <ItemPicker
+        open={itemModalOpen}
+        onCancel={() => setItemModalOpen(false)}
+        onSelect={(picked: ItemOption[]) => {
+          const additions: RowItem[] = picked.map((it) => ({
+            item_id: it.id,
+            sku: it.sku,
+            name: it.name,
+            quantity: 1,
+          }));
+          setItems((prev) => [...prev, ...additions]);
+          setItemModalOpen(false);
+        }}
+      />
 
       <PurchaseOrderSelector
         open={poSelectorOpen}

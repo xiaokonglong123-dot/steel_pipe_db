@@ -7,7 +7,6 @@ import {
   inventoryApi,
   locationApi,
   checkApi,
-  pipeSearchApi,
 } from '../api/inventoryApi';
 import { inventoryQueryKeys } from '../queryKeys';
 import type {
@@ -22,7 +21,6 @@ import type {
   UpdateLocationData,
   CreateCheckData,
   SubmitCheckItemData,
-  PipeSearchResult,
 } from '../api/inventoryApi';
 
 // ━━━ Inbound ━━━
@@ -333,14 +331,3 @@ export function useSubmitCheckItem() {
     onError: () => { message.error(t('common.operate_failed', '操作失败')); },
   });
 }
-
-// ━━━ Pipe Search ━━━
-
-export function usePipeSearch(params?: { q?: string; pipe_type?: string; status?: string }) {
-  return useQuery({
-    queryKey: inventoryQueryKeys.pipeSearch(params),
-    queryFn: () => pipeSearchApi.search(params),
-  });
-}
-
-export type { PipeSearchResult };

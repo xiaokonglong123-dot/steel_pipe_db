@@ -29,8 +29,8 @@ export const inboundRecordSchema = z.object({
 export const inboundItemSchema = z.object({
   id: z.number(),
   inbound_id: z.number(),
-  pipe_type: z.string(),
-  pipe_id: z.number(),
+  item_id: z.number(),
+  quantity: z.number(),
   created_at: z.string(),
 }).passthrough();
 
@@ -59,8 +59,8 @@ export const outboundRecordSchema = z.object({
 export const outboundItemSchema = z.object({
   id: z.number(),
   outbound_id: z.number(),
-  pipe_type: z.string(),
-  pipe_id: z.number(),
+  item_id: z.number(),
+  quantity: z.number(),
   created_at: z.string(),
 }).passthrough();
 
@@ -125,17 +125,6 @@ export const inventoryCheckItemSchema = z.object({
 export const checkDetailSchema = z.object({
   record: inventoryCheckRecordSchema,
   items: z.array(inventoryCheckItemSchema),
-}).passthrough();
-
-export const pipeSearchResultSchema = z.object({
-  id: z.number(),
-  pipe_type: z.string(),
-  pipe_number: z.string(),
-  grade: z.string(),
-  od: z.number(),
-  wt: z.number(),
-  status: z.string(),
-  location_id: nullableNumber,
 }).passthrough();
 
 // Stock query result (dynamically built from seamless/screen pipes with location join)

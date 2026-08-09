@@ -1,5 +1,5 @@
 // 出库管理页 — 使用 DataTable + PageLayout + usePagination
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Button,
   Tag,
@@ -10,13 +10,15 @@ import {
   Select,
   Popconfirm,
   message,
+  Table,
 } from 'antd';
-import { PlusOutlined, SearchOutlined, StockOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { PageLayout } from '@/shared/components/PageLayout';
+import { PageLayout, ItemPicker } from '@/shared/components';
+import type { ItemOption } from '@/shared/components';
 import { DataTable } from '@/shared/components/DataTable';
 import { usePagination } from '@/shared/hooks/usePagination';
-import { OUTBOUND_TYPES, PIPE_TYPES } from '@/shared/constants';
+import { OUTBOUND_TYPES } from '@/shared/constants';
 import {
   useOutboundRecords,
   useCreateOutbound,
@@ -25,7 +27,6 @@ import {
   useDeleteOutbound,
 } from '../hooks/useInventory';
 import type { OutboundRecord, CreateOutboundData } from '../api/inventoryApi';
-import StockSelector from '../components/StockSelector';
 
 const STATUS_COLOR_MAP: Record<string, string> = {
   pending: 'orange',
@@ -40,6 +41,13 @@ const TYPE_LABEL_MAP: Record<string, string> = {
   scrapped: 'outbound.type.scrapped',
 };
 
+interface RowItem {
+  item_id: number;
+  sku?: string;
+  name?: string;
+  quantity: number;
+}
+
 export default function OutboundListPage() {
   const { t } = useTranslation();
   const { page, pageSize, onPaginationChange, reset } = usePagination();
@@ -49,21 +57,10 @@ export default function OutboundListPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<number | null>(null);
-  const [stockSelectorOpen, setStockSelectorOpen] = useState(false);
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [items, setItems] = useState<RowItem[]>([]);
   const [form] = Form.useForm<CreateOutboundData>();
   const [rejectForm] = Form.useForm<{ reason: string }>();
-
-  const handleStockSelect = useCallback(
-    (selectedPipes: { pipe_type: string; pipe_id: number }[]) => {
-      const currentPipes = form.getFieldValue('pipes') || [];
-      const existingIds = new Set(currentPipes.map((p: { pipe_id: number }) => p.pipe_id));
-      const newPipes = selectedPipes.filter((p) => !existingIds.has(p.pipe_id));
-      form.setFieldsValue({ pipes: [...currentPipes, ...newPipes] });
-      setStockSelectorOpen(false);
-      message.success(t('outbound.stock_added', { count: newPipes.length }));
-    },
-    [form, t],
-  );
 
   const { data, isLoading } = useOutboundRecords({
     page,
@@ -80,22 +77,23 @@ export default function OutboundListPage() {
 
   const openCreateModal = () => {
     form.resetFields();
-    form.setFieldsValue({ pipes: [{ pipe_type: 'casing', pipe_id: undefined }] });
+    setItems([]);
     setModalOpen(true);
   };
 
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      const payload = {
+      if (items.length === 0) {
+        message.error(t('common.required'));
+        return;
+      }
+      const payload: CreateOutboundData = {
         ...values,
         order_id: values.order_id != null ? Number(values.order_id) : undefined,
         customer_id:
           values.customer_id != null ? Number(values.customer_id) : undefined,
-        pipes: (values.pipes ?? []).map((pipe) => ({
-          ...pipe,
-          pipe_id: Number(pipe.pipe_id),
-        })),
+        items: items.map((it) => ({ item_id: it.item_id, quantity: it.quantity })),
       };
       await createMutation.mutateAsync(payload);
       message.success(t('common.operate_success'));
@@ -277,16 +275,6 @@ export default function OutboundListPage() {
         width={600}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <div style={{ marginBottom: 16 }}>
-            <Button
-              icon={<StockOutlined />}
-              onClick={() => setStockSelectorOpen(true)}
-              block
-            >
-              {t('outbound.from_stock')}
-            </Button>
-          </div>
-
           <Form.Item
             name="outbound_type"
             label={t('outbound.outbound_type')}
@@ -308,59 +296,79 @@ export default function OutboundListPage() {
           <Form.Item name="notes" label={t('outbound.notes')}>
             <Input.TextArea rows={3} />
           </Form.Item>
-          <Form.Item label={t('outbound.pipes')}>
-            <Form.List name="pipes" initialValue={[{ pipe_type: 'casing' }]}>
-              {(fields, { add, remove }) => (
-                <>
-                  {fields.map(({ key, name, ...rest }) => (
-                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <Form.Item
-                        {...rest}
-                        name={[name, 'pipe_type']}
-                        rules={[{ required: true }]}
-                        noStyle
-                      >
-                        <Select style={{ width: 140 }}>
-                          {PIPE_TYPES.map((pt) => (
-                            <Select.Option key={pt} value={pt}>
-                              {t('pipe_type.' + pt)}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-                      <Form.Item
-                        {...rest}
-                        name={[name, 'pipe_id']}
-                        rules={[{ required: true, message: t('common.required') }]}
-                        noStyle
-                      >
-                        <InputNumber
-                          placeholder={t('outbound.pipe_id_placeholder')}
-                          min={1}
-                          style={{ width: 120 }}
-                        />
-                      </Form.Item>
-                      {fields.length > 1 && (
-                        <Button size="small" danger onClick={() => remove(name)}>
-                          {t('common.delete')}
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button type="dashed" onClick={() => add({ pipe_type: 'casing' })} block>
-                    + {t('outbound.add_pipe')}
-                  </Button>
-                </>
-              )}
-            </Form.List>
-          </Form.Item>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('outbound.items', '出库商品')}</div>
+          <Table<RowItem>
+            rowKey={(_, index) => String(index)}
+            size="small"
+            pagination={false}
+            dataSource={items}
+            columns={[
+              {
+                title: t('outbound.item', '商品'),
+                key: 'item',
+                render: (_: unknown, record: RowItem) =>
+                  record.name ? `${record.sku ?? ''} — ${record.name}` : record.sku || `#${record.item_id}`,
+              },
+              {
+                title: t('outbound.quantity', '数量'),
+                dataIndex: 'quantity',
+                key: 'quantity',
+                width: 110,
+                render: (_: unknown, record: RowItem, index: number) => (
+                  <InputNumber
+                    min={0}
+                    step={1}
+                    value={record.quantity}
+                    style={{ width: '100%' }}
+                    onChange={(v) =>
+                      setItems((prev) =>
+                        prev.map((it, i) => (i === index ? { ...it, quantity: v ?? 0 } : it)),
+                      )
+                    }
+                  />
+                ),
+              },
+              {
+                key: 'actions',
+                width: 50,
+                render: (_: unknown, __: unknown, index: number) => (
+                  <Button
+                    type="link"
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={() => setItems((prev) => prev.filter((_, i) => i !== index))}
+                  />
+                ),
+              },
+            ]}
+            footer={() => (
+              <Button
+                type="dashed"
+                icon={<PlusOutlined />}
+                onClick={() => setItemModalOpen(true)}
+                block
+              >
+                {t('outbound.add_item', '添加商品')}
+              </Button>
+            )}
+          />
         </Form>
       </Modal>
 
-      <StockSelector
-        open={stockSelectorOpen}
-        onCancel={() => setStockSelectorOpen(false)}
-        onSelect={handleStockSelect}
+      <ItemPicker
+        open={itemModalOpen}
+        onCancel={() => setItemModalOpen(false)}
+        onSelect={(picked: ItemOption[]) => {
+          const additions: RowItem[] = picked.map((it) => ({
+            item_id: it.id,
+            sku: it.sku,
+            name: it.name,
+            quantity: 1,
+          }));
+          setItems((prev) => [...prev, ...additions]);
+          setItemModalOpen(false);
+        }}
       />
 
       <Modal

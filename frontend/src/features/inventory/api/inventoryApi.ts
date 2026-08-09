@@ -13,7 +13,6 @@ import {
   inventoryCheckRecordSchema,
   inventoryCheckItemSchema,
   checkDetailSchema,
-  pipeSearchResultSchema,
   stockItemSchema,
   tracePipeSchema,
   traceHeatItemSchema,
@@ -42,8 +41,8 @@ export interface InboundRecord {
 export interface InboundItem {
   id: number;
   inbound_id: number;
-  pipe_type: string;
-  pipe_id: number;
+  item_id: number;
+  quantity: number;
   created_at: string;
 }
 
@@ -67,8 +66,8 @@ export interface OutboundRecord {
 export interface OutboundItem {
   id: number;
   outbound_id: number;
-  pipe_type: string;
-  pipe_id: number;
+  item_id: number;
+  quantity: number;
   created_at: string;
 }
 
@@ -147,7 +146,8 @@ export interface CreateInboundData {
   order_id?: number;
   supplier_id?: number;
   notes?: string;
-  pipes: { pipe_type: string; pipe_id: number }[];
+  /** Line items — item master ID + received quantity. */
+  items: { item_id: number; quantity: number }[];
 }
 
 export interface CreateOutboundData {
@@ -155,7 +155,8 @@ export interface CreateOutboundData {
   order_id?: number;
   customer_id?: number;
   notes?: string;
-  pipes: { pipe_type: string; pipe_id: number }[];
+  /** Line items — item master ID + shipped quantity. */
+  items: { item_id: number; quantity: number }[];
 }
 
 export interface CreateLocationData {
@@ -377,25 +378,5 @@ export const checkApi = {
       data,
     );
     return validateResponse(inventoryCheckItemSchema, res.data);
-  },
-};
-
-// ━━━ Pipe search (for modal selection) ━━━
-
-export interface PipeSearchResult {
-  id: number;
-  pipe_type: string;
-  pipe_number: string;
-  grade: string;
-  od: number;
-  wt: number;
-  status: string;
-  location_id?: number | null;
-}
-
-export const pipeSearchApi = {
-  search: async (params?: { q?: string; pipe_type?: string; status?: string; limit?: number }) => {
-    const res = await apiClient.get<ApiResponse<PipeSearchResult[]>>('/pipes/search', params);
-    return validateResponse(z.array(pipeSearchResultSchema), res.data);
   },
 };
