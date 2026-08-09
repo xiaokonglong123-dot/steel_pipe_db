@@ -205,7 +205,7 @@
 > - ✅ 2d 金额（a8b3f40）：借贷平衡 Decimal 累计 + round_dp(4)；**决策修订**：落库保持 f64（sqlx-sqlite 不支持 Decimal）
 > - ✅ 2e ATP 口径 + 限流（91a4b44）：sales 可用量改标准口径（补 check_adjust/transfer）；限流改 TCP 对端 IP（ConnectInfo）
 > - ✅ 2f 共享解耦（f0871f0）：AuthenticatedUser 移 middleware、party 宏移 src/macros.rs
-> - ⏳ 2f 搬迁主体（49 文件）：见下方「阶段 2f 搬迁指引」
+> - ✅ 2f 搬迁主体（c57dfd1）：49 文件 git mv 入 items/orders/contracts/parties/inventory/reports/data_io + auth 并入，删顶层三兄弟，291 测试全绿。搬迁指引保留供参考（已完成）
 
 > **阶段 3 执行记录（2026-08-09）**：
 > - ✅ 3a CI（07d24c4）：backend job 增加 cargo test（report-then-fail）；提交 Cargo.lock（binary 可复现构建）
