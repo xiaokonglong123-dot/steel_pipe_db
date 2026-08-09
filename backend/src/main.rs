@@ -95,7 +95,12 @@ async fn main() {
         .await
         .expect("Failed to bind address");
 
-    axum::serve(listener, app).await.expect("Server failed");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .expect("Server failed");
 }
 
 /// Creates the initial admin user when the database is empty.

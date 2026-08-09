@@ -310,19 +310,22 @@ impl SalesService {
         Ok(())
     }
 
-    /// Computes the currently available (promiseable) quantity for an item:
-    /// inbound inventory logs minus outbound inventory logs minus reserved ATP slots.
+    /// Computes the currently available (promiseable) quantity for an item.
+    ///
+    /// Canonical ATP formula (single source of truth — matches
+    /// `inventory_atp/repos.rs::overview`): on-hand is derived from inventory
+    /// logs (inbound/check_adjust add, outbound/transfer subtract), minus
+    /// active reservations from `atp_slots`.
     async fn available_quantity(conn: &mut sqlx::SqliteConnection, item_id: i64) -> Result<f64, AppError> {
         let row: (Option<f64>,) = sqlx::query_as(
             "SELECT \
-             CAST(COALESCE((SELECT SUM(quantity) FROM inventory_logs \
-              WHERE item_id = ? AND change_type = 'inbound'), 0.0) AS REAL) \
-             - CAST(COALESCE((SELECT SUM(quantity) FROM inventory_logs \
-                WHERE item_id = ? AND change_type = 'outbound'), 0.0) AS REAL) \
+             CAST(COALESCE((SELECT SUM(
+                 CASE WHEN change_type IN ('inbound', 'check_adjust') THEN quantity
+                      ELSE -quantity END)
+              FROM inventory_logs WHERE item_id = ?), 0.0) AS REAL) \
              - CAST(COALESCE((SELECT SUM(quantity_reserved) FROM atp_slots \
                 WHERE item_id = ? AND status = 'reserved'), 0.0) AS REAL)",
         )
-        .bind(item_id)
         .bind(item_id)
         .bind(item_id)
         .fetch_one(&mut *conn)

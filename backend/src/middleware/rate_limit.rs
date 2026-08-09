@@ -99,6 +99,23 @@ fn client_ip(request: &Request) -> String {
         .to_string()
 }
 
+/// Extract client IP from the TCP peer address (trusted — set by the OS,
+/// not by client-controlled headers). The server is bound with
+/// `into_make_service_with_connect_info`, so `ConnectInfo<SocketAddr>` is
+/// always present on routed requests.
+///
+/// Previously this read `X-Forwarded-For` / `X-Real-IP` directly, which a
+/// client can forge to bypass per-IP rate limits. For this self-hosted,
+/// single-instance deployment (no reverse proxy/CDN), the peer address IS
+/// the client.
+fn client_ip_trusted(request: &Request) -> String {
+    request
+        .extensions()
+        .get::<axum::extract::connect_info::ConnectInfo<std::net::SocketAddr>>()
+        .map(|ci| ci.0.ip().to_string())
+        .unwrap_or_else(|| client_ip(request))
+}
+
 fn too_many_requests() -> Response {
     (StatusCode::TOO_MANY_REQUESTS, "429 Too Many Requests").into_response()
 }
@@ -109,7 +126,7 @@ pub async fn rate_limit_login(
     request: Request,
     next: Next,
 ) -> Response {
-    let ip = client_ip(&request);
+    let ip = client_ip_trusted(&request);
     if limiter.check(&format!("login:{}", ip), 5, 60) {
         next.run(request).await
     } else {
@@ -123,7 +140,7 @@ pub async fn rate_limit_password_change(
     request: Request,
     next: Next,
 ) -> Response {
-    let ip = client_ip(&request);
+    let ip = client_ip_trusted(&request);
     if limiter.check(&format!("password:{}", ip), 3, 60) {
         next.run(request).await
     } else {
@@ -137,7 +154,7 @@ pub async fn rate_limit_import(
     request: Request,
     next: Next,
 ) -> Response {
-    let ip = client_ip(&request);
+    let ip = client_ip_trusted(&request);
     if limiter.check(&format!("import:{}", ip), 10, 60) {
         next.run(request).await
     } else {
