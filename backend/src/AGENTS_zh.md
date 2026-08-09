@@ -45,7 +45,7 @@
 
 ```rust
 pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
-    // ~200 个端点，按实体分组并通过 .merge() 组装
+    // ~190 个路由（~170 个唯一路径），按实体分组并通过 .merge() 组装
     Router::new()
         .route("/api/v1/auth/login", post(handlers::auth_handler::login))
         .route("/api/v1/items", get(handlers::item_handler::list))

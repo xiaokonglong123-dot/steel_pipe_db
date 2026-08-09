@@ -83,7 +83,7 @@ Open `http://localhost:5173` and log in with:
 | UI Framework  | React 19 + Ant Design 5 + @ant-design/icons       |
 | Routing       | react-router-dom 7                                |
 | State         | Zustand 5 (client state) + TanStack Query 5 (server state) |
-| HTTP Client   | Axios                                             |
+| HTTP Client   | Native `fetch` wrapper (`src/api/client.ts`)   |
 | i18n          | react-i18next + i18next (zh + en per-module)      |
 | Build Tool    | Vite 6                                            |
 | Type Safety   | TypeScript 5 + Zod 3                              |
@@ -209,7 +209,7 @@ erp/
 │   ├── src/
 │   │   ├── main.rs           # Entry point, server startup
 │   │   ├── lib.rs             # Module declarations
-│   │   ├── router.rs          # Route definitions (~70 endpoints)
+│   │   ├── router.rs          # Route definitions (~190 routes, ~170 unique paths)
 │   │   ├── config.rs          # Environment config (DATABASE_URL=sqlite://data/erp.db?mode=rwc)
 │   │   ├── error.rs           # AppError with ApiResponse mapping; ApiErrorResponse includes success + request_id
 │   │   ├── response.rs        # ApiResponse<T> / PaginatedResponse<T> / Meta struct with request_id (uuid v4)
@@ -226,7 +226,7 @@ erp/
 │   └── Cargo.toml
 ├── frontend/
 │   ├── src/
-│   │   ├── api/               # Axios API clients
+│   │   ├── api/               # Native fetch wrapper (src/api/client.ts)
 │   │   ├── features/          # Per-module: auth, items, inventory, purchases, sales, workflow, hr, finance...
 │   │   ├── layouts/           # MainLayout with sidebar
 │   │   ├── stores/            # Zustand stores

@@ -83,7 +83,7 @@ npm run dev             # 启动于 http://localhost:5173
 | UI 框架       | React 19 + Ant Design 5 + @ant-design/icons        |
 | 路由          | react-router-dom 7                                 |
 | 状态管理       | Zustand 5（客户端状态）+ TanStack Query 5（服务端状态） |
-| HTTP 客户端   | Axios                                              |
+| HTTP 客户端   | 原生 `fetch` 封装（`src/api/client.ts`）           |
 | 国际化        | react-i18next + i18next（中英文按模块划分）           |
 | 构建工具       | Vite 6                                             |
 | 类型安全       | TypeScript 5 + Zod 3                               |
@@ -204,7 +204,7 @@ erp/
 │   ├── src/
 │   │   ├── main.rs           # 入口，服务器启动
 │   │   ├── lib.rs             # 模块声明
-│   │   ├── router.rs          # 路由定义（约 70 个端点）
+│   │   ├── router.rs          # 路由定义（约 190 个路由，约 170 个唯一路径）
 │   │   ├── config.rs          # 环境配置（DATABASE_URL=sqlite://data/erp.db?mode=rwc）
 │   │   ├── error.rs           # AppError 与 ApiResponse 映射；ApiErrorResponse 包含 success + request_id
 │   │   ├── response.rs        # ApiResponse<T> / PaginatedResponse<T> / Meta 结构体，含 request_id（uuid v4）
@@ -221,7 +221,7 @@ erp/
 │   └── Cargo.toml
 ├── frontend/
 │   ├── src/
-│   │   ├── api/               # Axios API 客户端
+│   │   ├── api/               # 原生 fetch 封装（src/api/client.ts）
 │   │   ├── features/          # 按模块划分：auth、items、inventory、purchases、sales、workflow、hr、finance...
 │   │   ├── layouts/           # MainLayout 含侧边栏
 │   │   ├── stores/            # Zustand 状态仓库

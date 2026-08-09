@@ -83,6 +83,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frontend: React 19 + Ant Design 5 + TanStack Query 5 + Vite 6
 - CI: GitHub Actions (cargo check + tsc + vite build)
 - SQLite schema with soft deletes
-- ~70 REST API endpoints under `/api/v1/`
+- ~190 REST API routes (~170 unique paths) under `/api/v1/`
 - Numeric error codes (100xx–50001) with domain prefixes
 - Request ID propagation (UUID v4) in all responses

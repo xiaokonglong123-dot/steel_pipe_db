@@ -73,7 +73,7 @@ impl ReportService {
     /// QC report — pass/fail distribution by item and inspection count per month.
     pub async fn quality_report(pool: &SqlitePool) -> Result<serde_json::Value, AppError> {
         let by_item = ReportRepo::quality_pass_fail_by_grade(pool).await?;
-        let by_month = ReportRepo::quality_certs_by_month(pool).await?;
+        let by_month = ReportRepo::inspections_by_month(pool).await?;
 
         Ok(serde_json::json!({
             "by_item": by_item,

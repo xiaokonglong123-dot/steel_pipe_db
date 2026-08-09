@@ -5,7 +5,7 @@
 set -euo pipefail
 
 # Configuration
-DB_PATH="${DB_PATH:-./data/steel_pipe.db}"
+DB_PATH="${DB_PATH:-./data/erp.db}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 LOG_FILE="${LOG_FILE:-./backups/restore.log}"
 
@@ -20,7 +20,7 @@ list_backups() {
     echo "Available backups:"
     echo "================="
     local count=0
-    for f in $(find "$BACKUP_DIR" -name "steel_pipe_*.db.gz" -type f | sort -r); do
+    for f in $(find "$BACKUP_DIR" -name "erp_*.db.gz" -type f | sort -r); do
         count=$((count + 1))
         local size=$(du -h "$f" | cut -f1)
         local date=$(stat -c %y "$f" 2>/dev/null || stat -f %Sm "$f" 2>/dev/null)
@@ -47,7 +47,7 @@ restore_backup() {
 
     # Create a temporary directory for decompression
     local tmp_dir=$(mktemp -d)
-    local tmp_db="${tmp_dir}/steel_pipe.db"
+    local tmp_db="${tmp_dir}/erp.db"
 
     # Decompress backup
     if ! gunzip -c "$backup_file" > "$tmp_db"; then
@@ -107,7 +107,7 @@ case "${1:-}" in
         # Check if argument is a number (backup index)
         if [[ "$2" =~ ^[0-9]+$ ]]; then
             # Get backup file by index
-            backup_file=$(find "$BACKUP_DIR" -name "steel_pipe_*.db.gz" -type f | sort -r | sed -n "${2}p")
+            backup_file=$(find "$BACKUP_DIR" -name "erp_*.db.gz" -type f | sort -r | sed -n "${2}p")
             if [ -z "$backup_file" ]; then
                 log "ERROR: Invalid backup number: $2"
                 exit 1
@@ -129,7 +129,7 @@ case "${1:-}" in
         echo "Examples:"
         echo "  $0                  # List available backups"
         echo "  $0 --restore 1      # Restore most recent backup"
-        echo "  $0 --restore ./backups/steel_pipe_20240101_120000.db.gz"
+        echo "  $0 --restore ./backups/erp_20240101_120000.db.gz"
         ;;
     *)
         log "ERROR: Unknown option: $1"

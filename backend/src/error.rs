@@ -70,12 +70,12 @@ error_codes! {
     /// The user lacks the required role or permission.
     Forbidden("Forbidden: {0}") = (11003, StatusCode::FORBIDDEN),
 
-    /// Seamless/screen pipe not found.
-    PipeNotFound("Pipe not found: {0}") = (12001, StatusCode::NOT_FOUND),
-    /// Pipe number already exists — duplicate detection.
-    PipeNumberDuplicate("Pipe number already exists: {0}") = (12002, StatusCode::CONFLICT),
-    /// Pipe status does not allow the requested operation.
-    PipeStatusConflict("Pipe status conflict: {0}") = (12003, StatusCode::CONFLICT),
+    /// Item (商品) master record not found.
+    ItemNotFound("Item not found: {0}") = (12001, StatusCode::NOT_FOUND),
+    /// Item SKU already exists — duplicate detection.
+    ItemSkuDuplicate("Item SKU already exists: {0}") = (12002, StatusCode::CONFLICT),
+    /// Item status does not allow the requested operation.
+    ItemStatusConflict("Item status conflict: {0}") = (12003, StatusCode::CONFLICT),
 
     /// Requested quantity exceeds available stock — ATP check failed.
     InsufficientStock("Insufficient stock") = (13001, StatusCode::CONFLICT),
@@ -86,11 +86,6 @@ error_codes! {
     OrderCannotModify("Order cannot be modified: {0}") = (14001, StatusCode::CONFLICT),
     /// Order not found by the given order number or ID.
     OrderNotFound("Order not found: {0}") = (14002, StatusCode::NOT_FOUND),
-
-    /// Quality inspection certificate not found or has been revoked.
-    QualityCertNotFound("Quality cert not found: {0}") = (15001, StatusCode::NOT_FOUND),
-    /// File attachment referenced by a quality record does not exist.
-    AttachmentNotFound("Attachment not found: {0}") = (15002, StatusCode::NOT_FOUND),
 
     /// Supplier record not found.
     SupplierNotFound("Supplier not found: {0}") = (16001, StatusCode::NOT_FOUND),

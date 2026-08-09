@@ -29,10 +29,8 @@ Database is SQLite3 (single file `data/erp.db`, connection string `sqlite://data
 | Backend tests | `cd backend && cargo test` | — |
 | Frontend type-check | `cd frontend && npx tsc --noEmit` | `tsc --noEmit` |
 | Frontend build | `cd frontend && npm run build` | `npm run build` |
-| Frontend chunk analysis | `cd frontend && npx vite build --analyze` (manualChunks via vite.config.ts) | — |
+| Frontend chunk analysis | `cd frontend && npm run analyze` (vite build --config vite.config.analyze.ts) | — |
 | Full CI pipeline | `cargo check` + `tsc --noEmit` + `npm run build` (parallel) | `.github/workflows/ci.yml` |
-
-**Heads up**: There's **no Makefile** despite what the README says. Just use cargo/npm directly.
 
 ## Architecture
 
@@ -42,14 +40,14 @@ erp/
 │   └── src/
 │       ├── main.rs         ← Entry: tracing, DB pool, migrate, start server
 │       ├── lib.rs          ← Module declarations re-exported
-│       ├── router.rs       ← ~70 endpoints, all routes assembled here
+│       ├── router.rs       ← ~190 routes (~170 unique paths), all routes assembled here
 │       ├── handlers/       ← 1 file per entity (thin: extract → call service → respond)
 │       ├── services/       ← business logic (unit structs, static methods)
 │       ├── repositories/   ← pure SQL, soft-delete aware
 │       ├── models/         ← DB row structs (sqlx::FromRow)
 │       ├── dto/            ← request/response types
 │       ├── domain/         ← enums/domain types
-│       ├── middleware/     ← auth.rs + rbac.rs + rate_limit.rs
+│       ├── middleware/     ← auth.rs + rbac.rs + rate_limit.rs + security_headers.rs
 │       ├── auth/           ← RBAC: repos.rs + services.rs (IdentityService) + handlers.rs (roles/permissions/departments/tenants)
 │       ├── workflow/       ← approval engine: repos.rs + services.rs (WorkflowService) + handlers.rs (definitions/instances/tasks)
 │       ├── hr/             ← HR: repos.rs + services.rs (HrService) + handlers.rs (employees/attendance/salaries/labor contracts)
@@ -70,15 +68,15 @@ erp/
 │   └── src/
 │       ├── main.tsx        ← React DOM entry
 │       ├── App.tsx         ← ConfigProvider + QueryClientProvider + RouterProvider
-│       ├── api/            ← Axios instance + QueryClient config
+│       ├── api/            ← native fetch wrapper (src/api/client.ts) + QueryClient config
 │       ├── routes/         ← createBrowserRouter + ProtectedRoute
-│       ├── features/       ← per-module features (auth, items, inventory, purchases, sales, workflow, hr, finance, ...)
+│       ├── features/       ← per-module features (auth, inventory, purchases, sales, workflow, hr, finance, ...)
 │       ├── layouts/        ← MainLayout (sidebar + header + Outlet)
-│       ├── stores/         ← Zustand authStore, appStore (global state), unitStore (unit conversion)
+│       ├── stores/         ← Zustand authStore, appStore (global state)
 │       ├── lib/            ← validateResponse.ts, runtime zod response validation
 │       ├── styles/         ← Ant Design theme config
 │       ├── zod-schemas/    ← Zod schema files for response validation
-│       ├── shared/         ← hooks (useDebounce), components/ (9 shared components), utils/
+│       ├── shared/         ← hooks (useDebounce), components/ (13 shared components), utils/
 │       └── i18n/           ← react-i18next (zh-CN primary)
 └── docs/             ← PRD, design docs, task breakdown
 ```
@@ -87,7 +85,7 @@ erp/
 
 ### Backend
 
-- **Rust** edition 2021, nightly 2024-02-08
+- **Rust** edition 2021, stable channel (`backend/rust-toolchain.toml`, CI uses dtolnay/rust-toolchain@stable)
 - **Axum 0.8** with macros + multipart features
 - **SQLx 0.8** with `sqlite` feature, runtime-tokio, chrono
 - **Auth**: jsonwebtoken 9 + argon2 0.5 (NOT bcrypt)
@@ -95,8 +93,7 @@ erp/
 - **Tracing**: tracing + tracing-subscriber with env-filter + json
 - **tower-http 0.6**: CORS, trace, request-id
 - **Import/Export**: calamine 0.26 (Excel), rust_xlsxwriter 0.80, csv 1.3
-- **No `rust_decimal` or `bigdecimal`** — decimals handled via f64 in current code
-- **No `build.rs`** — despite being mentioned in subordinate AGENTS.md
+- **Money precision**: `rust_decimal` + `rust_decimal_macros` used in the amount input layer (DTOs, domain/money.rs); DB columns and calculations remain `f64` (see `docs/refactor-issue-list-2026-08-09.md` for the money decision)
 - **DB**: SQLite3, connection string `sqlite://data/erp.db?mode=rwc` (WAL mode)
 
 ### Frontend
@@ -105,12 +102,12 @@ erp/
 - **Ant Design 5** with @ant-design/icons
 - **TanStack Query 5** — server state, 2min staleTime, 5min gcTime
 - **Zustand 5** — client auth state (NOT just TanStack Query)
-- **Axios** instance at `/api/v1`, auto-attaches Bearer token
+- **fetch wrapper** at `/api/v1` (src/api/client.ts), auto-attaches Bearer token
 - **TypeScript strict** — noUnusedLocals, noUnusedParameters enforced
 - **Path alias**: `@/` → `./src/*`
 - **i18n**: react-i18next, zh-CN primary, per-feature namespaces
 - **zod** — schema validation
-- **zod runtime validation** — `src/lib/validateResponse.ts` wraps `zod.response()` for API response validation
+- **zod runtime validation** — `src/lib/validateResponse.ts` uses `schema.safeParse(data)` for API response validation
 
 ## Backend Patterns (what actually runs, not what the docs pretend)
 
@@ -241,14 +238,14 @@ DB is SQLite3 at `sqlite://data/erp.db?mode=rwc` (sqlx 0.8 `sqlite` feature). No
 
 ### Feature Modules
 
-`auth`, `items`, `inventory`, `suppliers`, `customers`, `purchases`, `sales`, `contracts`, `workflow`, `hr`, `finance`, `procurement`, `manufacturing`, `projects`, `assets`, `notifications`, `portal`, `reports`, `search`, `profile`
+`auth`, `inventory` (商品/Item + SKU, inbound/outbound/locations/check), `inventory_atp`, `suppliers`, `customers`, `purchases`, `sales`, `sales_crm`, `contracts`, `workflow`, `hr`, `finance`, `procurement`, `manufacturing`, `project`, `assets`, `notification`, `portal`, `reports`, `bi`, `data-io`, `search`, `quality`, `labels`, `profile`
 
 Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, DetailPage), `types/` (TS interfaces), and usually `queryKeys.ts` for TanStack Query key factories. Some also have `hooks/` or `store/` or `stores/`.
 
 ### Auth Flow
 
 - `authStore` (Zustand, localStorage-backed): stores `auth_token` + `auth_user`
-- `apiClient` interceptor auto-attaches `Authorization: Bearer <token>`
+- `apiClient` (fetch wrapper) auto-attaches `Authorization: Bearer <token>`
 - 401 response → clear storage, redirect to `/login`
 - `ProtectedRoute` component redirects unauthenticated users
 
@@ -260,7 +257,7 @@ Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, D
 
 ### API Base
 
-- Axios `baseURL: '/api/v1'`, 30s timeout
+- fetch wrapper `baseURL: '/api/v1'`, 30s timeout
 - Vite dev proxy: `/api/*` → `http://localhost:3000`
 
 ## Conventions & Gotchas
@@ -276,7 +273,7 @@ Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, D
 - **JWT secret uses `JwtSecret` newtype** — no bare `Extension<String>` for auth secrets; missing secret extension fails closed with 500
 - **No State extractor** anywhere — all DI via Extension
 - **Frontend query keys**: feature hooks use per-module `queryKeys.ts` factories; avoid inline `queryKey: [...]` literals in feature API code
-- **`shared/components/` is populated** — 9 shared components: ConfirmModal, EmptyState, ErrorBoundary, FileUploader, LoadingSpin, PageContainer, PageHeader, SearchBar, StatusTag
+- **`shared/components/` is populated** — 13 shared components: ActionButton, Can, DataTable, EmptyState, ErrorBoundary, FormField, ItemPicker, ListPageTemplate, PageLayout, RouteBoundary, SearchBar, StatusBadge, StatusTag
 - **`docs/AGENTS.md`** exists as index for design docs in Chinese
 - **Seed data**: `backend/seed_data.py` and `backend/seed_data_enhanced.py` available
 - **Terminology**: use only the terms from `specs/UBIQUITOUS_LANGUAGE_LATEST.md` (商品/Item+SKU, 采购订单, 销售订单, 质检/Inspection, 工单, etc.)

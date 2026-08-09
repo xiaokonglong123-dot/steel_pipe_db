@@ -49,7 +49,6 @@ use tower::ServiceBuilder;
 use tower_http::{request_id::MakeRequestUuid, ServiceBuilderExt};
 
 use crate::cache::CacheManager;
-use crate::cache_invalidator::CacheInvalidator;
 use crate::middleware::auth::JwtSecret;
 use crate::middleware::rate_limit::{
     rate_limit_import, rate_limit_login, rate_limit_password_change, RateLimiter,
@@ -348,7 +347,6 @@ pub fn create_app(
     jwt_secret: String,
     cors_origins: Vec<HeaderValue>,
     cache_manager: CacheManager,
-    cache_invalidator: CacheInvalidator,
 ) -> Router {
     // Public: no auth required
     let public = Router::new()
@@ -1265,5 +1263,5 @@ pub fn create_app(
         .layer(axum::Extension(JwtSecret(jwt_secret)))
         .layer(axum::Extension(RateLimiter::new()))
         .layer(axum::Extension(cache_manager))
-        .layer(axum::Extension(cache_invalidator))
+        
 }

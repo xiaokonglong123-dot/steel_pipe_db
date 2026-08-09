@@ -1,6 +1,6 @@
 # `features/` — The Feature Module Pattern
 
-All 23 feature modules follow the same layout. This doc is both a reference and a template for adding new ones. Frontend of the **ERP（通用企业资源计划系统）** monorepo — backend crate `erp-server`, backend data layer **SQLite3** (`sqlite://data/erp.db?mode=rwc`, sqlx 0.8 sqlite feature).
+All 25 feature modules follow the same layout. This doc is both a reference and a template for adding new ones. Frontend of the **ERP（通用企业资源计划系统）** monorepo — backend crate `erp-server`, backend data layer **SQLite3** (`sqlite://data/erp.db?mode=rwc`, sqlx 0.8 sqlite feature).
 
 ## Feature Module Structure
 
@@ -47,6 +47,8 @@ features/{feature}/
 | `bi/` | `/bi` | BI 分析 dashboard |
 | `search/` | `/search` | Global search across items, inventory, orders |
 | `data-io/` | `/data-io/import`, `/data-io/export`, `/data-io/logs` | Generic item/inventory data import/export, operation logs |
+| `quality/` | `/quality/certs` | 质检证书 (quality certificates) |
+| `labels/` | `/labels` | 标签打印 (label printing) |
 | `profile/` | `/profile/settings` | User settings, password change |
 
 ## Template: `api/index.ts` (TanStack Query Hooks)
@@ -106,7 +108,7 @@ export default function ListPage() {
 
 ## API Connection
 
-- All API calls go through the shared axios instance at `src/api/` (base URL: `/api/v1`).
+- All API calls go through the shared native fetch wrapper at `src/api/client.ts` (base URL: `/api/v1`).
 - Query key convention: define a feature-local `queryKeys.ts` factory (for example `featureQueryKeys.all`, `.list(params)`, `.detail(id)`) and use it from hooks.
 - Mutations invalidate the appropriate factory key on success so affected lists/details refetch.
 - Some features use `lib/validateResponse.ts` with Zod schemas from `zod-schemas/` for runtime response validation.

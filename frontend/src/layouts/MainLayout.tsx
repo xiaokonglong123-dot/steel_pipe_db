@@ -63,16 +63,6 @@ export default function MainLayout() {
   // 侧边栏菜单结构：按业务模块分组（子项可带 roles 做角色过滤）
   const menuItems: MenuGroup[] = [
     {
-      key: 'pipes',
-      icon: <ContainerOutlined />,
-      label: t('menu.pipes'),
-      children: [
-        { key: '/pipes/seamless', label: t('menu.seamless_pipes') },
-        { key: '/pipes/screen', label: t('menu.screen_pipes') },
-        { key: '/pipes/welded', label: t('menu.welded_pipes') },
-      ],
-    },
-    {
       key: 'inventory',
       icon: <ShopOutlined />,
       label: t('menu.inventory'),
@@ -203,7 +193,6 @@ export default function MainLayout() {
       label: t('menu.manufacturing'),
       children: [
         { key: '/manufacturing', label: t('menu.manufacturing_overview'), roles: ['admin'] },
-        { key: '/threading', label: t('menu.threading'), roles: ['admin'] },
       ],
     },
     {

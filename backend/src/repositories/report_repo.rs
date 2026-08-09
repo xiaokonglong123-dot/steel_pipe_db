@@ -298,7 +298,7 @@ impl ReportRepo {
     }
 
     /// Inspections grouped by month (last 12). Returns total, passed, failed, pass_rate.
-    pub async fn quality_certs_by_month(
+    pub async fn inspections_by_month(
         pool: &SqlitePool,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         let rows: Vec<(String, i64, i64, i64)> = sqlx::query_as(

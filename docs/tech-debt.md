@@ -17,19 +17,21 @@
 
 | # | 问题 | 类型 | 风险 | 说明 |
 |---|------|------|------|:---:|
-| C3 | 金额/小数用 `f64`（精度丢失） | 正确性 | 中 | **阻塞**（需联网装 crate） |
+| C3 | 金额/小数用 `f64`（精度丢失） | 正确性 | 中 | 已部分解决（已引入 `rust_decimal`，全链路 Decimal 属阶段 2） |
 
 ---
 
 ## C3 — 金额/小数用 f64（精度丢失）
 
+> **状态**：已部分解决（已引入 `rust_decimal`，全链路 Decimal 属阶段 2）。
+
 **位置**：后端涉及金额/数量小数的字段（合同金额、单价、付款等）；详见 `models/` 与 `dto/` 中相关 f64 字段。
 
 **问题**：货币与精确小数用 `f64`，存在浮点精度误差，财务场景不可接受。
 
-**建议修法**：引入 `rust_decimal`（或 `bigdecimal`），金额字段改用 `Decimal`，并调整 SQLx 映射、DTO 序列化与前端展示。
+**当前进展**：金额输入层已引入 `rust_decimal` + `rust_decimal_macros`（Cargo.toml、`dto/`、`domain/money.rs`）；库表与计算层仍为 `f64`。
 
-**环境阻塞**：当前环境**无法联网安装 crate**，本项无法在此完成，必须在联网机器上进行。
+**建议修法**：`rust_decimal`（或 `bigdecimal`）已引入，下一步将金额字段改用 `Decimal`，并调整 SQLx 映射、DTO 序列化与前端展示（阶段 2 全链路 Decimal）。
 
 **验证**：`cargo check` + `cargo test`（金额计算精度用例）。
 
@@ -71,7 +73,7 @@
 **修复**：
 
 - 后端：添加 `axum-extra` cookie 依赖；login/refresh/logout handler 设置 httpOnly refresh_token cookie
-- 前端：移除 localStorage 持久化，access token 仅存内存；axios 启用 `withCredentials`；页面加载时自动调用 `/auth/refresh` 恢复会话
+- 前端：移除 localStorage 持久化，access token 仅存内存；fetch 封装（`src/api/client.ts`）启用 `credentials: 'include'`；页面加载时自动调用 `/auth/refresh` 恢复会话
 
 **验证**：`cargo check` + `cargo test` + `tsc --noEmit` 均通过
 

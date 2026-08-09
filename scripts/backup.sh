@@ -1,11 +1,11 @@
 #!/bin/bash
-# Steel Pipe DB - SQLite Database Backup Script
+# ERP SQLite Database Backup Script
 # Creates timestamped, gzipped backups with retention policy
 
 set -euo pipefail
 
 # Configuration
-DB_PATH="${DB_PATH:-./data/steel_pipe.db}"
+DB_PATH="${DB_PATH:-./data/erp.db}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
 LOG_FILE="${LOG_FILE:-./backups/backup.log}"
@@ -15,7 +15,7 @@ mkdir -p "$BACKUP_DIR"
 
 # Generate timestamp
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-BACKUP_FILE="${BACKUP_DIR}/steel_pipe_${TIMESTAMP}.db.gz"
+BACKUP_FILE="${BACKUP_DIR}/erp_${TIMESTAMP}.db.gz"
 
 # Log function
 log() {
@@ -46,12 +46,12 @@ fi
 
 # Remove backups older than retention period
 log "Cleaning up backups older than $RETENTION_DAYS days"
-find "$BACKUP_DIR" -name "steel_pipe_*.db.gz" -mtime +$RETENTION_DAYS -delete -print | while read -r f; do
+find "$BACKUP_DIR" -name "erp_*.db.gz" -mtime +$RETENTION_DAYS -delete -print | while read -r f; do
     log "Deleted old backup: $f"
 done
 
 # Show current backups
-BACKUP_COUNT=$(find "$BACKUP_DIR" -name "steel_pipe_*.db.gz" | wc -l)
+BACKUP_COUNT=$(find "$BACKUP_DIR" -name "erp_*.db.gz" | wc -l)
 log "Total backups: $BACKUP_COUNT"
 
 log "Backup completed successfully"

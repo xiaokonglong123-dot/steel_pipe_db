@@ -5,7 +5,6 @@
 //! Dependency injection is via Axum [`Extension`] layers — no global state struct.
 
 pub mod cache;
-pub mod cache_invalidator;
 pub mod auth;
 pub mod workflow;
 pub mod hr;

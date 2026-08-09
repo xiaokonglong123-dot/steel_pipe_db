@@ -40,22 +40,21 @@ function App() {
 
 ## Shared Infrastructure
 
-### `api/` — Axios Instance
+### `api/` — Native fetch wrapper
 
 ```ts
-const api = axios.create({ baseURL: '/api/v1' })
-// Interceptor: attach JWT token from localStorage
-// Interceptor: handle 401 → redirect to login
+import api from '@/api/client'  // native fetch wrapper, baseURL '/api/v1'
+// Authorization: Bearer token auto-attached from auth store
+// On 401: clears auth and redirects to /login
 ```
 
-- One axios instance, used everywhere.
+- One fetch wrapper (`src/api/client.ts`), used everywhere.
 - Auto-attaches `Authorization: Bearer <token>`.
 - On 401, clears auth and redirects to `/login`.
 
 ### `lib/` — Runtime Validation
 
-- `validateResponse.ts` wraps Zod schemas to validate API responses at runtime.
-- Uses a `zod.response()` pattern — imported by feature API modules for type-safe data fetching.
+- `validateResponse.ts` validates API responses at runtime using `schema.safeParse(data)`.
 
 ### `hooks/` — Shared Hooks
 
@@ -66,7 +65,6 @@ const api = axios.create({ baseURL: '/api/v1' })
 
 - `authStore.ts` — Token, user, login/logout.
 - `appStore.ts` — Global UI state (sidebar collapsed, theme).
-- `unitStore.ts` — Unit conversion state.
 
 ### `i18n/` — Translations
 
@@ -165,16 +163,20 @@ i18n/
 
 ### `shared/` — Shared Components & Utilities
 
-- `components/` — 9 reusable UI components:
-  - `ConfirmModal` — Confirmation dialog with custom content
+- `components/` — 13 reusable UI components:
+  - `ActionButton` — Standard action button with loading state
+  - `Can` — Permission-based render guard
+  - `DataTable` — Generic Ant Design table wrapper
   - `EmptyState` — Placeholder for empty lists
   - `ErrorBoundary` — Catches render errors with fallback UI
-  - `FileUploader` — Drag-and-drop file upload
-  - `LoadingSpin` — Centered spinner
-  - `PageContainer` — Standard page wrapper
-  - `PageHeader` — Title + breadcrumb + action buttons
+  - `FormField` — Form field wrapper
+  - `ItemPicker` — Item/SKU selector
+  - `ListPageTemplate` — Standard list page scaffolding
+  - `PageLayout` — Standard page wrapper
+  - `RouteBoundary` — Route-level error boundary
   - `SearchBar` — Debounced search input
-  - `StatusTag` — Colored status badge
+  - `StatusBadge` — Colored status badge
+  - `StatusTag` — Colored status tag
 - `hooks/` — Shared hooks:
   - `useDebounce` — Debounce a changing value
 
@@ -220,5 +222,5 @@ zod-schemas/
 1. Create feature files in `src/features/{feature}/` (see features/AGENTS.md for the pattern).
 2. Add the route in `src/routes/index.tsx`.
 3. Add i18n namespace files in `src/i18n/zh/{feature}.json` and `src/i18n/en/{feature}.json`.
-4. Import the shared `api` instance from `src/api/` for data fetching.
+4. Import the shared `api` wrapper from `src/api/client.ts` for data fetching.
 5. If the feature needs client-side state, create a Zustand store in `src/stores/`.

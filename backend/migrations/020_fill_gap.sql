@@ -1,0 +1,8 @@
+-- Version 020 was intentionally left empty.
+--
+-- The original 020 migration contained `ALTER COLUMN ... SET DEFAULT`
+-- (PostgreSQL syntax, unsupported by SQLite) and was removed during the
+-- PG→SQLite rewrite. This placeholder keeps the version sequence
+-- continuous; sqlx applies it as a no-op.
+--
+-- This migration intentionally contains no statements.

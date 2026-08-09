@@ -68,8 +68,6 @@ describe('Route smoke tests', () => {
 
   // List pages — should at least mount without crashing
   const listPages = [
-    ['SeamlessPipeListPage', () => import('@/features/pipes/pages/SeamlessPipeListPage')],
-    ['ScreenPipeListPage', () => import('@/features/pipes/pages/ScreenPipeListPage')],
     ['InboundListPage', () => import('@/features/inventory/pages/InboundListPage')],
     ['OutboundListPage', () => import('@/features/inventory/pages/OutboundListPage')],
     ['StockQueryPage', () => import('@/features/inventory/pages/StockQueryPage')],

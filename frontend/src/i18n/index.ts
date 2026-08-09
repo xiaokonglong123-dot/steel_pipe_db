@@ -25,8 +25,6 @@ function normalizeModule(mod: unknown): Record<string, unknown> {
 }
 
 const ZH_LOADERS = {
-  pipes: () => import('./locales/zh/pipes.json'),
-  screen_pipes: () => import('./locales/zh/screen_pipes.json'),
   inventory: () => import('./locales/zh/inventory.json'),
   inbound: () => import('./locales/zh/inbound.json'),
   outbound: () => import('./locales/zh/outbound.json'),
@@ -50,7 +48,6 @@ const ZH_LOADERS = {
   finance: () => import('./locales/zh/finance.json'),
   procurement: () => import('./locales/zh/procurement.json'),
   manufacturing: () => import('./locales/zh/manufacturing.json'),
-  threading: () => import('./locales/zh/threading.json'),
   project: () => import('./locales/zh/project.json'),
   assets: () => import('./locales/zh/assets.json'),
   notification: () => import('./locales/zh/notification.json'),
@@ -60,8 +57,6 @@ const ZH_LOADERS = {
 } satisfies Record<string, TranslationLoader>;
 
 const EN_LOADERS = {
-  pipes: () => import('./locales/en/pipes.json'),
-  screen_pipes: () => import('./locales/en/screen_pipes.json'),
   inventory: () => import('./locales/en/inventory.json'),
   inbound: () => import('./locales/en/inbound.json'),
   outbound: () => import('./locales/en/outbound.json'),
@@ -85,7 +80,6 @@ const EN_LOADERS = {
   finance: () => import('./locales/en/finance.json'),
   procurement: () => import('./locales/en/procurement.json'),
   manufacturing: () => import('./locales/en/manufacturing.json'),
-  threading: () => import('./locales/en/threading.json'),
   project: () => import('./locales/en/project.json'),
   assets: () => import('./locales/en/assets.json'),
   notification: () => import('./locales/en/notification.json'),

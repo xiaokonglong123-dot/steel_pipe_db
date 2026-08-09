@@ -4,7 +4,7 @@
 
 ## 技术栈
 
-- **Rust** nightly-2024-02-08，edition 2021
+- **Rust** stable channel（`rust-toolchain.toml`），edition 2021
 - **单一 crate** `erp-server`（无 workspace，无 monorepo）
 - **SQLx** 0.8 + SQLite（runtime-tokio），启动时自动执行迁移
 
@@ -28,7 +28,7 @@
 - `csv` 1.3 — CSV 导入/导出
 - `tracing` / `tracing-subscriber` — 结构化日志（env-filter、json）
 
-**注意：** 这里没有 `rust_decimal`、`bigdecimal`、`backpack` 或 `bcrypt`，不要去找它们。
+**注意：** 金额输入层已引入 `rust_decimal` + `rust_decimal_macros`（DTO、`domain/money.rs`）；库表与计算仍用 `f64`。这里没有 `bigdecimal`、`backpack` 或 `bcrypt`，不要去找它们。
 
 ## 构建与测试
 
@@ -57,7 +57,7 @@ src/
 ├── config.rs            ← 环境变量配置（DATABASE_URL、JWT_SECRET 等）
 ├── error.rs             ← AppError 枚举，数字错误码（10001-50001）
 ├── response.rs          ← ApiResponse<T>、PaginatedResponse<T>
-├── router.rs            ← ~200 个端点，通过 .merge() 组装
+├── router.rs            ← ~190 个路由（~170 个唯一路径），通过 .merge() 组装
 ├── cache.rs             ← 响应缓存 + cache_invalidator.rs
 ├── domain/              ← 通用领域类型（商品、库存、单据、金额）
 ├── dto/                 ← 请求/响应结构体（每实体一个文件）

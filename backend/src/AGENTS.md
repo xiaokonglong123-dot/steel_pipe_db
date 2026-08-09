@@ -45,7 +45,7 @@ Feature modules are self-contained: each has its own `mod.rs` + `handlers.rs` + 
 
 ```rust
 pub fn create_app(pool: SqlitePool, jwt_secret: String) -> Router {
-    // ~200 endpoints, grouped by entity via .merge()
+    // ~190 routes (~170 unique paths), grouped by entity via .merge()
     Router::new()
         .route("/api/v1/auth/login", post(handlers::auth_handler::login))
         .route("/api/v1/items", get(handlers::item_handler::list))

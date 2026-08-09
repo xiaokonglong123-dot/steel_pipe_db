@@ -1,4 +1,4 @@
-# `handlers/` — HTTP Layer (16 files, ~200 handlers)
+# `handlers/` — HTTP Layer (16 files, ~100 handlers)
 
 ## Pattern
 

@@ -40,22 +40,21 @@ function App() {
 
 ## Shared Infrastructure
 
-### `api/` — Axios Instance
+### `api/` — 原生 fetch 封装
 
 ```ts
-const api = axios.create({ baseURL: '/api/v1' })
-// Interceptor: attach JWT token from localStorage
-// Interceptor: handle 401 → redirect to login
+import api from '@/api/client'  // native fetch wrapper, baseURL '/api/v1'
+// Authorization: Bearer token 自动附加
+// 401 → 清除认证状态并跳转 /login
 ```
 
-- Single axios instance shared across all features.
-- Auto-attaches `Authorization: Bearer <token>`.
-- On 401, clears auth state and redirects to `/login`.
+- 全项目共用同一个 fetch 封装（`src/api/client.ts`）。
+- 自动附加 `Authorization: Bearer <token>`。
+- 401 时清除认证状态并跳转 `/login`。
 
-### `lib/` — Runtime Validation
+### `lib/` — 运行时校验
 
-- `validateResponse.ts` wraps Zod schemas for runtime API response validation.
-- Uses a `zod.response()` pattern — feature API modules import this for type-safe fetching.
+- `validateResponse.ts` 使用 `schema.safeParse(data)` 对 API 响应做运行时校验。
 
 ### `hooks/` — Shared Hooks
 
@@ -66,7 +65,6 @@ const api = axios.create({ baseURL: '/api/v1' })
 
 - `authStore.ts` — Token, user info, login/logout actions.
 - `appStore.ts` — Global UI state (sidebar collapse, theme).
-- `unitStore.ts` — Unit conversion state.
 
 ### `i18n/` — Translations
 
@@ -165,16 +163,20 @@ i18n/
 
 ### `shared/` — Shared Components & Utilities
 
-- `components/` — 9 reusable UI components:
-  - `ConfirmModal` — Custom confirmation dialog
-  - `EmptyState` — Empty list placeholder
-  - `ErrorBoundary` — Catches render errors with a fallback
-  - `FileUploader` — Drag-and-drop file upload
-  - `LoadingSpin` — Centered spinner
-  - `PageContainer` — Standard page layout wrapper
-  - `PageHeader` — Title + breadcrumb + action buttons
-  - `SearchBar` — Debounced search input
-  - `StatusTag` — Colored status badge
+- `components/` — 13 reusable UI components:
+  - `ActionButton` — 带 loading 状态的标准操作按钮
+  - `Can` — 基于权限的渲染守卫
+  - `DataTable` — 通用 Ant Design 表格封装
+  - `EmptyState` — 空列表占位
+  - `ErrorBoundary` — 捕获渲染错误并回退
+  - `FormField` — 表单字段封装
+  - `ItemPicker` — 商品/SKU 选择器
+  - `ListPageTemplate` — 标准列表页脚手架
+  - `PageLayout` — 标准页面布局封装
+  - `RouteBoundary` — 路由级错误边界
+  - `SearchBar` — 防抖搜索输入
+  - `StatusBadge` — 彩色状态徽章
+  - `StatusTag` — 彩色状态标签
 - `hooks/` — Shared hooks:
   - `useDebounce` — Debounce a value
 

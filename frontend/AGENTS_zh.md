@@ -10,7 +10,7 @@ Quick orientation: this is the frontend of the **ERP（通用企业资源计划�
 - **Ant Design 5** — UI components
 - **TanStack Query 5** — Server state (staleTime: 2min, gcTime: 5min)
 - **react-router-dom v7** — Routing (createBrowserRouter)
-- **axios** — HTTP client
+- **原生 `fetch` 封装** — HTTP client（`src/api/client.ts`）
 - **i18next / react-i18next** — i18n (zh-CN primary, en-US fallback)
 - **dayjs** — Date handling
 - **zod** — Validation + runtime response checking
@@ -34,13 +34,13 @@ frontend/
 ├── src/
 │   ├── main.tsx         ← Entry: i18n init, QueryClient, render
 │   ├── App.tsx          ← ConfigProvider + QueryClientProvider + RouterProvider
-│   ├── api/             ← Shared axios instance + interceptors
+│   ├── api/             ← 原生 fetch 封装 + QueryClient config
 │   ├── lib/             ← validateResponse.ts, runtime Zod validation
-│   ├── stores/          ← Zustand (authStore, appStore, unitStore)
+│   ├── stores/          ← Zustand (authStore, appStore)
 │   ├── i18n/            ← Translations (zh, en) — per-feature namespaces
 │   ├── routes/          ← Route definitions
 │   ├── shared/          ← Shared components & hooks
-│   │   ├── components/  ← ConfirmModal, EmptyState, ErrorBoundary, FileUploader, LoadingSpin, PageContainer, PageHeader, SearchBar, StatusTag
+│   │   ├── components/  ← ActionButton, Can, DataTable, EmptyState, ErrorBoundary, FormField, ItemPicker, ListPageTemplate, PageLayout, RouteBoundary, SearchBar, StatusBadge, StatusTag
 │   │   └── hooks/       ← useDebounce
 │   ├── theme/           ← Ant Design theme config
 │   ├── zod-schemas/     ← Zod schemas for API response validation
@@ -68,6 +68,8 @@ frontend/
 │       ├── bi/              ← BI 分析看板
 │       ├── search/          ← 全局商品搜索
 │       ├── data-io/         ← 通用数据导入导出
+│       ├── quality/         ← 质检证书 (certs)
+│       ├── labels/          ← 标签打印
 │       └── profile/
 ├── index.html
 ├── vite.config.ts       ← React plugin, proxy, vendor-ui manual chunk
@@ -83,7 +85,6 @@ frontend/
 - `antd` (^5)
 - `@tanstack/react-query` (^5)
 - `react-router-dom` (^7)
-- `axios` (^1)
 - `i18next`, `react-i18next`
 - `dayjs`
 - `zod`

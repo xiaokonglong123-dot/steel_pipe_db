@@ -4,7 +4,7 @@
 
 ## Tech
 
-- **Rust** nightly-2024-02-08, edition 2021
+- **Rust** stable channel (`rust-toolchain.toml`), edition 2021
 - **Single crate** `erp-server` (no workspace, no monorepo nonsense)
 - **SQLx** 0.8 with SQLite (runtime-tokio), migrations auto-run on startup
 
@@ -28,7 +28,7 @@
 - `csv` 1.3 — CSV import/export
 - `tracing` / `tracing-subscriber` — Structured logging (env-filter, json)
 
-**Heads up:** No `rust_decimal`, `bigdecimal`, `backpack`, or `bcrypt` here. Don't go looking for them.
+**Heads up:** `rust_decimal` + `rust_decimal_macros` are used in the amount input layer (DTOs, `domain/money.rs`); DB columns and calculations still use `f64`. There's no `bigdecimal`, `backpack`, or `bcrypt` here — don't go looking for them.
 
 ## Build & Test
 
@@ -57,7 +57,7 @@ src/
 ├── config.rs            ← Env-based Config (DATABASE_URL, JWT_SECRET, etc.)
 ├── error.rs             ← AppError enum with numeric error codes (10001-50001)
 ├── response.rs          ← ApiResponse<T>, PaginatedResponse<T>
-├── router.rs            ← ~200 endpoints assembled via .merge()
+├── router.rs            ← ~190 routes (~170 unique paths) assembled via .merge()
 ├── cache.rs             ← Response cache + cache_invalidator.rs
 ├── domain/              ← Generic domain types (item, inventory, order, money)
 ├── dto/                 ← Request/response structs (one file per entity)
