@@ -1,126 +1,47 @@
-#![allow(dead_code)]
+//! ERP v2 — 后端入口
+//!
+//! 分层（继承 v1 验证过的模式）：
+//!   main.rs        → tracing + pool + migrate + bootstrap admin + serve
+//!   config.rs      → 环境变量配置
+//!   error.rs       → AppError + IntoResponse（不泄露 SQL 细节）
+//!   response.rs    → ApiResponse<T> / PaginatedResponse<T> / Meta
+//!   db.rs          → SqlitePool 初始化 + 迁移
+//!   auth.rs        → JWT 签发/校验（access+refresh 轮换）、bootstrap_admin
+//!   middleware/    → auth（JWT 校验 + AuthUser）+ rbac（查库实时权限）
+//!   http/          → 每资源一个模块（routes+handlers 合一）
+//!   services/      → 业务逻辑（事务边界在 service 层，金额 Decimal 计算）
+//!   repos/         → 纯 SQL
 
 use std::net::SocketAddr;
 
-use sqlx::sqlite::SqlitePoolOptions;
 use tracing_subscriber::EnvFilter;
 
-use crate::dto::auth_dto::CreateUserRequest;
-use crate::repositories::user_repo::UserRepo;
-use crate::services::auth_service::AuthService;
-
-mod cache;
-mod cache_invalidator;
-mod config;
-mod domain;
-mod dto;
-mod error;
-mod handlers;
-mod middleware;
-mod models;
-mod repositories;
-mod response;
-mod router;
-mod services;
+use erp_v2::{auth, config, db, http};
 
 #[tokio::main]
-async fn main() {
-    // Tracing must be initialized before any logging — panic hooks capture early crashes
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info,erp_v2=debug")),
         )
         .init();
 
-    // Load .env before config — env vars must be present before from_env() reads them
-    dotenvy::dotenv().ok();
+    let cfg = config::Config::from_env()?;
+    let pool = db::init_pool(&cfg).await?;
 
-    // Read all env-based config upfront — panics early if critical vars are missing
-    let cfg = config::Config::from_env();
+    // 初始 admin（Argon2 生成真实哈希，幂等）
+    auth::bootstrap_admin(&pool, &cfg.admin_username, &cfg.admin_password).await?;
+    tracing::info!("bootstrap admin ensured: {}", cfg.admin_username);
 
-    // Pool must be created before routes — all handlers pull connections from this pool
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect(&cfg.database_url)
-        .await
-        .expect("Failed to connect to database");
-
-    // Migrations must run before the server starts — stale schema causes runtime errors
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("Failed to run database migrations");
-
-    tracing::info!("Database migrations completed");
-
-    // Bootstrap the initial admin user if no users exist yet.
-    // This replaces the old migration-seeded hardcoded admin credential.
-    bootstrap_admin(&pool, &cfg.admin_username, &cfg.admin_password).await;
-
-    // Create the cache manager — holds typed caches for grades, locations, dashboard
-    let cache_manager = crate::cache::CacheManager::new();
-    tracing::info!("Cache manager initialized (grades=5min, locations=2min, dashboard=30s)");
-
-    // Create the cache invalidator for event-driven cache invalidation
-    let cache_invalidator = crate::cache_invalidator::CacheInvalidator::new(cache_manager.clone());
-    tracing::info!("Cache invalidator initialized (event-driven)");
-
-    // Initialize default invalidation rules
-    let registry = crate::cache_invalidator::CacheInvalidationRegistry::new();
-    crate::cache_invalidator::init_default_invalidation_rules(&registry);
-
-    // Assemble the full router tree — all middleware and route groups merge here
-    let cors_origins = cfg.parse_cors_origins();
-    tracing::info!("CORS origins: {:?}", cors_origins);
-    let app = router::create_app(pool, cfg.jwt_secret.clone(), cors_origins, cache_manager, cache_invalidator);
-
-    // Bind and serve — axum::serve is the outermost layer that drives the async event loop
-    let addr: SocketAddr = cfg.server_addr().parse().expect("Invalid server address");
-
-    tracing::info!("Server starting on {}", addr);
-
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("Failed to bind address");
-
-    axum::serve(listener, app).await.expect("Server failed");
-}
-
-/// Creates the initial admin user when the database is empty.
-async fn bootstrap_admin(pool: &sqlx::SqlitePool, admin_username: &str, admin_password: &str) {
-    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
-        .fetch_one(pool)
-        .await
-        .unwrap_or(0);
-
-    if count > 0 {
-        tracing::info!("Admin user exists — skipping bootstrap");
-        return;
-    }
-
-    let password_hash = match AuthService::hash_password(admin_password) {
-        Ok(h) => h,
-        Err(e) => {
-            tracing::error!("Failed to hash admin password: {}", e);
-            return;
-        }
-    };
-
-    let dto = CreateUserRequest {
-        username: admin_username.to_string(),
-        password: admin_password.to_string(),
-        display_name: "Administrator".to_string(),
-        role: "admin".to_string(),
-        email: None,
-        phone: None,
-    };
-
-    match UserRepo::create(pool, &dto, &password_hash).await {
-        Ok(user) => tracing::info!(
-            "Bootstrapped admin user '{}' (id={})",
-            user.username,
-            user.id
-        ),
-        Err(e) => tracing::error!("Failed to bootstrap admin user: {}", e),
-    }
+    let app = http::router(pool, cfg.jwt_secret.clone());
+    let addr: SocketAddr = cfg.server_addr()?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    tracing::info!("ERP v2 server listening on {addr}");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
+    Ok(())
 }

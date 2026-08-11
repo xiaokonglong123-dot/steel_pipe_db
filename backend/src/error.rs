@@ -1,150 +1,240 @@
+//! AppError — 统一错误枚举 + IntoResponse
+//!
+//! 错误码分域（对齐 PRD §7.4 / detailed-design §6.5）：
+//!   100xx 通用 / 110xx Auth / 120xx 商品 / 130xx 库存
+//!   140xx 订单 / 150xx 往来单位 / 160xx 财务 / 170xx 审批流 / 180xx 报表 / 50001 Database
+//!
+//! 原则：不向客户端暴露原始 SQL 错误字符串；From<sqlx::Error> 一律转 50001。
+
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Serialize;
 use uuid::Uuid;
 
-// Re-export external error types for From impls
-use argon2::password_hash::Error as PasswordHashError;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorCode {
+    // 通用 100xx
+    Internal,
+    Validation,
+    NotFound,
+    StatusConflict,
+    // Auth 110xx
+    Unauthorized,
+    TokenExpired,
+    Forbidden,
+    // Catalog 120xx
+    ItemNotFound,
+    ItemDuplicateSku,
+    // Inventory 130xx
+    InsufficientStock,
+    LocationNotFound,
+    CheckNotFound,
+    CheckNotDraft,
+    // Orders 140xx
+    OrderCannotModify,
+    OrderNotFound,
+    // Parties 150xx
+    SupplierNotFound,
+    CustomerNotFound,
+    // Finance 160xx
+    JournalNotFound,
+    AccountNotFound,
+    UnbalancedJournal,
+    InvoiceNotFound,
+    InvoiceAlreadyPaid,
+    // Workflow 170xx
+    WorkflowNotFound,
+    InvalidTransition,
+    // Config / DB
+    Config,
+    Database,
+}
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ApiErrorResponse {
-    pub success: bool,
-    pub code: u32,
-    pub request_id: String,
+impl ErrorCode {
+    pub fn code(self) -> i32 {
+        match self {
+            Self::Internal => 10001,
+            Self::Validation => 10002,
+            Self::NotFound => 10003,
+            Self::StatusConflict => 10004,
+            Self::Unauthorized => 11001,
+            Self::TokenExpired => 11002,
+            Self::Forbidden => 11003,
+            Self::ItemNotFound => 12001,
+            Self::ItemDuplicateSku => 12002,
+            Self::InsufficientStock => 13001,
+            Self::LocationNotFound => 13002,
+            Self::CheckNotFound => 13003,
+            Self::CheckNotDraft => 13004,
+            Self::OrderCannotModify => 14001,
+            Self::OrderNotFound => 14002,
+            Self::SupplierNotFound => 15001,
+            Self::CustomerNotFound => 15002,
+            Self::JournalNotFound => 16001,
+            Self::UnbalancedJournal => 16002,
+            Self::InvoiceNotFound => 16003,
+            Self::InvoiceAlreadyPaid => 16004,
+            Self::AccountNotFound => 16005,
+            Self::WorkflowNotFound => 17001,
+            Self::InvalidTransition => 17002,
+            Self::Config => 90001,
+            Self::Database => 50001,
+        }
+    }
+
+    pub fn status(self) -> StatusCode {
+        match self {
+            Self::Validation
+            | Self::StatusConflict
+            | Self::UnbalancedJournal
+            | Self::ItemDuplicateSku
+            | Self::InsufficientStock
+            | Self::InvalidTransition
+            | Self::OrderCannotModify => StatusCode::BAD_REQUEST,
+            Self::CheckNotDraft => StatusCode::BAD_REQUEST,
+            Self::Unauthorized | Self::TokenExpired => StatusCode::UNAUTHORIZED,
+            Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::NotFound
+            | Self::ItemNotFound
+            | Self::LocationNotFound
+            | Self::CheckNotFound
+            | Self::OrderNotFound
+            | Self::SupplierNotFound
+            | Self::CustomerNotFound
+            | Self::WorkflowNotFound => StatusCode::NOT_FOUND,
+            Self::JournalNotFound | Self::InvoiceNotFound | Self::AccountNotFound => {
+                StatusCode::NOT_FOUND
+            }
+            Self::InvoiceAlreadyPaid => StatusCode::BAD_REQUEST,
+            Self::Internal | Self::Config | Self::Database => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    pub fn default_message(self) -> &'static str {
+        match self {
+            Self::Internal => "内部错误",
+            Self::Validation => "请求参数校验失败",
+            Self::NotFound => "资源未找到",
+            Self::StatusConflict => "状态冲突",
+            Self::Unauthorized => "未认证",
+            Self::TokenExpired => "登录已过期，请重新登录",
+            Self::Forbidden => "权限不足",
+            Self::ItemNotFound => "商品未找到",
+            Self::ItemDuplicateSku => "SKU 重复",
+            Self::InsufficientStock => "库存不足",
+            Self::LocationNotFound => "库位未找到",
+            Self::CheckNotFound => "盘点单未找到",
+            Self::CheckNotDraft => "盘点单当前状态不可修改",
+            Self::OrderCannotModify => "订单当前状态不可修改",
+            Self::OrderNotFound => "订单未找到",
+            Self::SupplierNotFound => "供应商未找到",
+            Self::CustomerNotFound => "客户未找到",
+            Self::JournalNotFound => "日记账未找到",
+            Self::AccountNotFound => "会计科目未找到",
+            Self::UnbalancedJournal => "日记账借贷不平衡",
+            Self::InvoiceNotFound => "发票未找到",
+            Self::InvoiceAlreadyPaid => "发票已支付",
+            Self::WorkflowNotFound => "审批流未找到",
+            Self::InvalidTransition => "无效的状态迁移",
+            Self::Config => "服务配置错误",
+            Self::Database => "数据库错误",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppError {
+    pub code: ErrorCode,
     pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<serde_json::Value>,
 }
 
-/// Application-level errors with numeric codes (100xx–50001) and HTTP status mapping.
-/// Each variant carries the information needed for the frontend to display localized messages.
-///
-/// Use the `error_codes!` macro to define variants with their codes and HTTP status in one place.
-macro_rules! error_codes {
-    (
-        $(
-            $(#[$meta:meta])*
-            $variant:ident($msg:literal) = ($code:expr, $status:expr)
-        ),* $(,)?
-    ) => {
-        #[derive(Debug, thiserror::Error)]
-        pub enum AppError {
-            $(
-                $(#[$meta])*
-                #[error($msg)]
-                $variant(String),
-            )*
+impl AppError {
+    pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
         }
+    }
 
-        impl AppError {
-            pub fn error_code(&self) -> u32 {
-                match self {
-                    $(Self::$variant(_) => $code),*
-                }
-            }
+    pub fn validation(msg: impl Into<String>) -> Self {
+        Self::new(ErrorCode::Validation, msg)
+    }
 
-            pub fn status_code(&self) -> StatusCode {
-                match self {
-                    $(Self::$variant(_) => $status),*
-                }
-            }
-        }
-    };
+    pub fn status_code(&self) -> (StatusCode, i32) {
+        (self.code.status(), self.code.code())
+    }
+
+    pub fn user_message(&self) -> String {
+        self.message.clone()
+    }
+
+    pub fn log_error(&self) {
+        tracing::error!(code = self.code.code(), message = %self.message, "app_error");
+    }
 }
 
-error_codes! {
-    /// Internal server error — unexpected condition that should not happen under normal operation.
-    Internal("Internal server error: {0}") = (10001, StatusCode::INTERNAL_SERVER_ERROR),
-    /// Validation failed — request payload didn't pass validation rules.
-    Validation("Validation error: {0}") = (10002, StatusCode::BAD_REQUEST),
-    /// Generic resource not found.
-    NotFound("Resource not found: {0}") = (10003, StatusCode::NOT_FOUND),
-    /// Bad request — the request is malformed or semantically invalid.
-    BadRequest("Bad request: {0}") = (10004, StatusCode::BAD_REQUEST),
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {}", self.code.code(), self.message)
+    }
+}
 
-    /// Authentication failed — missing, invalid, or malformed credentials.
-    Unauthorized("Unauthorized: {0}") = (11001, StatusCode::UNAUTHORIZED),
-    /// JWT token has exceeded its expiry time.
-    TokenExpired("Token expired") = (11002, StatusCode::UNAUTHORIZED),
-    /// The user lacks the required role or permission.
-    Forbidden("Forbidden: {0}") = (11003, StatusCode::FORBIDDEN),
+impl std::error::Error for AppError {}
 
-    /// Seamless/screen pipe not found.
-    PipeNotFound("Pipe not found: {0}") = (12001, StatusCode::NOT_FOUND),
-    /// Pipe number already exists — duplicate detection.
-    PipeNumberDuplicate("Pipe number already exists: {0}") = (12002, StatusCode::CONFLICT),
-    /// Pipe status does not allow the requested operation.
-    PipeStatusConflict("Pipe status conflict: {0}") = (12003, StatusCode::CONFLICT),
-
-    /// Requested quantity exceeds available stock — ATP check failed.
-    InsufficientStock("Insufficient stock") = (13001, StatusCode::CONFLICT),
-    /// Warehouse location not found.
-    LocationNotFound("Location not found: {0}") = (13002, StatusCode::NOT_FOUND),
-
-    /// Order has reached a state where edits are no longer permitted.
-    OrderCannotModify("Order cannot be modified: {0}") = (14001, StatusCode::CONFLICT),
-    /// Order not found by the given order number or ID.
-    OrderNotFound("Order not found: {0}") = (14002, StatusCode::NOT_FOUND),
-
-    /// Quality inspection certificate not found or has been revoked.
-    QualityCertNotFound("Quality cert not found: {0}") = (15001, StatusCode::NOT_FOUND),
-    /// File attachment referenced by a quality record does not exist.
-    AttachmentNotFound("Attachment not found: {0}") = (15002, StatusCode::NOT_FOUND),
-
-    /// Supplier record not found.
-    SupplierNotFound("Supplier not found: {0}") = (16001, StatusCode::NOT_FOUND),
-    /// Supplier code violates the unique constraint.
-    SupplierCodeDuplicate("Supplier code already exists: {0}") = (16002, StatusCode::CONFLICT),
-
-    /// Customer record not found.
-    CustomerNotFound("Customer not found: {0}") = (17001, StatusCode::NOT_FOUND),
-    /// Customer code violates the unique constraint.
-    CustomerCodeDuplicate("Customer code already exists: {0}") = (17002, StatusCode::CONFLICT),
-
-    /// Bulk import failed — malformed file or row-level validation error.
-    ImportError("Import error: {0}") = (18001, StatusCode::BAD_REQUEST),
-    /// Export generation failed — data retrieval or file format error.
-    ExportError("Export error: {0}") = (18002, StatusCode::BAD_REQUEST),
-
-    /// Database-level failure (connection, constraint violation, or query error).
-    Database("Database error: {0}") = (50001, StatusCode::INTERNAL_SERVER_ERROR),
+#[derive(Serialize)]
+struct ErrorBody {
+    success: bool,
+    code: i32,
+    request_id: String,
+    message: String,
+    details: Option<serde_json::Value>,
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let status = self.status_code();
-        let body = ApiErrorResponse {
+        let (status, code) = self.status_code();
+        let body = ErrorBody {
             success: false,
-            code: self.error_code(),
-            request_id: format!("req_{}", Uuid::new_v4()),
-            message: self.to_string(),
+            code,
+            request_id: format!("req_{}", Uuid::new_v4().simple()),
+            message: self.user_message(),
             details: None,
         };
         (status, Json(body)).into_response()
     }
 }
 
+// From<sqlx::Error> → 一律转 Database(50001)，不暴露 SQL 字符串
 impl From<sqlx::Error> for AppError {
-    fn from(err: sqlx::Error) -> Self {
-        Self::Database(err.to_string())
+    fn from(e: sqlx::Error) -> Self {
+        tracing::error!(error = %e, "database error");
+        Self {
+            code: ErrorCode::Database,
+            message: ErrorCode::Database.default_message().to_string(),
+        }
     }
 }
 
-impl From<serde_json::Error> for AppError {
-    fn from(err: serde_json::Error) -> Self {
-        Self::Internal(format!("JSON serialization error: {}", err))
+impl From<std::num::ParseIntError> for AppError {
+    fn from(e: std::num::ParseIntError) -> Self {
+        Self::validation(format!("无效的整数参数: {e}"))
     }
 }
 
-impl From<PasswordHashError> for AppError {
-    fn from(err: PasswordHashError) -> Self {
-        Self::Internal(format!("Password hash error: {}", err))
+impl From<argon2::password_hash::Error> for AppError {
+    fn from(e: argon2::password_hash::Error) -> Self {
+        tracing::error!(error = %e, "password hashing error");
+        Self::new(ErrorCode::Internal, "密码处理错误")
     }
 }
 
 impl From<jsonwebtoken::errors::Error> for AppError {
-    fn from(err: jsonwebtoken::errors::Error) -> Self {
-        Self::Internal(format!("JWT error: {}", err))
+    fn from(e: jsonwebtoken::errors::Error) -> Self {
+        tracing::error!(error = %e, "jwt error");
+        Self::new(
+            ErrorCode::Unauthorized,
+            ErrorCode::Unauthorized.default_message().to_string(),
+        )
     }
 }

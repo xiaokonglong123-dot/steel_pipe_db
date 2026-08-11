@@ -1,16 +1,25 @@
-# ── Rust ──
+# ── Rust / backend ──
 /backend/target/
-/backend/Cargo.lock
+/backend/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
-# ── Node ──
+# ── Node / frontend (bun + Vue 3 + Vite) ──
 /frontend/node_modules/
 /frontend/dist/
 /frontend/.vite/
+/frontend/tsconfig.tsbuildinfo
+/frontend/tsconfig.node.tsbuildinfo
+*.tsbuildinfo
 
 # ── Environment ──
 .env
 .env.local
 .env.*.local
+backend/.env
+frontend/.env
 
 # ── IDE ──
 .idea/
@@ -18,63 +27,40 @@
 *.swp
 *.swo
 *~
+*.iml
 
 # ── OS ──
 .DS_Store
 Thumbs.db
 
-# ── SQLite ──
-/backend/data/
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
+# ── Logs ──
+*.log
 
-# ── Python (general) ──
+# ── Python (seed scripts, ad-hoc) ──
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
 venv/
 ENV/
 env/
 
-# ── Development artifacts ──
-.omo/
-.opencode/
-memory.md
-
-# ── Build artifacts ──
-frontend/tsconfig.tsbuildinfo
-
-# ── Logs ──
-*.log
-
-# ── Editor / IDE (extended) ──
-*.iml
-.idea/
-.vscode/
-
 # ── Docker ──
 docker-data/
-backups/
 
-# ── Project specific ──
-pipes.db
-steel_pipe.ico
+# ── Tool / agent caches (local only, never commit) ──
+.omo/
+.opencode/
+.pi/
+.crew/
+.superpowers/
+.codegraph/
+.cortexkit/
+.worktrees/
+.agents/
+backups/
+skills/
+memory.md
+
+# ── Local-only decision docs (never commit) ──
+.local-only-docs/
+docs/rewrite-tech-stack-comparison.md

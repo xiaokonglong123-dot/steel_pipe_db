@@ -1,0 +1,50 @@
+import { createRouter, createWebHistory } from "vue-router"
+import { installGuard } from "./guard"
+
+const router = createRouter({ history: createWebHistory(), routes: [
+  { path: "/login", component: () => import("@/views/Login.vue"), meta: { title: "登录" } },
+  { path: "/", component: () => import("@/layouts/MainLayout.vue"), children: [
+    { path: "", redirect: "/inventory" },
+    { path: "items", component: () => import("@/views/items/ItemsList.vue"), meta: { title: "商品", permission: "item.read" } },
+    { path: "items/new", component: () => import("@/views/items/ItemForm.vue"), meta: { title: "新建商品", permission: "item.write" } },
+    { path: "items/:id", component: () => import("@/views/items/ItemForm.vue"), meta: { title: "商品详情", permission: "item.read" } },
+    { path: "items/:id/edit", component: () => import("@/views/items/ItemForm.vue"), meta: { title: "编辑商品", permission: "item.write" } },
+    { path: "suppliers", component: () => import("@/views/suppliers/SuppliersList.vue"), meta: { title: "供应商", permission: "supplier.read" } },
+    { path: "customers", component: () => import("@/views/customers/CustomersList.vue"), meta: { title: "客户", permission: "customer.read" } },
+    { path: "warehouses", component: () => import("@/views/warehouses/WarehousesList.vue"), meta: { title: "仓库", permission: "stock.read" } },
+    { path: "locations", component: () => import("@/views/locations/LocationsList.vue"), meta: { title: "库位", permission: "stock.read" } },
+    { path: "inventory", component: () => import("@/views/inventory/InventoryList.vue"), meta: { title: "库存查询", permission: "stock.read" } },
+    { path: "inventory/stock-atp", component: () => import("@/views/inventory/StockAvailablePage.vue"), meta: { title: "ATP 可用量", permission: "stock.read" } },
+    { path: "inventory/inbound/new", component: () => import("@/views/inventory/InboundForm.vue"), meta: { title: "新建入库", permission: "stock.write" } },
+    { path: "inventory/inbound", component: () => import("@/views/inventory/InboundList.vue"), meta: { title: "入库", permission: "stock.read" } },
+    { path: "inventory/outbound/new", component: () => import("@/views/inventory/OutboundForm.vue"), meta: { title: "新建出库", permission: "stock.write" } },
+    { path: "inventory/outbound", component: () => import("@/views/inventory/OutboundList.vue"), meta: { title: "出库", permission: "stock.read" } },
+    { path: "inventory/logs", component: () => import("@/views/inventory/InventoryLogsPage.vue"), meta: { title: "库存流水", permission: "stock.read" } },
+    { path: "inventory/checks", component: () => import("@/views/inventory/CheckListPage.vue"), meta: { title: "盘点单", permission: "stock.read" } },
+    { path: "inventory/checks/:id", component: () => import("@/views/inventory/CheckDetailPage.vue"), meta: { title: "盘点明细", permission: "stock.read" } },
+    { path: "purchase-orders", component: () => import("@/views/purchase/PurchaseOrdersList.vue"), meta: { title: "采购订单", permission: "order.read" } },
+    { path: "purchase-orders/new", component: () => import("@/views/purchase/PurchaseOrderForm.vue"), meta: { title: "新建采购订单", permission: "order.write" } },
+    { path: "purchase-orders/:id", component: () => import("@/views/purchase/PurchaseOrderDetail.vue"), meta: { title: "采购订单详情", permission: "order.read" } },
+    { path: "sales-orders", component: () => import("@/views/sales/SalesOrdersList.vue"), meta: { title: "销售订单", permission: "order.read" } },
+    { path: "sales-orders/new", component: () => import("@/views/sales/SalesOrderForm.vue"), meta: { title: "新建销售订单", permission: "order.write" } },
+    { path: "sales-orders/:id", component: () => import("@/views/sales/SalesOrderDetail.vue"), meta: { title: "销售订单详情", permission: "order.read" } },
+    { path: "workflow", component: () => import("@/views/workflow/WorkflowInstances.vue"), meta: { title: "流程实例", permission: "order.approve" } },
+    { path: "workflow/tasks", component: () => import("@/views/workflow/WorkflowTasks.vue"), meta: { title: "待办任务", permission: "order.approve" } },
+    { path: "finance/accounts", component: () => import("@/views/finance/AccountListPage.vue"), meta: { title: "会计科目", permission: "finance.read" } },
+    { path: "finance/journal-entries", component: () => import("@/views/finance/JournalEntryListPage.vue"), meta: { title: "日记账", permission: "finance.read" } },
+    { path: "finance/invoices", component: () => import("@/views/finance/InvoiceListPage.vue"), meta: { title: "发票", permission: "finance.read" } },
+    { path: "finance/payments", component: () => import("@/views/finance/PaymentListPage.vue"), meta: { title: "付款", permission: "finance.read" } },
+    { path: "finance/trial-balance", component: () => import("@/views/finance/TrialBalancePage.vue"), meta: { title: "试算平衡", permission: "finance.read" } },
+    { path: "reports/inventory-summary", component: () => import("@/views/reports/InventorySummaryPage.vue"), meta: { title: "库存汇总", permission: "report.read" } },
+    { path: "reports/inbound-outbound", component: () => import("@/views/reports/InboundOutboundPage.vue"), meta: { title: "出入库明细", permission: "report.read" } },
+    { path: "reports/sales-trend", component: () => import("@/views/reports/SalesTrendPage.vue"), meta: { title: "销售趋势", permission: "report.read" } },
+    { path: "reports/finance-summary", component: () => import("@/views/reports/FinanceSummaryPage.vue"), meta: { title: "财务汇总", permission: "report.read" } },
+    { path: "users", component: () => import("@/views/users/UsersList.vue"), meta: { title: "用户管理", permission: "user.manage" } },
+    { path: "operation-logs", component: () => import("@/views/OperationLogsPage.vue"), meta: { title: "操作日志", permission: "report.read" } },
+    { path: "profile", component: () => import("@/views/profile/Profile.vue"), meta: { title: "个人资料" } },
+  ] },
+  { path: "/:pathMatch(.*)*", name: "NotFound", component: () => import("@/views/NotFound.vue"), meta: { title: "页面未找到" } },
+] })
+
+installGuard(router)
+export { router }

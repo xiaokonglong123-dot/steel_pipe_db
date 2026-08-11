@@ -1,0 +1,12 @@
+pub mod auth_repo;
+pub mod catalog_repo;
+pub mod check_repo;
+pub mod finance_repo;
+pub mod inventory_repo;
+pub mod location_repo;
+pub mod parties_repo;
+pub mod purchase_repo;
+pub mod receivable_repo;
+pub mod sales_repo;
+pub mod workflow_repo;
+pub mod reports_repo;

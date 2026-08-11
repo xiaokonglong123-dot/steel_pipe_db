@@ -1,90 +1,66 @@
-use serde::{Deserialize, Serialize};
-use std::str::FromStr;
+//! 订单状态机（采购/销售共享状态集合 + 迁移规则，对齐 detailed-design §4.5/4.6）
 
-/// Lifecycle state for purchase and sales orders.
-///
-/// Transitions:
-/// `Draft → Pending → Approved → Completed`
-/// `Draft → Cancelled`
-/// `Pending → Rejected → Draft`
-/// `Approved → Cancelled`
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
+use crate::error::ErrorCode;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OrderStatus {
     Draft,
-    Pending,
+    Submitted,
     Approved,
     Rejected,
-    Completed,
     Cancelled,
-}
-
-impl FromStr for OrderStatus {
-    type Err = ();
-
-    /// Parse a string into an order status. Returns `Err(())` if the string's garbage.
-    /// Valid values: `"draft" | "pending" | "approved" | "rejected" | "completed" | "cancelled"`
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "draft" => Ok(Self::Draft),
-            "pending" => Ok(Self::Pending),
-            "approved" => Ok(Self::Approved),
-            "rejected" => Ok(Self::Rejected),
-            "completed" => Ok(Self::Completed),
-            "cancelled" => Ok(Self::Cancelled),
-            _ => Err(()),
-        }
-    }
+    // 采购
+    Ordered,
+    PartiallyReceived,
+    Received,
+    // 销售
+    AwaitingShipment,
+    PartiallyShipped,
+    Shipped,
 }
 
 impl OrderStatus {
-    /// Convert to the snake_case string stored in the database.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Draft => "draft",
-            Self::Pending => "pending",
+            Self::Submitted => "submitted",
             Self::Approved => "approved",
             Self::Rejected => "rejected",
-            Self::Completed => "completed",
             Self::Cancelled => "cancelled",
+            Self::Ordered => "ordered",
+            Self::PartiallyReceived => "partially_received",
+            Self::Received => "received",
+            Self::AwaitingShipment => "awaiting_shipment",
+            Self::PartiallyShipped => "partially_shipped",
+            Self::Shipped => "shipped",
         }
     }
 
-    /// Custom serde deserializer that accepts both the enum form and a plain string.
-    /// This allows seamless reading from JSON (`"approved"`) and from sqlx string columns.
-    pub fn deserialize_from_string<'de, D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Self::from_str(&s)
-            .map_err(|()| serde::de::Error::custom(format!("Invalid OrderStatus: {}", s)))
+    pub fn from_str(s: &str) -> Result<Self, crate::AppError> {
+        Ok(match s {
+            "draft" => Self::Draft,
+            "submitted" => Self::Submitted,
+            "approved" => Self::Approved,
+            "rejected" => Self::Rejected,
+            "cancelled" => Self::Cancelled,
+            "ordered" => Self::Ordered,
+            "partially_received" => Self::PartiallyReceived,
+            "received" => Self::Received,
+            "awaiting_shipment" => Self::AwaitingShipment,
+            "partially_shipped" => Self::PartiallyShipped,
+            "shipped" => Self::Shipped,
+            other => {
+                return Err(crate::AppError::new(
+                    ErrorCode::InvalidTransition,
+                    format!("未知订单状态: {other}"),
+                ))
+            }
+        })
     }
 }
 
-impl std::fmt::Display for OrderStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl OrderStatus {
-    /// Check whether transitioning from the current status to the target is valid.
-    /// Valid transition matrix:
-    /// - Draft → Pending | Cancelled
-    /// - Pending → Approved | Rejected
-    /// - Rejected → Draft
-    /// - Approved → Completed | Cancelled
-    pub fn valid_transition(&self, target: &Self) -> bool {
-        matches!(
-            (self, target),
-            (Self::Draft, Self::Pending)
-                | (Self::Pending, Self::Approved)
-                | (Self::Pending, Self::Rejected)
-                | (Self::Rejected, Self::Draft)
-                | (Self::Approved, Self::Completed)
-                | (Self::Approved, Self::Cancelled)
-                | (Self::Draft, Self::Cancelled)
-        )
-    }
-}
+/// doc_status 全局语义（对齐 detailed-design §4.5 审批联动规则）：
+///   0=草稿/未提交审批，1=已提交或审批完成，2=已取消
+pub const DOC_DRAFT: i64 = 0;
+pub const DOC_SUBMITTED: i64 = 1;
+pub const DOC_CANCELLED: i64 = 2;

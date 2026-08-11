@@ -1,19 +1,13 @@
-#![allow(dead_code)]
-
-//! Steel Pipe DB — backend crate for the API 5CT pipe inventory management system.
-//!
-//! Dependency injection is via Axum [`Extension`] layers — no global state struct.
-
-pub mod cache;
-pub mod cache_invalidator;
+pub mod auth;
 pub mod config;
+pub mod db;
 pub mod domain;
-pub mod dto;
 pub mod error;
-pub mod handlers;
+pub mod http;
 pub mod middleware;
-pub mod models;
-pub mod repositories;
+pub mod repos;
 pub mod response;
-pub mod router;
 pub mod services;
+
+pub use error::AppError;
+pub use response::{ApiResponse, PaginatedResponse};

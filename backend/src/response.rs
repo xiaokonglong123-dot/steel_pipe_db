@@ -1,17 +1,16 @@
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Json,
-};
+//! 统一响应形状（对齐 PRD §7.4 / detailed-design）：
+//!   成功:    { "success": true, "request_id": "...", "data": T }
+//!   分页:    { "success": true, "request_id": "...", "data": { "items": [...] }, "meta": {...} }
+//!   创建 → 201（ApiResponse::created）
+//!   删除 → 204（空 body）
+
 use serde::Serialize;
 use uuid::Uuid;
 
-fn gen_request_id() -> String {
-    format!("req_{}", Uuid::new_v4())
+fn new_request_id() -> String {
+    format!("req_{}", Uuid::new_v4().simple())
 }
 
-/// Wraps a single data payload with standard envelope fields.
-/// `request_id` is auto-generated in each constructor — callers don't pass it.
 #[derive(Debug, Serialize)]
 pub struct ApiResponse<T: Serialize> {
     pub success: bool,
@@ -19,86 +18,63 @@ pub struct ApiResponse<T: Serialize> {
     pub data: T,
 }
 
-/// Pagination metadata, mirrored on `PaginatedResponse` for convenience.
-/// Frontend can read `meta` without unwrapping `data.items`.
 #[derive(Debug, Serialize)]
-pub struct Meta {
-    pub total: u64,
-    pub page: u64,
-    pub page_size: u64,
-    pub total_pages: u64,
+pub struct PaginatedResponse<T: Serialize> {
+    pub success: bool,
+    pub request_id: String,
+    pub data: PaginatedData<T>,
+    pub meta: Meta,
 }
 
 #[derive(Debug, Serialize)]
 pub struct PaginatedData<T: Serialize> {
     pub items: Vec<T>,
-    pub total: u64,
-    pub page: u64,
-    pub page_size: u64,
-    pub total_pages: u64,
 }
 
 #[derive(Debug, Serialize)]
-pub struct PaginatedResponse<T: Serialize> {
-    pub success: bool,
-    pub request_id: String,
-    pub meta: Meta,
-    pub data: PaginatedData<T>,
+pub struct Meta {
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+    pub total_pages: i64,
 }
 
 impl<T: Serialize> ApiResponse<T> {
-    /// Wrap a data payload in the standard API envelope. Returns 200 OK.
-    pub fn ok(data: T) -> Json<Self> {
-        Json(Self {
+    pub fn ok(data: T) -> Self {
+        Self {
             success: true,
-            request_id: gen_request_id(),
+            request_id: new_request_id(),
             data,
-        })
+        }
     }
 
-    /// Wrap a data payload and return 201 Created — used for resource-creation endpoints.
-    pub fn created(data: T) -> Response {
-        (
-            StatusCode::CREATED,
-            Json(Self {
-                success: true,
-                request_id: gen_request_id(),
-                data,
-            }),
-        )
-            .into_response()
+    /// 创建成功 — handler 返回 (StatusCode::CREATED, Json(...))
+    pub fn created(data: T) -> Self {
+        Self {
+            success: true,
+            request_id: new_request_id(),
+            data,
+        }
     }
 }
 
 impl<T: Serialize> PaginatedResponse<T> {
-    /// Build a paginated response envelope with items and computed metadata. Returns 200 OK.
-    pub fn ok(items: Vec<T>, total: u64, page: u64, page_size: u64) -> Json<Self> {
-        let total_pages = if total == 0 {
+    pub fn ok(items: Vec<T>, total: i64, page: i64, page_size: i64) -> Self {
+        let total_pages = if page_size == 0 {
             0
         } else {
-            total.div_ceil(page_size)
+            (total + page_size - 1) / page_size
         };
-        Json(Self {
+        Self {
             success: true,
-            request_id: gen_request_id(),
+            request_id: new_request_id(),
+            data: PaginatedData { items },
             meta: Meta {
                 total,
                 page,
                 page_size,
                 total_pages,
             },
-            data: PaginatedData {
-                items,
-                total,
-                page,
-                page_size,
-                total_pages,
-            },
-        })
+        }
     }
-}
-
-/// 204 No Content — for deletions or operations that return no body.
-pub fn no_content() -> Response {
-    StatusCode::NO_CONTENT.into_response()
 }

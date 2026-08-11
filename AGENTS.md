@@ -1,239 +1,108 @@
-# Steel Pipe DB — Project Index
+# ERP v2 — Project Status (P0 + P1 + P2 完成)
 
-## Quick Start
+> 重写项目。详细拆分见同目录 `PRD.md` / `detailed-design.md` / `frontend-design.md` / `tasks.md`。
 
-```
-# Backend (Rust Axum on :3000)
-cd backend
-cp .env.example .env
-cargo run
+## 启动
 
-# Frontend (React 19 + Vite on :5173)
-cd frontend
-npm install
-npm run dev
+```bash
+# Backend (Rust Axum :3000)
+cd backend && cp .env.example .env && cargo run
 
-# Login: admin / admin123
+# Frontend (Vue 3 + Element Plus :5173)
+cd frontend && bun install && bun run dev
+
+# 登录: admin / admin123
 ```
 
-Backend runs on `http://localhost:3000`, frontend dev on `http://localhost:5173`.
+## 当前实现状态
 
-## Build & Verify
+### 后端 (`backend/`)
 
-| What | How | CI checks |
-|------|-----|-----------|
-| Backend type-check | `cd backend && cargo check` | `cargo check` |
-| Backend tests | `cd backend && cargo test` | — |
-| Frontend type-check | `cd frontend && npx tsc --noEmit` | `tsc --noEmit` |
-| Frontend build | `cd frontend && npm run build` | `npm run build` |
-| Frontend chunk analysis | `cd frontend && npx vite build --analyze` (manualChunks via vite.config.ts) | — |
-| Full CI pipeline | `cargo check` + `tsc --noEmit` + `npm run build` (parallel) | `.github/workflows/ci.yml` |
+| 模块 | 状态 | 测试 |
+| --- | --- | --- |
+| Auth+RBAC | ✅ P0 完成 | 4 |
+| Catalog | ✅ P0 完成 | 8 |
+| Parties | ✅ P0 完成 | 9 |
+| Locations+Inbound+Outbound+Stock | ✅ P0 完成 | 22 (12 inv + 10) |
+| 采购订单 (含 Decimal 金额) | ✅ P0 完成 | 13 |
+| 销售订单 + ATP 预留 | ✅ P0 完成 | 14 |
+| 审批流 (data-driven ERPNext-style) | ✅ P0 完成 | 13 |
+| 收货 + 发货 (端到端联动) | ✅ P0 完成 | 9 |
+| **E2E** PO+SO 端到端 | ✅ P0 完成 | 2 |
+| Finance (会计科目/日记账/发票/付款/试算平衡) | ✅ P1 完成 | (含 lib) |
+| Inventory Check 盘点 | ✅ P1 完成 | 5 |
+| ATP `available_qty` 端点 + service | ✅ P1 完成 | 1 |
+| Reports (inventory_summary/inbound_outbound/sales_trend/finance_summary + CSV) | ✅ P1 完成 | — |
+| **P1 E2E** (finance + check + atp 释放) | ✅ P1 完成 | 4 |
+| CSV 商品导入 (`POST /items/import` multipart) | ✅ P2 完成 | 2 |
+| 审批流多级/条件 (`amount_threshold` + `transition_with_amount`) | ✅ P2 完成 | 2 |
+| finance.threshold `012_workflow_threshold.sql` | ✅ P2 完成 | 1 migrations 校验 |
 
-**Heads up**: There's **no Makefile** despite what the README says. Just use cargo/npm directly.
+**总计**: 121 测试全绿 (`cargo test`)
 
-## Architecture
+### 前端 (`frontend/`)
+
+| 模块 | 状态 |
+| --- | --- |
+| Vue 3 + Pinia + Element Plus + TanStack Vue Query 骨架 | ✅ |
+| Auth (Login + MainLayout + RBAC permission 守卫) | ✅ |
+| 商品/供应商/客户/仓库/库位/库存/入库/出库 | ✅ |
+| 采购订单/销售订单 (含审批按钮) | ✅ |
+| Workflow 流程实例/待办 | ✅ |
+| Finance 5 页 (AccountList/JournalEntryList/InvoiceList/PaymentList/TrialBalance) | ✅ |
+| Inventory Check + Inventory Logs + ATP 可用量 | ✅ |
+| Reports 4 页 + ECharts 可视化 (line+bar) | ✅ |
+| CSV 导入按钮 + 报告弹窗 | ✅ |
+| 操作日志页面 | ✅ |
+| 404 + 深灰侧边栏 + skeleton + 路由过渡动画 + 统一错误提示 | ✅ |
+
+**总计**: `bunx vue-tsc --noEmit` + `bun run build` 全绿
+
+### CI
+
+`.github/workflows/ci.yml`: backend `cargo check --all-targets` + `cargo test --all`；frontend `bunx tsc --noEmit` + `bun run build`。
+
+## 关键设计决策
+
+- **Money 全链 Decimal**: `rust_decimal::Decimal`，DB 存 `TEXT`，`Decimal::to_string()`。**不允许 SQL SUM over TEXT money 列**——报表金额聚合在应用层做。日期分组 REAL 聚合允许 (ADR-002 例外)
+- **Inventory 双轨**: 物化 `inventory` 表（balance）+ `inventory_logs` 事件日志（audit trail）。Inbound 写 +OUT 检查余额
+- **审批流 data-driven**: `workflows` / `workflow_states` / `workflow_transitions`。新增节点不出代码——只需 INSERT 行
+- **金额阈值条件**: `workflow_transitions.amount_threshold TEXT`，`workflow_service::transition_with_amount(pool, inst_id, action, user, comment, business_amount: Option<Decimal>)` 会优先选 threshold 满足的 transition；不满足则 fallback 走无阈值的 transition
+- **RBAC 实时查库**: JWT 携带 `user_id` + `permissions` 数组，每个请求 auth_middleware 查库注入 AuthUser 扩展
+- **Spec Drift 处理**: 010_warehouses / 011_seed_workflows / 012_workflow_threshold 三条迁移均不修改已执行迁移，按规则 #234 + touch main.rs 触发重编译
+- **设计文档已同步**: detailed-design.md 反映 010_warehouses 父表层级；detailed-design + tasks 同步 inventory API 短路径
+
+## Spec Drift 全记录（避免未来读者困惑）
+
+1. `010_warehouses.sql`: 先 `warehouses` + `locations.warehouse_id/deleted_at`，原 spec 没有 `warehouses` 表 (Locations 子代理正确 ALTER 而不是改 main migration)
+2. `011_seed_workflows.sql`: 注入 PO/SO active workflow 数据，含 4 states + 3 transitions 各。这条新迁移通过 `UPDATE workflows SET is_active = 0` 发挥 (workflow_threshold_test 的方式) — 测试时主动 deactivate 011 注入以使用 demo seed
+3. `012_workflow_threshold.sql`: `ALTER TABLE workflow_transitions ADD COLUMN amount_threshold TEXT`。**触发条件**：存在 business_amount ≥ threshold 的 transition，否则 fallback 走 NULL threshold 的 transition
+4. `WorkflowTransitionRow` 增 `amount_threshold: Option<String>`，影响 SELECT 列出 4 处 SQL 的列名：`list_outgoing_transitions` / `find_transition` / `list_transitions_by_action` / `INSERT` 重载 — 已统一对齐
+5. `WorkflowStateRow.doc_status` 是 **INTEGER** 而非 TEXT (008 schema)；任何 INSERT workflow_states 必须传 integer（seed_total 0=draft/1=submitted/2=senior_review/3=approved/4=rejected 各自映射）
+6. 2 个 stale workflow 测试因 011 seed 失效已修：`start_instance_without_active_workflow` 用 `"nonexistent_workflow_xyz"`；`delete_workflow_with_running_instance` 用 011 注入的 wf_id（保证 `find_active_workflow_by_type` 返回带 instance 的那条）
+7. Frontend 修正了 permission 名字对齐后端实际：`item.read`/`stock.read`/`order.read`/`order.approve`/`finance.read`/`report.read`/`user.manage`
+
+## 已完成的迁移文件
 
 ```
-steel-pipe-db/
-├── backend/          ← Rust Axum 0.8 REST API (SQLite, JWT/Argon2)
-│   └── src/
-│       ├── main.rs         ← Entry: tracing, DB pool, migrate, start server
-│       ├── lib.rs          ← Module declarations re-exported
-│       ├── router.rs       ← ~70 endpoints, all routes assembled here
-│       ├── handlers/       ← 16 files, 1 per entity (thin: extract → call service → respond)
-│       ├── services/       ← 19 files, business logic (unit structs, static methods)
-│       ├── repositories/   ← 20 files, pure SQL, soft-delete aware
-│       ├── models/         ← 12 files, DB row structs (sqlx::FromRow)
-│       ├── dto/            ← 14 files, request/response types
-│       ├── domain/         ← 5 files, enums/domain types
-│       ├── middleware/     ← 4 files, auth.rs + rbac.rs + rate_limit.rs
-│       ├── config.rs       ← Env-based config (DATABASE_URL, JWT_SECRET, etc.)
-│       ├── error.rs        ← AppError enum, numeric error codes; ApiErrorResponse with success+request_id
-│       └── response.rs     ← ApiResponse<T>, PaginatedResponse<T>, Meta struct, request_id (uuid v4), ::created(), no_content()
-├── frontend/         ← React 19 + Vite + Ant Design + TanStack Query
-│   └── src/
-│       ├── main.tsx        ← React DOM entry
-│       ├── App.tsx         ← ConfigProvider + QueryClientProvider + RouterProvider
-│       ├── api/            ← Axios instance + QueryClient config
-│       ├── routes/         ← createBrowserRouter + ProtectedRoute
-│       ├── features/       ← 13 feature modules (auth, contracts, customers, search, profile, ...)
-│       ├── layouts/        ← MainLayout (sidebar + header + Outlet)
-│       ├── stores/         ← Zustand authStore, appStore (global state), unitStore (unit conversion)
-│       ├── lib/            ← validateResponse.ts, runtime zod response validation
-│       ├── styles/         ← Ant Design theme config
-│       ├── zod-schemas/    ← 7 Zod schema files for response validation
-│       ├── shared/         ← hooks (useDebounce), components/ (9 shared components), utils/
-│       └── i18n/           ← react-i18next (zh-CN primary)
-└── docs/             ← PRD, design docs, task breakdown
+001_auth_rbac.sql          — users / roles / role_permissions / operation_logs / refresh_tokens
+002_catalog.sql            — items (SKU master, 含 draft/active/disabled)
+003_parties.sql            — suppliers / customers
+004_inventory.sql          — warehouses / locations / inventory / inventory_logs
+005_purchasing.sql         — purchase_orders / purchase_order_items (+ DOC_DRAFT 0 自增)
+006_sales.sql              — sales_orders / sales_order_items / reservations
+007_finance.sql            — accounts / journal_entries / journal_lines / invoices / payments
+008_workflow.sql           — workflows / workflow_states / workflow_transitions / workflow_instances / workflow_tasks
+009_seed.sql               — admin/manager/finance 角色 + roles 11 个权限 (不是 12)
+010_warehouses.sql         — ALTER locations.warehouse_id + deleted_at (在 child 迁移之后的 ALTER)
+011_seed_workflows.sql     — PO/SO 种子 workflows + states + transitions
+012_workflow_threshold.sql — ALTER workflow_transitions.amount_threshold TEXT
 ```
 
-## Tech Stack (verified from Cargo.toml / package.json)
+## P0/P1/P2 完成度
 
-### Backend
-- **Rust** edition 2021, nightly 2024-02-08
-- **Axum 0.8** with macros + multipart features
-- **SQLx 0.8** with SQLite, runtime-tokio-rustls, chrono
-- **Auth**: jsonwebtoken 9 + argon2 0.5 (NOT bcrypt)
-- **Validation**: validator 0.19 with derive
-- **Tracing**: tracing + tracing-subscriber with env-filter + json
-- **tower-http 0.6**: CORS, trace, request-id
-- **Import/Export**: calamine 0.26 (Excel), rust_xlsxwriter 0.80, csv 1.3
-- **No `rust_decimal` or `bigdecimal`** — decimals handled via f64 in current code
-- **No `build.rs`** — despite being mentioned in subordinate AGENTS.md
+- P0 (核心交易闭环): ✅ 全部 12 任务完成
+- P1 (财务 + 报表 + ATP): ✅ 全部 9 任务完成
+- P2 (增强 + Excel 导入 + UI 打磨): ✅ 全部 6 任务完成
 
-### Frontend
-- **React 19** with react-router-dom v7 (createBrowserRouter)
-- **Ant Design 5** with @ant-design/icons
-- **TanStack Query 5** — server state, 2min staleTime, 5min gcTime
-- **Zustand 5** — client auth state (NOT just TanStack Query)
-- **Axios** instance at `/api/v1`, auto-attaches Bearer token
-- **TypeScript strict** — noUnusedLocals, noUnusedParameters enforced
-- **Path alias**: `@/` → `./src/*`
-- **i18n**: react-i18next, zh-CN primary, per-feature namespaces
-- **zod** — schema validation
-- **zod runtime validation** — `src/lib/validateResponse.ts` wraps `zod.response()` for API response validation
-
-## Backend Patterns (what actually runs, not what the docs pretend)
-
-### DI Pattern: Extension layers, NOT State<Arc<AppState>>
-```
-router.rs: .layer(Extension(pool)).layer(Extension(JwtSecret(jwt_secret)))
-Handler:   Extension(pool): Extension<SqlitePool>
-Auth:      Extension(jwt_secret): Extension<JwtSecret>
-```
-No `AppState` struct exists. The pool is injected directly, while the JWT secret uses the `JwtSecret` newtype so it cannot collide with other `String` extensions and redacts itself in debug output.
-
-### Response Shapes
-```rust
-// Success:    { "success": true, "request_id": "req_...", "data": T }
-// Paginated:  { "success": true, "request_id": "req_...", "data": { "items": [], ... }, "meta": { "total": N, "page": P, "page_size": S, "total_pages": N } }
-// Error:      { "success": false, "code": 11001, "request_id": "req_...", "message": "...", "details": null }
-```
-`request_id` is a uuid v4. `Meta` struct has total/page/page_size/total_pages. `ApiErrorResponse` always includes `success: false` and `request_id` — filled automatically by `AppError::into_response()`.
-The backend also propagates an `x-request-id` response header via `tower-http`; CORS exposes that header for browser debugging.
-
-### Handler Pattern
-```rust
-pub async fn list_seamless_pipes_handler(
-    Extension(pool): Extension<SqlitePool>,
-    Query(filter): Query<PipeFilterParams>,
-) -> Result<Json<PaginatedResponse<SeamlessPipe>>, AppError> {
-    let (items, total) = PipeService::list_seamless_pipes(&pool, &filter, &pagination).await?;
-    Ok(PaginatedResponse::ok(items, total, page, page_size))
-}
-```
-Handlers return `Result<Json<...>, AppError>` (NOT `impl IntoResponse`). Errors propagate via `?`.
-
-### Service Pattern: Unit struct + static methods
-```rust
-pub struct PipeService;  // No fields, no constructor, no DI
-
-impl PipeService {
-    pub async fn create_seamless_pipe(pool: &SqlitePool, dto: &CreateSeamlessPipeRequest) -> Result<SeamlessPipe, AppError> {
-        // Business logic here
-    }
-}
-```
-Services are **unit structs with static methods**, taking `pool: &SqlitePool` directly. Forget the fancy constructor DI pattern you read about in some blog — this is what we actually do.
-
-### Repository Pattern
-```rust
-SeamlessPipeRepo::find_by_pipe_number(pool, pn).await
-```
-Same deal — static methods, `pool: &SqlitePool`. Soft-delete: `WHERE deleted_at IS NULL`.
-
-### Error Codes (numeric, domain-prefixed)
-| Range | Domain |
-|-------|--------|
-| 100xx | General (Internal, Validation, NotFound) |
-| 110xx | Auth (Unauthorized, TokenExpired, Forbidden) |
-| 120xx | Pipe (NotFound, Duplicate, StatusConflict) |
-| 130xx | Inventory (InsufficientStock, LocationNotFound) |
-| 140xx | Orders (CannotModify, NotFound) |
-| 150xx | Quality (CertNotFound, AttachmentNotFound) |
-| 160xx | Supplier (NotFound, CodeDuplicate) |
-| 170xx | Customer (NotFound, CodeDuplicate) |
-| 180xx | Data IO (ImportError, ExportError) |
-| 50001 | Database |
-
-### Handler Files (16)
-`auth_handler`, `pipe_handler`, `inventory_handler`, `purchase_handler`, `sales_handler`, `quality_handler`, `contract_handler`, `customer_handler`, `supplier_handler`, `report_handler`, `label_handler`, `data_io_handler`, `atp_handler`
-
-### Service Files (19)
-`auth_service`, `pipe_service`, `inbound_service`, `outbound_service`, `check_service`, `inventory_query_service`, `location_service`, `purchase_service`, `sales_service`, `quality_service`, `contract_service`, `customer_service`, `supplier_service`, `label_service`, `report_service`, `data_io_service`, `trace_service`
-
-### Repository Files (20)
-`pipe_repo`, `inventory_repo`, `location_repo`, `inbound_repo`, `outbound_repo`, `inventory_log_repo`, `check_repo`, `purchase_order_repo`, `sales_order_repo`, `quality_repo`, `contract_repo`, `customer_repo`, `supplier_repo`, `label_repo`, `report_repo`, `data_io_repo`, `user_repo`, `operation_log_repo`, `refresh_token_repo`
-
-### DB Migrations (11 files in `backend/migrations/`)
-`001_create_users` → `002_create_seamless_pipes` → `003_create_screen_pipes` → `004_create_locations` → `005_create_inventory` → `006_create_orders` → `007_create_quality` → `008_create_logs` → `009_create_ref_data` → `010_seed_api_5ct_data` → `011_add_rejection_reason`
-
-## Frontend Patterns
-
-### Routing (react-router-dom v7, createBrowserRouter + RouterProvider)
-```
-/login                     ← public
-/                          ← ProtectedRoute → MainLayout → Outlet
-  /pipes/seamless          ← SeamlessPipeListPage
-  /pipes/seamless/new      ← SeamlessPipeFormPage
-  /pipes/seamless/:id      ← SeamlessPipeDetailPage
-  /pipes/seamless/:id/edit ← SeamlessPipeFormPage
-  /pipes/screen/*          ← same pattern
-  /inventory/inbound       ← InboundListPage
-  /inventory/inbound/new   ← InboundFormPage
-  /inventory/outbound      ← OutboundListPage
-  /inventory/outbound/new  ← OutboundFormPage
-  /inventory/stock         ← StockQueryPage
-  /inventory/locations     ← LocationListPage
-  /inventory/check         ← InventoryCheckListPage
-  /suppliers               ← SupplierListPage (+ /new, /:id/edit)
-  /customers               ← CustomerListPage (+ /new, /:id/edit)
-  /purchases               ← (+ /new, /:id, /:id/edit)
-  /sales                   ← (+ /new, /:id, /:id/edit)
-  /quality/certs           ← (+ /new, /:id, /:id/edit)
-  /contracts               ← (+ /new, /:id, /:id/edit)
-  /reports                 ← ReportListPage
-  /reports/dashboard       ← DashboardPage
-  /labels                  ← LabelPrintPage
-  /profile/settings        ← ProfileSettingsPage
-  /search                  ← SearchPage
-```
-
-### Feature Modules (13)
-`auth`, `pipes`, `inventory`, `suppliers`, `customers`, `purchases`, `sales`, `quality`, `contracts`, `reports`, `labels`, `search`, `profile`
-
-Each feature has: `api/` (TanStack Query hooks), `pages/` (ListPage, FormPage, DetailPage), `types/` (TS interfaces), and usually `queryKeys.ts` for TanStack Query key factories. Some also have `hooks/` or `store/` or `stores/`.
-
-### Auth Flow
-- `authStore` (Zustand, localStorage-backed): stores `auth_token` + `auth_user`
-- `apiClient` interceptor auto-attaches `Authorization: Bearer <token>`
-- 401 response → clear storage, redirect to `/login`
-- `ProtectedRoute` component redirects unauthenticated users
-
-### QueryClient Defaults
-```ts
-{ staleTime: 2min, gcTime: 5min, retry: 1, refetchOnWindowFocus: false }
-```
-
-### API Base
-- Axios `baseURL: '/api/v1'`, 30s timeout
-- Vite dev proxy: `/api/*` → `http://localhost:3000`
-
-## Conventions & Gotchas
-
-- **No `.opencode.json`** config found — default OpenCode behavior applies
-- **No Makefile** — don't try `make backend`, just `cargo run`
-- **License**: GPLv2 (was MIT, recently changed)
-- **i18n**: zh-CN primary. Namespace per feature. `AGENTS_zh.md` files exist for Chinese-language agent sessions
-- **`AGENTS_zh.md`** files exist alongside most `AGENTS.md` for Chinese-language development
-- **Type safety**: CI enforces `cargo check` (not build) + `tsc --noEmit`. No Rust tests run in CI
-- **Dead code cleanup**: 26 unused items removed from domain/dto/error/response/repo modules. `#![allow(dead_code)]` retained at crate root to suppress legitimate false positives.
-- **Path params**: Axum 0.8 uses `{id}` syntax (not `:id` as in Axum 0.7)
-- **JWT secret uses `JwtSecret` newtype** — no bare `Extension<String>` for auth secrets; missing secret extension fails closed with 500
-- **No State extractor** anywhere — all DI via Extension
-- **Frontend query keys**: feature hooks use per-module `queryKeys.ts` factories; avoid inline `queryKey: [...]` literals in feature API code
-- **`shared/components/` is populated** — 9 shared components: ConfirmModal, EmptyState, ErrorBoundary, FileUploader, LoadingSpin, PageContainer, PageHeader, SearchBar, StatusTag
-- **`docs/AGENTS.md`** exists as index for design docs in Chinese
-- **Seed data**: `backend/seed_data.py` and `backend/seed_data_enhanced.py` available
-- **New routes**: InboundFormPage, OutboundFormPage, ProfileSettingsPage, SearchPage added
-- **New i18n namespaces**: inventory, pipes, profile, purchase, quality, sales, search, system, validation (zh + en each)
+**项目重写 MVP 全部完成交付。**
