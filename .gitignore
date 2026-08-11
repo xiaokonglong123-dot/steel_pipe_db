@@ -13,6 +13,9 @@
 /frontend/tsconfig.tsbuildinfo
 /frontend/tsconfig.node.tsbuildinfo
 *.tsbuildinfo
+# tsconfig.node (composite) 编译 vite.config.ts 的产物，源是 .ts，构建会再生
+/frontend/vite.config.js
+/frontend/vite.config.d.ts
 
 # ── Environment ──
 .env
