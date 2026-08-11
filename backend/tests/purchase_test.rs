@@ -141,7 +141,12 @@ async fn create_po_with_items_returns_201() {
     assert_eq!(json["data"]["status"], "draft");
     assert_eq!(json["data"]["doc_status"], 0);
     let order_no = json["data"]["order_no"].as_str().unwrap();
-    assert!(order_no.starts_with("PO20260810-"));
+    // 生成格式: PO{YYYYMMDD}-{rand4hex}，前缀是当天 UTC 日期。基准时间硬编码会导致跨日断言失败。
+    let today_prefix = format!("PO{}-", chrono::Utc::now().format("%Y%m%d"));
+    assert!(
+        order_no.starts_with(&today_prefix),
+        "order_no {order_no} 不以前缀 {today_prefix} 开头"
+    );
 
     let (st, json) = server
         .req(
