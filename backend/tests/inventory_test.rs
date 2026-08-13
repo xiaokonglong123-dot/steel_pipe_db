@@ -2,6 +2,7 @@
 
 mod common;
 
+use rust_decimal::Decimal;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::Router;
@@ -545,33 +546,33 @@ async fn available_qty_reflects_reservations() {
     let po = purchase_service::create_order(&pool, &CreatePurchaseOrderRequest {
         supplier_id: supplier.id, order_date: "2026-08-10".into(),
         currency: None, notes: None,
-        items: vec![PurchaseOrderItemInput { item_id: item.id, quantity: 100.0, unit_price: Some("10.00".into()), notes: None }],
+        items: vec![PurchaseOrderItemInput { item_id: item.id, quantity: Decimal::from(100), unit_price: Some("10.00".into()), notes: None }],
     }, &user).await.unwrap();
     purchase_service::submit(&pool, po.id, &user).await.unwrap();
     purchase_service::approve(&pool, po.id, &user).await.unwrap();
     receipt_service::receive_purchase_order(&pool, po.id, &[
-        ReceivedItemInput { item_id: item.id, location_id: loc.id, quantity: 100.0 },
+        ReceivedItemInput { item_id: item.id, location_id: loc.id, quantity: Decimal::from(100) },
     ], &user).await.unwrap();
 
     // 库存 100 → available = 100 - 0 = 100
     let avail0 = inventory_service::get_available_qty(&pool, item.id, Some(loc.id)).await.unwrap();
-    assert!((avail0 - 100.0).abs() < 0.01, "无预留时可用量应为 100, 实际 {avail0}");
+    assert_eq!(avail0, Decimal::from(100), "无预留时可用量应为 100");
 
     // 创建 SO 销 40 + submit → 自动预留 40
     let so = sales_service::create_order(&pool, &CreateSalesOrderRequest {
         customer_id: customer.id, order_date: Some("2026-08-10".into()),
         currency: None, notes: None,
-        items: vec![CreateSalesOrderItemInput { item_id: item.id, quantity: 40.0, unit_price: "20.00".into(), notes: None }],
+        items: vec![CreateSalesOrderItemInput { item_id: item.id, quantity: Decimal::from(40), unit_price: "20.00".into(), notes: None }],
     }, &user).await.unwrap();
     sales_service::submit(&pool, so.id, &user).await.unwrap();
 
     // 库存仍 100，预留 40，available = 60
     let avail1 = inventory_service::get_available_qty(&pool, item.id, Some(loc.id)).await.unwrap();
-    assert!((avail1 - 60.0).abs() < 0.01, "预留 40 后可用量应为 60, 实际 {avail1}");
+    assert_eq!(avail1, Decimal::from(60), "预留 40 后可用量应为 60");
 
     // 不带 location 的查询 = 余额合计 - 所有预留 = 100 - 40 = 60
     let avail2 = inventory_service::get_available_qty(&pool, item.id, None).await.unwrap();
-    assert!((avail2 - 60.0).abs() < 0.01, "跨库位查询可用量应为 60, 实际 {avail2}");
+    assert_eq!(avail2, Decimal::from(60), "跨库位查询可用量应为 60");
 }
 
 fn erp_v2_test_user() -> erp_v2::middleware::auth::AuthUser {

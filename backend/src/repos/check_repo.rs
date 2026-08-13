@@ -1,5 +1,9 @@
 use sqlx::{Executor, SqlitePool};
 
+use rust_decimal::Decimal;
+
+use crate::domain::money::parse_amount;
+use crate::domain::quantity::{serialize_qty_str, serialize_opt_qty_str};
 use crate::error::{AppError, ErrorCode};
 
 #[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
@@ -20,9 +24,12 @@ pub struct CheckDetailRow {
     pub session_id: i64,
     pub item_id: i64,
     pub location_id: Option<i64>,
-    pub system_qty: f64,
-    pub actual_qty: Option<f64>,
-    pub diff_qty: Option<f64>,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub system_qty: String,
+    #[serde(serialize_with = "serialize_opt_qty_str")]
+    pub actual_qty: Option<String>,
+    #[serde(serialize_with = "serialize_opt_qty_str")]
+    pub diff_qty: Option<String>,
 }
 
 pub async fn insert_session(
@@ -60,7 +67,7 @@ pub async fn insert_detail<'e, E>(
     executor: E,
     session_id: i64,
     item_id: i64,
-    system_qty: f64,
+    system_qty: Decimal,
 ) -> Result<i64, AppError>
 where
     E: Executor<'e, Database = sqlx::Sqlite>,
@@ -71,7 +78,7 @@ where
     )
     .bind(session_id)
     .bind(item_id)
-    .bind(system_qty)
+    .bind(system_qty.to_string())
     .execute(executor)
     .await?;
     Ok(result.last_insert_rowid())
@@ -121,7 +128,7 @@ pub async fn list_details_for_session(
 ) -> Result<Vec<CheckDetailRow>, AppError> {
     let rows = sqlx::query_as::<_, CheckDetailRow>(
         "SELECT ci.id, ci.record_id AS session_id, ci.item_id, cr.location_id,
-                COALESCE(ci.system_qty, 0.0) AS system_qty, ci.actual_qty,
+                COALESCE(ci.system_qty, '0') AS system_qty, ci.actual_qty,
                 ci.diff AS diff_qty
          FROM check_items ci
          JOIN check_records cr ON cr.id = ci.record_id
@@ -140,7 +147,7 @@ pub async fn find_detail_by_id(
 ) -> Result<Option<CheckDetailRow>, AppError> {
     let row = sqlx::query_as::<_, CheckDetailRow>(
         "SELECT ci.id, ci.record_id AS session_id, ci.item_id, cr.location_id,
-                COALESCE(ci.system_qty, 0.0) AS system_qty, ci.actual_qty,
+                COALESCE(ci.system_qty, '0') AS system_qty, ci.actual_qty,
                 ci.diff AS diff_qty
          FROM check_items ci
          JOIN check_records cr ON cr.id = ci.record_id
@@ -155,15 +162,25 @@ pub async fn find_detail_by_id(
 pub async fn update_actual_qty(
     pool: &SqlitePool,
     detail_id: i64,
-    actual_qty: f64,
+    actual_qty: Decimal,
 ) -> Result<(), AppError> {
+    // 数量为 TEXT，diff 在 Rust 层计算（避免 SQL 对 TEXT 做算术）
+    let sys: Option<String> =
+        sqlx::query_scalar("SELECT system_qty FROM check_items WHERE id = ?")
+            .bind(detail_id)
+            .fetch_optional(pool)
+            .await?;
+    let diff = match sys {
+        Some(s) => actual_qty - parse_amount(&s)?,
+        None => actual_qty,
+    };
     let result = sqlx::query(
         "UPDATE check_items
-         SET actual_qty = ?, diff = ? - COALESCE(system_qty, 0.0)
+         SET actual_qty = ?, diff = ?
          WHERE id = ?",
     )
-    .bind(actual_qty)
-    .bind(actual_qty)
+    .bind(actual_qty.to_string())
+    .bind(diff.to_string())
     .bind(detail_id)
     .execute(pool)
     .await?;
@@ -217,23 +234,25 @@ where
 pub async fn system_snapshot_for_location(
     pool: &SqlitePool,
     location_id: i64,
-) -> Result<Vec<(i64, i64, f64)>, AppError> {
+) -> Result<Vec<(i64, i64, Decimal)>, AppError> {
     system_snapshot_for_location_tx(pool, location_id).await
 }
 
 pub async fn system_snapshot_for_location_tx<'e, E>(
     executor: E,
     location_id: i64,
-) -> Result<Vec<(i64, i64, f64)>, AppError>
+) -> Result<Vec<(i64, i64, Decimal)>, AppError>
 where
     E: Executor<'e, Database = sqlx::Sqlite>,
 {
-    let rows = sqlx::query_as::<_, (i64, i64, f64)>(
+    sqlx::query_as::<_, (i64, i64, String)>(
         "SELECT item_id, location_id, quantity FROM inventory
          WHERE location_id = ? ORDER BY item_id",
     )
     .bind(location_id)
     .fetch_all(executor)
-    .await?;
-    Ok(rows)
+    .await?
+    .into_iter()
+    .map(|(i, l, q)| Ok((i, l, parse_amount(&q)?)))
+    .collect()
 }

@@ -11,6 +11,7 @@
 
 mod common;
 
+use rust_decimal::Decimal;
 use erp_v2::auth::bootstrap_admin;
 use erp_v2::middleware::auth::AuthUser;
 use erp_v2::services::purchase_service::{CreatePurchaseOrderRequest, PurchaseOrderItemInput};
@@ -84,7 +85,7 @@ async fn full_po_e2e_lifecycle() {
             notes: None,
             items: vec![PurchaseOrderItemInput {
                 item_id,
-                quantity: 100.0,
+                quantity: Decimal::from(100),
                 unit_price: Some("12.50".into()),
                 notes: None,
             }],
@@ -112,7 +113,7 @@ async fn full_po_e2e_lifecycle() {
         &[ReceivedItemInput {
             item_id,
             location_id: loc_id,
-            quantity: 100.0,
+            quantity: Decimal::from(100),
         }],
         &user,
     )
@@ -121,14 +122,15 @@ async fn full_po_e2e_lifecycle() {
     assert!(inbound.id > 0, "应生成入库单");
 
     // 5. 验证库存余额 = 100
-    let bal: f64 =
+    let bal_s: String =
         sqlx::query_scalar("SELECT quantity FROM inventory WHERE item_id = ? AND location_id = ?")
             .bind(item_id)
             .bind(loc_id)
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert!((bal - 100.0).abs() < 0.01, "库存余额应为 100，实际 {bal}");
+    let bal = erp_v2::domain::money::parse_amount(&bal_s).unwrap();
+    assert_eq!(bal, Decimal::from(100), "库存余额应为 100");
 
     // 6. 验证 inventory_logs 有 1 条 inbound 流水
     let log_count: i64 = sqlx::query_scalar(
@@ -158,7 +160,7 @@ async fn full_so_e2e_with_atp_and_ship() {
             notes: None,
             items: vec![PurchaseOrderItemInput {
                 item_id,
-                quantity: 100.0,
+                quantity: Decimal::from(100),
                 unit_price: Some("10.00".into()),
                 notes: None,
             }],
@@ -177,7 +179,7 @@ async fn full_so_e2e_with_atp_and_ship() {
         &[ReceivedItemInput {
             item_id,
             location_id: loc_id,
-            quantity: 100.0,
+            quantity: Decimal::from(100),
         }],
         &user,
     )
@@ -194,7 +196,7 @@ async fn full_so_e2e_with_atp_and_ship() {
             notes: None,
             items: vec![CreateSalesOrderItemInput {
                 item_id,
-                quantity: 30.0,
+                quantity: Decimal::from(30),
                 unit_price: "20.00".into(),
                 notes: None,
             }],
@@ -218,7 +220,7 @@ async fn full_so_e2e_with_atp_and_ship() {
         &[ShippedItemInput {
             item_id,
             location_id: loc_id,
-            quantity: 30.0,
+            quantity: Decimal::from(30),
         }],
         &user,
     )
@@ -227,17 +229,15 @@ async fn full_so_e2e_with_atp_and_ship() {
     assert!(outbound.id > 0, "应生成出库单");
 
     // 5. 库存余额 = 70
-    let bal: f64 =
+    let bal_s: String =
         sqlx::query_scalar("SELECT quantity FROM inventory WHERE item_id = ? AND location_id = ?")
             .bind(item_id)
             .bind(loc_id)
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert!(
-        (bal - 70.0).abs() < 0.01,
-        "发货后库存余额应为 70，实际 {bal}"
-    );
+    let bal = erp_v2::domain::money::parse_amount(&bal_s).unwrap();
+    assert_eq!(bal, Decimal::from(70), "发货后库存余额应为 70");
 
     // 6. inventory_logs 1 inbound + 1 outbound = 2 条
     let log_count: i64 = sqlx::query_scalar(

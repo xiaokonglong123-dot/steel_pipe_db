@@ -9,6 +9,10 @@
 use chrono::Utc;
 use sqlx::SqlitePool;
 
+use rust_decimal::Decimal;
+
+use crate::domain::money::parse_amount;
+
 use crate::error::{AppError, ErrorCode};
 use crate::middleware::auth::AuthUser;
 use crate::repos::catalog_repo;
@@ -27,7 +31,7 @@ use crate::repos::inventory_repo::{
 pub struct CreateInboundItemInput {
     pub item_id: i64,
     pub location_id: i64,
-    pub quantity: f64,
+    pub quantity: Decimal,
     pub notes: Option<String>,
 }
 
@@ -44,7 +48,7 @@ pub struct CreateInboundRequest {
 pub struct CreateOutboundItemInput {
     pub item_id: i64,
     pub location_id: i64,
-    pub quantity: f64,
+    pub quantity: Decimal,
     pub notes: Option<String>,
 }
 
@@ -94,7 +98,7 @@ pub async fn create_inbound(
 
     let mut seen: Vec<(i64, i64)> = Vec::with_capacity(dto.items.len());
     for it in &dto.items {
-        if it.quantity <= 0.0 {
+        if it.quantity <= Decimal::ZERO {
             return Err(AppError::validation("入库数量必须大于 0"));
         }
         if catalog_repo::find_by_id(pool, it.item_id).await?.is_none() {
@@ -184,7 +188,8 @@ pub async fn post_inbound(
         let location_id = it
             .location_id
             .ok_or_else(|| AppError::validation(format!("入库明细 {} 缺失库位", it.id)))?;
-        inventory_repo::upsert_inventory_increment(&mut *tx, it.item_id, location_id, it.quantity)
+        let qty = parse_amount(&it.quantity)?;
+        inventory_repo::upsert_inventory_increment(&mut tx, it.item_id, location_id, qty)
             .await?;
         let balance_after =
             inventory_repo::get_balance_for_item_at_location_tx(&mut *tx, it.item_id, location_id)
@@ -201,7 +206,7 @@ pub async fn post_inbound(
             it.item_id,
             Some(location_id),
             "inbound",
-            it.quantity,
+            qty,
             Some("inbound"),
             Some(inbound_id),
             Some(&notes),
@@ -260,7 +265,7 @@ pub async fn create_outbound(
 
     let mut seen: Vec<(i64, i64)> = Vec::with_capacity(dto.items.len());
     for it in &dto.items {
-        if it.quantity <= 0.0 {
+        if it.quantity <= Decimal::ZERO {
             return Err(AppError::validation("出库数量必须大于 0"));
         }
         if catalog_repo::find_by_id(pool, it.item_id).await?.is_none() {
@@ -349,19 +354,20 @@ pub async fn post_outbound(
         let location_id = it
             .location_id
             .ok_or_else(|| AppError::validation(format!("出库明细 {} 缺失库位", it.id)))?;
+        let qty = parse_amount(&it.quantity)?;
         let balance =
             inventory_repo::get_balance_for_item_at_location_tx(&mut *tx, it.item_id, location_id)
                 .await?;
-        if balance < it.quantity {
+        if balance < qty {
             return Err(AppError::new(
                 ErrorCode::InsufficientStock,
                 format!(
                     "库存不足：商品 {} 在库位 {} 余量 {}，需出库 {}",
-                    it.item_id, location_id, balance, it.quantity
+                    it.item_id, location_id, balance, qty
                 ),
             ));
         }
-        inventory_repo::upsert_inventory_decrement(&mut *tx, it.item_id, location_id, it.quantity)
+        inventory_repo::upsert_inventory_decrement(&mut tx, it.item_id, location_id, qty)
             .await?;
         let balance_after =
             inventory_repo::get_balance_for_item_at_location_tx(&mut *tx, it.item_id, location_id)
@@ -378,7 +384,7 @@ pub async fn post_outbound(
             it.item_id,
             Some(location_id),
             "outbound",
-            -it.quantity,
+            -qty,
             Some("outbound"),
             Some(outbound_id),
             Some(&notes),
@@ -432,7 +438,7 @@ pub async fn get_stock_at(
     pool: &SqlitePool,
     item_id: i64,
     location_id: i64,
-) -> Result<f64, AppError> {
+) -> Result<Decimal, AppError> {
     inventory_repo::get_balance_for_item_at_location(pool, item_id, location_id).await
 }
 
@@ -496,11 +502,11 @@ pub async fn record_actual_qty(
     pool: &SqlitePool,
     session_id: i64,
     detail_id: i64,
-    actual_qty: f64,
+    actual_qty: Decimal,
     _user: &AuthUser,
 ) -> Result<(), AppError> {
-    if !actual_qty.is_finite() || actual_qty < 0.0 {
-        return Err(AppError::validation("实盘数量必须为非负有限数"));
+    if actual_qty < Decimal::ZERO {
+        return Err(AppError::validation("实盘数量必须为非负数"));
     }
     let session = check_repo::find_session_by_id(pool, session_id)
         .await?
@@ -548,17 +554,19 @@ pub async fn post_check_session(
 
     let mut tx = pool.begin().await?;
     for detail in details {
-        let Some(actual_qty) = detail.actual_qty else {
+        let Some(actual_qty_s) = detail.actual_qty else {
             continue;
         };
-        let diff = actual_qty - detail.system_qty;
-        if diff.abs() <= 0.0001 {
+        let actual_qty = parse_amount(&actual_qty_s)?;
+        let system_qty = parse_amount(&detail.system_qty)?;
+        let diff = actual_qty - system_qty;
+        if diff.abs() <= Decimal::new(1, 4) {
             continue;
         }
         let location_id = detail
             .location_id
             .ok_or_else(|| AppError::validation("盘点明细缺少库位"))?;
-        inventory_repo::upsert_inventory_increment(&mut *tx, detail.item_id, location_id, diff)
+        inventory_repo::upsert_inventory_increment(&mut tx, detail.item_id, location_id, diff)
             .await?;
         inventory_repo::insert_log(
             &mut *tx,
@@ -629,8 +637,8 @@ pub async fn get_available_qty(
     pool: &SqlitePool,
     item_id: i64,
     location_id: Option<i64>,
-) -> Result<f64, AppError> {
-    let balance: f64 = match location_id {
+) -> Result<Decimal, AppError> {
+    let balance: Decimal = match location_id {
         Some(loc) => {
             inventory_repo::get_balance_for_item_at_location(pool, item_id, loc).await?
         }

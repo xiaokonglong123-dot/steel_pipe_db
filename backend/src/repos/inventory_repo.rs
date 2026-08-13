@@ -5,8 +5,11 @@
 //! 本 repo 中需要参与事务的函数对 `sqlx::Executor` 泛型化，可接收 `&SqlitePool` 或
 //! `&mut sqlx::Transaction`。其余纯读函数只接 `&SqlitePool`。
 
-use sqlx::{Executor, SqlitePool};
+use sqlx::{Executor, Sqlite, SqlitePool, Transaction};
+use rust_decimal::Decimal;
 
+use crate::domain::money::parse_amount;
+use crate::domain::quantity::serialize_qty_str;
 use crate::error::{AppError, ErrorCode};
 
 // —— Row structs ——
@@ -16,7 +19,8 @@ pub struct InventoryRow {
     pub id: i64,
     pub item_id: i64,
     pub location_id: i64,
-    pub quantity: f64,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub quantity: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -27,7 +31,8 @@ pub struct InventoryLogRow {
     pub item_id: i64,
     pub location_id: Option<i64>,
     pub change_type: String,
-    pub quantity: f64,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub quantity: String,
     pub ref_type: Option<String>,
     pub ref_id: Option<i64>,
     pub notes: Option<String>,
@@ -56,7 +61,8 @@ pub struct InboundOrderItemRow {
     pub record_id: i64,
     pub item_id: i64,
     pub location_id: Option<i64>,
-    pub quantity: f64,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub quantity: String,
     pub notes: Option<String>,
     pub created_at: String,
 }
@@ -82,7 +88,8 @@ pub struct OutboundOrderItemRow {
     pub record_id: i64,
     pub item_id: i64,
     pub location_id: Option<i64>,
-    pub quantity: f64,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub quantity: String,
     pub notes: Option<String>,
     pub created_at: String,
 }
@@ -121,7 +128,8 @@ pub struct StockRow {
     pub item_id: i64,
     pub location_id: Option<i64>,
     pub warehouse_id: Option<i64>,
-    pub quantity: f64,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub quantity: String,
 }
 
 // —— Inventory balances (transactional-aware) ——
@@ -148,68 +156,80 @@ pub async fn get_balance_for_item_at_location(
     pool: &SqlitePool,
     item_id: i64,
     location_id: i64,
-) -> Result<f64, AppError> {
-    let qty: Option<f64> =
+) -> Result<Decimal, AppError> {
+    let qty: Option<String> =
         sqlx::query_scalar("SELECT quantity FROM inventory WHERE item_id = ? AND location_id = ?")
             .bind(item_id)
             .bind(location_id)
             .fetch_optional(pool)
             .await?;
-    Ok(qty.unwrap_or(0.0))
+    match qty {
+        Some(s) => parse_amount(&s),
+        None => Ok(Decimal::ZERO),
+    }
 }
 
 /// 任意 location 的库存余额合计（跨库位）
+/// 任意 location 的库存余额合计（跨库位）。数量为 TEXT，不在 SQL 做 SUM；改为 Rust 层累计。
 pub async fn get_balance_for_item(
     pool: &SqlitePool,
     item_id: i64,
-) -> Result<f64, AppError> {
-    let qty: Option<f64> =
-        sqlx::query_scalar("SELECT COALESCE(SUM(quantity), 0.0) FROM inventory WHERE item_id = ?")
-            .bind(item_id)
-            .fetch_optional(pool)
-            .await?;
-    Ok(qty.unwrap_or(0.0))
+) -> Result<Decimal, AppError> {
+    let rows = sqlx::query_scalar::<_, String>(
+        "SELECT quantity FROM inventory WHERE item_id = ?",
+    )
+    .bind(item_id)
+    .fetch_all(pool)
+    .await?;
+    let mut acc = Decimal::ZERO;
+    for r in rows {
+        acc += parse_amount(&r)?;
+    }
+    Ok(acc)
 }
 
-/// 原子增量更新：`INSERT ... ON CONFLICT(item_id, location_id) DO UPDATE SET
-/// quantity = quantity + ?delta, updated_at = datetime('now')`。
-/// 泛型 `E: Executor` 使之可同时用于 `&SqlitePool` 与 `&mut Transaction`，从而纳入 service 层单事务。
-pub async fn upsert_inventory_increment<'e, E>(
-    executor: E,
+/// 原子增量更新（Decimal 读改写）。quantity 为 TEXT，无法用 SQL 算术，
+/// 改为在事务内读现值 → Decimal 加法 → 写回。
+/// 必须传 Service 层事务以满足并发正确；服务层一律传 `&mut tx`。
+pub async fn upsert_inventory_increment(
+    tx: &mut Transaction<'_, Sqlite>,
     item_id: i64,
     location_id: i64,
-    delta: f64,
-) -> Result<(), AppError>
-where
-    E: Executor<'e, Database = sqlx::Sqlite>,
-{
+    delta: Decimal,
+) -> Result<(), AppError> {
+    let cur: Option<String> =
+        sqlx::query_scalar("SELECT quantity FROM inventory WHERE item_id = ? AND location_id = ?")
+            .bind(item_id)
+            .bind(location_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+    let new_qty = match cur {
+        Some(s) => parse_amount(&s)? + delta,
+        None => delta,
+    };
     sqlx::query(
         "INSERT INTO inventory (item_id, location_id, quantity)
          VALUES (?, ?, ?)
          ON CONFLICT(item_id, location_id) DO UPDATE SET
-             quantity = quantity + ?,
+             quantity = excluded.quantity,
              updated_at = datetime('now')",
     )
     .bind(item_id)
     .bind(location_id)
-    .bind(delta)
-    .bind(delta)
-    .execute(executor)
+    .bind(new_qty.to_string())
+    .execute(&mut **tx)
     .await?;
     Ok(())
 }
 
 /// 原子减量（delta 传正数，内部减去）。当余量不足时，调用方应在 service 层提前校验。
-pub async fn upsert_inventory_decrement<'e, E>(
-    executor: E,
+pub async fn upsert_inventory_decrement(
+    tx: &mut Transaction<'_, Sqlite>,
     item_id: i64,
     location_id: i64,
-    delta: f64,
-) -> Result<(), AppError>
-where
-    E: Executor<'e, Database = sqlx::Sqlite>,
-{
-    upsert_inventory_increment(executor, item_id, location_id, -delta).await
+    delta: Decimal,
+) -> Result<(), AppError> {
+    upsert_inventory_increment(tx, item_id, location_id, -delta).await
 }
 
 /// 在事务中读取余量，供 post_outbound 在提交前做库存足额校验（避免并发下超卖）。
@@ -217,17 +237,20 @@ pub async fn get_balance_for_item_at_location_tx<'e, E>(
     executor: E,
     item_id: i64,
     location_id: i64,
-) -> Result<f64, AppError>
+) -> Result<Decimal, AppError>
 where
     E: Executor<'e, Database = sqlx::Sqlite>,
 {
-    let qty: Option<f64> =
+    let qty: Option<String> =
         sqlx::query_scalar("SELECT quantity FROM inventory WHERE item_id = ? AND location_id = ?")
             .bind(item_id)
             .bind(location_id)
             .fetch_optional(executor)
             .await?;
-    Ok(qty.unwrap_or(0.0))
+    match qty {
+        Some(s) => parse_amount(&s),
+        None => Ok(Decimal::ZERO),
+    }
 }
 
 // —— Logs ——
@@ -239,7 +262,7 @@ pub async fn insert_log<'e, E>(
     item_id: i64,
     location_id: Option<i64>,
     change_type: &str,
-    quantity: f64,
+    quantity: Decimal,
     ref_type: Option<&str>,
     ref_id: Option<i64>,
     notes: Option<&str>,
@@ -256,7 +279,7 @@ where
     .bind(item_id)
     .bind(location_id)
     .bind(change_type)
-    .bind(quantity)
+    .bind(quantity.to_string())
     .bind(ref_type)
     .bind(ref_id)
     .bind(notes)
@@ -378,7 +401,7 @@ pub async fn insert_inbound_item(
     record_id: i64,
     item_id: i64,
     location_id: Option<i64>,
-    quantity: f64,
+    quantity: Decimal,
     notes: Option<&str>,
 ) -> Result<i64, AppError> {
     let result = sqlx::query(
@@ -388,7 +411,7 @@ pub async fn insert_inbound_item(
     .bind(record_id)
     .bind(item_id)
     .bind(location_id)
-    .bind(quantity)
+    .bind(quantity.to_string())
     .bind(notes)
     .execute(pool)
     .await?;
@@ -553,7 +576,7 @@ pub async fn insert_outbound_item(
     record_id: i64,
     item_id: i64,
     location_id: Option<i64>,
-    quantity: f64,
+    quantity: Decimal,
     notes: Option<&str>,
 ) -> Result<i64, AppError> {
     let result = sqlx::query(
@@ -563,7 +586,7 @@ pub async fn insert_outbound_item(
     .bind(record_id)
     .bind(item_id)
     .bind(location_id)
-    .bind(quantity)
+    .bind(quantity.to_string())
     .bind(notes)
     .execute(pool)
     .await?;

@@ -11,6 +11,7 @@
 
 mod common;
 
+use rust_decimal::Decimal;
 use sqlx::SqlitePool;
 use erp_v2::middleware::auth::AuthUser;
 use erp_v2::auth::bootstrap_admin;
@@ -153,13 +154,13 @@ async fn inventory_check_post_updates_balance_and_logs() {
     let po = purchase_service::create_order(&pool, &CreatePurchaseOrderRequest {
         supplier_id, order_date: "2026-08-10".into(), currency: None, notes: None,
         items: vec![PurchaseOrderItemInput {
-            item_id, quantity: 100.0, unit_price: Some("10.00".into()), notes: None,
+            item_id, quantity: Decimal::from(100), unit_price: Some("10.00".into()), notes: None,
         }],
     }, &user).await.unwrap();
     purchase_service::submit(&pool, po.id, &user).await.unwrap();
     purchase_service::approve(&pool, po.id, &user).await.unwrap();
     receipt_service::receive_purchase_order(&pool, po.id, &[
-        ReceivedItemInput { item_id, location_id: loc_id, quantity: 100.0 },
+        ReceivedItemInput { item_id, location_id: loc_id, quantity: Decimal::from(100) },
     ], &user).await.unwrap();
 
     // 1. 创建盘点 session (location_id=loc_id)
@@ -172,19 +173,20 @@ async fn inventory_check_post_updates_balance_and_logs() {
     // 2. 录入实盘 95 (diff -5)
     let details = inventory_service::get_check_session(&pool, session.id).await.unwrap().1;
     assert_eq!(details.len(), 1, "应有 1 个 detail（item_id × location_id）");
-    assert_eq!(details[0].system_qty, 100.0, "快照系统数量应是 100");
+    assert_eq!(details[0].system_qty, "100", "快照系统数量应是 100");
 
-    inventory_service::record_actual_qty(&pool, session.id, details[0].id, 95.0, &user).await.unwrap();
+    inventory_service::record_actual_qty(&pool, session.id, details[0].id, Decimal::from(95), &user).await.unwrap();
     let updated_detail = inventory_service::get_check_session(&pool, session.id).await.unwrap().1[0].clone();
-    assert_eq!(updated_detail.actual_qty, Some(95.0));
-    assert_eq!(updated_detail.diff_qty, Some(-5.0));
+    assert_eq!(updated_detail.actual_qty, Some("95".into()));
+    assert_eq!(updated_detail.diff_qty, Some("-5".into()));
 
     // 3. 过账 → 应调整库存到 95 + 写 check_adjust 流水 -5
     inventory_service::post_check_session(&pool, session.id, &user).await.unwrap();
-    let bal: f64 = sqlx::query_scalar(
+    let bal_s: String = sqlx::query_scalar(
         "SELECT quantity FROM inventory WHERE item_id = ? AND location_id = ?"
     ).bind(item_id).bind(loc_id).fetch_one(&pool).await.unwrap();
-    assert!((bal - 95.0).abs() < 0.01, "盘点后库存应为 95, 实际 {bal}");
+    let bal = erp_v2::domain::money::parse_amount(&bal_s).unwrap();
+    assert_eq!(bal, Decimal::from(95), "盘点后库存应为 95");
 
     let log_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM inventory_logs WHERE item_id = ? AND change_type = 'check_adjust'"
@@ -203,45 +205,46 @@ async fn atp_reservation_releases_after_ship() {
     let po = purchase_service::create_order(&pool, &CreatePurchaseOrderRequest {
         supplier_id, order_date: "2026-08-10".into(), currency: None, notes: None,
         items: vec![PurchaseOrderItemInput {
-            item_id, quantity: 100.0, unit_price: Some("10.00".into()), notes: None,
+            item_id, quantity: Decimal::from(100), unit_price: Some("10.00".into()), notes: None,
         }],
     }, &user).await.unwrap();
     purchase_service::submit(&pool, po.id, &user).await.unwrap();
     purchase_service::approve(&pool, po.id, &user).await.unwrap();
     receipt_service::receive_purchase_order(&pool, po.id, &[
-        ReceivedItemInput { item_id, location_id: loc_id, quantity: 100.0 },
+        ReceivedItemInput { item_id, location_id: loc_id, quantity: Decimal::from(100) },
     ], &user).await.unwrap();
 
     // create SO 销 40 + submit (reservation 占用)
     let so = sales_service::create_order(&pool, &CreateSalesOrderRequest {
         customer_id, order_date: Some("2026-08-10".into()), currency: None, notes: None,
         items: vec![CreateSalesOrderItemInput {
-            item_id, quantity: 40.0, unit_price: "20.00".into(), notes: None,
+            item_id, quantity: Decimal::from(40), unit_price: "20.00".into(), notes: None,
         }],
     }, &user).await.unwrap();
     sales_service::submit(&pool, so.id, &user).await.unwrap();
 
     // avail = 100 - 40 = 60
     let avail1 = inventory_service::get_available_qty(&pool, item_id, Some(loc_id)).await.unwrap();
-    assert!((avail1 - 60.0).abs() < 0.01, "submit 后可用量应为 60");
+    assert_eq!(avail1, Decimal::from(60), "submit 后可用量应为 60");
 
     // approve SO + ship 40
     sales_service::approve(&pool, so.id, &user).await.unwrap();
     shipment_service::ship_sales_order(&pool, so.id, &[
-        ShippedItemInput { item_id, location_id: loc_id, quantity: 40.0 },
+        ShippedItemInput { item_id, location_id: loc_id, quantity: Decimal::from(40) },
     ], &user).await.unwrap();
 
     // 库存 = 60, 预留应为 0 (已释放), available = 60 - 0 = 60
-    let bal: f64 = sqlx::query_scalar(
+    let bal_s: String = sqlx::query_scalar(
         "SELECT quantity FROM inventory WHERE item_id = ? AND location_id = ?"
     ).bind(item_id).bind(loc_id).fetch_one(&pool).await.unwrap();
-    assert!((bal - 60.0).abs() < 0.01, "ship 后库存应为 60, 实际 {bal}");
+    let bal = erp_v2::domain::money::parse_amount(&bal_s).unwrap();
+    assert_eq!(bal, Decimal::from(60), "ship 后库存应为 60");
 
-    let reserved: f64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(quantity), 0.0) FROM reservations WHERE item_id = ? AND status = 'active'"
+    let reserved_cnt: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM reservations WHERE item_id = ? AND status = 'active'"
     ).bind(item_id).fetch_one(&pool).await.unwrap();
-    assert!((reserved - 0.0).abs() < 0.01, "ship 后 active 预留应为 0, 实际 {reserved}");
+    assert_eq!(reserved_cnt, 0, "ship 后 active 预留应为 0");
 
     let avail2 = inventory_service::get_available_qty(&pool, item_id, Some(loc_id)).await.unwrap();
-    assert!((avail2 - 60.0).abs() < 0.01, "ship 后 available 应为 60 (余额60 - 预留0)");
+    assert_eq!(avail2, Decimal::from(60), "ship 后 available 应为 60 (余额60 - 预留0)");
 }

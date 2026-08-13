@@ -5,6 +5,9 @@ use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
+use rust_decimal::Decimal;
+use crate::domain::quantity::deserialize as deserialize_qty;
+
 use crate::error::AppError;
 use crate::middleware::auth::AuthUser;
 use crate::response::ApiResponse;
@@ -19,7 +22,8 @@ pub struct ShipRequest {
 pub struct ShippedItemDto {
     pub item_id: i64,
     pub location_id: i64,
-    pub quantity: f64,
+    #[serde(deserialize_with = "deserialize_qty")]
+    pub quantity: Decimal,
 }
 
 pub async fn ship_sales_order(

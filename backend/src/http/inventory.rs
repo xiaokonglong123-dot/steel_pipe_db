@@ -11,6 +11,9 @@ use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
+use rust_decimal::Decimal;
+
+use crate::domain::quantity::deserialize as deserialize_qty;
 use crate::error::AppError;
 use crate::middleware::auth::AuthUser;
 use crate::repos::inventory_repo::{
@@ -25,7 +28,8 @@ use crate::services::inventory_service;
 pub struct InboundItemDto {
     pub item_id: i64,
     pub location_id: i64,
-    pub quantity: f64,
+    #[serde(deserialize_with = "deserialize_qty")]
+    pub quantity: Decimal,
     pub notes: Option<String>,
 }
 
@@ -45,7 +49,8 @@ pub struct CreateInboundRequest {
 pub struct OutboundItemDto {
     pub item_id: i64,
     pub location_id: i64,
-    pub quantity: f64,
+    #[serde(deserialize_with = "deserialize_qty")]
+    pub quantity: Decimal,
     pub notes: Option<String>,
 }
 
@@ -106,7 +111,8 @@ pub struct CreateCheckRequest {
 #[derive(Deserialize)]
 pub struct RecordActualQtyRequest {
     pub detail_id: i64,
-    pub actual_qty: f64,
+    #[serde(deserialize_with = "deserialize_qty")]
+    pub actual_qty: Decimal,
 }
 
 // —— Inbound handlers ——

@@ -6,6 +6,7 @@
 
 use sqlx::SqlitePool;
 
+use crate::domain::quantity::serialize_qty_str;
 use crate::error::{AppError, ErrorCode};
 use crate::services::purchase_service::{
     CreatePurchaseOrderRequest, PurchaseOrderItemInput, UpdatePurchaseOrderRequest,
@@ -35,8 +36,10 @@ pub struct PurchaseOrderItemRow {
     pub id: i64,
     pub order_id: i64,
     pub item_id: i64,
-    pub quantity: f64,
-    pub received_qty: f64,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub quantity: String,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub received_qty: String,
     pub unit_price: Option<String>,
     pub total_price: Option<String>,
     pub notes: Option<String>,
@@ -221,11 +224,11 @@ pub async fn insert_item(
     let result = sqlx::query(
         "INSERT INTO purchase_order_items
             (order_id, item_id, quantity, received_qty, unit_price, total_price, notes)
-         VALUES (?, ?, ?, 0, ?, ?, ?)",
+         VALUES (?, ?, ?, '0', ?, ?, ?)",
     )
     .bind(order_id)
     .bind(item.item_id)
-    .bind(item.quantity)
+    .bind(item.quantity.to_string())
     .bind(item.unit_price.as_deref())
     .bind(total_price_text)
     .bind(item.notes.as_deref())

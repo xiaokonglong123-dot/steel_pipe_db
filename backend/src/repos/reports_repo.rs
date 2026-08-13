@@ -8,6 +8,9 @@
 use serde::Serialize;
 use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
 
+use rust_decimal::Decimal;
+
+use crate::domain::money::parse_amount;
 use crate::error::{AppError, ErrorCode};
 
 // —— 行类型 ——
@@ -18,7 +21,7 @@ pub struct InventorySummaryRow {
     pub sku: String,
     pub name: String,
     pub category: Option<String>,
-    pub total_qty: f64,
+    pub total_qty: Decimal,
     pub location_count: i64,
 }
 
@@ -29,7 +32,7 @@ pub struct InboundOutboundRow {
     pub item_id: i64,
     pub sku: String,
     pub name: String,
-    pub quantity: f64,
+    pub quantity: Decimal,
     pub location_id: i64,
     pub ref_type: Option<String>,
     pub ref_id: Option<i64>,
@@ -57,29 +60,51 @@ pub struct FinanceSummaryRow {
 // —— 查询 ——
 
 pub async fn inventory_summary(pool: &SqlitePool) -> Result<Vec<InventorySummaryRow>, AppError> {
+    // 不在 SQL 做 SUM on TEXT：拉出每个 item × inventory 行，在 Rust 层按 item_id 聚合。
+    use std::collections::BTreeMap;
+    struct Raw {
+        item_id: i64,
+        sku: String,
+        name: String,
+        category: Option<String>,
+        location_id: Option<i64>,
+        quantity: Option<String>,
+    }
     let rows = sqlx::query(
         "SELECT i.id, i.sku, i.name, i.category,
-                COALESCE(SUM(inv.quantity), 0.0) AS total_qty,
-                COUNT(DISTINCT inv.location_id) AS location_count
+                inv.location_id AS loc, inv.quantity AS qty
          FROM items i
          LEFT JOIN inventory inv ON inv.item_id = i.id
          WHERE i.deleted_at IS NULL
-         GROUP BY i.id, i.sku, i.name, i.category
-         ORDER BY i.sku",
+         ORDER BY i.sku, inv.location_id",
     )
     .try_map(|row: SqliteRow| {
-        Ok(InventorySummaryRow {
+        Ok(Raw {
             item_id: row.try_get("id")?,
             sku: row.try_get("sku")?,
             name: row.try_get("name")?,
             category: row.try_get("category")?,
-            total_qty: row.try_get::<f64, _>("total_qty")?,
-            location_count: row.try_get("location_count")?,
+            location_id: row.try_get("loc")?,
+            quantity: row.try_get("qty")?,
         })
     })
     .fetch_all(pool)
     .await?;
-    Ok(rows)
+
+    let mut acc: BTreeMap<i64, (String, String, Option<String>, Decimal, std::collections::HashSet<i64>)> = BTreeMap::new();
+    for r in rows {
+        let entry = acc.entry(r.item_id).or_insert_with(|| {
+            (r.sku.clone(), r.name.clone(), r.category.clone(), Decimal::ZERO, std::collections::HashSet::new())
+        });
+        if let (Some(loc), Some(q)) = (r.location_id, r.quantity.as_deref()) {
+            entry.3 += parse_amount(q).unwrap_or(Decimal::ZERO);
+            entry.4.insert(loc);
+        }
+    }
+    let result = acc.into_iter().map(|(item_id, (sku, name, category, total_qty, locs))| {
+        InventorySummaryRow { item_id, sku, name, category, total_qty, location_count: locs.len() as i64 }
+    }).collect();
+    Ok(result)
 }
 
 pub async fn inbound_outbound(
@@ -127,7 +152,10 @@ pub async fn inbound_outbound(
                 item_id: row.try_get("item_id")?,
                 sku: row.try_get("sku")?,
                 name: row.try_get("name")?,
-                quantity: row.try_get("quantity")?,
+                quantity: {
+                    let s: String = row.try_get("quantity")?;
+                    parse_amount(&s).unwrap_or(Decimal::ZERO)
+                },
                 location_id: row.try_get("location_id")?,
                 ref_type: row.try_get("ref_type")?,
                 ref_id: row.try_get("ref_id")?,

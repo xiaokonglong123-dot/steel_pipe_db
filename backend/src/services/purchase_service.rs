@@ -25,7 +25,7 @@ use crate::services::workflow_service;
 #[derive(Debug, Clone)]
 pub struct PurchaseOrderItemInput {
     pub item_id: i64,
-    pub quantity: f64,
+    pub quantity: Decimal,
     pub unit_price: Option<String>,
     pub notes: Option<String>,
 }
@@ -80,7 +80,7 @@ async fn validate_items(
         return Err(AppError::validation("采购明细不能为空"));
     }
     for it in items {
-        if it.quantity <= 0.0 {
+        if it.quantity <= Decimal::ZERO {
             return Err(AppError::validation("采购数量必须大于 0"));
         }
         if catalog_repo::find_by_id(pool, it.item_id).await?.is_none() {
@@ -103,8 +103,7 @@ fn compute_totals(items: &[PurchaseOrderItemInput]) -> Result<(Decimal, Vec<Deci
     let mut line_totals: Vec<Decimal> = Vec::with_capacity(items.len());
     let mut total = Decimal::ZERO;
     for it in items {
-        let qty = Decimal::from_f64_retain(it.quantity)
-            .ok_or_else(|| AppError::validation(format!("无效的数量: {}", it.quantity)))?;
+        let qty = it.quantity;
         let unit = match &it.unit_price {
             Some(p) => Decimal::from_str(p)
                 .map_err(|_| AppError::validation(format!("无效的单价: {p}")))?,
@@ -161,11 +160,11 @@ pub async fn create_order(
                     sqlx::query(
                         "INSERT INTO purchase_order_items
                         (order_id, item_id, quantity, received_qty, unit_price, total_price, notes)
-                     VALUES (?, ?, ?, 0, ?, ?, ?)",
+                     VALUES (?, ?, ?, '0', ?, ?, ?)",
                     )
                     .bind(id)
                     .bind(it.item_id)
-                    .bind(it.quantity)
+                    .bind(it.quantity.to_string())
                     .bind(it.unit_price.as_deref())
                     .bind(line_total.to_string())
                     .bind(it.notes.as_deref())
@@ -262,11 +261,11 @@ pub async fn update_order(
         sqlx::query(
             "INSERT INTO purchase_order_items
                 (order_id, item_id, quantity, received_qty, unit_price, total_price, notes)
-             VALUES (?, ?, ?, 0, ?, ?, ?)",
+             VALUES (?, ?, ?, '0', ?, ?, ?)",
         )
         .bind(id)
         .bind(it.item_id)
-        .bind(it.quantity)
+        .bind(it.quantity.to_string())
         .bind(it.unit_price.as_deref())
         .bind(line_total.to_string())
         .bind(it.notes.as_deref())

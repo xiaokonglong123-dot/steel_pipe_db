@@ -1,6 +1,8 @@
 use sqlx::SqlitePool;
 
 use crate::error::{AppError, ErrorCode};
+use rust_decimal::Decimal;
+
 use crate::middleware::auth::AuthUser;
 use crate::repos::{inventory_repo, receivable_repo, sales_repo};
 
@@ -8,7 +10,7 @@ use crate::repos::{inventory_repo, receivable_repo, sales_repo};
 pub struct ShippedItemInput {
     pub item_id: i64,
     pub location_id: i64,
-    pub quantity: f64,
+    pub quantity: Decimal,
 }
 
 pub async fn ship_sales_order(
@@ -36,7 +38,7 @@ pub async fn ship_sales_order(
         receivable_repo::insert_outbound(&mut *tx, &record_no, so_id, order.customer_id, user.id)
             .await?;
     for item in shipped_items {
-        if item.quantity <= 0.0 {
+        if item.quantity <= Decimal::ZERO {
             return Err(AppError::validation("发货数量必须大于 0"));
         }
         let balance = inventory_repo::get_balance_for_item_at_location_tx(
@@ -63,7 +65,7 @@ pub async fn ship_sales_order(
         )
         .await?;
         inventory_repo::upsert_inventory_decrement(
-            &mut *tx,
+            &mut tx,
             item.item_id,
             item.location_id,
             item.quantity,
@@ -81,16 +83,21 @@ pub async fn ship_sales_order(
             Some(user.id),
         )
         .await?;
-        sqlx::query(
-            "UPDATE sales_order_items
-             SET shipped_qty = shipped_qty + ?
-             WHERE order_id = ? AND item_id = ?",
+        // shipped_qty 为 TEXT，读改写
+        let cur_sq: Option<String> = sqlx::query_scalar(
+            "SELECT shipped_qty FROM sales_order_items WHERE order_id = ? AND item_id = ?",
         )
-        .bind(item.quantity)
-        .bind(so_id)
-        .bind(item.item_id)
-        .execute(&mut *tx)
-        .await?;
+        .bind(so_id).bind(item.item_id)
+        .fetch_optional(&mut *tx).await?;
+        let new_sq = match cur_sq {
+            Some(s) => crate::domain::money::parse_amount(&s)? + item.quantity,
+            None => item.quantity,
+        };
+        sqlx::query(
+            "UPDATE sales_order_items SET shipped_qty = ? WHERE order_id = ? AND item_id = ?",
+        )
+        .bind(new_sq.to_string()).bind(so_id).bind(item.item_id)
+        .execute(&mut *tx).await?;
     }
     sales_repo::release_reservations_for_order_tx(&mut *tx, so_id).await?;
     sqlx::query("UPDATE sales_orders SET status = 'shipped', doc_status = 3, updated_at = datetime('now') WHERE id = ?")

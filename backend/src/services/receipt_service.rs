@@ -1,6 +1,8 @@
 use sqlx::SqlitePool;
 
 use crate::error::{AppError, ErrorCode};
+use rust_decimal::Decimal;
+
 use crate::middleware::auth::AuthUser;
 use crate::repos::{catalog_repo, inventory_repo, purchase_repo, receivable_repo};
 
@@ -8,7 +10,7 @@ use crate::repos::{catalog_repo, inventory_repo, purchase_repo, receivable_repo}
 pub struct ReceivedItemInput {
     pub item_id: i64,
     pub location_id: i64,
-    pub quantity: f64,
+    pub quantity: Decimal,
 }
 
 pub async fn receive_purchase_order(
@@ -31,7 +33,7 @@ pub async fn receive_purchase_order(
     }
 
     for item in received_items {
-        if item.quantity <= 0.0 {
+        if item.quantity <= Decimal::ZERO {
             return Err(AppError::validation("收货数量必须大于 0"));
         }
         if catalog_repo::find_by_id(pool, item.item_id)
@@ -73,7 +75,7 @@ pub async fn receive_purchase_order(
         )
         .await?;
         inventory_repo::upsert_inventory_increment(
-            &mut *tx,
+            &mut tx,
             item.item_id,
             item.location_id,
             item.quantity,
@@ -91,25 +93,33 @@ pub async fn receive_purchase_order(
             Some(user.id),
         )
         .await?;
-        sqlx::query(
-            "UPDATE purchase_order_items
-             SET received_qty = received_qty + ?
-             WHERE order_id = ? AND item_id = ?",
+        // received_qty 为 TEXT，无法 SQL 算术；在事务内读改写
+        let cur_rq: Option<String> = sqlx::query_scalar(
+            "SELECT received_qty FROM purchase_order_items WHERE order_id = ? AND item_id = ?",
         )
-        .bind(item.quantity)
-        .bind(po_id)
-        .bind(item.item_id)
-        .execute(&mut *tx)
-        .await?;
+        .bind(po_id).bind(item.item_id)
+        .fetch_optional(&mut *tx).await?;
+        let new_rq = match cur_rq {
+            Some(s) => crate::domain::money::parse_amount(&s)? + item.quantity,
+            None => item.quantity,
+        };
+        sqlx::query(
+            "UPDATE purchase_order_items SET received_qty = ? WHERE order_id = ? AND item_id = ?",
+        )
+        .bind(new_rq.to_string()).bind(po_id).bind(item.item_id)
+        .execute(&mut *tx).await?;
     }
 
-    let remaining: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM purchase_order_items
-         WHERE order_id = ? AND received_qty < quantity",
+    // TEXT 上不能直接比较 "received_qty < quantity"（字典序）；拉到 Rust 层 Decimal 比较
+    let pairs: Vec<(String, String)> = sqlx::query_as(
+        "SELECT received_qty, quantity FROM purchase_order_items WHERE order_id = ?",
     )
     .bind(po_id)
-    .fetch_one(&mut *tx)
+    .fetch_all(&mut *tx)
     .await?;
+    let remaining: i64 = pairs.iter().filter(|(rq, q)| {
+        crate::domain::money::parse_amount(rq).map(|d| d < crate::domain::money::parse_amount(q).unwrap_or(Decimal::ZERO)).unwrap_or(false)
+    }).count() as i64;
     let next_status = if remaining > 0 {
         "partially_received"
     } else {

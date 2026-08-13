@@ -11,6 +11,9 @@ use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
+use rust_decimal::Decimal;
+use crate::domain::quantity::deserialize as deserialize_qty;
+
 use crate::error::AppError;
 use crate::middleware::auth::AuthUser;
 use crate::repos::sales_repo::SalesOrderFilter;
@@ -22,7 +25,8 @@ use crate::services::sales_service;
 #[derive(Deserialize)]
 pub struct SalesOrderItemDto {
     pub item_id: i64,
-    pub quantity: f64,
+    #[serde(deserialize_with = "deserialize_qty")]
+    pub quantity: Decimal,
     pub unit_price: String,
     pub notes: Option<String>,
 }

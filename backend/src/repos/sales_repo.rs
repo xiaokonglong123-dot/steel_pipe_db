@@ -6,6 +6,9 @@
 
 use sqlx::{Executor, SqlitePool};
 
+use rust_decimal::Decimal;
+use crate::domain::money::parse_amount;
+use crate::domain::quantity::serialize_qty_str;
 use crate::error::{AppError, ErrorCode};
 
 // —— Row structs ——
@@ -32,8 +35,10 @@ pub struct SalesOrderItemRow {
     pub id: i64,
     pub order_id: i64,
     pub item_id: i64,
-    pub quantity: f64,
-    pub shipped_qty: f64,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub quantity: String,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub shipped_qty: String,
     pub unit_price: Option<String>,
     pub total_price: Option<String>,
     pub notes: Option<String>,
@@ -44,7 +49,8 @@ pub struct SalesOrderItemRow {
 pub struct ReservationRow {
     pub id: i64,
     pub item_id: i64,
-    pub quantity: f64,
+    #[serde(serialize_with = "serialize_qty_str")]
+    pub quantity: String,
     pub order_type: String,
     pub order_id: i64,
     pub status: String,
@@ -134,7 +140,7 @@ pub async fn insert_item<'e, E>(
     executor: E,
     order_id: i64,
     item_id: i64,
-    quantity: f64,
+    quantity: Decimal,
     unit_price: Option<&str>,
     total_price: Option<&str>,
     notes: Option<&str>,
@@ -145,11 +151,11 @@ where
     let result = sqlx::query(
         "INSERT INTO sales_order_items
             (order_id, item_id, quantity, shipped_qty, unit_price, total_price, notes)
-         VALUES (?, ?, ?, 0, ?, ?, ?)",
+         VALUES (?, ?, ?, '0', ?, ?, ?)",
     )
     .bind(order_id)
     .bind(item_id)
-    .bind(quantity)
+    .bind(quantity.to_string())
     .bind(unit_price)
     .bind(total_price)
     .bind(notes)
@@ -367,7 +373,7 @@ pub async fn soft_delete_order(pool: &SqlitePool, id: i64) -> Result<(), AppErro
 pub async fn insert_reservation<'e, E>(
     executor: E,
     item_id: i64,
-    quantity: f64,
+    quantity: Decimal,
     order_id: i64,
     created_by: Option<i64>,
 ) -> Result<i64, AppError>
@@ -379,7 +385,7 @@ where
          VALUES (?, ?, 'sales', ?, 'active', ?)",
     )
     .bind(item_id)
-    .bind(quantity)
+    .bind(quantity.to_string())
     .bind(order_id)
     .bind(created_by)
     .execute(executor)
@@ -453,19 +459,23 @@ pub async fn list_active_reservations_for_item(
     Ok(rows)
 }
 
-/// 汇总某 item 的 active 预留总量（SUM(quantity)）
+/// 汇总某 item 的 active 预留总量（TEXT，Rust 层 Decimal 累计，不做 SQL SUM on TEXT）
 pub async fn sum_active_reservations_for_item(
     pool: &SqlitePool,
     item_id: i64,
-) -> Result<f64, AppError> {
-    let total: Option<f64> = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(quantity), 0.0) FROM reservations
+) -> Result<Decimal, AppError> {
+    let rows = sqlx::query_scalar::<_, String>(
+        "SELECT quantity FROM reservations
          WHERE item_id = ? AND status = 'active'",
     )
     .bind(item_id)
-    .fetch_one(pool)
+    .fetch_all(pool)
     .await?;
-    Ok(total.unwrap_or(0.0))
+    let mut acc = Decimal::ZERO;
+    for r in rows {
+        acc += parse_amount(&r)?;
+    }
+    Ok(acc)
 }
 
 /// 列出某销售订单的所有 active 预留（事务版）
@@ -488,29 +498,39 @@ where
     Ok(rows)
 }
 
-/// 汇总某商品的 active 预留数量（quantity 为 REAL，可 SQL SUM）。不含当前正在提交的订单。
+/// 汇总某商品的 active 预留数量（TEXT，Rust 层 Decimal 累计，不做 SQL SUM on TEXT）。
+/// 不含当前正在提交的订单。
 pub async fn sum_active_reserved_quantity_for_item(
     pool: &SqlitePool,
     item_id: i64,
-) -> Result<f64, AppError> {
-    let qty: Option<f64> = sqlx::query_scalar(
-        "SELECT SUM(quantity) FROM reservations
+) -> Result<Decimal, AppError> {
+    let rows = sqlx::query_scalar::<_, String>(
+        "SELECT quantity FROM reservations
          WHERE item_id = ? AND status = 'active'",
     )
     .bind(item_id)
-    .fetch_optional(pool)
+    .fetch_all(pool)
     .await?;
-    Ok(qty.unwrap_or(0.0))
+    let mut acc = Decimal::ZERO;
+    for r in rows {
+        acc += parse_amount(&r)?;
+    }
+    Ok(acc)
 }
 
 // —— Inventory balance helpers (for ATP) ——
 
-/// 汇总某商品在所有库位的库存余额（quantity 为 REAL，可 SQL SUM）。
-pub async fn sum_balance_for_item(pool: &SqlitePool, item_id: i64) -> Result<f64, AppError> {
-    let qty: Option<f64> =
-        sqlx::query_scalar("SELECT SUM(quantity) FROM inventory WHERE item_id = ?")
-            .bind(item_id)
-            .fetch_optional(pool)
-            .await?;
-    Ok(qty.unwrap_or(0.0))
+/// 汇总某商品在所有库位的库存余额（TEXT，Rust 层 Decimal 累计，不做 SQL SUM on TEXT）。
+pub async fn sum_balance_for_item(pool: &SqlitePool, item_id: i64) -> Result<Decimal, AppError> {
+    let rows = sqlx::query_scalar::<_, String>(
+        "SELECT quantity FROM inventory WHERE item_id = ?",
+    )
+    .bind(item_id)
+    .fetch_all(pool)
+    .await?;
+    let mut acc = Decimal::ZERO;
+    for r in rows {
+        acc += parse_amount(&r)?;
+    }
+    Ok(acc)
 }

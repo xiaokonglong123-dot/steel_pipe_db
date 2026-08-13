@@ -13,6 +13,9 @@ use axum::Json;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
+use rust_decimal::Decimal;
+use crate::domain::quantity::deserialize as deserialize_qty;
+
 use crate::error::AppError;
 use crate::middleware::auth::AuthUser;
 use crate::repos::purchase_repo::PurchaseOrderFilter;
@@ -25,7 +28,8 @@ use crate::services::purchase_service::{CreatePurchaseOrderRequest, UpdatePurcha
 #[derive(Deserialize)]
 pub struct PurchaseItemDto {
     pub item_id: i64,
-    pub quantity: f64,
+    #[serde(deserialize_with = "deserialize_qty")]
+    pub quantity: Decimal,
     #[serde(default)]
     pub unit_price: Option<String>,
     #[serde(default)]

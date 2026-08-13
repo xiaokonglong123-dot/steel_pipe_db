@@ -8,6 +8,7 @@
 //! 任一步骤抛错则事务回滚，订单状态不变。
 
 use chrono::Utc;
+use crate::domain::money::parse_amount;
 use rust_decimal::Decimal;
 use sqlx::SqlitePool;
 
@@ -27,7 +28,7 @@ use crate::services::workflow_service;
 #[derive(Debug, Clone)]
 pub struct CreateSalesOrderItemInput {
     pub item_id: i64,
-    pub quantity: f64,
+    pub quantity: Decimal,
     pub unit_price: String,
     pub notes: Option<String>,
 }
@@ -99,7 +100,7 @@ pub async fn create_order(
     let mut seen: Vec<i64> = Vec::with_capacity(dto.items.len());
     let mut total = Decimal::ZERO;
     for it in &dto.items {
-        if it.quantity <= 0.0 {
+        if it.quantity <= Decimal::ZERO {
             return Err(AppError::validation("销售数量必须大于 0"));
         }
         if catalog_repo::find_by_id(pool, it.item_id).await?.is_none() {
@@ -113,9 +114,7 @@ pub async fn create_order(
             return Err(AppError::validation("单价不能为负"));
         }
         let line_total = price
-            * Decimal::try_from(it.quantity).map_err(|_| {
-                AppError::validation(format!("数量 {} 无法转换为金额精度", it.quantity))
-            })?;
+            * it.quantity;
         total += line_total;
         if seen.iter().any(|i| *i == it.item_id) {
             return Err(AppError::validation(format!(
@@ -159,8 +158,7 @@ pub async fn create_order(
     for it in &dto.items {
         let price = crate::domain::money::parse_amount(&it.unit_price)?;
         let line_total = price
-            * Decimal::try_from(it.quantity)
-                .map_err(|_| AppError::validation("数量无法转换为金额精度"))?;
+            * it.quantity;
         sales_repo::insert_item(
             &mut *tx,
             order_id,
@@ -238,7 +236,7 @@ pub async fn update_order(
     let mut seen: Vec<i64> = Vec::with_capacity(dto.items.len());
     let mut total = Decimal::ZERO;
     for it in &dto.items {
-        if it.quantity <= 0.0 {
+        if it.quantity <= Decimal::ZERO {
             return Err(AppError::validation("销售数量必须大于 0"));
         }
         if catalog_repo::find_by_id(pool, it.item_id).await?.is_none() {
@@ -252,8 +250,7 @@ pub async fn update_order(
             return Err(AppError::validation("单价不能为负"));
         }
         let line_total = price
-            * Decimal::try_from(it.quantity)
-                .map_err(|_| AppError::validation("数量无法转换为金额精度"))?;
+            * it.quantity;
         total += line_total;
         if seen.iter().any(|i| *i == it.item_id) {
             return Err(AppError::validation(format!(
@@ -278,8 +275,7 @@ pub async fn update_order(
     for it in &dto.items {
         let price = crate::domain::money::parse_amount(&it.unit_price)?;
         let line_total = price
-            * Decimal::try_from(it.quantity)
-                .map_err(|_| AppError::validation("数量无法转换为金额精度"))?;
+            * it.quantity;
         sales_repo::insert_item(
             &mut *tx,
             id,
@@ -347,15 +343,16 @@ pub async fn submit(
 
     // ATP 校验：每行 qty <= 库存余额 - 已 active 预留
     for it in &items {
+        let qty = parse_amount(&it.quantity)?;
         let balance = sales_repo::sum_balance_for_item(pool, it.item_id).await?;
         let reserved = sales_repo::sum_active_reserved_quantity_for_item(pool, it.item_id).await?;
         let available = balance - reserved;
-        if it.quantity > available {
+        if qty > available {
             return Err(AppError::new(
                 ErrorCode::InsufficientStock,
                 format!(
                     "库存不足：商品 {} 可用 {}（余额 {} - 已预留 {}），本次申请 {}",
-                    it.item_id, available, balance, reserved, it.quantity
+                    it.item_id, available, balance, reserved, qty
                 ),
             ));
         }
@@ -369,7 +366,8 @@ pub async fn submit(
     let mut tx = pool.begin().await?;
 
     for it in &items {
-        sales_repo::insert_reservation(&mut *tx, it.item_id, it.quantity, id, Some(user.id))
+        let qty = parse_amount(&it.quantity)?;
+        sales_repo::insert_reservation(&mut *tx, it.item_id, qty, id, Some(user.id))
             .await?;
     }
     sales_repo::update_status_tx(&mut *tx, id, STATUS_SUBMITTED, DOC_SUBMITTED).await?;

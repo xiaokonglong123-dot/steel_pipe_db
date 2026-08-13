@@ -2,6 +2,7 @@ mod common;
 #[path = "check_test/support.rs"]
 mod support;
 
+use rust_decimal::Decimal;
 use axum::http::StatusCode;
 use support::{create_check, fixture, receive};
 
@@ -76,14 +77,15 @@ async fn post_check_session_updates_inventory() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "post check: {posted}");
-    let quantity: f64 =
+    let quantity_s: String =
         sqlx::query_scalar("SELECT quantity FROM inventory WHERE item_id = ? AND location_id = ?")
             .bind(item_id)
             .bind(location_id)
             .fetch_one(&server.pool)
             .await
             .unwrap();
-    let log: (String, f64) = sqlx::query_as(
+    let quantity = erp_v2::domain::money::parse_amount(&quantity_s).unwrap();
+    let log: (String, String) = sqlx::query_as(
         "SELECT change_type, quantity FROM inventory_logs
          WHERE ref_type = 'check' AND ref_id = ?",
     )
@@ -91,8 +93,10 @@ async fn post_check_session_updates_inventory() {
     .fetch_one(&server.pool)
     .await
     .unwrap();
-    assert_eq!(quantity, 95.0);
-    assert_eq!(log, ("check_adjust".to_owned(), -5.0));
+    let log_qty = erp_v2::domain::money::parse_amount(&log.1).unwrap();
+    assert_eq!(quantity, Decimal::from(95));
+    assert_eq!(log.0, "check_adjust");
+    assert_eq!(log_qty, Decimal::from(-5));
 }
 
 #[tokio::test]
@@ -118,13 +122,14 @@ async fn post_with_no_diff_does_not_change_inventory() {
         )
         .await;
     assert_eq!(status, StatusCode::OK);
-    let quantity: f64 =
+    let quantity_s: String =
         sqlx::query_scalar("SELECT quantity FROM inventory WHERE item_id = ? AND location_id = ?")
             .bind(item_id)
             .bind(location_id)
             .fetch_one(&server.pool)
             .await
             .unwrap();
+    let quantity = erp_v2::domain::money::parse_amount(&quantity_s).unwrap();
     let logs: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM inventory_logs WHERE ref_type = 'check' AND ref_id = ?",
     )
@@ -132,7 +137,7 @@ async fn post_with_no_diff_does_not_change_inventory() {
     .fetch_one(&server.pool)
     .await
     .unwrap();
-    assert_eq!(quantity, 100.0);
+    assert_eq!(quantity, Decimal::from(100));
     assert_eq!(logs, 0);
 }
 

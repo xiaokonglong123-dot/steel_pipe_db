@@ -1,5 +1,7 @@
 use sqlx::{Executor, Sqlite, SqlitePool};
 
+use rust_decimal::Decimal;
+
 use crate::error::AppError;
 use crate::repos::inventory_repo::{InboundOrderRow, OutboundOrderRow};
 
@@ -32,7 +34,7 @@ pub async fn insert_inbound_item<'e, E>(
     record_id: i64,
     item_id: i64,
     location_id: i64,
-    quantity: f64,
+    quantity: Decimal,
 ) -> Result<(), AppError>
 where
     E: Executor<'e, Database = Sqlite>,
@@ -44,7 +46,7 @@ where
     .bind(record_id)
     .bind(item_id)
     .bind(location_id)
-    .bind(quantity)
+    .bind(quantity.to_string())
     .execute(executor)
     .await?;
     Ok(())
@@ -79,7 +81,7 @@ pub async fn insert_outbound_item<'e, E>(
     record_id: i64,
     item_id: i64,
     location_id: i64,
-    quantity: f64,
+    quantity: Decimal,
 ) -> Result<(), AppError>
 where
     E: Executor<'e, Database = Sqlite>,
@@ -91,7 +93,7 @@ where
     .bind(record_id)
     .bind(item_id)
     .bind(location_id)
-    .bind(quantity)
+    .bind(quantity.to_string())
     .execute(executor)
     .await?;
     Ok(())
