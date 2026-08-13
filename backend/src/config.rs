@@ -6,6 +6,9 @@ use std::net::SocketAddr;
 
 use crate::error::{AppError, ErrorCode};
 
+/// 开发/测试兜底 secret（绝不能用于生产）。生产必须通过环境变量 JWT_SECRET 显式提供。
+pub const DEV_INSECURE_JWT_SECRET: &str = "dev-only-insecure-secret-change-me";
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
@@ -23,7 +26,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             database_url: "sqlite://data/erp.db?mode=rwc".to_string(),
-            jwt_secret: "dev-only-insecure-secret-change-me".to_string(),
+            jwt_secret: DEV_INSECURE_JWT_SECRET.to_string(),
             jwt_expiry_hours: 24,
             refresh_expiry_days: 7,
             server_host: "0.0.0.0".to_string(),
@@ -42,8 +45,12 @@ impl Config {
         let c = Self::default();
 
         let database_url = std::env::var("DATABASE_URL").unwrap_or(c.database_url.clone());
-        let default_jwt = c.jwt_secret.clone();
-        let jwt_secret = std::env::var("JWT_SECRET").unwrap_or(default_jwt.clone());
+        let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| {
+            tracing::warn!(
+                "JWT_SECRET 未设置，使用开发兜底值；生产环境将因 validate_security() 拒绝启动"
+            );
+            c.jwt_secret.clone()
+        });
         let jwt_expiry_hours = std::env::var("JWT_EXPIRY_HOURS")
             .ok()
             .and_then(|v| v.parse().ok())
@@ -63,10 +70,6 @@ impl Config {
             .unwrap_or_else(|_| default_cors.clone());
         let admin_username = std::env::var("ADMIN_USERNAME").unwrap_or(c.admin_username.clone());
         let admin_password = std::env::var("ADMIN_PASSWORD").unwrap_or(c.admin_password.clone());
-
-        if jwt_secret == default_jwt {
-            tracing::warn!("JWT_SECRET 未设置，使用不安全的开发默认值");
-        }
 
         Ok(Self {
             database_url,
@@ -89,5 +92,17 @@ impl Config {
         format!("{}:{}", self.server_host, self.server_port)
             .parse()
             .map_err(|e| AppError::new(ErrorCode::Config, format!("invalid server addr: {e}")))
+    }
+
+    /// 入口级安全闸：JWT_SECRET 必须显式设置，且不得等于开发兜底值。
+    /// main.rs 启动时调用；测试/路由内部不经过此校验，故不破坏测试。
+    pub fn validate_security(&self) -> Result<(), AppError> {
+        if self.jwt_secret.is_empty() || self.jwt_secret == DEV_INSECURE_JWT_SECRET {
+            return Err(AppError::new(
+                ErrorCode::Config,
+                "JWT_SECRET 未设置或仍为开发兜底值，已拒绝启动。                 生产部署请通过环境变量 JWT_SECRET 提供强随机密钥（参考 backend/.env.example）。",
+            ));
+        }
+        Ok(())
     }
 }

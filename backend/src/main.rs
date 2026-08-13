@@ -28,6 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let cfg = config::Config::from_env()?;
+    cfg.validate_security()?; // 入口安全闸：缺省/开发兜底 JWT_SECRET 拒绝启动
     let pool = db::init_pool(&cfg).await?;
 
     // 初始 admin（Argon2 生成真实哈希，幂等）
