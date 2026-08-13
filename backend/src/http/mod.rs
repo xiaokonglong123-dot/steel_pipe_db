@@ -10,7 +10,8 @@ use axum::middleware as axum_mw;
 use axum::routing::{get, post};
 use axum::Extension;
 use axum::Router;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use axum::http::HeaderName;
+use tower_http::{cors::CorsLayer, request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer}, trace::TraceLayer};
 
 use crate::config::Config;
 use crate::http::auth as auth_handlers;
@@ -41,6 +42,8 @@ pub mod reports;
 pub mod sales;
 pub mod shipment;
 pub mod workflow;
+
+static REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 
 pub fn router(pool: sqlx::SqlitePool, jwt_secret: String) -> Router {
     let cors = CorsLayer::new()
@@ -502,9 +505,17 @@ axum::routing::put(catalog_handlers::update_item).delete(catalog_handlers::delet
         .layer(Extension(pool))
         .layer(Extension(JwtSecret(jwt_secret)))
         .layer(Extension(Config::from_env().expect("config load")))
+        .layer(PropagateRequestIdLayer::new(REQUEST_ID_HEADER.clone()))
         .layer(TraceLayer::new_for_http().make_span_with(|req: &axum::extract::Request| {
-            tracing::info_span!("req", method = %req.method(), uri = %req.uri())
+            let rid = req
+                .headers()
+                .get(REQUEST_ID_HEADER.clone())
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            tracing::info_span!("req", method = %req.method(), uri = %req.uri(), request_id = %rid)
         }))
+        .layer(SetRequestIdLayer::new(REQUEST_ID_HEADER.clone(), MakeRequestUuid))
         .layer(cors)
 }
 
