@@ -38,7 +38,7 @@ cd frontend && bun install && bun run dev
 | 审批流多级/条件 (`amount_threshold` + `transition_with_amount`) | ✅ P2 完成 | 2 |
 | finance.threshold `012_workflow_threshold.sql` | ✅ P2 完成 | 1 migrations 校验 |
 
-**总计**: 121 测试全绿 (`cargo test`)
+**总计**: 124 测试全绿 (`cargo test`)
 
 ### 前端 (`frontend/`)
 
@@ -97,6 +97,7 @@ cd frontend && bun install && bun run dev
 010_warehouses.sql         — ALTER locations.warehouse_id + deleted_at (在 child 迁移之后的 ALTER)
 011_seed_workflows.sql     — PO/SO 种子 workflows + states + transitions
 012_workflow_threshold.sql — ALTER workflow_transitions.amount_threshold TEXT
+013_quantity_decimal.sql    — 数量列 REAL → Decimal TEXT (8 表)
 ```
 
 ## P0/P1/P2 完成度

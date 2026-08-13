@@ -4,6 +4,13 @@ See `git log` for history. The `legacy/steel-pipe-react` branch preserves the pr
 
 ## [Unreleased] — erp-v2 era
 
+### Decimal quantities + docs cleanup
+- quantity columns migrated REAL → Decimal TEXT (migration 013) across inventory/logs/items/check/reservations/PO/SO.
+- Enforce non-default JWT_SECRET at startup (`Config::validate_security`).
+- Emit + propagate `x-request-id` and trace it in spans.
+- Removed archived `docs/legacy/` (pre-rewrite React-stack docs); old stack remains recoverable via `legacy/steel-pipe-react` branch.
+- Backend tests now 124 green.
+
 ### Promotion (2026-08-11)
 - Repository migrated to erp-v2 stack: Rust+Axum+SQLx+SQLite/Decimal backend, Vue3+ElementPlus+bun frontend.
 - Old React+Antd+npm stack moved to `legacy/steel-pipe-react` branch (51 pre-promotion commits preserved).

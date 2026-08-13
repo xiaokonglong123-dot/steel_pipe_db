@@ -10,7 +10,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Element Plus](https://img.shields.io/badge/Element_Plus-409EFF?style=flat-square&logo=element&logoColor=white)
 
-![Tests](https://img.shields.io/badge/Backend%20tests-121%20passing-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/Backend%20tests-124%20passing-brightgreen?style=flat-square)
 ![Build](https://img.shields.io/badge/Frontend%20build-passing-brightgreen?style=flat-square)
 
 </div>
@@ -100,7 +100,7 @@ Open `http://localhost:5173` and log in with:
 | Frontend type-check | `cd frontend && bunx tsc --noEmit`             |
 | Frontend build      | `cd frontend && bun run build`                 |
 
-- **Backend**: 121 tests green
+- **Backend**: 124 tests green
 - **Frontend**: `bunx tsc --noEmit` + `bun run build` green
 
 ---
@@ -154,10 +154,11 @@ SQLite3 single file (WAL mode). 12 migrations:
 006_sales.sql               — sales_orders / sales_order_items / reservations
 007_finance.sql             — accounts / journal_entries / journal_lines / invoices / payments
 008_workflow.sql            — workflows / workflow_states / workflow_transitions / workflow_instances / workflow_tasks
-009_seed.sql                — admin/manager/finance roles + 11 permissions
+009_seed.sql                — 6 system roles (admin/manager/warehouse/purchaser/sales/finance) + 11 permissions
 010_warehouses.sql          — ALTER locations.warehouse_id + deleted_at (parent-table introduction)
 011_seed_workflows.sql      — PO/SO demo workflows + states + transitions
 012_workflow_threshold.sql  — ALTER workflow_transitions.amount_threshold TEXT
+013_quantity_decimal.sql     — quantity columns REAL → Decimal TEXT (8 tables)
 ```
 
 Integrity is enforced at the application layer (TOCTOU-safe, transactional). Soft deletes via `deleted_at` — records are never physically destroyed. See [detailed-design.md](./docs/detailed-design.md) for the full schema.
@@ -191,8 +192,8 @@ Ikari_Shinji/
 │   │   ├── repos/                          # sqlx repositories
 │   │   ├── middleware/                     # auth + rbac middleware
 │   │   └── domain/                         # Domain enums, validation helpers
-│   ├── tests/                              # 16 integration-test files (121 tests total)
-│   ├── migrations/                         # 12 SQLx migrations
+│   ├── tests/                              # 16 integration-test files + domain unit tests (124 tests total)
+│   ├── migrations/                         # 13 SQLx migrations
 │   ├── Cargo.toml / Cargo.lock / .env.example / rust-toolchain.toml
 │   └── data/erp.db                         # SQLite3 (gitignored, auto-created)
 ├── frontend/
@@ -205,8 +206,7 @@ Ikari_Shinji/
 │   │   ├── components/                     # Shared Element Plus-based components
 │   │   └── styles/                         # Global styles + el-plus theme overrides
 │   ├── package.json / bun.lock / vite.config.ts / tsconfig.json / DESIGN.md
-├── docs/                                   # PRD, detailed-design, frontend-design, tasks
-│   └── legacy/                             # Pre-rewrite (React-stack) design docs (archived)
+├── docs/                                   # PRD, detailed-design, frontend-design, tasks, architecture-diagrams
 ├── specs/                                  # Ubiquitous language (terminology canon)
 ├── .github/workflows/ci.yml                # CI: cargo check + test + bun tsc + build
 ├── AGENTS.md                               # Authoritative project index

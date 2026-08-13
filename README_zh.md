@@ -10,7 +10,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Element Plus](https://img.shields.io/badge/Element_Plus-409EFF?style=flat-square&logo=element&logoColor=white)
 
-![Tests](https://img.shields.io/badge/后端测试-121%20通过-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/后端测试-124%20通过-brightgreen?style=flat-square)
 ![Build](https://img.shields.io/badge/前端构建-通过-brightgreen?style=flat-square)
 
 </div>
@@ -100,7 +100,7 @@ bun run dev                # 启动于 http://localhost:5173
 | 前端类型检查   | `cd frontend && bunx tsc --noEmit`              |
 | 前端构建       | `cd frontend && bun run build`                  |
 
-- **后端**：121 个测试全绿
+- **后端**：124 个测试全绿
 - **前端**：`bunx tsc --noEmit` + `bun run build` 全绿
 
 ---
@@ -143,7 +143,7 @@ bun run dev                # 启动于 http://localhost:5173
 
 ## 数据模型
 
-SQLite3 单文件（WAL 模式），12 个迁移：
+SQLite3 单文件（WAL 模式），13 个迁移：
 
 ```
 001_auth_rbac.sql           — users / roles / role_permissions / operation_logs / refresh_tokens
@@ -154,10 +154,11 @@ SQLite3 单文件（WAL 模式），12 个迁移：
 006_sales.sql               — sales_orders / sales_order_items / reservations
 007_finance.sql             — accounts / journal_entries / journal_lines / invoices / payments
 008_workflow.sql            — workflows / workflow_states / workflow_transitions / workflow_instances / workflow_tasks
-009_seed.sql                — admin/manager/finance 角色 + 11 个权限
+009_seed.sql                — 6 个系统角色（admin/manager/warehouse/purchaser/sales/finance）+ 11 个权限
 010_warehouses.sql          — ALTER locations.warehouse_id + deleted_at（引入父表）
 011_seed_workflows.sql      — PO/SO 演示 workflow + states + transitions
 012_workflow_threshold.sql  — ALTER workflow_transitions.amount_threshold TEXT
+013_quantity_decimal.sql     — 数量列 REAL → Decimal TEXT（8 张表）
 ```
 
 完整性在应用层强制（TOCTOU 安全、事务化）。软删 `deleted_at`——记录不会被物理销毁。完整 schema 见 [detailed-design.md](./docs/detailed-design.md)。
@@ -191,8 +192,8 @@ Ikari_Shinji/
 │   │   ├── repos/                          # sqlx 仓储
 │   │   ├── middleware/                     # auth + rbac 中间件
 │   │   └── domain/                         # 领域枚举、校验辅助
-│   ├── tests/                              # 16 个集成测试文件（共 121 测试）
-│   ├── migrations/                         # 12 个 SQLx 迁移
+│   ├── tests/                              # 16 个集成测试文件 + 领域单测（共 124 测试）
+│   ├── migrations/                         # 13 个 SQLx 迁移
 │   ├── Cargo.toml / Cargo.lock / .env.example / rust-toolchain.toml
 │   └── data/erp.db                         # SQLite3（gitignored，自动创建）
 ├── frontend/
@@ -205,8 +206,7 @@ Ikari_Shinji/
 │   │   ├── components/                     # 共享 Element Plus 组件
 │   │   └── styles/                         # 全局样式 + el-plus 主题覆盖
 │   ├── package.json / bun.lock / vite.config.ts / tsconfig.json / DESIGN.md
-├── docs/                                   # PRD、detailed-design、frontend-design、tasks
-│   └── legacy/                             # 重写前（React 栈）设计文档归档
+├── docs/                                   # PRD、detailed-design、frontend-design、tasks、architecture-diagrams
 ├── specs/                                  # 统一术语（ubiquitous language）
 ├── .github/workflows/ci.yml                # CI：cargo check + test + bun tsc + build
 ├── AGENTS.md                               # 权威项目索引

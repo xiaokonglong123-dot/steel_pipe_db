@@ -333,7 +333,7 @@ CREATE TABLE inventory (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id     INTEGER NOT NULL REFERENCES items(id),
     location_id INTEGER NOT NULL REFERENCES locations(id),
-    quantity    REAL NOT NULL DEFAULT 0,
+    quantity    TEXT NOT NULL DEFAULT '0',
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(item_id, location_id)
@@ -345,7 +345,7 @@ CREATE TABLE inventory_logs (
     item_id      INTEGER NOT NULL REFERENCES items(id),
     location_id  INTEGER REFERENCES locations(id),
     change_type  TEXT NOT NULL CHECK (change_type IN ('inbound','outbound','check_adjust')),
-    quantity     REAL NOT NULL,
+    quantity     TEXT NOT NULL,
     ref_type     TEXT,
     ref_id       INTEGER,
     notes        TEXT,
@@ -375,7 +375,7 @@ CREATE TABLE inbound_items (
     record_id  INTEGER NOT NULL REFERENCES inbound_records(id),
     item_id    INTEGER NOT NULL REFERENCES items(id),
     location_id INTEGER REFERENCES locations(id),
-    quantity   REAL NOT NULL,
+    quantity   TEXT NOT NULL,
     notes      TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -400,7 +400,7 @@ CREATE TABLE outbound_items (
     record_id  INTEGER NOT NULL REFERENCES outbound_records(id),
     item_id    INTEGER NOT NULL REFERENCES items(id),
     location_id INTEGER REFERENCES locations(id),
-    quantity   REAL NOT NULL,
+    quantity   TEXT NOT NULL,
     notes      TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -422,9 +422,9 @@ CREATE TABLE check_items (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     record_id   INTEGER NOT NULL REFERENCES check_records(id),
     item_id     INTEGER NOT NULL REFERENCES items(id),
-    system_qty  REAL,     -- 账面数（盘点时快照）
-    actual_qty  REAL,     -- 实盘数
-    diff        REAL,     -- 差异 = actual_qty - system_qty
+    system_qty  TEXT,       -- 账面数（盘点时快照，Decimal TEXT）
+    actual_qty  TEXT,       -- 实盘数（Decimal TEXT）
+    diff        TEXT,       -- 差异 = actual_qty - system_qty（Decimal TEXT）
     notes       TEXT,
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -433,7 +433,7 @@ CREATE TABLE check_items (
 CREATE TABLE reservations (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id     INTEGER NOT NULL REFERENCES items(id),
-    quantity    REAL NOT NULL,
+    quantity    TEXT NOT NULL,
     order_type  TEXT NOT NULL CHECK (order_type IN ('sales')),
     order_id    INTEGER NOT NULL,   -- sales_orders.id
     status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','released','cancelled')),
@@ -471,8 +471,8 @@ CREATE TABLE purchase_order_items (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     order_id    INTEGER NOT NULL REFERENCES purchase_orders(id),
     item_id     INTEGER NOT NULL REFERENCES items(id),
-    quantity    REAL NOT NULL,
-    received_qty REAL NOT NULL DEFAULT 0,
+    quantity    TEXT NOT NULL,
+    received_qty TEXT NOT NULL DEFAULT '0',
     unit_price  TEXT,        -- Decimal TEXT
     total_price TEXT,        -- Decimal TEXT (quantity * unit_price)
     notes       TEXT,
@@ -523,8 +523,8 @@ CREATE TABLE sales_order_items (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     order_id     INTEGER NOT NULL REFERENCES sales_orders(id),
     item_id      INTEGER NOT NULL REFERENCES items(id),
-    quantity     REAL NOT NULL,
-    shipped_qty  REAL NOT NULL DEFAULT 0,
+    quantity     TEXT NOT NULL,
+    shipped_qty  TEXT NOT NULL DEFAULT '0',
     unit_price   TEXT,        -- Decimal TEXT
     total_price  TEXT,
     notes        TEXT,
@@ -541,7 +541,7 @@ draft → submitted → approved → awaiting_shipment → partially_shipped →
      (仅 submitted)
 ```
 
-**ATP 检查**：创建/提交销售订单时，`services/sales_service.rs` 计算 `available_qty = inventory.quantity - COALESCE(SUM(reservations.quantity), 0)`，若任一行 `quantity > available_qty` → `AppError::InsufficientStock`。
+**ATP 检查**：创建/提交销售订单时，`services/sales_service.rs` 在应用层用 `Decimal` 累计 active 预留后计算 `available_qty = balance - reserved`（数量为 TEXT，不做 SQL SUM），若任一行 `order_qty > available_qty` → `AppError::InsufficientStock`。
 
 审批通过后（`approved`）为订单创建 reservations（quantity = 订单行数量，status='active'）。发货过账时释放预留（`reservations.status='released'`）。
 
@@ -888,8 +888,7 @@ impl PurchasingService {
 
         // 1. 计算每个行的 total_price（Decimal）
         let items: Vec<POLineCalc> = dto.items.iter().map(|i| {
-            let qty = Decimal::from_f64_retain(i.quantity)
-                .ok_or(AppError::Validation("invalid quantity".into()))?;
+            let qty = i.quantity; // 数量已是 Decimal（TEXT）
             let price = Decimal::from_str(&i.unit_price)
                 .map_err(|_| AppError::Validation("invalid price".into()))?;
             let total = qty * price;
@@ -1140,7 +1139,7 @@ pub async fn test_pool() -> SqlitePool {
 - 迁移文件**不可修改**已执行过的 version（防止 checksum 错误）
 - 新功能加新版号迁移（010+, 011+, …）
 - 所有迁移为 SQLite 方言（`?`、`INTEGER PRIMARY KEY AUTOINCREMENT`、`datetime('now')`、`REAL` 用量等）
-- 数字类型：`REAL` 用于数量、比率；`TEXT` 用于金额和枚举字符串
+- 数字类型：`TEXT` 用于数量（Decimal）与金额（Decimal）；`REAL` 仅用于比率等非关键数值；枚举存字符串
 
 ---
 
