@@ -93,7 +93,7 @@ cd frontend && bun install && bun run dev
 006_sales.sql              — sales_orders / sales_order_items / reservations
 007_finance.sql            — accounts / journal_entries / journal_lines / invoices / payments
 008_workflow.sql           — workflows / workflow_states / workflow_transitions / workflow_instances / workflow_tasks
-009_seed.sql               — admin/manager/finance 角色 + roles 11 个权限 (不是 12)
+009_seed.sql               — 6 个系统角色 (admin/manager/warehouse/purchaser/sales/finance) + 11 个权限 (不是 12)
 010_warehouses.sql         — ALTER locations.warehouse_id + deleted_at (在 child 迁移之后的 ALTER)
 011_seed_workflows.sql     — PO/SO 种子 workflows + states + transitions
 012_workflow_threshold.sql — ALTER workflow_transitions.amount_threshold TEXT
