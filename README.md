@@ -211,7 +211,6 @@ Ikari_Shinji/
 ├── .github/workflows/ci.yml                # CI: cargo check + test + bun tsc + build
 ├── AGENTS.md                               # Authoritative project index
 ├── README.md / README_zh.md / CHANGELOG.md / CONTRIBUTING.md / LICENSE
-└── .local-only-docs/                       # (gitignored) Personal decision docs
 ```
 
 ---

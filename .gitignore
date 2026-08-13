@@ -63,7 +63,3 @@ docker-data/
 backups/
 skills/
 memory.md
-
-# ── Local-only decision docs (never commit) ──
-.local-only-docs/
-docs/rewrite-tech-stack-comparison.md

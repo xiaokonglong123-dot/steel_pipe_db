@@ -211,7 +211,6 @@ Ikari_Shinji/
 ├── .github/workflows/ci.yml                # CI：cargo check + test + bun tsc + build
 ├── AGENTS.md                               # 权威项目索引
 ├── README.md / README_zh.md / CHANGELOG.md / CONTRIBUTING.md / LICENSE
-└── .local-only-docs/                       #（gitignored）本地决策文档
 ```
 
 ---
