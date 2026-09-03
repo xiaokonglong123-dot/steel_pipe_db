@@ -22,12 +22,8 @@ pub async fn ship_sales_order(
     let order = sales_repo::find_by_id(pool, so_id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "销售订单未找到"))?;
-    if order.status != "approved" {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            "销售订单未审批",
-        ));
-    }
+    crate::domain::sales::SalesOrderStatus::parse(&order.status)?
+        .ensure_can("ship", "发货")?;
     if shipped_items.is_empty() {
         return Err(AppError::validation("发货明细不能为空"));
     }

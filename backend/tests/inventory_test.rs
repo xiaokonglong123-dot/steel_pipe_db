@@ -165,7 +165,7 @@ async fn stock_for(
     items
         .iter()
         .find(|r| r["item_id"] == item_id && r["location_id"] == location_id)
-        .and_then(|r| r["quantity"].as_f64())
+        .and_then(|r| r["quantity"].as_str()).and_then(|s| s.parse::<f64>().ok())
 }
 
 // —— Tests ——
@@ -224,7 +224,7 @@ async fn post_inbound_writes_inventory_log() {
     let logs = json["data"]["items"].as_array().unwrap();
     assert_eq!(logs.len(), 1, "one log row: {json}");
     assert_eq!(logs[0]["change_type"], "inbound");
-    assert_eq!(logs[0]["quantity"], 25.0);
+    assert_eq!(logs[0]["quantity"], "25");
     assert_eq!(logs[0]["ref_type"], "inbound");
     assert_eq!(logs[0]["ref_id"], inbound_id);
     // balance_after is encoded in notes
@@ -373,7 +373,7 @@ async fn list_stock_filtered_by_item() {
     let items = json["data"]["items"].as_array().unwrap();
     assert_eq!(items.len(), 1, "stock filtered by item_a: {json}");
     assert_eq!(items[0]["item_id"], item_a);
-    assert_eq!(items[0]["quantity"], 4.0);
+    assert_eq!(items[0]["quantity"], "4");
     assert_eq!(json["meta"]["total"], 1);
 }
 

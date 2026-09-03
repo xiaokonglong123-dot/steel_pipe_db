@@ -1,23 +1,17 @@
-//! Sales 数据访问 — sales_orders / sales_order_items / reservations 表
-//! （006_sales.sql + 004_inventory.sql 的 reservations 表）。
-//!
-//! 纯 SQL（sqlx），无业务逻辑。事务控制由 service 层 `pool.begin()` 负责；
-//! 本 repo 中参与事务的函数对 `sqlx::Executor` 泛型化。
+//! sales_repo.order — 销售订单头/行
 
-use sqlx::{Executor, SqlitePool};
-
+use sqlx::Executor;
+use sqlx::SqlitePool;
 use rust_decimal::Decimal;
-use crate::domain::money::parse_amount;
 use crate::domain::quantity::serialize_qty_str;
 use crate::error::{AppError, ErrorCode};
-
-// —— Row structs ——
 
 #[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct SalesOrderRow {
     pub id: i64,
     pub order_no: String,
     pub customer_id: i64,
+    pub customer_name: String,
     pub order_date: String,
     pub status: String,
     pub doc_status: i64,
@@ -30,11 +24,13 @@ pub struct SalesOrderRow {
     pub deleted_at: Option<String>,
 }
 
+
 #[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct SalesOrderItemRow {
     pub id: i64,
     pub order_id: i64,
     pub item_id: i64,
+    pub item_name: String,
     #[serde(serialize_with = "serialize_qty_str")]
     pub quantity: String,
     #[serde(serialize_with = "serialize_qty_str")]
@@ -45,19 +41,6 @@ pub struct SalesOrderItemRow {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
-pub struct ReservationRow {
-    pub id: i64,
-    pub item_id: i64,
-    #[serde(serialize_with = "serialize_qty_str")]
-    pub quantity: String,
-    pub order_type: String,
-    pub order_id: i64,
-    pub status: String,
-    pub created_by: Option<i64>,
-    pub created_at: String,
-    pub released_at: Option<String>,
-}
 
 // —— Filter ——
 
@@ -70,13 +53,17 @@ pub struct SalesOrderFilter {
     pub order_no: Option<String>,
 }
 
+
 // —— Sales orders ——
 
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<SalesOrderRow>, AppError> {
     let row = sqlx::query_as::<_, SalesOrderRow>(
-        "SELECT id, order_no, customer_id, order_date, status, doc_status,
-                total_amount, currency, notes, created_by, created_at, updated_at, deleted_at
-         FROM sales_orders WHERE id = ? AND deleted_at IS NULL",
+        "SELECT so.id, so.order_no, so.customer_id, c.name AS customer_name,
+                so.order_date, so.status, so.doc_status,
+                so.total_amount, so.currency, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at
+         FROM sales_orders so
+         JOIN customers c ON c.id = so.customer_id
+         WHERE so.id = ? AND so.deleted_at IS NULL",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -84,20 +71,25 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<SalesOrderR
     Ok(row)
 }
 
+
 pub async fn find_by_order_no(
     pool: &SqlitePool,
     order_no: &str,
 ) -> Result<Option<SalesOrderRow>, AppError> {
     let row = sqlx::query_as::<_, SalesOrderRow>(
-        "SELECT id, order_no, customer_id, order_date, status, doc_status,
-                total_amount, currency, notes, created_by, created_at, updated_at, deleted_at
-         FROM sales_orders WHERE order_no = ? AND deleted_at IS NULL",
+        "SELECT so.id, so.order_no, so.customer_id, c.name AS customer_name,
+                so.order_date, so.status, so.doc_status,
+                so.total_amount, so.currency, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at
+         FROM sales_orders so
+         JOIN customers c ON c.id = so.customer_id
+         WHERE so.order_no = ? AND so.deleted_at IS NULL",
     )
     .bind(order_no)
     .fetch_optional(pool)
     .await?;
     Ok(row)
 }
+
 
 /// 插入销售订单头（status / doc_status 由调用方传入）。泛型化以支持事务。
 pub async fn insert_order<'e, E>(
@@ -135,6 +127,7 @@ where
     Ok(result.last_insert_rowid())
 }
 
+
 /// 插入销售订单明细行。泛型化以支持事务。
 pub async fn insert_item<'e, E>(
     executor: E,
@@ -164,6 +157,7 @@ where
     Ok(result.last_insert_rowid())
 }
 
+
 pub async fn list_orders(
     pool: &SqlitePool,
     filter: &SalesOrderFilter,
@@ -171,27 +165,30 @@ pub async fn list_orders(
     page_size: i64,
 ) -> Result<(Vec<SalesOrderRow>, i64), AppError> {
     let mut where_clauses: Vec<&'static str> = vec!["deleted_at IS NULL"];
-    let mut count_sql = String::from("SELECT COUNT(*) FROM sales_orders WHERE deleted_at IS NULL");
+    let mut count_sql = String::from("SELECT COUNT(*) FROM sales_orders so WHERE so.deleted_at IS NULL");
     let mut list_sql = String::from(
-        "SELECT id, order_no, customer_id, order_date, status, doc_status,
-                total_amount, currency, notes, created_by, created_at, updated_at, deleted_at
-         FROM sales_orders WHERE deleted_at IS NULL",
+        "SELECT so.id, so.order_no, so.customer_id, c.name AS customer_name,
+                so.order_date, so.status, so.doc_status,
+                so.total_amount, so.currency, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at
+         FROM sales_orders so
+         JOIN customers c ON c.id = so.customer_id
+         WHERE so.deleted_at IS NULL",
     );
 
     if filter.customer_id.is_some() {
-        where_clauses.push("customer_id = ?");
+        where_clauses.push("so.customer_id = ?");
     }
     if filter.status.is_some() {
-        where_clauses.push("status = ?");
+        where_clauses.push("so.status = ?");
     }
     if filter.order_date_from.is_some() {
-        where_clauses.push("order_date >= ?");
+        where_clauses.push("so.order_date >= ?");
     }
     if filter.order_date_to.is_some() {
-        where_clauses.push("order_date <= ?");
+        where_clauses.push("so.order_date <= ?");
     }
     if filter.order_no.is_some() {
-        where_clauses.push("order_no LIKE ?");
+        where_clauses.push("so.order_no LIKE ?");
     }
 
     if where_clauses.len() > 1 {
@@ -202,7 +199,7 @@ pub async fn list_orders(
         list_sql.push_str(&extra);
     }
 
-    list_sql.push_str(" ORDER BY id DESC LIMIT ? OFFSET ?");
+    list_sql.push_str(" ORDER BY so.id DESC LIMIT ? OFFSET ?");
 
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql);
     if let Some(v) = filter.customer_id {
@@ -246,20 +243,25 @@ pub async fn list_orders(
     Ok((rows, total))
 }
 
+
 pub async fn list_items_for_order(
     pool: &SqlitePool,
     order_id: i64,
 ) -> Result<Vec<SalesOrderItemRow>, AppError> {
     let rows = sqlx::query_as::<_, SalesOrderItemRow>(
-        "SELECT id, order_id, item_id, quantity, shipped_qty, unit_price, total_price,
-                notes, created_at
-         FROM sales_order_items WHERE order_id = ? ORDER BY id",
+        "SELECT si.id, si.order_id, si.item_id, i.name AS item_name,
+                si.quantity, si.shipped_qty, si.unit_price, si.total_price,
+                si.notes, si.created_at
+         FROM sales_order_items si
+         JOIN items i ON i.id = si.item_id
+         WHERE si.order_id = ? ORDER BY si.id",
     )
     .bind(order_id)
     .fetch_all(pool)
     .await?;
     Ok(rows)
 }
+
 
 /// 列出销售订单明细（事务版）
 pub async fn list_items_for_order_tx<'e, E>(
@@ -270,15 +272,19 @@ where
     E: Executor<'e, Database = sqlx::Sqlite>,
 {
     let rows = sqlx::query_as::<_, SalesOrderItemRow>(
-        "SELECT id, order_id, item_id, quantity, shipped_qty, unit_price, total_price,
-                notes, created_at
-         FROM sales_order_items WHERE order_id = ? ORDER BY id",
+        "SELECT si.id, si.order_id, si.item_id, i.name AS item_name,
+                si.quantity, si.shipped_qty, si.unit_price, si.total_price,
+                si.notes, si.created_at
+         FROM sales_order_items si
+         JOIN items i ON i.id = si.item_id
+         WHERE si.order_id = ? ORDER BY si.id",
     )
     .bind(order_id)
     .fetch_all(executor)
     .await?;
     Ok(rows)
 }
+
 
 /// 更新订单状态（事务版）：status + doc_status
 pub async fn update_status_tx<'e, E>(
@@ -304,6 +310,7 @@ where
     }
     Ok(())
 }
+
 
 /// 更新订单头字段（仅 draft 状态可调用；service 层负责状态校验）
 pub async fn update_order(
@@ -337,6 +344,7 @@ pub async fn update_order(
     Ok(())
 }
 
+
 /// 删除订单明细（用于 update_order 时全量重写明细）
 pub async fn delete_items_for_order_tx<'e, E>(executor: E, order_id: i64) -> Result<(), AppError>
 where
@@ -348,6 +356,7 @@ where
         .await?;
     Ok(())
 }
+
 
 /// 软删除订单（仅 draft 状态可删除）
 pub async fn soft_delete_order(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
@@ -365,172 +374,4 @@ pub async fn soft_delete_order(pool: &SqlitePool, id: i64) -> Result<(), AppErro
         ));
     }
     Ok(())
-}
-
-// —— Reservations (ATP) ——
-
-/// 创建预留行（status='active'）。泛型化以支持事务。返回新行 id。
-pub async fn insert_reservation<'e, E>(
-    executor: E,
-    item_id: i64,
-    quantity: Decimal,
-    order_id: i64,
-    created_by: Option<i64>,
-) -> Result<i64, AppError>
-where
-    E: Executor<'e, Database = sqlx::Sqlite>,
-{
-    let result = sqlx::query(
-        "INSERT INTO reservations (item_id, quantity, order_type, order_id, status, created_by)
-         VALUES (?, ?, 'sales', ?, 'active', ?)",
-    )
-    .bind(item_id)
-    .bind(quantity.to_string())
-    .bind(order_id)
-    .bind(created_by)
-    .execute(executor)
-    .await?;
-    Ok(result.last_insert_rowid())
-}
-
-/// 释放预留（status='released', released_at=now）。泛型化以支持事务。
-pub async fn release_reservation_tx<'e, E>(executor: E, reservation_id: i64) -> Result<(), AppError>
-where
-    E: Executor<'e, Database = sqlx::Sqlite>,
-{
-    let result = sqlx::query(
-        "UPDATE reservations SET status = 'released', released_at = datetime('now')
-         WHERE id = ? AND status = 'active'",
-    )
-    .bind(reservation_id)
-    .execute(executor)
-    .await?;
-    if result.rows_affected() == 0 {
-        return Err(AppError::new(ErrorCode::NotFound, "预留记录未找到或已释放"));
-    }
-    Ok(())
-}
-
-pub async fn cancel_reservation(pool: &SqlitePool, reservation_id: i64) -> Result<(), AppError> {
-    let result = sqlx::query(
-        "UPDATE reservations SET status = 'cancelled'
-         WHERE id = ? AND status = 'active'",
-    )
-    .bind(reservation_id)
-    .execute(pool)
-    .await?;
-    if result.rows_affected() == 0 {
-        return Err(AppError::new(ErrorCode::NotFound, "预留记录未找到或已取消"));
-    }
-    Ok(())
-}
-
-/// 释放某销售订单的所有 active 预留（事务版）。用于 cancel 订单时回收预留。
-pub async fn release_reservations_for_order_tx<'e, E>(
-    executor: E,
-    order_id: i64,
-) -> Result<i64, AppError>
-where
-    E: Executor<'e, Database = sqlx::Sqlite>,
-{
-    let result = sqlx::query(
-        "UPDATE reservations SET status = 'released', released_at = datetime('now')
-         WHERE order_id = ? AND order_type = 'sales' AND status = 'active'",
-    )
-    .bind(order_id)
-    .execute(executor)
-    .await?;
-    Ok(result.rows_affected() as i64)
-}
-
-pub async fn list_active_reservations_for_item(
-    pool: &SqlitePool,
-    item_id: i64,
-) -> Result<Vec<ReservationRow>, AppError> {
-    let rows = sqlx::query_as::<_, ReservationRow>(
-        "SELECT id, item_id, quantity, order_type, order_id, status, created_by,
-                created_at, released_at
-         FROM reservations WHERE item_id = ? AND status = 'active'
-         ORDER BY id",
-    )
-    .bind(item_id)
-    .fetch_all(pool)
-    .await?;
-    Ok(rows)
-}
-
-/// 汇总某 item 的 active 预留总量（TEXT，Rust 层 Decimal 累计，不做 SQL SUM on TEXT）
-pub async fn sum_active_reservations_for_item(
-    pool: &SqlitePool,
-    item_id: i64,
-) -> Result<Decimal, AppError> {
-    let rows = sqlx::query_scalar::<_, String>(
-        "SELECT quantity FROM reservations
-         WHERE item_id = ? AND status = 'active'",
-    )
-    .bind(item_id)
-    .fetch_all(pool)
-    .await?;
-    let mut acc = Decimal::ZERO;
-    for r in rows {
-        acc += parse_amount(&r)?;
-    }
-    Ok(acc)
-}
-
-/// 列出某销售订单的所有 active 预留（事务版）
-pub async fn list_active_reservations_for_order_tx<'e, E>(
-    executor: E,
-    order_id: i64,
-) -> Result<Vec<ReservationRow>, AppError>
-where
-    E: Executor<'e, Database = sqlx::Sqlite>,
-{
-    let rows = sqlx::query_as::<_, ReservationRow>(
-        "SELECT id, item_id, quantity, order_type, order_id, status, created_by,
-                created_at, released_at
-         FROM reservations WHERE order_id = ? AND order_type = 'sales' AND status = 'active'
-         ORDER BY id",
-    )
-    .bind(order_id)
-    .fetch_all(executor)
-    .await?;
-    Ok(rows)
-}
-
-/// 汇总某商品的 active 预留数量（TEXT，Rust 层 Decimal 累计，不做 SQL SUM on TEXT）。
-/// 不含当前正在提交的订单。
-pub async fn sum_active_reserved_quantity_for_item(
-    pool: &SqlitePool,
-    item_id: i64,
-) -> Result<Decimal, AppError> {
-    let rows = sqlx::query_scalar::<_, String>(
-        "SELECT quantity FROM reservations
-         WHERE item_id = ? AND status = 'active'",
-    )
-    .bind(item_id)
-    .fetch_all(pool)
-    .await?;
-    let mut acc = Decimal::ZERO;
-    for r in rows {
-        acc += parse_amount(&r)?;
-    }
-    Ok(acc)
-}
-
-// —— Inventory balance helpers (for ATP) ——
-
-/// 汇总某商品在所有库位的库存余额（TEXT，Rust 层 Decimal 累计，不做 SQL SUM on TEXT）。
-pub async fn sum_balance_for_item(pool: &SqlitePool, item_id: i64) -> Result<Decimal, AppError> {
-    let rows = sqlx::query_scalar::<_, String>(
-        "SELECT quantity FROM inventory WHERE item_id = ?",
-    )
-    .bind(item_id)
-    .fetch_all(pool)
-    .await?;
-    let mut acc = Decimal::ZERO;
-    for r in rows {
-        acc += parse_amount(&r)?;
-    }
-    Ok(acc)
 }

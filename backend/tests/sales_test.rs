@@ -152,7 +152,28 @@ async fn create_sales_order_with_two_items() {
     assert_eq!(st, StatusCode::CREATED, "create SO: {json}");
     assert_eq!(json["data"]["status"], "draft");
     assert_eq!(json["data"]["doc_status"], 0);
-    assert!(json["data"]["order_no"].as_str().unwrap().starts_with("SO"));
+    let order_no = json["data"]["order_no"].as_str().unwrap();
+    assert!(order_no.starts_with("SO"));
+
+    // T1.4/T1.5: customer_name / item_name 投影 + draft allowed_actions
+    let (st, json) = server
+        .req(
+            "GET",
+            &format!("/sales-orders/{}", json["data"]["id"].as_i64().unwrap()),
+            String::new(),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(json["data"]["order"]["customer_name"], "cust-CUST-1");
+    let items = json["data"]["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["item_name"], "n-SO-1");
+    assert_eq!(items[1]["item_name"], "n-SO-2");
+    assert_eq!(
+        json["data"]["allowed_actions"],
+        serde_json::json!(["edit", "delete", "submit"])
+    );
 }
 
 #[tokio::test]
@@ -294,7 +315,7 @@ async fn atp_submit_succeeds_with_stock_and_creates_reservation() {
     let reservations = json["data"]["items"].as_array().unwrap();
     assert_eq!(reservations.len(), 1, "one active reservation: {json}");
     assert_eq!(reservations[0]["status"], "active");
-    assert_eq!(reservations[0]["quantity"], 8.0);
+    assert_eq!(reservations[0]["quantity"], "8");
     assert_eq!(reservations[0]["order_id"], so_id);
     assert_eq!(reservations[0]["order_type"], "sales");
 }

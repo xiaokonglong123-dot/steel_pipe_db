@@ -22,7 +22,7 @@ async fn create_check_session_snapshots_system_qty() {
         .await;
 
     assert_eq!(check["data"]["details"][0]["item_id"], item_id);
-    assert_eq!(check["data"]["details"][0]["system_qty"], 100.0);
+    assert_eq!(check["data"]["details"][0]["system_qty"], "100");
 }
 
 #[tokio::test]
@@ -49,8 +49,8 @@ async fn record_actual_qty_computes_diff() {
             Some(&token),
         )
         .await;
-    assert_eq!(check["data"]["details"][0]["actual_qty"], 95.0);
-    assert_eq!(check["data"]["details"][0]["diff_qty"], -5.0);
+    assert_eq!(check["data"]["details"][0]["actual_qty"], "95");
+    assert_eq!(check["data"]["details"][0]["diff_qty"], "-5");
 }
 
 #[tokio::test]

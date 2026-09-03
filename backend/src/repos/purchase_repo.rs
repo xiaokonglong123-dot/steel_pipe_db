@@ -19,6 +19,7 @@ pub struct PurchaseOrderRow {
     pub id: i64,
     pub order_no: String,
     pub supplier_id: i64,
+    pub supplier_name: String,
     pub order_date: String,
     pub status: String,
     pub doc_status: i64,
@@ -36,6 +37,7 @@ pub struct PurchaseOrderItemRow {
     pub id: i64,
     pub order_id: i64,
     pub item_id: i64,
+    pub item_name: String,
     #[serde(serialize_with = "serialize_qty_str")]
     pub quantity: String,
     #[serde(serialize_with = "serialize_qty_str")]
@@ -61,9 +63,12 @@ pub struct PurchaseOrderFilter {
 
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<PurchaseOrderRow>, AppError> {
     let row = sqlx::query_as::<_, PurchaseOrderRow>(
-        "SELECT id, order_no, supplier_id, order_date, status, doc_status, total_amount,
-                currency, notes, created_by, created_at, updated_at, deleted_at
-         FROM purchase_orders WHERE id = ? AND deleted_at IS NULL",
+        "SELECT po.id, po.order_no, po.supplier_id, s.name AS supplier_name,
+                po.order_date, po.status, po.doc_status, po.total_amount,
+                po.currency, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at
+         FROM purchase_orders po
+         JOIN suppliers s ON s.id = po.supplier_id
+         WHERE po.id = ? AND po.deleted_at IS NULL",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -76,9 +81,12 @@ pub async fn find_by_order_no(
     order_no: &str,
 ) -> Result<Option<PurchaseOrderRow>, AppError> {
     let row = sqlx::query_as::<_, PurchaseOrderRow>(
-        "SELECT id, order_no, supplier_id, order_date, status, doc_status, total_amount,
-                currency, notes, created_by, created_at, updated_at, deleted_at
-         FROM purchase_orders WHERE order_no = ? AND deleted_at IS NULL",
+        "SELECT po.id, po.order_no, po.supplier_id, s.name AS supplier_name,
+                po.order_date, po.status, po.doc_status, po.total_amount,
+                po.currency, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at
+         FROM purchase_orders po
+         JOIN suppliers s ON s.id = po.supplier_id
+         WHERE po.order_no = ? AND po.deleted_at IS NULL",
     )
     .bind(order_no)
     .fetch_optional(pool)
@@ -91,9 +99,12 @@ pub async fn list_items_for_order(
     order_id: i64,
 ) -> Result<Vec<PurchaseOrderItemRow>, AppError> {
     let rows = sqlx::query_as::<_, PurchaseOrderItemRow>(
-        "SELECT id, order_id, item_id, quantity, received_qty, unit_price, total_price,
-                notes, created_at
-         FROM purchase_order_items WHERE order_id = ? ORDER BY id",
+        "SELECT pi.id, pi.order_id, pi.item_id, i.name AS item_name,
+                pi.quantity, pi.received_qty, pi.unit_price, pi.total_price,
+                pi.notes, pi.created_at
+         FROM purchase_order_items pi
+         JOIN items i ON i.id = pi.item_id
+         WHERE pi.order_id = ? ORDER BY pi.id",
     )
     .bind(order_id)
     .fetch_all(pool)
@@ -109,27 +120,30 @@ pub async fn list_orders(
 ) -> Result<(Vec<PurchaseOrderRow>, i64), AppError> {
     let mut where_clauses: Vec<&'static str> = vec!["deleted_at IS NULL"];
     let mut count_sql =
-        String::from("SELECT COUNT(*) FROM purchase_orders WHERE deleted_at IS NULL");
+        String::from("SELECT COUNT(*) FROM purchase_orders po WHERE po.deleted_at IS NULL");
     let mut list_sql = String::from(
-        "SELECT id, order_no, supplier_id, order_date, status, doc_status, total_amount,
-                currency, notes, created_by, created_at, updated_at, deleted_at
-         FROM purchase_orders WHERE deleted_at IS NULL",
+        "SELECT po.id, po.order_no, po.supplier_id, s.name AS supplier_name,
+                po.order_date, po.status, po.doc_status, po.total_amount,
+                po.currency, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at
+         FROM purchase_orders po
+         JOIN suppliers s ON s.id = po.supplier_id
+         WHERE po.deleted_at IS NULL",
     );
 
     if filter.supplier_id.is_some() {
-        where_clauses.push("supplier_id = ?");
+        where_clauses.push("po.supplier_id = ?");
     }
     if filter.status.is_some() {
-        where_clauses.push("status = ?");
+        where_clauses.push("po.status = ?");
     }
     if filter.order_date_from.is_some() {
-        where_clauses.push("order_date >= ?");
+        where_clauses.push("po.order_date >= ?");
     }
     if filter.order_date_to.is_some() {
-        where_clauses.push("order_date <= ?");
+        where_clauses.push("po.order_date <= ?");
     }
     if filter.order_no.is_some() {
-        where_clauses.push("order_no LIKE ?");
+        where_clauses.push("po.order_no LIKE ?");
     }
 
     if where_clauses.len() > 1 {
@@ -140,7 +154,7 @@ pub async fn list_orders(
         list_sql.push_str(&extra);
     }
 
-    list_sql.push_str(" ORDER BY id DESC LIMIT ? OFFSET ?");
+    list_sql.push_str(" ORDER BY po.id DESC LIMIT ? OFFSET ?");
 
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql);
     if let Some(v) = filter.supplier_id {
@@ -236,9 +250,12 @@ pub async fn insert_item(
     .await?;
     let id = result.last_insert_rowid();
     let row = sqlx::query_as::<_, PurchaseOrderItemRow>(
-        "SELECT id, order_id, item_id, quantity, received_qty, unit_price, total_price,
-                notes, created_at
-         FROM purchase_order_items WHERE id = ?",
+        "SELECT pi.id, pi.order_id, pi.item_id, i.name AS item_name,
+                pi.quantity, pi.received_qty, pi.unit_price, pi.total_price,
+                pi.notes, pi.created_at
+         FROM purchase_order_items pi
+         JOIN items i ON i.id = pi.item_id
+         WHERE pi.id = ?",
     )
     .bind(id)
     .fetch_one(pool)

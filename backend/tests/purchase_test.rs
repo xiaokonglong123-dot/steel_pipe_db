@@ -159,8 +159,17 @@ async fn create_po_with_items_returns_201() {
     assert_eq!(st, StatusCode::OK);
     assert_eq!(json["data"]["order"]["id"], id);
     assert_eq!(json["data"]["order"]["order_no"], order_no);
+    // T1.4: supplier_name / item_name 投影 (ADR-R5)
+    assert_eq!(json["data"]["order"]["supplier_name"], "供应商一");
     let items = json["data"]["items"].as_array().unwrap();
     assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["item_name"], "钢材");
+    assert_eq!(items[1]["item_name"], "螺母");
+    // T1.5: draft 订单 allowed_actions (ADR-R4)
+    assert_eq!(
+        json["data"]["allowed_actions"],
+        serde_json::json!(["edit", "delete", "submit", "cancel"])
+    );
 }
 
 #[tokio::test]

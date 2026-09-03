@@ -20,6 +20,7 @@ use crate::repos::sales_repo;
 use crate::repos::sales_repo::{
     ReservationRow, SalesOrderFilter, SalesOrderItemRow, SalesOrderRow,
 };
+use crate::domain::sales::SalesOrderStatus;
 use crate::repos::workflow_repo;
 use crate::services::workflow_service;
 
@@ -61,12 +62,7 @@ fn generate_order_no() -> String {
 }
 
 // —— Status constants ——
-
-const STATUS_DRAFT: &str = "draft";
-const STATUS_SUBMITTED: &str = "submitted";
-const STATUS_APPROVED: &str = "approved";
-const STATUS_REJECTED: &str = "rejected";
-const STATUS_CANCELLED: &str = "cancelled";
+// 订单状态迁移校验统一走 `crate::domain::sales::SalesOrderStatus`；此处仅保留落库用的值。
 
 // doc_status: 0=draft, 1=submitted, 2=approved/rejected, 3=cancelled
 const DOC_DRAFT: i64 = 0;
@@ -146,7 +142,7 @@ pub async fn create_order(
         &order_no,
         dto.customer_id,
         &order_date,
-        STATUS_DRAFT,
+        SalesOrderStatus::Draft.as_str(),
         DOC_DRAFT,
         &total_str,
         &currency,
@@ -214,12 +210,7 @@ pub async fn update_order(
     let order = sales_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "销售订单未找到"))?;
-    if order.status != STATUS_DRAFT {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("销售订单当前状态为 {}，不可编辑", order.status),
-        ));
-    }
+    SalesOrderStatus::parse(&order.status)?.ensure_can("edit", "编辑")?;
     if dto.items.is_empty() {
         return Err(AppError::validation("销售订单明细不能为空"));
     }
@@ -317,6 +308,10 @@ pub async fn update_order(
 }
 
 pub async fn delete_order(pool: &SqlitePool, id: i64) -> Result<(), AppError> {
+    let order = sales_repo::find_by_id(pool, id)
+        .await?
+        .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "销售订单未找到"))?;
+    SalesOrderStatus::parse(&order.status)?.ensure_can("delete", "删除")?;
     sales_repo::soft_delete_order(pool, id).await
 }
 
@@ -329,12 +324,7 @@ pub async fn submit(
     let order = sales_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "销售订单未找到"))?;
-    if order.status != STATUS_DRAFT {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("销售订单当前状态为 {}，不可提交", order.status),
-        ));
-    }
+    SalesOrderStatus::parse(&order.status)?.ensure_can("submit", "提交")?;
 
     let items = sales_repo::list_items_for_order(pool, id).await?;
     if items.is_empty() {
@@ -370,7 +360,7 @@ pub async fn submit(
         sales_repo::insert_reservation(&mut *tx, it.item_id, qty, id, Some(user.id))
             .await?;
     }
-    sales_repo::update_status_tx(&mut *tx, id, STATUS_SUBMITTED, DOC_SUBMITTED).await?;
+    sales_repo::update_status_tx(&mut *tx, id, SalesOrderStatus::Submitted.as_str(), DOC_SUBMITTED).await?;
     if let (Some(workflow), Some(initial)) = (&workflow, &initial) {
         workflow_service::start_instance_in_tx(&mut tx, workflow, initial, "sales_order", id)
             .await?;
@@ -391,22 +381,18 @@ pub async fn approve(
     let order = sales_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "销售订单未找到"))?;
-    if order.status != STATUS_SUBMITTED {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("销售订单当前状态为 {}，不可审批", order.status),
-        ));
-    }
+    SalesOrderStatus::parse(&order.status)?.ensure_can("approve", "审批")?;
 
     let mut tx = pool.begin().await?;
-    sales_repo::update_status_tx(&mut *tx, id, STATUS_APPROVED, DOC_APPROVED).await?;
+    sales_repo::update_status_tx(&mut *tx, id, SalesOrderStatus::Approved.as_str(), DOC_APPROVED).await?;
     tx.commit().await?;
 
     if let Some(instance) =
         workflow_service::find_active_instance_for(pool, "sales_order", id).await?
     {
         let amount = Decimal::from_str_radix(&order.total_amount, 10).ok();
-        if instance.current_state == STATUS_DRAFT {
+        // 注意：这里比较的是工作流实例的 state_key（工作流域概念），非订单状态
+        if instance.current_state == "draft" {
             workflow_service::transition_with_amount(pool, instance.id, "submit", _user, None, amount).await?;
         }
         workflow_service::transition_with_amount(pool, instance.id, "approve", _user, None, amount).await?;
@@ -424,15 +410,10 @@ pub async fn reject(
     let order = sales_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "销售订单未找到"))?;
-    if order.status != STATUS_SUBMITTED {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("销售订单当前状态为 {}，不可驳回", order.status),
-        ));
-    }
+    SalesOrderStatus::parse(&order.status)?.ensure_can("reject", "驳回")?;
 
     let mut tx = pool.begin().await?;
-    sales_repo::update_status_tx(&mut *tx, id, STATUS_REJECTED, DOC_APPROVED).await?;
+    sales_repo::update_status_tx(&mut *tx, id, SalesOrderStatus::Rejected.as_str(), DOC_APPROVED).await?;
     // 驳回不释放预留（预留仍保留，待后续 cancel 或重审）
     tx.commit().await?;
 
@@ -449,20 +430,15 @@ pub async fn cancel(
     let order = sales_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "销售订单未找到"))?;
-    if !matches!(order.status.as_str(), "submitted" | "approved") {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("销售订单当前状态为 {}，不可取消", order.status),
-        ));
-    }
+    SalesOrderStatus::parse(&order.status)?.ensure_can("cancel", "取消")?;
 
     let mut tx = pool.begin().await?;
 
     // 若原为 submitted，释放该订单的 active 预留
-    if order.status == STATUS_SUBMITTED {
+    if order.status == SalesOrderStatus::Submitted.as_str() {
         sales_repo::release_reservations_for_order_tx(&mut *tx, id).await?;
     }
-    sales_repo::update_status_tx(&mut *tx, id, STATUS_CANCELLED, DOC_CANCELLED).await?;
+    sales_repo::update_status_tx(&mut *tx, id, SalesOrderStatus::Cancelled.as_str(), DOC_CANCELLED).await?;
 
     tx.commit().await?;
 

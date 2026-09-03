@@ -121,10 +121,16 @@ pub async fn get_order(
 ) -> Result<impl IntoResponse, AppError> {
     let with_items = sales_service::get_order_with_items(&pool, id).await?;
     match with_items {
-        Some((order, items)) => Ok(Json(ApiResponse::ok(serde_json::json!({
-            "order": order,
-            "items": items,
-        })))),
+        Some((order, items)) => {
+            let allowed_actions: Vec<&str> = crate::domain::sales::SalesOrderStatus::parse(&order.status)
+                .map(|s| s.allowed_actions().to_vec())
+                .unwrap_or_default();
+            Ok(Json(ApiResponse::ok(serde_json::json!({
+                "order": order,
+                "items": items,
+                "allowed_actions": allowed_actions,
+            }))))
+        }
         None => Err(AppError::new(
             crate::error::ErrorCode::OrderNotFound,
             "销售订单未找到",

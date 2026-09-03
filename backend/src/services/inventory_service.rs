@@ -11,6 +11,7 @@ use sqlx::SqlitePool;
 
 use rust_decimal::Decimal;
 
+use crate::domain::inventory::{CheckSessionStatus, InboundStatus, OutboundStatus};
 use crate::domain::money::parse_amount;
 
 use crate::error::{AppError, ErrorCode};
@@ -170,12 +171,7 @@ pub async fn post_inbound(
     let order = inventory_repo::get_inbound_order_by_id(pool, inbound_id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "入库单未找到"))?;
-    if order.status != "draft" {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("入库单当前状态为 {}，不可过账", order.status),
-        ));
-    }
+    InboundStatus::parse(&order.status)?.ensure_can(ErrorCode::OrderCannotModify, "post", "过账")?;
 
     let mut tx = pool.begin().await?;
 
@@ -336,12 +332,7 @@ pub async fn post_outbound(
     let order = inventory_repo::get_outbound_order_by_id(pool, outbound_id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "出库单未找到"))?;
-    if order.status != "draft" {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("出库单当前状态为 {}，不可过账", order.status),
-        ));
-    }
+    OutboundStatus::parse(&order.status)?.ensure_can(ErrorCode::OrderCannotModify, "post", "过账")?;
 
     let mut tx = pool.begin().await?;
 
@@ -511,12 +502,8 @@ pub async fn record_actual_qty(
     let session = check_repo::find_session_by_id(pool, session_id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::CheckNotFound, "盘点单未找到"))?;
-    if !matches!(session.status.as_str(), "draft" | "counted") {
-        return Err(AppError::new(
-            ErrorCode::CheckNotDraft,
-            format!("盘点单当前状态为 {}，不可录入", session.status),
-        ));
-    }
+    CheckSessionStatus::parse(&session.status)?
+        .ensure_can(ErrorCode::CheckNotDraft, "record", "录入")?;
     let detail = check_repo::find_detail_by_id(pool, detail_id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::CheckNotFound, "盘点明细未找到"))?;
@@ -538,10 +525,11 @@ pub async fn post_check_session(
     let session = check_repo::find_session_by_id(pool, session_id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::CheckNotFound, "盘点单未找到"))?;
-    if session.status == "draft" {
+    let check_status = CheckSessionStatus::parse(&session.status)?;
+    if check_status == CheckSessionStatus::Draft {
         return Err(AppError::validation("需先录入实盘数量"));
     }
-    if session.status != "counted" {
+    if !check_status.can("post") {
         return Err(AppError::new(
             ErrorCode::CheckNotDraft,
             "盘点单需先录入实盘数量后再过账",

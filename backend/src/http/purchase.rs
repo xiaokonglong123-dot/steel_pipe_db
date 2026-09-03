@@ -125,9 +125,13 @@ pub async fn get_purchase_order(
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
     let (order, items) = purchase_service::get_order(&pool, id).await?;
+    let allowed_actions: Vec<&str> = crate::domain::purchasing::PurchaseOrderStatus::parse(&order.status)
+        .map(|s| s.allowed_actions().to_vec())
+        .unwrap_or_default();
     Ok(Json(ApiResponse::ok(serde_json::json!({
         "order": order,
         "items": items,
+        "allowed_actions": allowed_actions,
     }))))
 }
 

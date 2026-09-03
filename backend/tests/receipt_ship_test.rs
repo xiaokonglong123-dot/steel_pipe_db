@@ -181,7 +181,7 @@ async fn approved_po_receive_increases_balance() {
             Some(&token),
         )
         .await;
-    assert_eq!(stock["data"]["items"][0]["quantity"], 4.0);
+    assert_eq!(stock["data"]["items"][0]["quantity"], "4");
 }
 
 #[tokio::test]
@@ -265,7 +265,7 @@ async fn approved_so_ship_decreases_balance_and_releases_reservation() {
             Some(&token),
         )
         .await;
-    assert_eq!(stock["data"]["items"][0]["quantity"], 2.0);
+    assert_eq!(stock["data"]["items"][0]["quantity"], "2");
     let (_, reservations) = server
         .req(
             "GET",
@@ -400,4 +400,44 @@ async fn ship_requires_stock_write_and_allows_warehouse_role() {
         )
         .await;
     assert_eq!(status, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn partially_received_po_can_receive_again_until_complete() {
+    let (server, token, supplier, item, location, _) = fixture().await;
+    let po = create_po(&server, &token, supplier, item, 3.0).await;
+    approve(&server, &token, &format!("/purchase-orders/{po}/submit")).await;
+    approve(&server, &token, &format!("/purchase-orders/{po}/approve")).await;
+
+    // 第一次部分收货 1/3 → partially_received
+    let body = format!(
+        r#"{{"items":[{{"item_id":{item},"location_id":{location},"quantity":1}}]}}"#
+    );
+    let (status, json) = server
+        .req("POST", &format!("/purchase-orders/{po}/receive"), &body, Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "first receive: {json}");
+    let (_, po_json) = server
+        .req("GET", &format!("/purchase-orders/{po}"), "", Some(&token))
+        .await;
+    assert_eq!(po_json["data"]["order"]["status"], "partially_received");
+
+    // 第二次收货 2/3：v3 修复后状态机允许 partially_received 再次收货 → received
+    let body = format!(
+        r#"{{"items":[{{"item_id":{item},"location_id":{location},"quantity":2}}]}}"#
+    );
+    let (status, json) = server
+        .req("POST", &format!("/purchase-orders/{po}/receive"), &body, Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "second receive: {json}");
+    let (_, po_json) = server
+        .req("GET", &format!("/purchase-orders/{po}"), "", Some(&token))
+        .await;
+    assert_eq!(po_json["data"]["order"]["status"], "received");
+
+    // 收满后状态机禁止再收
+    let (status, _) = server
+        .req("POST", &format!("/purchase-orders/{po}/receive"), &body, Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }

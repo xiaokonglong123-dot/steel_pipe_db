@@ -22,6 +22,7 @@ pub struct WarehouseRow {
 pub struct LocationRow {
     pub id: i64,
     pub warehouse_id: Option<i64>,
+    pub warehouse_name: Option<String>,
     pub code: String,
     pub name: String,
     pub created_at: String,
@@ -191,8 +192,11 @@ pub async fn find_location_by_id(
     id: i64,
 ) -> Result<Option<LocationRow>, AppError> {
     let row = sqlx::query_as::<_, LocationRow>(
-        "SELECT id, warehouse_id, code, name, created_at, updated_at, deleted_at
-         FROM locations WHERE id = ? AND deleted_at IS NULL",
+        "SELECT loc.id, loc.warehouse_id, w.name AS warehouse_name,
+                loc.code, loc.name, loc.created_at, loc.updated_at, loc.deleted_at
+         FROM locations loc
+         LEFT JOIN warehouses w ON w.id = loc.warehouse_id
+         WHERE loc.id = ? AND loc.deleted_at IS NULL",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -207,10 +211,12 @@ pub async fn find_location_by_code_within_warehouse(
     code: &str,
 ) -> Result<Option<LocationRow>, AppError> {
     let row = sqlx::query_as::<_, LocationRow>(
-        "SELECT id, warehouse_id, code, name, created_at, updated_at, deleted_at
-         FROM locations
-         WHERE code = ? AND deleted_at IS NULL
-           AND (warehouse_id IS ? OR warehouse_id = ?)",
+        "SELECT loc.id, loc.warehouse_id, w.name AS warehouse_name,
+                loc.code, loc.name, loc.created_at, loc.updated_at, loc.deleted_at
+         FROM locations loc
+         LEFT JOIN warehouses w ON w.id = loc.warehouse_id
+         WHERE loc.code = ? AND loc.deleted_at IS NULL
+           AND (loc.warehouse_id IS ? OR loc.warehouse_id = ?)",
     )
     .bind(code)
     .bind(warehouse_id)
@@ -245,20 +251,23 @@ pub async fn list_locations(
     page_size: i64,
 ) -> Result<(Vec<LocationRow>, i64), AppError> {
     let mut where_clauses: Vec<&'static str> = vec!["deleted_at IS NULL"];
-    let mut count_sql = String::from("SELECT COUNT(*) FROM locations WHERE deleted_at IS NULL");
+    let mut count_sql = String::from("SELECT COUNT(*) FROM locations loc WHERE loc.deleted_at IS NULL");
     let mut list_sql = String::from(
-        "SELECT id, warehouse_id, code, name, created_at, updated_at, deleted_at
-         FROM locations WHERE deleted_at IS NULL",
+        "SELECT loc.id, loc.warehouse_id, w.name AS warehouse_name,
+                loc.code, loc.name, loc.created_at, loc.updated_at, loc.deleted_at
+         FROM locations loc
+         LEFT JOIN warehouses w ON w.id = loc.warehouse_id
+         WHERE loc.deleted_at IS NULL",
     );
 
     if filter.warehouse_id.is_some() {
-        where_clauses.push("warehouse_id = ?");
+        where_clauses.push("loc.warehouse_id = ?");
     }
     if filter.code.is_some() {
-        where_clauses.push("code = ?");
+        where_clauses.push("loc.code = ?");
     }
     if filter.name.is_some() {
-        where_clauses.push("name LIKE ?");
+        where_clauses.push("loc.name LIKE ?");
     }
 
     if where_clauses.len() > 1 {
@@ -269,7 +278,7 @@ pub async fn list_locations(
         list_sql.push_str(&extra);
     }
 
-    list_sql.push_str(" ORDER BY id DESC LIMIT ? OFFSET ?");
+    list_sql.push_str(" ORDER BY loc.id DESC LIMIT ? OFFSET ?");
 
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql);
     if let Some(v) = filter.warehouse_id {

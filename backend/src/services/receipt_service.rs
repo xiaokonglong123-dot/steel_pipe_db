@@ -22,12 +22,9 @@ pub async fn receive_purchase_order(
     let order = purchase_repo::find_by_id(pool, po_id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "采购订单未找到"))?;
-    if order.status != "approved" {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            "采购订单未审批",
-        ));
-    }
+    // 经状态机校验：approved | partially_received 才可收货（修复 v2 部分收货后不可再收货）
+    crate::domain::purchasing::PurchaseOrderStatus::parse(&order.status)?
+        .ensure_can("receive", "收货")?;
     if received_items.is_empty() {
         return Err(AppError::validation("收货明细不能为空"));
     }
@@ -60,7 +57,13 @@ pub async fn receive_purchase_order(
     }
 
     let mut tx = pool.begin().await?;
-    let record_no = format!("{}-R1", order.order_no);
+    // 部分收货后可再次收货，收货单号按该 PO 已有收货次数递增（record_no 全局 UNIQUE）
+    let receipt_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inbound_records WHERE order_id = ?")
+            .bind(po_id)
+            .fetch_one(&mut *tx)
+            .await?;
+    let record_no = format!("{}-R{}", order.order_no, receipt_count + 1);
     let record_id =
         receivable_repo::insert_inbound(&mut *tx, &record_no, po_id, order.supplier_id, user.id)
             .await?;
@@ -121,9 +124,9 @@ pub async fn receive_purchase_order(
         crate::domain::money::parse_amount(rq).map(|d| d < crate::domain::money::parse_amount(q).unwrap_or(Decimal::ZERO)).unwrap_or(false)
     }).count() as i64;
     let next_status = if remaining > 0 {
-        "partially_received"
+        crate::domain::purchasing::PurchaseOrderStatus::PartiallyReceived.as_str()
     } else {
-        "received"
+        crate::domain::purchasing::PurchaseOrderStatus::Received.as_str()
     };
     sqlx::query(
         "UPDATE purchase_orders SET status = ?, updated_at = datetime('now')

@@ -13,6 +13,7 @@ use std::str::FromStr;
 
 use crate::domain::money::parse_amount;
 use crate::domain::order::{DOC_CANCELLED, DOC_DRAFT, DOC_SUBMITTED};
+use crate::domain::purchasing::PurchaseOrderStatus;
 use crate::error::{AppError, ErrorCode};
 use crate::middleware::auth::AuthUser;
 use crate::repos::purchase_repo::{PurchaseOrderFilter, PurchaseOrderItemRow, PurchaseOrderRow};
@@ -225,12 +226,7 @@ pub async fn update_order(
     let order = purchase_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "采购订单未找到"))?;
-    if order.status != "draft" {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("采购订单当前状态为 {}，不可修改", order.status),
-        ));
-    }
+    PurchaseOrderStatus::parse(&order.status)?.ensure_can("edit", "修改")?;
     validate_supplier(pool, dto.supplier_id).await?;
     validate_items(pool, &dto.items).await?;
     let (total_amount, line_totals) = compute_totals(&dto.items)?;
@@ -286,12 +282,7 @@ pub async fn submit(
     let order = purchase_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "采购订单未找到"))?;
-    if order.status != "draft" {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("采购订单当前状态为 {}，不可提交", order.status),
-        ));
-    }
+    PurchaseOrderStatus::parse(&order.status)?.ensure_can("submit", "提交")?;
     let workflow = workflow_repo::find_active_workflow_by_type(pool, "purchase_order").await?;
     let initial = match &workflow {
         Some(workflow) => workflow_repo::find_initial_state(pool, workflow.id).await?,
@@ -326,13 +317,8 @@ pub async fn approve(
     let order = purchase_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "采购订单未找到"))?;
-    if order.status != "submitted" {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("采购订单当前状态为 {}，不可审批通过", order.status),
-        ));
-    }
-    purchase_repo::update_status(pool, id, "approved", Some(DOC_SUBMITTED)).await?;
+    PurchaseOrderStatus::parse(&order.status)?.ensure_can("approve", "审批通过")?;
+    purchase_repo::update_status(pool, id, PurchaseOrderStatus::Approved.as_str(), Some(DOC_SUBMITTED)).await?;
     if let Some(instance) =
         workflow_service::find_active_instance_for(pool, "purchase_order", id).await?
     {
@@ -356,13 +342,8 @@ pub async fn reject(
     let order = purchase_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "采购订单未找到"))?;
-    if order.status != "submitted" {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("采购订单当前状态为 {}，不可驳回", order.status),
-        ));
-    }
-    purchase_repo::update_status(pool, id, "rejected", Some(DOC_SUBMITTED)).await?;
+    PurchaseOrderStatus::parse(&order.status)?.ensure_can("reject", "驳回")?;
+    purchase_repo::update_status(pool, id, PurchaseOrderStatus::Rejected.as_str(), Some(DOC_SUBMITTED)).await?;
     purchase_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::Internal, "驳回后读取采购订单失败"))
@@ -377,13 +358,8 @@ pub async fn cancel(
     let order = purchase_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "采购订单未找到"))?;
-    if order.status != "draft" && order.status != "submitted" {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("采购订单当前状态为 {}，不可取消", order.status),
-        ));
-    }
-    purchase_repo::update_status(pool, id, "cancelled", Some(DOC_CANCELLED)).await?;
+    PurchaseOrderStatus::parse(&order.status)?.ensure_can("cancel", "取消")?;
+    purchase_repo::update_status(pool, id, PurchaseOrderStatus::Cancelled.as_str(), Some(DOC_CANCELLED)).await?;
     purchase_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::Internal, "取消后读取采购订单失败"))
@@ -393,12 +369,7 @@ pub async fn delete_order(pool: &SqlitePool, id: i64, _user: &AuthUser) -> Resul
     let order = purchase_repo::find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::new(ErrorCode::OrderNotFound, "采购订单未找到"))?;
-    if order.status != "draft" {
-        return Err(AppError::new(
-            ErrorCode::OrderCannotModify,
-            format!("采购订单当前状态为 {}，不可删除", order.status),
-        ));
-    }
+    PurchaseOrderStatus::parse(&order.status)?.ensure_can("delete", "删除")?;
     purchase_repo::soft_delete_order(pool, id).await?;
     Ok(())
 }
