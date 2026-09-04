@@ -15,8 +15,12 @@ pub struct StockFilter {
 #[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct StockRow {
     pub item_id: i64,
+    pub item_name: Option<String>,
+    pub sku: Option<String>,
     pub location_id: Option<i64>,
+    pub location_name: Option<String>,
     pub warehouse_id: Option<i64>,
+    pub warehouse_name: Option<String>,
     #[serde(serialize_with = "serialize_qty_str")]
     pub quantity: String,
 }
@@ -37,9 +41,14 @@ pub async fn list_stock(
          LEFT JOIN locations loc ON loc.id = inv.location_id AND loc.deleted_at IS NULL",
     );
     let mut list_sql = String::from(
-        "SELECT inv.item_id, inv.location_id, loc.warehouse_id AS warehouse_id, inv.quantity
+        "SELECT inv.item_id, i.name AS item_name, i.sku AS sku,
+                inv.location_id, loc.name AS location_name,
+                loc.warehouse_id AS warehouse_id, wh.name AS warehouse_name,
+                inv.quantity
          FROM inventory inv
-         LEFT JOIN locations loc ON loc.id = inv.location_id AND loc.deleted_at IS NULL",
+         LEFT JOIN locations loc ON loc.id = inv.location_id AND loc.deleted_at IS NULL
+         LEFT JOIN warehouses wh ON wh.id = loc.warehouse_id AND wh.deleted_at IS NULL
+         LEFT JOIN items i ON i.id = inv.item_id AND i.deleted_at IS NULL",
     );
 
     if filter.item_id.is_some() {

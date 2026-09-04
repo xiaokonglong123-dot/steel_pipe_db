@@ -135,5 +135,3 @@ export interface SalesOrderPayload {
   notes?: string
   items: SalesItemLine[]
 }
-
-import type { Id } from "./common"

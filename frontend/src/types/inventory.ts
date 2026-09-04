@@ -2,8 +2,12 @@
 
 export interface StockRow {
   readonly item_id: number
+  readonly item_name: string | null
+  readonly sku: string | null
   readonly location_id: number | null
+  readonly location_name: string | null
   readonly warehouse_id: number | null
+  readonly warehouse_name: string | null
   readonly quantity: string
 }
 
@@ -34,10 +38,20 @@ export interface InboundOrder {
 export interface InboundItem {
   readonly id: number
   readonly inbound_id?: number
+  readonly record_id?: number
   readonly item_id: number
+  readonly item_name?: string | null
   readonly location_id: number | null
+  readonly location_name?: string | null
   readonly quantity: string
   readonly created_at?: string
+}
+
+export interface InboundItemPayload {
+  item_id: number
+  location_id: number
+  quantity: string
+  notes?: string | null
 }
 
 export interface InboundDetail {
@@ -61,10 +75,20 @@ export interface OutboundOrder {
 export interface OutboundItem {
   readonly id: number
   readonly outbound_id?: number
+  readonly record_id?: number
   readonly item_id: number
+  readonly item_name?: string | null
   readonly location_id: number | null
+  readonly location_name?: string | null
   readonly quantity: string
   readonly created_at?: string
+}
+
+export interface OutboundItemPayload {
+  item_id: number
+  location_id: number
+  quantity: string
+  notes?: string | null
 }
 
 export interface OutboundDetail {
