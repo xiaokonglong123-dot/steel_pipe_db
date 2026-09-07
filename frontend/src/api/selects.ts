@@ -4,7 +4,7 @@ import { listItems } from "./catalog"
 import { listSuppliers, listCustomers } from "./parties"
 import { listWarehouses, listLocations } from "./locations"
 import { get } from "./client"
-import type { Selectable } from "@/components/domain/EntitySelect.vue"
+import type { Selectable } from "@/types/select"
 import type { Account } from "@/types/finance"
 
 /** 商品：schema = 名称 (SKU) */

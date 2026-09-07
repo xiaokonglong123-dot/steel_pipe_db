@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue"
 
-export interface Selectable {
-  readonly id: number
-  readonly name: string
-  readonly code?: string | null
-}
-export type SelectApi = (query: string) => Promise<readonly Selectable[]>
+import type { SelectApi, Selectable } from "@/types/select"
 
 const props = withDefaults(
   defineProps<{

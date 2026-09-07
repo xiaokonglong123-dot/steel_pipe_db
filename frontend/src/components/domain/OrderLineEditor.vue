@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { ElMessage } from "element-plus"
-import EntitySelect, { type SelectApi } from "./EntitySelect.vue"
+import EntitySelect from "./EntitySelect.vue"
+import type { SelectApi } from "@/types/select"
 import { add, formatQty, mul } from "@/utils/money"
 
 export interface LineField {
