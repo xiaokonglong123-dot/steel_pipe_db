@@ -4,7 +4,7 @@
 > **日期**: 2026-09-03
 > **状态**: Draft
 > **定位**: 在 v2 正确业务边界之上的一次“面向产品可用性”的重写——把 6 核心业务域做深做真
-> **关联**: `rewrite-plan.md`(动机与决策) → 本文档 → `detailed-design.md` → `frontend-design.md` → `tasks.md`
+> **关联**: `rewrite-plan.md`(动机与决策) → 本文档 → `../detailed-design.md` → `frontend-design.md` → `tasks.md`
 
 ---
 

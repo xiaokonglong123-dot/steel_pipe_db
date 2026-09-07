@@ -1,6 +1,6 @@
 # 前端设计 (Frontend Design)
 
-> 对应 PRD/detailed-design。核心原则：把“录单 + 审批”做真；消灭 CrudList 万能组件与原 ID 裸显。
+> 对应 PRD（同目录）/ `../detailed-design.md`。核心原则：把“录单 + 审批”做真；消灭 CrudList 万能组件与原 ID 裸显。
 
 ## 1. 技术栈
 Vue3 + TS + Vite + Element Plus + Pinia + TanStack Query + vue-router。

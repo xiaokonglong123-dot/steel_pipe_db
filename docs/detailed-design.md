@@ -1,6 +1,6 @@
 # 后端详细设计 (Detailed Design)
 
-> 对应 PRD。重点是修正 v2 的两类问题：①领域模型不干净 ②repo 臃肿。技术栈不变。
+> 对应 `archive/PRD.md`（已冻结）。重点是修正 v2 的两类问题：①领域模型不干净 ②repo 臃肿。技术栈不变。
 
 ## 1. 分层与责任
 
@@ -59,13 +59,13 @@ enum SalesOrderStatus { Draft, Submitted, Approved, Rejected, Cancelled, Awaitin
 
 ## 3. Database schema
 
-结构沿用 v2（migrations 001–013 不变更不删改），新增一律 `014+` 追加。
+结构沿用 v2（migrations 001–013 不变更不删改，此后新增一律追加：014 给 purchase_orders / sales_orders 加 `contract_no TEXT` 可空列）。
 仅列关键表与本次注意的列。所有金额/数量列 = TEXT（存 `Decimal::to_string()`）。软删除 = `deleted_at`。
 
 （示例）purchase_orders:
 ```
 id INTEGER PK, order_no TEXT UNIQUE, supplier_id INTEGER NOT NULL REFERENCES suppliers,
-status TEXT NOT NULL, doc_status INTEGER NOT NULL DEFAULT 0,
+status TEXT NOT NULL, doc_status INTEGER NOT NULL DEFAULT 0, contract_no TEXT NULL,
 expected_date TEXT NULL, total_amount TEXT NOT NULL, remark TEXT,
 created_by INTEGER, created_at, updated_at, deleted_at
 purchase_order_items(id, po_id REF, item_id REF, quantity TEXT, unit_price TEXT, line_total TEXT)

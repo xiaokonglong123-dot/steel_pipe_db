@@ -22,7 +22,7 @@
 A modular ERP covering the core transactional loop for a single plant:
 items (SKU master) → inventory (with inbound/outbound + audit trail) → procurement (purchase orders) → sales (sales orders + ATP reservations) → finance (GL/journal/invoice/payment) → reports — all gated by a data-driven approval workflow and JWT+RBAC auth.
 
-The system is a **v3 rewrite** of the erp-v2 stack (`docs/rewrite-plan.md`), itself a rewrite of the original React ERP (archived on `legacy/steel-pipe-react`). It is a single-plant, single-instance deployment with SQLite as the single source of truth — designed for small teams and zero infrastructure overhead.
+The system is a **v3 rewrite** of the erp-v2 stack (planning docs frozen under `docs/archive/`), itself a rewrite of the original React ERP (archived on `legacy/steel-pipe-react`). It is a single-plant, single-instance deployment with SQLite as the single source of truth — designed for small teams and zero infrastructure overhead.
 
 ---
 
@@ -207,11 +207,11 @@ Ikari_Shinji/
 │   │   ├── components/                     # Shared Element Plus-based components
 │   │   └── styles/                         # Global styles + el-plus theme overrides
 │   ├── package.json / bun.lock / vite.config.ts / tsconfig.json / DESIGN.md
-├── docs/                                   # PRD, detailed-design, frontend-design, tasks, architecture-diagrams
+├── docs/                                   # detailed-design (living) + archive/ (frozen v3 planning docs)
 ├── specs/                                  # Ubiquitous language (terminology canon)
 ├── .github/workflows/ci.yml                # CI: cargo check + test + bun tsc + build
 ├── AGENTS.md                               # Authoritative project index
-├── README.md / README_zh.md / CHANGELOG.md / CONTRIBUTING.md / LICENSE
+├── README.md / CHANGELOG.md / CONTRIBUTING.md / LICENSE
 ```
 
 ---

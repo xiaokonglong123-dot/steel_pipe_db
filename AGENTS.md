@@ -1,7 +1,7 @@
-# ERP — 项目状态（v3 重写进行中）
+# ERP — 项目状态（v3 重写完成）
 
-> 重写项目。详细拆分见同目录 `PRD.md` / `detailed-design.md` / `frontend-design.md` / `tasks.md` / `docs/rewrite-plan.md`。
-> v2 (P0/P1/P2) 已完成；当前为 v3 重写（见 `docs/rewrite-plan.md` 里程碑 M0–M4）。
+> v3 规划文档已归档：`docs/archive/`（rewrite-plan / PRD / frontend-design / tasks / architecture-diagrams，冻结）；仍在维护的真相文档是 `docs/detailed-design.md`。
+> v2 (P0/P1/P2) 已完成；v3 重写完成（里程碑 M0–M4 见下文 §v3 重写里程碑，规划原文在 `docs/archive/rewrite-plan.md`）。
 
 ## 启动
 
@@ -27,7 +27,7 @@ cd frontend && bun install && bun run dev
 
 ### 后端 (`backend/`)
 
-> v3 重写范围（`docs/rewrite-plan.md`）：领域状态机拆分 PoStatus/SoStatus + allowed_actions、repo 按子域拆分（≤300 行）、Quantity/Decimal 全 string 序列化、列表/详情外键 id+name 投影。API 路由根路径（无 `/api` 前缀）。
+> v3 重写范围（规划见 `docs/archive/rewrite-plan.md`）：领域状态机拆分 PoStatus/SoStatus + allowed_actions、repo 按子域拆分（≤300 行）、Quantity/Decimal 全 string 序列化、列表/详情外键 id+name 投影。API 路由根路径（无 `/api` 前缀）。
 
 | 模块 | 状态 | 测试 |
 | --- | --- | --- |
@@ -82,7 +82,7 @@ cd frontend && bun install && bun run dev
 - **金额阈值条件**: `workflow_transitions.amount_threshold TEXT`，`workflow_service::transition_with_amount(pool, inst_id, action, user, comment, business_amount: Option<Decimal>)` 会优先选 threshold 满足的 transition；不满足则 fallback 走无阈值的 transition
 - **RBAC 实时查库**: JWT 携带 `user_id` + `permissions` 数组，每个请求 auth_middleware 查库注入 AuthUser 扩展
 - **Spec Drift 处理**: 010_warehouses / 011_seed_workflows / 012_workflow_threshold 三条迁移均不修改已执行迁移，按规则 #234 + touch main.rs 触发重编译
-- **设计文档已同步**: detailed-design.md 反映 010_warehouses 父表层级；detailed-design + tasks 同步 inventory API 短路径
+- **设计文档已同步**: detailed-design.md 反映 010_warehouses 父表层级与 014 contract_no；detailed-design + archive/tasks.md 同步 inventory API 短路径
 
 ## Spec Drift 全记录（避免未来读者困惑）
 
@@ -119,9 +119,9 @@ cd frontend && bun install && bun run dev
 - P1 (财务 + 报表 + ATP): ✅ 全部 9 任务完成
 - P2 (增强 + Excel 导入 + UI 打磨): ✅ 全部 6 任务完成
 
-## v3 重写里程碑（docs/rewrite-plan.md）
+## v3 重写里程碑（规划原文见 docs/archive/rewrite-plan.md）
 
-- M0 设计: ✅ rewrite-plan / PRD / detailed-design / frontend-design / tasks
+- M0 设计: ✅ rewrite-plan / PRD / detailed-design / frontend-design / tasks（规划文档已归档至 docs/archive/，detailed-design.md 除外）
 - M1 后端核心重构 (状态机拆分/allowed_actions/Quantity string/repo 拆分/外键名字投影): ✅ 后端 140 测试全绿
 - M2 前端核心 (强类型+api 封装+OrderLineEditor/StockMove/专用单据页): ✅ vue-tsc + build 绿，人工冒烟通过
 - M3 收尾域 (财务/审批/报表/Auth): ✅
