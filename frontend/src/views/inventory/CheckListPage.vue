@@ -1,46 +1,71 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue"
+import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import { ElMessage } from "element-plus"
-import { get, post } from "@/api/client"
-import type { CheckSession, ApiPage } from "@/types"
+import { DataTable, EntitySelect, PageHeader } from "@/components"
+import { listChecks, createCheck } from "@/api/inventory"
+import { searchLocations } from "@/api/selects"
+import { useHasPermission } from "@/composables/useHasPermission"
+import type { CheckSession } from "@/types/inventory"
 
 const router = useRouter()
-const rows = ref<readonly CheckSession[]>([])
-const total = ref(0); const page = ref(1); const pageSize = ref(20); const loading = ref(false)
-const dialog = ref(false)
-const form = ref<{ location_id: number; scope: string }>({ location_id: 0, scope: "all" })
+const can = useHasPermission()
 
-async function load(): Promise<void> {
-  loading.value = true
-  try {
-    const result = await get<ApiPage<CheckSession>>(`/check-records?page=${page.value}&page_size=${pageSize.value}`)
-    rows.value = result.items; total.value = result.total
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "加载失败")
-  } finally { loading.value = false }
-}
+const rows = ref<CheckSession[]>([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = ref(20)
+const loading = ref(false)
+
+const dialog = ref(false)
+const locationId = ref<number | null>(null)
+const creating = ref(false)
 
 function statusLabel(s: CheckSession["status"]): string {
   if (s === "posted") return "已过账"
   if (s === "counted") return "已盘点"
   return "草稿"
 }
+function statusTag(s: CheckSession["status"]): "success" | "warning" | "info" {
+  if (s === "posted") return "success"
+  if (s === "counted") return "warning"
+  return "info"
+}
 
-async function create(): Promise<void> {
-  if (!form.value.location_id) { ElMessage.warning("需选择库位"); return }
+async function load(): Promise<void> {
+  loading.value = true
   try {
-    await post("/check-records", form.value)
-    dialog.value = false
-    ElMessage.success("创建成功")
-    await load()
+    const r = await listChecks({ page: page.value, page_size: pageSize.value })
+    rows.value = [...r.items]
+    total.value = r.total
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "创建失败")
+    ElMessage.error(error instanceof Error ? error.message : "加载失败")
+  } finally {
+    loading.value = false
   }
 }
 
-function goToDetail(id: number): void {
-  router.push(`/inventory/checks/${id}`)
+async function create(): Promise<void> {
+  if (locationId.value == null) {
+    ElMessage.warning("请选择库位")
+    return
+  }
+  creating.value = true
+  try {
+    await createCheck({ location_id: locationId.value, scope: "all" })
+    dialog.value = false
+    ElMessage.success("盘点单已创建")
+    void load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "创建失败")
+  } finally {
+    creating.value = false
+  }
+}
+
+function openCreate(): void {
+  locationId.value = null
+  dialog.value = true
 }
 
 onMounted(() => void load())
@@ -48,40 +73,45 @@ onMounted(() => void load())
 
 <template>
   <section class="page">
-    <div class="heading"><h2>盘点单</h2><el-button type="primary" @click="dialog = true">新建盘点</el-button></div>
+    <PageHeader title="盘点单" subtitle="选择库位生成盘点单 → 录入实盘数 → 过账调整">
+      <el-button v-if="can('stock.write')" type="primary" @click="openCreate">新建盘点</el-button>
+    </PageHeader>
+
     <el-card>
-      <el-table :data="rows" v-loading="loading" border>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="location_id" label="库位 ID" width="120" />
-        <el-table-column prop="scope" label="范围" width="120" />
-        <el-table-column label="状态" width="120">
-          <template #default="{ row }">
-            <el-tag>{{ statusLabel((row as CheckSession).status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" />
-        <el-table-column label="操作" width="120">
-          <template #default="{ row }"><el-button link type="primary" @click="goToDetail((row as CheckSession).id)">明细</el-button></template>
-        </el-table-column>
-      </el-table>
-      <el-pagination :current-page="page" :page-size="pageSize" :total="total" layout="total, prev, pager, next" @current-change="page = $event" />
+      <DataTable
+        :columns="[
+          { prop: 'session_no', label: '盘点单号' },
+          { prop: 'location_name', label: '库位' },
+          { prop: 'status', label: '状态' },
+          { prop: 'created_at', label: '创建时间' },
+        ]"
+        :data="rows"
+        :total="total"
+        :page="page"
+        :page-size="pageSize"
+        :loading="loading"
+        @page-change="page = $event; load()"
+        @page-size-change="pageSize = $event; page = 1; load()"
+      >
+        <template #cell-status="{ row }">
+          <el-tag :type="statusTag((row as CheckSession).status)">{{ statusLabel((row as CheckSession).status) }}</el-tag>
+        </template>
+        <template #actions="{ row }">
+          <el-button link type="primary" @click="router.push(`/inventory/checks/${(row as CheckSession).id}`)">明细</el-button>
+        </template>
+      </DataTable>
     </el-card>
-    <el-dialog v-model="dialog" title="新建盘点" width="400px">
-      <el-form :model="form" label-width="80px">
-        <el-form-item label="库位 ID"><el-input-number v-model="form.location_id" :min="0" controls-position="right" /></el-form-item>
-        <el-form-item label="范围">
-          <el-select v-model="form.scope">
-            <el-option value="all" label="全部" />
-            <el-option value="sku" label="按 SKU" />
-          </el-select>
+
+    <el-dialog v-model="dialog" title="新建盘点" width="440px" destroy-on-close>
+      <el-form label-width="80px">
+        <el-form-item label="库位" required>
+          <EntitySelect v-model="locationId" :api="searchLocations" placeholder="搜索并选择库位" />
         </el-form-item>
       </el-form>
-      <template #footer><el-button @click="dialog = false">取消</el-button><el-button type="primary" @click="create">创建</el-button></template>
+      <template #footer>
+        <el-button @click="dialog = false">取消</el-button>
+        <el-button type="primary" :loading="creating" @click="create">创建</el-button>
+      </template>
     </el-dialog>
   </section>
 </template>
-
-<style scoped>
-.heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.heading h2 { margin: 0; }
-</style>

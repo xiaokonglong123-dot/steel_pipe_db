@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ readonly modelValue: Record<string, string> }>()
+defineProps<{ readonly modelValue: Record<string, unknown> }>()
 const emit = defineEmits<{ (event: "search"): void; (event: "reset"): void }>()
 </script>
 

@@ -152,7 +152,7 @@ async fn inventory_check_post_updates_balance_and_logs() {
 
     // 先收货 100 到 loc_id
     let po = purchase_service::create_order(&pool, &CreatePurchaseOrderRequest {
-        supplier_id, order_date: "2026-08-10".into(), currency: None, notes: None,
+        supplier_id, order_date: "2026-08-10".into(), currency: None, contract_no: None, notes: None,
         items: vec![PurchaseOrderItemInput {
             item_id, quantity: Decimal::from(100), unit_price: Some("10.00".into()), notes: None,
         }],
@@ -203,7 +203,7 @@ async fn atp_reservation_releases_after_ship() {
 
     // 收货 100
     let po = purchase_service::create_order(&pool, &CreatePurchaseOrderRequest {
-        supplier_id, order_date: "2026-08-10".into(), currency: None, notes: None,
+        supplier_id, order_date: "2026-08-10".into(), currency: None, contract_no: None, notes: None,
         items: vec![PurchaseOrderItemInput {
             item_id, quantity: Decimal::from(100), unit_price: Some("10.00".into()), notes: None,
         }],
@@ -216,7 +216,7 @@ async fn atp_reservation_releases_after_ship() {
 
     // create SO 销 40 + submit (reservation 占用)
     let so = sales_service::create_order(&pool, &CreateSalesOrderRequest {
-        customer_id, order_date: Some("2026-08-10".into()), currency: None, notes: None,
+        customer_id, order_date: Some("2026-08-10".into()), currency: None, contract_no: None, notes: None,
         items: vec![CreateSalesOrderItemInput {
             item_id, quantity: Decimal::from(40), unit_price: "20.00".into(), notes: None,
         }],

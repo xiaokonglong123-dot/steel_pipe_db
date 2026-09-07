@@ -14,7 +14,9 @@ export interface StockRow {
 export interface InventoryLog {
   readonly id: number
   readonly item_id: number
+  readonly item_name: string | null
   readonly location_id: number | null
+  readonly location_name: string | null
   readonly change_type: "inbound" | "outbound" | "check_adjust" | string
   readonly quantity: string
   readonly ref_type?: string | null
@@ -100,6 +102,7 @@ export interface CheckSession {
   readonly id: number
   readonly session_no: string
   readonly location_id: number | null
+  readonly location_name: string | null
   readonly scope: string
   readonly status: "draft" | "counted" | "posted" | string
   readonly created_by: number | null
@@ -111,6 +114,8 @@ export interface CheckDetailRow {
   readonly id: number
   readonly session_id: number
   readonly item_id: number
+  readonly item_name: string | null
+  readonly sku: string | null
   readonly location_id: number | null
   readonly system_qty: string
   readonly actual_qty: string | null

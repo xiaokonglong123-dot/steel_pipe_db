@@ -22,7 +22,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{ (e: "update:modelValue", v: number | null): void }>()
 
-const options = ref<Selectable[]>([])
+const options = ref<readonly Selectable[]>([])
 const loading = ref(false)
 const searching = ref(false)
 let timer: ReturnType<typeof setTimeout> | undefined

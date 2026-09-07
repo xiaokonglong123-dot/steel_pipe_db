@@ -1,6 +1,7 @@
-# ERP v2 — Project Status (P0 + P1 + P2 完成)
+# ERP — 项目状态（v3 重写进行中）
 
-> 重写项目。详细拆分见同目录 `PRD.md` / `detailed-design.md` / `frontend-design.md` / `tasks.md`。
+> 重写项目。详细拆分见同目录 `PRD.md` / `detailed-design.md` / `frontend-design.md` / `tasks.md` / `docs/rewrite-plan.md`。
+> v2 (P0/P1/P2) 已完成；当前为 v3 重写（见 `docs/rewrite-plan.md` 里程碑 M0–M4）。
 
 ## 启动
 
@@ -14,9 +15,19 @@ cd frontend && bun install && bun run dev
 # 登录: admin / admin123
 ```
 
+> 注意：`vite.config.ts` 是 vite 配置的唯一源；`vite.config.js/.d.ts` 是 tsc 编译产物（gitignore 已忽略），删掉即可让 vite 重新从 `.ts` 加载，勿手动维护。
+
+## API 前缀约定
+
+- 后端路由全部挂在根路径（如 `POST /auth/login`、`GET /items`），**无 `/api` 前缀**（设计与集成测试一致）。
+- 前端 `api/client.ts` 的 `baseURL = "/api"`；vite dev proxy 把 `/api` 剥前缀后转发到 `:3000`（`server.proxy["/api"].rewrite`）。
+- 生产部署需在网关层做同样剥前缀；不要在客户端写 `/api/v1`。
+
 ## 当前实现状态
 
 ### 后端 (`backend/`)
+
+> v3 重写范围（`docs/rewrite-plan.md`）：领域状态机拆分 PoStatus/SoStatus + allowed_actions、repo 按子域拆分（≤300 行）、Quantity/Decimal 全 string 序列化、列表/详情外键 id+name 投影。API 路由根路径（无 `/api` 前缀）。
 
 | 模块 | 状态 | 测试 |
 | --- | --- | --- |
@@ -38,25 +49,26 @@ cd frontend && bun install && bun run dev
 | 审批流多级/条件 (`amount_threshold` + `transition_with_amount`) | ✅ P2 完成 | 2 |
 | finance.threshold `012_workflow_threshold.sql` | ✅ P2 完成 | 1 migrations 校验 |
 
-**总计**: 124 测试全绿 (`cargo test`)
+**总计**: 140 测试全绿 (`cargo test`)
 
 ### 前端 (`frontend/`)
 
 | 模块 | 状态 |
 | --- | --- |
-| Vue 3 + Pinia + Element Plus + TanStack Vue Query 骨架 | ✅ |
+| Vue 3 + Pinia + Element Plus + TanStack Vue Query 骨架（Element Plus 按需分包） | ✅ |
 | Auth (Login + MainLayout + RBAC permission 守卫) | ✅ |
-| 商品/供应商/客户/仓库/库位/库存/入库/出库 | ✅ |
-| 采购订单/销售订单 (含审批按钮) | ✅ |
+| types/ 强类型（无 `Record<string,string>`）+ api/ 按域封装 + utils/money(Decimal string) | ✅ v3 |
+| 主数据 MasterDataCrud 重写（商品/供应商/客户/库位/仓库）+ EntitySelect 远程下拉（id+name） | ✅ v3 |
+| 库存 StockMove 合并页（入库/出库共用 StockMoveForm/List/Detail）+ 库存查询/ATP/流水/盘点 | ✅ v3 |
+| 采购/销售专用页面：OrderLineEditor 明细编辑器 + ActionBar 状态机驱动按钮（allowed_actions） | ✅ v3 |
 | Workflow 流程实例/待办 | ✅ |
 | Finance 5 页 (AccountList/JournalEntryList/InvoiceList/PaymentList/TrialBalance) | ✅ |
-| Inventory Check + Inventory Logs + ATP 可用量 | ✅ |
-| Reports 4 页 + ECharts 可视化 (line+bar) | ✅ |
+| Reports 4 页 + ECharts 可视化（按需引入 tree-shaking） | ✅ |
 | CSV 导入按钮 + 报告弹窗 | ✅ |
 | 操作日志页面 | ✅ |
 | 404 + 深灰侧边栏 + skeleton + 路由过渡动画 + 统一错误提示 | ✅ |
 
-**总计**: `bunx vue-tsc --noEmit` + `bun run build` 全绿
+**总计**: `bunx vue-tsc --noEmit` + `bun run build` 全绿（Element Plus 按需分包，仅 echarts chunk ≈540kB gzip 183kB 触 500kB 提示——zrender 固有下限）
 
 ### CI
 
@@ -98,12 +110,21 @@ cd frontend && bun install && bun run dev
 011_seed_workflows.sql     — PO/SO 种子 workflows + states + transitions
 012_workflow_threshold.sql — ALTER workflow_transitions.amount_threshold TEXT
 013_quantity_decimal.sql    — 数量列 REAL → Decimal TEXT (8 表)
+014_contract_no.sql         — purchase_orders / sales_orders 增加 contract_no（合同号，TEXT 可空）
 ```
 
-## P0/P1/P2 完成度
+## P0/P1/P2 完成度（v2 基线）
 
 - P0 (核心交易闭环): ✅ 全部 12 任务完成
 - P1 (财务 + 报表 + ATP): ✅ 全部 9 任务完成
 - P2 (增强 + Excel 导入 + UI 打磨): ✅ 全部 6 任务完成
 
-**项目重写 MVP 全部完成交付。**
+## v3 重写里程碑（docs/rewrite-plan.md）
+
+- M0 设计: ✅ rewrite-plan / PRD / detailed-design / frontend-design / tasks
+- M1 后端核心重构 (状态机拆分/allowed_actions/Quantity string/repo 拆分/外键名字投影): ✅ 后端 140 测试全绿
+- M2 前端核心 (强类型+api 封装+OrderLineEditor/StockMove/专用单据页): ✅ vue-tsc + build 绿，人工冒烟通过
+- M3 收尾域 (财务/审批/报表/Auth): ✅
+- M4 打磨: ✅ 错误空态 + 构建分块(Element Plus 按需) + 文档同步(本文件)
+
+**当前状态: v3 重写主要里程碑完成。**

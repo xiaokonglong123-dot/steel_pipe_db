@@ -43,9 +43,9 @@ export async function searchWarehouses(q: string): Promise<Selectable[]> {
 
 /** 会计科目：服务端不支持名称搜索，全量拉取后在本地过滤。 */
 export async function searchAccounts(q: string): Promise<Selectable[]> {
-  const res = await get<{ items: readonly Account[] }>("/accounts?active_only=true")
+  const res = await get<readonly Account[]>("/accounts?active_only=true")
   const kw = q.trim().toLowerCase()
-  return res.items
+  return res
     .filter((a) => !kw || a.name.toLowerCase().includes(kw) || a.code.toLowerCase().includes(kw))
     .map((a) => ({ id: a.id, name: `${a.code} ${a.name}`, code: a.account_type }))
 }

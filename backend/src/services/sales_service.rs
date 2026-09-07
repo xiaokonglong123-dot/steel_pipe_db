@@ -39,6 +39,7 @@ pub struct CreateSalesOrderRequest {
     pub customer_id: i64,
     pub order_date: Option<String>,
     pub currency: Option<String>,
+    pub contract_no: Option<String>,
     pub notes: Option<String>,
     pub items: Vec<CreateSalesOrderItemInput>,
 }
@@ -48,6 +49,7 @@ pub struct UpdateSalesOrderRequest {
     pub customer_id: i64,
     pub order_date: Option<String>,
     pub currency: Option<String>,
+    pub contract_no: Option<String>,
     pub notes: Option<String>,
     pub items: Vec<CreateSalesOrderItemInput>,
 }
@@ -146,6 +148,7 @@ pub async fn create_order(
         DOC_DRAFT,
         &total_str,
         &currency,
+        dto.contract_no.as_deref(),
         dto.notes.as_deref(),
         Some(user.id),
     )
@@ -282,13 +285,14 @@ pub async fn update_order(
     // 更新订单头
     let result = sqlx::query(
         "UPDATE sales_orders SET customer_id = ?, order_date = ?, total_amount = ?,
-           currency = ?, notes = ?, updated_at = datetime('now')
+           currency = ?, contract_no = ?, notes = ?, updated_at = datetime('now')
          WHERE id = ? AND deleted_at IS NULL AND status = 'draft'",
     )
     .bind(dto.customer_id)
     .bind(&order_date)
     .bind(&total_str)
     .bind(&currency)
+    .bind(dto.contract_no.as_deref())
     .bind(dto.notes.as_deref())
     .bind(id)
     .execute(&mut *tx)

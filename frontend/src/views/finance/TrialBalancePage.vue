@@ -1,24 +1,26 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue"
+import { computed, onMounted, ref } from "vue"
 import { ElMessage } from "element-plus"
-import { get } from "@/api/client"
-import type { TrialBalanceRow } from "@/types"
+import { MoneyText, PageHeader } from "@/components"
+import { trialBalance } from "@/api/finance"
+import { add } from "@/utils/money"
+import type { TrialBalanceRow } from "@/types/finance"
 
-const rows = ref<readonly TrialBalanceRow[]>([])
+const rows = ref<TrialBalanceRow[]>([])
 const loading = ref(false)
 
-const totalDebit = computed(() => rows.value.reduce((s, r) => s + Number(r.total_debit), 0))
-const totalCredit = computed(() => rows.value.reduce((s, r) => s + Number(r.total_credit), 0))
-const balanced = computed(() => Math.round((totalDebit.value - totalCredit.value) * 10000) / 10000 === 0)
+const totalDebit = computed(() => add(...rows.value.map((r) => r.total_debit)))
+const totalCredit = computed(() => add(...rows.value.map((r) => r.total_credit)))
 
 async function load(): Promise<void> {
   loading.value = true
   try {
-    const result = await get<readonly TrialBalanceRow[]>("/trial-balance")
-    rows.value = result
+    rows.value = [...(await trialBalance())]
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "加载失败")
-  } finally { loading.value = false }
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(() => void load())
@@ -26,26 +28,32 @@ onMounted(() => void load())
 
 <template>
   <section class="page">
-    <div class="heading"><h2>试算平衡表</h2><el-button @click="load">刷新</el-button></div>
-    <el-alert v-if="!balanced && rows.length > 0" title="借方总额与贷方总额不平衡" type="warning" :closable="false" show-icon />
-    <el-alert v-if="balanced && rows.length > 0" title="借贷平衡 ✓" type="success" :closable="false" show-icon />
+    <PageHeader title="试算平衡" subtitle="各科目借贷汇总，借贷总额应相等" />
+
     <el-card>
-      <el-table :data="rows" v-loading="loading" border show-summary :summary-method="() => [
-        '合计', '', '', totalDebit.toFixed(2), totalCredit.toFixed(2), '',
-      ]">
-        <el-table-column prop="account_id" label="科目 ID" width="80" />
-        <el-table-column prop="account_code" label="科目代码" width="120" />
-        <el-table-column prop="account_name" label="科目名称" />
-        <el-table-column prop="total_debit" label="借方合计" align="right" />
-        <el-table-column prop="total_credit" label="贷方合计" align="right" />
-        <el-table-column prop="balance" label="余额" align="right" />
+      <el-table :data="rows" v-loading="loading" border stripe show-summary :summary-method="() => []">
+        <el-table-column prop="account_code" label="科目编码" width="160" />
+        <el-table-column prop="account_name" label="科目名称" min-width="200" />
+        <el-table-column label="借方合计" align="right" width="180">
+          <template #default="{ row }"><MoneyText :value="(row as TrialBalanceRow).total_debit" /></template>
+        </el-table-column>
+        <el-table-column label="贷方合计" align="right" width="180">
+          <template #default="{ row }"><MoneyText :value="(row as TrialBalanceRow).total_credit" /></template>
+        </el-table-column>
+        <el-table-column label="余额" align="right" width="180">
+          <template #default="{ row }"><MoneyText :value="(row as TrialBalanceRow).balance" strong /></template>
+        </el-table-column>
       </el-table>
+
+      <div class="totals">
+        <span>借方总额 <MoneyText :value="totalDebit" strong /></span>
+        <span>贷方总额 <MoneyText :value="totalCredit" strong /></span>
+        <el-tag v-if="totalDebit === totalCredit" type="success" size="small">平衡</el-tag>
+      </div>
     </el-card>
   </section>
 </template>
 
 <style scoped>
-.heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.heading h2 { margin: 0; }
-.el-alert { margin-bottom: 12px; }
+.totals { margin-top: 16px; display: flex; gap: 24px; align-items: center; }
 </style>

@@ -17,6 +17,7 @@ pub struct SalesOrderRow {
     pub doc_status: i64,
     pub total_amount: String,
     pub currency: String,
+    pub contract_no: Option<String>,
     pub notes: Option<String>,
     pub created_by: Option<i64>,
     pub created_at: String,
@@ -60,7 +61,7 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<SalesOrderR
     let row = sqlx::query_as::<_, SalesOrderRow>(
         "SELECT so.id, so.order_no, so.customer_id, c.name AS customer_name,
                 so.order_date, so.status, so.doc_status,
-                so.total_amount, so.currency, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at
+                so.total_amount, so.currency, so.contract_no, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at
          FROM sales_orders so
          JOIN customers c ON c.id = so.customer_id
          WHERE so.id = ? AND so.deleted_at IS NULL",
@@ -79,7 +80,7 @@ pub async fn find_by_order_no(
     let row = sqlx::query_as::<_, SalesOrderRow>(
         "SELECT so.id, so.order_no, so.customer_id, c.name AS customer_name,
                 so.order_date, so.status, so.doc_status,
-                so.total_amount, so.currency, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at
+                so.total_amount, so.currency, so.contract_no, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at
          FROM sales_orders so
          JOIN customers c ON c.id = so.customer_id
          WHERE so.order_no = ? AND so.deleted_at IS NULL",
@@ -101,6 +102,7 @@ pub async fn insert_order<'e, E>(
     doc_status: i64,
     total_amount: &str,
     currency: &str,
+    contract_no: Option<&str>,
     notes: Option<&str>,
     created_by: Option<i64>,
 ) -> Result<i64, AppError>
@@ -110,8 +112,8 @@ where
     let result = sqlx::query(
         "INSERT INTO sales_orders
             (order_no, customer_id, order_date, status, doc_status, total_amount,
-             currency, notes, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             currency, contract_no, notes, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(order_no)
     .bind(customer_id)
@@ -120,6 +122,7 @@ where
     .bind(doc_status)
     .bind(total_amount)
     .bind(currency)
+    .bind(contract_no)
     .bind(notes)
     .bind(created_by)
     .execute(executor)
@@ -169,7 +172,7 @@ pub async fn list_orders(
     let mut list_sql = String::from(
         "SELECT so.id, so.order_no, so.customer_id, c.name AS customer_name,
                 so.order_date, so.status, so.doc_status,
-                so.total_amount, so.currency, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at
+                so.total_amount, so.currency, so.contract_no, so.notes, so.created_by, so.created_at, so.updated_at, so.deleted_at
          FROM sales_orders so
          JOIN customers c ON c.id = so.customer_id
          WHERE so.deleted_at IS NULL",
@@ -320,17 +323,19 @@ pub async fn update_order(
     order_date: &str,
     total_amount: &str,
     currency: &str,
+    contract_no: Option<&str>,
     notes: Option<&str>,
 ) -> Result<(), AppError> {
     let result = sqlx::query(
         "UPDATE sales_orders SET customer_id = ?, order_date = ?, total_amount = ?,
-           currency = ?, notes = ?, updated_at = datetime('now')
+           currency = ?, contract_no = ?, notes = ?, updated_at = datetime('now')
          WHERE id = ? AND deleted_at IS NULL AND status = 'draft'",
     )
     .bind(customer_id)
     .bind(order_date)
     .bind(total_amount)
     .bind(currency)
+    .bind(contract_no)
     .bind(notes)
     .bind(id)
     .execute(pool)

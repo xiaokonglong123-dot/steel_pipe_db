@@ -545,7 +545,7 @@ async fn available_qty_reflects_reservations() {
     // 收货 100
     let po = purchase_service::create_order(&pool, &CreatePurchaseOrderRequest {
         supplier_id: supplier.id, order_date: "2026-08-10".into(),
-        currency: None, notes: None,
+        currency: None, contract_no: None, notes: None,
         items: vec![PurchaseOrderItemInput { item_id: item.id, quantity: Decimal::from(100), unit_price: Some("10.00".into()), notes: None }],
     }, &user).await.unwrap();
     purchase_service::submit(&pool, po.id, &user).await.unwrap();
@@ -561,7 +561,7 @@ async fn available_qty_reflects_reservations() {
     // 创建 SO 销 40 + submit → 自动预留 40
     let so = sales_service::create_order(&pool, &CreateSalesOrderRequest {
         customer_id: customer.id, order_date: Some("2026-08-10".into()),
-        currency: None, notes: None,
+        currency: None, contract_no: None, notes: None,
         items: vec![CreateSalesOrderItemInput { item_id: item.id, quantity: Decimal::from(40), unit_price: "20.00".into(), notes: None }],
     }, &user).await.unwrap();
     sales_service::submit(&pool, so.id, &user).await.unwrap();

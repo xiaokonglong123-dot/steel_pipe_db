@@ -82,6 +82,7 @@ async fn full_po_e2e_lifecycle() {
             supplier_id,
             order_date: "2026-08-10".into(),
             currency: Some("CNY".into()),
+            contract_no: None,
             notes: None,
             items: vec![PurchaseOrderItemInput {
                 item_id,
@@ -157,6 +158,7 @@ async fn full_so_e2e_with_atp_and_ship() {
             supplier_id,
             order_date: "2026-08-10".into(),
             currency: None,
+            contract_no: None,
             notes: None,
             items: vec![PurchaseOrderItemInput {
                 item_id,
@@ -193,6 +195,7 @@ async fn full_so_e2e_with_atp_and_ship() {
             customer_id,
             order_date: Some("2026-08-10".into()),
             currency: None,
+            contract_no: None,
             notes: None,
             items: vec![CreateSalesOrderItemInput {
                 item_id,

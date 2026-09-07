@@ -64,8 +64,14 @@ export function mul(a: string | number, b: string | number): string {
 }
 
 /** 求和（数组）。 */
-export function sum(items: readonly Array<string | number>): string {
+export function sum(items: readonly (string | number)[]): string {
   return add(...items.map((i) => String(i)))
+}
+
+/** 减法：sub("10","2.5") → "7.5"。 */
+export function sub(a: string | number, b: string | number): string {
+  const { a: aa, b: bb } = align(parse(String(a)), parse(String(b)))
+  return toStr({ val: aa.val - bb.val, scale: aa.scale })
 }
 
 function cmpA(a: Rep, b: Rep): number {

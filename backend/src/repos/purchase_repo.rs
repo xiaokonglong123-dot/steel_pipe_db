@@ -25,6 +25,7 @@ pub struct PurchaseOrderRow {
     pub doc_status: i64,
     pub total_amount: String,
     pub currency: String,
+    pub contract_no: Option<String>,
     pub notes: Option<String>,
     pub created_by: Option<i64>,
     pub created_at: String,
@@ -65,7 +66,7 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<PurchaseOrd
     let row = sqlx::query_as::<_, PurchaseOrderRow>(
         "SELECT po.id, po.order_no, po.supplier_id, s.name AS supplier_name,
                 po.order_date, po.status, po.doc_status, po.total_amount,
-                po.currency, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at
+                po.currency, po.contract_no, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at
          FROM purchase_orders po
          JOIN suppliers s ON s.id = po.supplier_id
          WHERE po.id = ? AND po.deleted_at IS NULL",
@@ -83,7 +84,7 @@ pub async fn find_by_order_no(
     let row = sqlx::query_as::<_, PurchaseOrderRow>(
         "SELECT po.id, po.order_no, po.supplier_id, s.name AS supplier_name,
                 po.order_date, po.status, po.doc_status, po.total_amount,
-                po.currency, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at
+                po.currency, po.contract_no, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at
          FROM purchase_orders po
          JOIN suppliers s ON s.id = po.supplier_id
          WHERE po.order_no = ? AND po.deleted_at IS NULL",
@@ -124,7 +125,7 @@ pub async fn list_orders(
     let mut list_sql = String::from(
         "SELECT po.id, po.order_no, po.supplier_id, s.name AS supplier_name,
                 po.order_date, po.status, po.doc_status, po.total_amount,
-                po.currency, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at
+                po.currency, po.contract_no, po.notes, po.created_by, po.created_at, po.updated_at, po.deleted_at
          FROM purchase_orders po
          JOIN suppliers s ON s.id = po.supplier_id
          WHERE po.deleted_at IS NULL",
@@ -211,14 +212,15 @@ pub async fn insert_order(
     let result = sqlx::query(
         "INSERT INTO purchase_orders
             (order_no, supplier_id, order_date, status, doc_status, total_amount,
-             currency, notes, created_by)
-         VALUES (?, ?, ?, 'draft', 0, ?, ?, ?, ?)",
+             currency, contract_no, notes, created_by)
+         VALUES (?, ?, ?, 'draft', 0, ?, ?, ?, ?, ?)",
     )
     .bind(order_no)
     .bind(dto.supplier_id)
     .bind(&dto.order_date)
     .bind(total_amount_text)
     .bind(currency)
+    .bind(dto.contract_no.as_deref())
     .bind(dto.notes.as_deref())
     .bind(user_id)
     .execute(pool)
@@ -305,13 +307,14 @@ pub async fn update_order(
     let currency = dto.currency.as_deref().unwrap_or("CNY");
     let result = sqlx::query(
         "UPDATE purchase_orders SET supplier_id = ?, order_date = ?, total_amount = ?,
-             currency = ?, notes = ?, updated_at = datetime('now')
+             currency = ?, contract_no = ?, notes = ?, updated_at = datetime('now')
          WHERE id = ? AND deleted_at IS NULL",
     )
     .bind(dto.supplier_id)
     .bind(&dto.order_date)
     .bind(total_amount_text)
     .bind(currency)
+    .bind(dto.contract_no.as_deref())
     .bind(dto.notes.as_deref())
     .bind(id)
     .execute(pool)

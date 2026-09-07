@@ -43,6 +43,8 @@ pub struct CreatePurchaseOrderDto {
     #[serde(default)]
     pub currency: Option<String>,
     #[serde(default)]
+    pub contract_no: Option<String>,
+    #[serde(default)]
     pub notes: Option<String>,
     pub items: Vec<PurchaseItemDto>,
 }
@@ -53,6 +55,8 @@ pub struct UpdatePurchaseOrderDto {
     pub order_date: String,
     #[serde(default)]
     pub currency: Option<String>,
+    #[serde(default)]
+    pub contract_no: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
     pub items: Vec<PurchaseItemDto>,
@@ -96,6 +100,7 @@ pub async fn create_purchase_order(
         supplier_id: req.supplier_id,
         order_date: req.order_date,
         currency: req.currency,
+        contract_no: req.contract_no,
         notes: req.notes,
         items: req.items.into_iter().map(to_input).collect(),
     };
@@ -145,6 +150,7 @@ pub async fn update_purchase_order(
         supplier_id: req.supplier_id,
         order_date: req.order_date,
         currency: req.currency,
+        contract_no: req.contract_no,
         notes: req.notes,
         items: req.items.into_iter().map(to_input).collect(),
     };

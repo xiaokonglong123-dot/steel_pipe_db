@@ -48,7 +48,7 @@ export const SALES_STATUS: Record<string, { label: string; type: TagType }> = {
 
 /** 工作流实例状态映射 */
 export const INSTANCE_STATUS: Record<string, { label: string; type: TagType }> = {
-  running: { label: "进行中", type: "warning" },
+  active: { label: "进行中", type: "warning" },
   completed: { label: "已完成", type: "success" },
   cancelled: { label: "已取消", type: "info" },
 }
@@ -58,4 +58,16 @@ export const TASK_STATUS: Record<string, { label: string; type: TagType }> = {
   pending: { label: "待办", type: "warning" },
   completed: { label: "已完成", type: "success" },
   skipped: { label: "已跳过", type: "info" },
+}
+
+/** 动作 → 所需权限（按钮渲染时对 allowed_actions 做权限二次过滤，ADR-R4 双保险）。 */
+export const ACTION_PERMISSION: Record<string, string> = {
+  edit: "order.write",
+  delete: "order.write",
+  submit: "order.approve",
+  approve: "order.approve",
+  reject: "order.approve",
+  cancel: "order.write",
+  receive: "stock.write",
+  ship: "stock.write",
 }

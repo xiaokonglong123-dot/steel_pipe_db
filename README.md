@@ -10,7 +10,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Element Plus](https://img.shields.io/badge/Element_Plus-409EFF?style=flat-square&logo=element&logoColor=white)
 
-![Tests](https://img.shields.io/badge/Backend%20tests-124%20passing-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/Backend%20tests-140%20passing-brightgreen?style=flat-square)
 ![Build](https://img.shields.io/badge/Frontend%20build-passing-brightgreen?style=flat-square)
 
 </div>
@@ -22,7 +22,7 @@
 A modular ERP covering the core transactional loop for a single plant:
 items (SKU master) → inventory (with inbound/outbound + audit trail) → procurement (purchase orders) → sales (sales orders + ATP reservations) → finance (GL/journal/invoice/payment) → reports — all gated by a data-driven approval workflow and JWT+RBAC auth.
 
-The system is the **erp-v2 era** rewrite of the original React-stack ERP (now archived on `legacy/steel-pipe-react`). It is a single-plant, single-instance deployment with SQLite as the single source of truth — designed for small teams and zero infrastructure overhead.
+The system is a **v3 rewrite** of the erp-v2 stack (`docs/rewrite-plan.md`), itself a rewrite of the original React ERP (archived on `legacy/steel-pipe-react`). It is a single-plant, single-instance deployment with SQLite as the single source of truth — designed for small teams and zero infrastructure overhead.
 
 ---
 
@@ -100,7 +100,7 @@ Open `http://localhost:5173` and log in with:
 | Frontend type-check | `cd frontend && bunx tsc --noEmit`             |
 | Frontend build      | `cd frontend && bun run build`                 |
 
-- **Backend**: 124 tests green
+- **Backend**: 140 tests green
 - **Frontend**: `bunx tsc --noEmit` + `bun run build` green
 
 ---
@@ -143,7 +143,7 @@ Open `http://localhost:5173` and log in with:
 
 ## Data Model
 
-SQLite3 single file (WAL mode). 12 migrations:
+SQLite3 single file (WAL mode). 14 migrations:
 
 ```
 001_auth_rbac.sql           — users / roles / role_permissions / operation_logs / refresh_tokens
@@ -159,6 +159,7 @@ SQLite3 single file (WAL mode). 12 migrations:
 011_seed_workflows.sql      — PO/SO demo workflows + states + transitions
 012_workflow_threshold.sql  — ALTER workflow_transitions.amount_threshold TEXT
 013_quantity_decimal.sql     — quantity columns REAL → Decimal TEXT (8 tables)
+014_contract_no.sql          — purchase_orders / sales_orders ADD contract_no (contract no, nullable)
 ```
 
 Integrity is enforced at the application layer (TOCTOU-safe, transactional). Soft deletes via `deleted_at` — records are never physically destroyed. See [detailed-design.md](./docs/detailed-design.md) for the full schema.
@@ -192,8 +193,8 @@ Ikari_Shinji/
 │   │   ├── repos/                          # sqlx repositories
 │   │   ├── middleware/                     # auth + rbac middleware
 │   │   └── domain/                         # Domain enums, validation helpers
-│   ├── tests/                              # 16 integration-test files + domain unit tests (124 tests total)
-│   ├── migrations/                         # 13 SQLx migrations
+│   ├── tests/                              # 16 integration-test files + domain unit tests (140 tests total)
+│   ├── migrations/                         # 14 SQLx migrations
 │   ├── Cargo.toml / Cargo.lock / .env.example / rust-toolchain.toml
 │   └── data/erp.db                         # SQLite3 (gitignored, auto-created)
 ├── frontend/
@@ -217,7 +218,7 @@ Ikari_Shinji/
 
 ## API Overview
 
-All endpoints live under `/api/v1/` (or shorter where the AGENTS.md notes exceptions). Every response follows the same shape:
+All endpoints live at the **root path (no `/api` prefix)** directly on `:3000` — e.g. `POST /auth/login`, `GET /items`. In the frontend dev setup, `api/client.ts` uses `baseURL = "/api"` and the Vite dev proxy strips the `/api` prefix before forwarding to `:3000` (production must replicate that prefix stripping at the gateway). Every response follows the same shape:
 
 ```json
 { "success": true, "request_id": "req_...", "data": { ... } }
@@ -251,7 +252,7 @@ Paginated responses tack on `meta: { total, page, page_size, total_pages }`. Err
 
 | Branch                          | Era                                | Head SHA                                                       |
 |---------------------------------|------------------------------------|----------------------------------------------------------------|
-| `main`                          | erp-v2 (current)                   | `c6a0b62` (Promotion + date-fix) — `9570a29` (origin/main)    |
+| `main`                          | v3 rewrite (Rust Axum + Vue 3)         | (in-progress v3 / erp-v2 baseline below) |
 | `legacy/steel-pipe-react`       | Pre-rewrite React 19 + Antd stack  | `05cbf0d` (51 commits of legacy evolution, pre-erp-v2)        |
 | `legacy/react-phase1-4`         | Remote-only React-stack Phase 1-4  | `ccedabe` (preserved from pre-force-push origin/main)          |
 

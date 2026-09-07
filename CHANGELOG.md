@@ -2,6 +2,18 @@
 
 See `git log` for history. The `legacy/steel-pipe-react` branch preserves the pre-erp-v2 era.
 
+## [Unreleased] — v3 rewrite era
+
+### Frontend productization (M2–M4)
+- `types/` strict typing, per-domain `api/` modules, `utils/money` (Decimal-as-string).
+- Dedicated purchase/sales pages with `OrderLineEditor` line-detail editor + `ActionBar` buttons driven by backend `allowed_actions`.
+- Inventory moved to shared StockMove pages (inbound/outbound form+list+detail); `EntitySelect` remote dropdowns show name but submit id.
+- Master data rewritten on `MasterDataCrud`.
+- Backend list/detail endpoints now project foreign-key names (supplier_name/item_name/location_name/…).
+- **Build** Element Plus switched to on-demand component resolve + manual chunking (vendor/echarts) — entry chunk dropped from ~1.09 MB to ~10 kB.
+- **Fix** frontend API base path: `client.ts` `baseURL = "/api"` + Vite dev proxy strips `/api` before forwarding to `:3000`. (Previously `/api/v1` never reached backend's root-path routes.)
+- Backend tests now 140 green.
+
 ## [Unreleased] — erp-v2 era
 
 ### Decimal quantities + docs cleanup

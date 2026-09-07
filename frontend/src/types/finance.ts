@@ -86,17 +86,31 @@ export interface Payment {
   readonly created_at: string
 }
 
+export interface InvoicePayload {
+  invoice_no: string
+  invoice_date: string
+  party_type: "supplier" | "customer"
+  party_id: number
+  amount: string
+  ref_type?: string | null
+  ref_id?: number | null
+}
+
+export interface PaymentPayload {
+  payment_no: string
+  payment_date: string
+  supplier_id?: number | null
+  amount: string
+  invoice_id?: number | null
+  method?: string | null
+  notes?: string | null
+}
+
 export interface TrialBalanceRow {
   readonly account_id: number
   readonly account_code: string
   readonly account_name: string
-  readonly debit: string
-  readonly credit: string
-}
-
-export interface TrialBalance {
-  readonly rows: readonly TrialBalanceRow[]
   readonly total_debit: string
   readonly total_credit: string
-  readonly balanced: boolean
+  readonly balance: string
 }

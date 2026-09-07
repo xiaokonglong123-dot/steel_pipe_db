@@ -11,6 +11,7 @@ pub struct CheckSessionRow {
     pub id: i64,
     pub session_no: String,
     pub location_id: Option<i64>,
+    pub location_name: Option<String>,
     pub scope: String,
     pub status: String,
     pub created_by: Option<i64>,
@@ -23,6 +24,8 @@ pub struct CheckDetailRow {
     pub id: i64,
     pub session_id: i64,
     pub item_id: i64,
+    pub item_name: Option<String>,
+    pub sku: Option<String>,
     pub location_id: Option<i64>,
     #[serde(serialize_with = "serialize_qty_str")]
     pub system_qty: String,
@@ -94,11 +97,12 @@ pub async fn list_sessions(
             .fetch_one(pool)
             .await?;
     let rows = sqlx::query_as::<_, CheckSessionRow>(
-        "SELECT id, record_no AS session_no, location_id, 'all' AS scope, status,
-                created_by, created_at, updated_at
-         FROM check_records
-         WHERE deleted_at IS NULL
-         ORDER BY id DESC LIMIT ? OFFSET ?",
+        "SELECT cr.id, cr.record_no AS session_no, cr.location_id, loc.name AS location_name,
+                'all' AS scope, cr.status, cr.created_by, cr.created_at, cr.updated_at
+         FROM check_records cr
+         LEFT JOIN locations loc ON loc.id = cr.location_id
+         WHERE cr.deleted_at IS NULL
+         ORDER BY cr.id DESC LIMIT ? OFFSET ?",
     )
     .bind(page_size)
     .bind((page - 1).max(0) * page_size)
@@ -112,9 +116,11 @@ pub async fn find_session_by_id(
     id: i64,
 ) -> Result<Option<CheckSessionRow>, AppError> {
     let row = sqlx::query_as::<_, CheckSessionRow>(
-        "SELECT id, record_no AS session_no, location_id, 'all' AS scope, status,
-                created_by, created_at, updated_at
-         FROM check_records WHERE id = ? AND deleted_at IS NULL",
+        "SELECT cr.id, cr.record_no AS session_no, cr.location_id, loc.name AS location_name,
+                'all' AS scope, cr.status, cr.created_by, cr.created_at, cr.updated_at
+         FROM check_records cr
+         LEFT JOIN locations loc ON loc.id = cr.location_id
+         WHERE cr.id = ? AND cr.deleted_at IS NULL",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -129,9 +135,11 @@ pub async fn list_details_for_session(
     let rows = sqlx::query_as::<_, CheckDetailRow>(
         "SELECT ci.id, ci.record_id AS session_id, ci.item_id, cr.location_id,
                 COALESCE(ci.system_qty, '0') AS system_qty, ci.actual_qty,
-                ci.diff AS diff_qty
+                ci.diff AS diff_qty,
+                i.name AS item_name, i.sku AS sku
          FROM check_items ci
          JOIN check_records cr ON cr.id = ci.record_id
+         LEFT JOIN items i ON i.id = ci.item_id
          WHERE ci.record_id = ?
          ORDER BY ci.id",
     )
@@ -148,9 +156,11 @@ pub async fn find_detail_by_id(
     let row = sqlx::query_as::<_, CheckDetailRow>(
         "SELECT ci.id, ci.record_id AS session_id, ci.item_id, cr.location_id,
                 COALESCE(ci.system_qty, '0') AS system_qty, ci.actual_qty,
-                ci.diff AS diff_qty
+                ci.diff AS diff_qty,
+                i.name AS item_name, i.sku AS sku
          FROM check_items ci
          JOIN check_records cr ON cr.id = ci.record_id
+         LEFT JOIN items i ON i.id = ci.item_id
          WHERE ci.id = ?",
     )
     .bind(detail_id)

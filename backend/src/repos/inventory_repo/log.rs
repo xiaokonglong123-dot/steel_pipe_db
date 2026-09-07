@@ -10,7 +10,9 @@ use crate::error::AppError;
 pub struct InventoryLogRow {
     pub id: i64,
     pub item_id: i64,
+    pub item_name: Option<String>,
     pub location_id: Option<i64>,
+    pub location_name: Option<String>,
     pub change_type: String,
     #[serde(serialize_with = "serialize_qty_str")]
     pub quantity: String,
@@ -71,21 +73,24 @@ pub async fn list_logs(
     page_size: i64,
 ) -> Result<(Vec<InventoryLogRow>, i64), AppError> {
     let mut where_clauses: Vec<&'static str> = Vec::new();
-    let mut count_sql = String::from("SELECT COUNT(*) FROM inventory_logs");
+    let mut count_sql = String::from("SELECT COUNT(*) FROM inventory_logs l");
     let mut list_sql = String::from(
-        "SELECT id, item_id, location_id, change_type, quantity, ref_type, ref_id,
-                notes, created_by, created_at
-         FROM inventory_logs",
+        "SELECT l.id, l.item_id, l.location_id, l.change_type, l.quantity, l.ref_type, l.ref_id,
+                l.notes, l.created_by, l.created_at,
+                i.name AS item_name, loc.name AS location_name
+         FROM inventory_logs l
+         LEFT JOIN items i ON i.id = l.item_id
+         LEFT JOIN locations loc ON loc.id = l.location_id",
     );
 
     if filter.item_id.is_some() {
-        where_clauses.push("item_id = ?");
+        where_clauses.push("l.item_id = ?");
     }
     if filter.location_id.is_some() {
-        where_clauses.push("location_id = ?");
+        where_clauses.push("l.location_id = ?");
     }
     if filter.change_type.is_some() {
-        where_clauses.push("change_type = ?");
+        where_clauses.push("l.change_type = ?");
     }
 
     if !where_clauses.is_empty() {
@@ -96,7 +101,7 @@ pub async fn list_logs(
         list_sql.push_str(&extra);
     }
 
-    list_sql.push_str(" ORDER BY id DESC LIMIT ? OFFSET ?");
+    list_sql.push_str(" ORDER BY l.id DESC LIMIT ? OFFSET ?");
 
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql);
     if let Some(v) = filter.item_id {

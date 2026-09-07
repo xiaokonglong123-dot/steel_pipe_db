@@ -4,13 +4,14 @@ import { ElMessage, ElMessageBox } from "element-plus"
 import PageHeader from "../common/PageHeader.vue"
 import { DataTable, SearchBar } from "@/components"
 import { useHasPermission } from "@/composables/useHasPermission"
-import type { Page } from "@/types"
+import type { Page } from "@/types/common"
 
 export interface MasterColumn {
   prop: string
   label: string
   required?: boolean
-  formType?: "text" | "textarea"
+  formType?: "text" | "textarea" | "select"
+  options?: readonly { value: string; label: string }[]
   width?: number
 }
 
@@ -47,15 +48,6 @@ const editingId = ref<number | null>(null)
 const saving = ref(false)
 const filters = reactive<Record<string, string>>({})
 const form = reactive<Record<string, unknown>>({})
-
-function queryStr(): string {
-  const params = new URLSearchParams({ page: String(page.value), page_size: String(pageSize.value) })
-  for (const key of props.searchFields) {
-    const v = filters[key]
-    if (v) params.set(key, v)
-  }
-  return params.toString()
-}
 
 async function load(): Promise<void> {
   loading.value = true
@@ -152,6 +144,7 @@ onMounted(() => void load())
 <template>
   <section class="page">
     <PageHeader :title="title" :subtitle="subtitle">
+      <slot name="header-actions" />
       <el-button v-if="canWrite() && showAdd && createFn" type="primary" @click="openCreate">新建</el-button>
     </PageHeader>
 
@@ -182,7 +175,10 @@ onMounted(() => void load())
     <el-dialog v-model="dialog" :title="editingId !== null ? '编辑' : '新建'" width="520px" destroy-on-close>
       <el-form label-width="100px">
         <el-form-item v-for="col in columns" :key="col.prop" :label="col.label" :required="col.required">
-          <el-input v-if="col.formType !== 'textarea'" v-model="form[col.prop] as string" />
+          <el-select v-if="col.formType === 'select'" v-model="form[col.prop] as string" clearable>
+            <el-option v-for="opt in col.options ?? []" :key="opt.value" :value="opt.value" :label="opt.label" />
+          </el-select>
+          <el-input v-else-if="col.formType !== 'textarea'" v-model="form[col.prop] as string" />
           <el-input v-else v-model="form[col.prop] as string" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>

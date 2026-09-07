@@ -36,6 +36,7 @@ pub struct CreatePurchaseOrderRequest {
     pub supplier_id: i64,
     pub order_date: String,
     pub currency: Option<String>,
+    pub contract_no: Option<String>,
     pub notes: Option<String>,
     pub items: Vec<PurchaseOrderItemInput>,
 }
@@ -45,6 +46,7 @@ pub struct UpdatePurchaseOrderRequest {
     pub supplier_id: i64,
     pub order_date: String,
     pub currency: Option<String>,
+    pub contract_no: Option<String>,
     pub notes: Option<String>,
     pub items: Vec<PurchaseOrderItemInput>,
 }
@@ -138,8 +140,8 @@ pub async fn create_order(
         let inserted = sqlx::query(
             "INSERT INTO purchase_orders
                 (order_no, supplier_id, order_date, status, doc_status, total_amount,
-                 currency, notes, created_by)
-             VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?)",
+                 currency, contract_no, notes, created_by)
+             VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)",
         )
         .bind(&order_no)
         .bind(dto.supplier_id)
@@ -147,6 +149,7 @@ pub async fn create_order(
         .bind(DOC_DRAFT)
         .bind(&total_text)
         .bind(currency)
+        .bind(dto.contract_no.as_deref())
         .bind(dto.notes.as_deref())
         .bind(user.id)
         .execute(&mut *tx)
@@ -236,13 +239,14 @@ pub async fn update_order(
 
     sqlx::query(
         "UPDATE purchase_orders SET supplier_id = ?, order_date = ?, total_amount = ?,
-             currency = ?, notes = ?, updated_at = datetime('now')
+             currency = ?, contract_no = ?, notes = ?, updated_at = datetime('now')
          WHERE id = ? AND deleted_at IS NULL",
     )
     .bind(dto.supplier_id)
     .bind(&dto.order_date)
     .bind(&total_text)
     .bind(dto.currency.as_deref().unwrap_or("CNY"))
+    .bind(dto.contract_no.as_deref())
     .bind(dto.notes.as_deref())
     .bind(id)
     .execute(&mut *tx)

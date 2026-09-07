@@ -39,6 +39,8 @@ pub struct CreateSalesOrderRequest {
     #[serde(default)]
     pub currency: Option<String>,
     #[serde(default)]
+    pub contract_no: Option<String>,
+    #[serde(default)]
     pub notes: Option<String>,
     pub items: Vec<SalesOrderItemDto>,
 }
@@ -50,6 +52,8 @@ pub struct UpdateSalesOrderRequest {
     pub order_date: Option<String>,
     #[serde(default)]
     pub currency: Option<String>,
+    #[serde(default)]
+    pub contract_no: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
     pub items: Vec<SalesOrderItemDto>,
@@ -82,6 +86,7 @@ pub async fn create_order(
         customer_id: req.customer_id,
         order_date: req.order_date,
         currency: req.currency,
+        contract_no: req.contract_no,
         notes: req.notes,
         items: req
             .items
@@ -148,6 +153,7 @@ pub async fn update_order(
         customer_id: req.customer_id,
         order_date: req.order_date,
         currency: req.currency,
+        contract_no: req.contract_no,
         notes: req.notes,
         items: req
             .items

@@ -1,5 +1,5 @@
 import { useAuthStore } from "@/stores/auth"
-import type { ApiEnvelope, ApiPage, Page, PageMeta } from "@/types/common"
+import type { ApiEnvelope, Page, PageMeta } from "@/types/common"
 
 export class ApiError extends Error {
   readonly name = "ApiError"
@@ -10,7 +10,7 @@ export class ApiError extends Error {
 
 type ErrorBody = { readonly success?: false; readonly code?: number; readonly message?: string }
 
-const baseURL = "/api/v1"
+const baseURL = "/api"
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController()
@@ -41,7 +41,6 @@ export function get<T>(path: string): Promise<T> { return request<T>(path) }
 export function post<T>(path: string, body?: unknown): Promise<T> { return request<T>(path, { method: "POST", body: JSON.stringify(body ?? {}) }) }
 export function put<T>(path: string, body: unknown): Promise<T> { return request<T>(path, { method: "PUT", body: JSON.stringify(body) }) }
 export function del(path: string): Promise<void> { return request<void>(path, { method: "DELETE" }) }
-export type Page<T> = ApiPage<T>
 
 /**
  * 分页 GET — 把后端 data.items + meta 合并成 Page<T>，供列表页统一使用。

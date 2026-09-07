@@ -56,6 +56,7 @@ export interface PurchaseOrder {
   readonly doc_status: number
   readonly total_amount: string
   readonly currency: string
+  readonly contract_no: string | null
   readonly notes: string | null
   readonly created_by?: number | null
   readonly created_at?: string
@@ -80,6 +81,7 @@ export interface PurchaseOrderPayload {
   supplier_id: number
   order_date: string
   currency?: string
+  contract_no?: string | null
   notes?: string
   items: PurchaseItemLine[]
 }
@@ -109,6 +111,7 @@ export interface SalesOrder {
   readonly doc_status: number
   readonly total_amount: string
   readonly currency: string
+  readonly contract_no: string | null
   readonly notes: string | null
   readonly created_by?: number | null
   readonly created_at?: string
@@ -132,6 +135,7 @@ export interface SalesOrderPayload {
   customer_id: number
   order_date?: string
   currency?: string
+  contract_no?: string | null
   notes?: string
   items: SalesItemLine[]
 }

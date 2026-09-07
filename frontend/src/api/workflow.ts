@@ -7,20 +7,20 @@ import type {
 } from "@/types/workflow"
 
 export async function listWorkflows(): Promise<readonly Workflow[]> {
-  const r = await get<{ items: readonly Workflow[] }>("/workflow-definitions")
+  const r = await get<{ items: readonly Workflow[] }>("/workflows")
   return r.items
 }
 export async function getWorkflow(id: number): Promise<Workflow> {
-  return get<Workflow>(`/workflow-definitions/${id}`)
+  return get<Workflow>(`/workflows/${id}`)
 }
 export async function createWorkflow(payload: { name: string; applies_to: string; is_active?: boolean }): Promise<Workflow> {
-  return post<Workflow>("/workflow-definitions", payload)
+  return post<Workflow>("/workflows", payload)
 }
 export async function updateWorkflow(id: number, payload: { name: string; applies_to: string; is_active?: boolean }): Promise<Workflow> {
-  return put<Workflow>(`/workflow-definitions/${id}`, payload)
+  return put<Workflow>(`/workflows/${id}`, payload)
 }
 export async function deleteWorkflow(id: number): Promise<void> {
-  return del(`/workflow-definitions/${id}`)
+  return del(`/workflows/${id}`)
 }
 
 export interface InstanceDetail {
