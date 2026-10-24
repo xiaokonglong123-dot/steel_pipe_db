@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import anyio
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from rust_core import auth as rust_auth
@@ -222,3 +224,21 @@ async def forbidden_handler(request, exc):
 @app.exception_handler(ComplianceError)
 async def compliance_handler(request, exc):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_redirect_handler(request: Request, exc: StarletteHTTPException):
+    """Send unauthenticated browser navigations to /login instead of raw JSON.
+
+    Only top-level HTML navigations are redirected; API/XHR callers (no
+    ``text/html`` in Accept, e.g. ``fetch`` with ``*/*`` or curl) still get
+    the plain 401 body so ``app.js`` can handle it and existing API
+    contracts/tests keep their status codes.
+    """
+    if (
+        exc.status_code == 401
+        and "text/html" in request.headers.get("accept", "")
+        and request.url.path != "/login"
+    ):
+        return RedirectResponse(url="/login", status_code=303)
+    return await http_exception_handler(request, exc)

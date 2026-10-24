@@ -174,6 +174,33 @@ def test_get_tubes_unauthenticated_returns_401(client):
     asyncio.run(run())
 
 
+def test_get_tubes_unauthenticated_browser_navigation_redirects_to_login(client):
+    """A browser navigation (Accept: text/html) must land on /login, not raw JSON."""
+    async def run():
+        async with client as c:
+            r = await c.get(
+                "/tubes",
+                headers={"accept": "text/html,application/xhtml+xml"},
+                follow_redirects=False,
+            )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/login"
+    asyncio.run(run())
+
+
+def test_get_dashboard_unauthenticated_browser_navigation_redirects_to_login(client):
+    async def run():
+        async with client as c:
+            r = await c.get(
+                "/",
+                headers={"accept": "text/html"},
+                follow_redirects=False,
+            )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/login"
+    asyncio.run(run())
+
+
 def test_get_tubes_admin_returns_200(client):
     app.dependency_overrides[get_current_user] = _stub_user(1)
     async def run():
