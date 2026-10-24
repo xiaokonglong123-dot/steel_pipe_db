@@ -1,61 +1,80 @@
 {% extends "base.html" %}
+{% from "_macros.html" import quality_badge %}
+{% block title %}质量标注 · Ayanami_Rei{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-  <h2>质量标注</h2>
-
-  <!-- lookup -->
-  <form method="get" class="mb-4">
-    <div class="row g-2 align-items-end">
-      <div class="col-auto">
-        <label for="pipe_id_lookup" class="form-label">Pipe ID</label>
-        <input type="text" id="pipe_id_lookup" name="pipe_id"
-               value="{{ pipe_id or '' }}" class="form-control" required>
-      </div>
-      <div class="col-auto">
-        <button type="submit" class="btn btn-accent">查询</button>
-      </div>
+<header class="page-head">
+    <div class="title-row">
+        <h1><i class="bi bi-clipboard-pulse" aria-hidden="true"></i>质量标注</h1>
+        <span class="stat-inline">仅在库且未报废的管子可标注 · 更新写入审计链</span>
     </div>
-  </form>
+</header>
 
-  {% if error and not tube %}
-    <div class="alert alert-warning">{{ error }}</div>
-  {% endif %}
-
-  {% if tube %}
-  <hr>
-  <p><strong>{{ tube.pipe_id }}</strong>
-     &mdash; {{ tube.steel_grade }} {{ tube.outer_diameter_mm }}&times;{{ tube.wall_thickness_mm }}&thinsp;mm
-     &bull; 当前：<code>{{ tube.quality_mark }}</code>
-     {% if tube.quality_note %}({{ tube.quality_note }}){% endif %}
-  </p>
-
-  <form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <input type="hidden" name="pipe_id" value="{{ tube.pipe_id }}">
-    <div class="row g-2 align-items-end">
-      <div class="col-auto">
-        <label for="quality_mark" class="form-label">质量标记</label>
-        <select name="quality_mark" id="quality_mark" class="form-select">
-          <option value="normal" {% if tube.quality_mark == 'normal' %}selected{% endif %}>normal</option>
-          <option value="problematic" {% if tube.quality_mark == 'problematic' %}selected{% endif %}>problematic</option>
-          <option value="scrapped" {% if tube.quality_mark == 'scrapped' %}selected{% endif %}>scrapped</option>
-        </select>
-      </div>
-      <div class="col-auto">
-        <label for="quality_note" class="form-label">备注</label>
-        <input type="text" id="quality_note" name="quality_note"
-               value="{{ tube.quality_note or '' }}" class="form-control"
-               placeholder="可选">
-      </div>
-      <div class="col-auto">
-        <button type="submit" class="btn btn-accent">更新</button>
-      </div>
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-search" aria-hidden="true"></i> 按编号查询</h2></div>
+    <div class="panel-body">
+        <form method="get" action="/tubes/quality" class="query-row">
+            <div class="field">
+                <label class="form-label" for="pipe_id_lookup">管子编号</label>
+                <input type="text" id="pipe_id_lookup" name="pipe_id" value="{{ pipe_id or '' }}" class="form-control" required placeholder="SP-L80-73.0x5.50-xxxxxxxx">
+            </div>
+            <button type="submit" class="btn btn-accent"><i class="bi bi-search" aria-hidden="true"></i> 查询</button>
+        </form>
     </div>
-  </form>
-
-  {% if error %}
-    <div class="alert alert-warning mt-3">{{ error }}</div>
-  {% endif %}
-  {% endif %}
 </div>
+
+{% if error and not tube %}
+<div class="alert alert-warning flash" role="alert">
+    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>{{ error }}</span>
+</div>
+{% endif %}
+
+{% if tube %}
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-clipboard-pulse" aria-hidden="true"></i> 标注</h2></div>
+    <div class="panel-body">
+        <div class="subject">
+            <i class="bi bi-box-seam subject-icon" aria-hidden="true"></i>
+            <span class="subject-label">管子编号</span>
+            <span class="subject-id">{{ tube.pipe_id }}</span>
+            <span class="subject-meta">{{ tube.steel_grade }} {{ tube.outer_diameter_mm }}×{{ tube.wall_thickness_mm }} mm</span>
+        </div>
+
+        <dl class="kv">
+            <dt>当前标记</dt>
+            <dd>{{ quality_badge(tube.quality_mark) }}</dd>
+            <dt>备注</dt>
+            <dd class="plain">{{ tube.quality_note or '—' }}</dd>
+        </dl>
+
+        <form method="post" action="/tubes/quality" class="mt-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="pipe_id" value="{{ tube.pipe_id }}">
+            <div class="form-grid">
+                <div class="field">
+                    <label class="form-label" for="quality_mark">质量标记</label>
+                    <select name="quality_mark" id="quality_mark" class="form-select">
+                        <option value="normal" {% if tube.quality_mark == 'normal' %}selected{% endif %}>正常</option>
+                        <option value="problematic" {% if tube.quality_mark == 'problematic' %}selected{% endif %}>问题管</option>
+                        <option value="scrapped" {% if tube.quality_mark == 'scrapped' %}selected{% endif %}>报废</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="quality_note">备注</label>
+                    <input type="text" id="quality_note" name="quality_note" value="{{ tube.quality_note or '' }}" class="form-control" placeholder="可选">
+                </div>
+            </div>
+            {% if error %}
+            <div class="alert alert-danger flash mt-2" role="alert">
+                <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>{{ error }}</span>
+            </div>
+            {% endif %}
+            <div class="form-actions">
+                <button type="submit" class="btn btn-accent"><i class="bi bi-check-lg" aria-hidden="true"></i> 更新标记</button>
+                <a href="/tubes" class="btn btn-ghost">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

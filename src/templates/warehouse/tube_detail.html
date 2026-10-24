@@ -1,78 +1,83 @@
 {% extends "base.html" %}
+{% from "_macros.html" import status_badge, quality_badge, compliance_badge, type_badge %}
 {% block title %}管子详情 · {{ tube.pipe_id }}{% endblock %}
+
 {% block content %}
-<div class="container-fluid py-3">
-    <nav class="mb-3">
-        <a href="/tubes" class="text-muted text-decoration-none"><i class="bi bi-arrow-left"></i> 回列表</a>
-    </nav>
+<header class="page-head">
+    <div class="title-row">
+        <h1><i class="bi bi-box-seam" aria-hidden="true"></i>{{ tube.pipe_id }}</h1>
+        {{ status_badge(tube.status) }}
+    </div>
+    <a href="/tubes" class="btn btn-ghost btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i> 回列表</a>
+</header>
 
-    <div class="row g-3">
-        <div class="col-lg-6">
-            <div class="card surface">
-                <div class="card-header"><i class="bi bi-info-circle-fill text-accent me-1"></i>基本信息</div>
-                <div class="card-body py-2">
-                    <dl class="row mb-0 small">
-                        <dt class="col-sm-4 text-muted">编号</dt><dd class="col-sm-8"><code>{{ tube.pipe_id }}</code></dd>
-                        <dt class="col-sm-4 text-muted">类型</dt><dd class="col-sm-8">{{ tube.type_ }}</dd>
-                        <dt class="col-sm-4 text-muted">钢级</dt><dd class="col-sm-8">{{ tube.steel_grade }}</dd>
-                        <dt class="col-sm-4 text-muted">外径</dt><dd class="col-sm-8">{{ tube.outer_diameter_mm }} mm</dd>
-                        <dt class="col-sm-4 text-muted">壁厚</dt><dd class="col-sm-8">{{ tube.wall_thickness_mm }} mm</dd>
-                        <dt class="col-sm-4 text-muted">长度</dt><dd class="col-sm-8">{{ tube.length_m }} m</dd>
-                        <dt class="col-sm-4 text-muted">状态</dt><dd class="col-sm-8"><span class="badge bg-{{ 'success' if tube.status=='in_stock' else 'warning' }}">{{ tube.status }}</span></dd>
-                        <dt class="col-sm-4 text-muted">质量标记</dt><dd class="col-sm-8">
-                            <span class="badge bg-{{ 'success' if tube.quality_mark=='normal' else 'danger' }}">{{ tube.quality_mark }}</span>
-                            {% if tube.quality_note %}<small class="text-muted"> — {{ tube.quality_note }}</small>{% endif %}
-                        </dd>
-                        <dt class="col-sm-4 text-muted">生产商</dt><dd class="col-sm-8">{{ tube.manufacturer }}</dd>
-                        <dt class="col-sm-4 text-muted">入库时间</dt><dd class="col-sm-8">{{ tube.stock_in_time.strftime('%Y-%m-%d %H:%M') if tube.stock_in_time else '—' }}</dd>
-                        <dt class="col-sm-4 text-muted">批次号</dt><dd class="col-sm-8">{{ tube.batch_no or '—' }}</dd>
-                        <dt class="col-sm-4 text-muted">炉号</dt><dd class="col-sm-8">{{ tube.heat_no or '—' }}</dd>
-                    </dl>
-                </div>
-            </div>
-            {% if specs %}
-            <div class="card surface mt-3">
-                <div class="card-header"><i class="bi bi-rulers text-accent"></i> 管体参数</div>
-                <div class="card-body py-2">
-                    <dl class="row mb-0 small">
-                        {% for k, v in specs.__dict__.items() if not k.startswith('_') and v is not none and k not in ('pipe_id',) %}
-                        <dt class="col-sm-4 text-muted">{{ k }}</dt><dd class="col-sm-8">{{ v }}</dd>
-                        {% endfor %}
-                    </dl>
-                </div>
-            </div>
-            {% endif %}
+<div class="dash-grid">
+    <section class="panel">
+        <div class="panel-head"><h2><i class="bi bi-info-circle" aria-hidden="true"></i> 基本信息</h2></div>
+        <div class="panel-body">
+            <dl class="kv">
+                <dt>编号</dt><dd>{{ tube.pipe_id }}</dd>
+                <dt>类型</dt><dd class="plain">{{ type_badge(tube.type_) }}</dd>
+                <dt>钢级</dt><dd>{{ tube.steel_grade }}</dd>
+                <dt>外径</dt><dd>{{ tube.outer_diameter_mm }} mm</dd>
+                <dt>壁厚</dt><dd>{{ tube.wall_thickness_mm }} mm</dd>
+                <dt>长度</dt><dd>{{ tube.length_m }} m</dd>
+                <dt>库位</dt><dd>{{ tube.location or '—' }}</dd>
+                <dt>状态</dt><dd>{{ status_badge(tube.status) }}</dd>
+                <dt>质量标记</dt>
+                <dd>{{ quality_badge(tube.quality_mark) }}{% if tube.quality_note %} <span class="plain" style="font-family:var(--font);color:var(--text-muted)">— {{ tube.quality_note }}</span>{% endif %}</dd>
+                <dt>合规</dt><dd>{{ compliance_badge(tube.compliance_pass) }}</dd>
+                <dt>生产商</dt><dd class="plain">{{ tube.manufacturer }}</dd>
+                <dt>入库时间</dt><dd>{{ tube.stock_in_time.strftime('%Y-%m-%d %H:%M') if tube.stock_in_time else '—' }}</dd>
+                <dt>批次号</dt><dd>{{ tube.batch_no or '—' }}</dd>
+                <dt>炉号</dt><dd>{{ tube.heat_no or '—' }}</dd>
+            </dl>
         </div>
+    </section>
 
-        <div class="col-lg-6">
-            <div class="card surface">
-                <div class="card-header"><i class="bi bi-arrow-left-right text-accent"></i> 最近操作（{{ items|length }} 条）</div>
-                <ul class="list-group list-group-flush small">
-                    {% for ti in items %}
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>{{ ti.transaction.type }} — {{ ti.transaction.created_at.strftime('%m-%d %H:%M') if ti.transaction and ti.transaction.created_at else '—' }}</span>
-                        <span class="text-muted">{{ ti.source_location or '—' }} → {{ ti.target_location or '—' }}</span>
-                    </li>
-                    {% else %}
-                    <li class="list-group-item text-muted">无操作记录</li>
+    <div>
+        {% if specs %}
+        <section class="panel">
+            <div class="panel-head"><h2><i class="bi bi-rulers" aria-hidden="true"></i> 管体参数</h2></div>
+            <div class="panel-body">
+                <dl class="kv">
+                    {% for k, v in specs.__dict__.items() if not k.startswith('_') and v is not none and k not in ('pipe_id',) %}
+                    <dt>{{ k }}</dt><dd>{{ v }}</dd>
                     {% endfor %}
-                </ul>
+                </dl>
             </div>
-            <div class="card surface mt-3">
-                <div class="card-header"><i class="bi bi-journal-check text-accent"></i> 审计记录（{{ audits|length }} 条）</div>
-                <ul class="list-group list-group-flush small">
-                    {% for a in audits %}
-                    <li class="list-group-item">
-                        <span class="badge bg-secondary me-1">{{ a.action }}</span>
-                        <small class="text-muted">{{ a.detail[:80] }}</small>
-                        <small class="float-end text-faint">{{ a.created_at.strftime('%m-%d %H:%M') if a.created_at else '' }}</small>
-                    </li>
-                    {% else %}
-                    <li class="list-group-item text-muted">无审计记录</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
+        </section>
+        {% endif %}
+
+        <section class="panel">
+            <div class="panel-head"><h2><i class="bi bi-arrow-left-right" aria-hidden="true"></i> 最近操作（{{ items|length }}）</h2></div>
+            <ul class="feed">
+                {% for ti in items %}
+                <li>
+                    <span class="event">{{ ti.transaction.type if ti.transaction else '—' }}</span>
+                    <span class="ts">{{ ti.source_location or '—' }} → {{ ti.target_location or '—' }}</span>
+                    <span class="ts">{{ ti.transaction.created_at.strftime('%m-%d %H:%M') if ti.transaction and ti.transaction.created_at else '—' }}</span>
+                </li>
+                {% else %}
+                <li class="empty"><i class="bi bi-dash-circle" aria-hidden="true"></i> 无操作记录</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><h2><i class="bi bi-journal-check" aria-hidden="true"></i> 审计记录（{{ audits|length }}）</h2></div>
+            <ul class="feed">
+                {% for a in audits %}
+                <li>
+                    <span class="cell-tag">{{ a.action }}</span>
+                    <span class="event">{{ a.detail[:80] }}</span>
+                    <span class="ts">{{ a.created_at.strftime('%m-%d %H:%M') if a.created_at else '' }}</span>
+                </li>
+                {% else %}
+                <li class="empty"><i class="bi bi-shield" aria-hidden="true"></i> 无审计记录</li>
+                {% endfor %}
+            </ul>
+        </section>
     </div>
 </div>
 {% endblock %}

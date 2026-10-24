@@ -1,50 +1,82 @@
 {% extends "base.html" %}
 {% block title %}库位管理 · Ayanami_Rei{% endblock %}
+
 {% block content %}
-<div class="container-fluid py-3">
-    <h5 class="mb-3"><i class="bi bi-geo-alt-fill text-accent me-1"></i>库位管理</h5>
-
-    {% if error %}
-    <div class="alert alert-danger flash"><i class="bi bi-exclamation-triangle me-1"></i> {{ error }}</div>
-    {% endif %}
-
-    <div class="card surface mb-4">
-        <div class="card-header">新增库位</div>
-        <div class="card-body py-2">
-            <form method="post" action="/locations" class="row g-2 align-items-end">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <div class="col-auto"><input name="code" class="form-control form-control-sm" placeholder="编码 (如 WH-C)" required maxlength="32"></div>
-                <div class="col-auto"><input name="name" class="form-control form-control-sm" placeholder="名称 (可选)"></div>
-                <div class="col-auto"><button type="submit" class="btn btn-accent btn-sm"><i class="bi bi-plus-lg"></i></button></div>
-            </form>
-        </div>
+<header class="page-head">
+    <div class="title-row">
+        <h1><i class="bi bi-geo-alt" aria-hidden="true"></i>库位管理</h1>
+        <span class="stat-inline">{{ locations|length }} 个库位 · 写操作全部入审计链</span>
     </div>
+</header>
 
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-plus-lg" aria-hidden="true"></i> 新增库位</h2></div>
+    <div class="panel-body">
+        <form method="post" action="/locations" class="query-row">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="field">
+                <label class="form-label" for="new-code">编码</label>
+                <input id="new-code" name="code" class="form-control" placeholder="WH-C" required maxlength="32">
+            </div>
+            <div class="field">
+                <label class="form-label" for="new-name">名称</label>
+                <input id="new-name" name="name" class="form-control" placeholder="可选">
+            </div>
+            <button type="submit" class="btn btn-accent"><i class="bi bi-plus-lg" aria-hidden="true"></i> 创建</button>
+        </form>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-list-ul" aria-hidden="true"></i> 库位列表</h2></div>
     <div class="table-responsive">
-        <table class="table table-hover align-middle">
-            <thead><tr><th>编码</th><th>名称</th><th>占用</th><th>状态</th><th></th></tr></thead>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col">编码</th>
+                    <th scope="col">名称</th>
+                    <th scope="col" class="num">占用</th>
+                    <th scope="col">状态</th>
+                    <th scope="col" class="col-ops">操作</th>
+                </tr>
+            </thead>
             <tbody>
                 {% for loc in locations %}
                 <tr>
                     <td><code>{{ loc.code }}</code></td>
                     <td>{{ loc.name or '—' }}</td>
-                    <td>{{ loc.used_count }}{% if loc.capacity %} / {{ loc.capacity }}{% endif %}</td>
-                    <td><span class="badge bg-{{ 'success' if loc.is_active else 'secondary' }}">{{ '活跃' if loc.is_active else '停用' }}</span></td>
+                    <td class="num">{{ loc.used_count }}{% if loc.capacity %} / {{ loc.capacity }}{% endif %}</td>
                     <td>
                         {% if loc.is_active %}
-                        <form method="post" action="/location/{{ loc.code }}/deactivate" class="d-inline">
+                        <span class="badge is-ok"><i class="bi bi-check-lg" aria-hidden="true"></i>活跃</span>
+                        {% else %}
+                        <span class="badge is-none"><i class="bi bi-pause-fill" aria-hidden="true"></i>停用</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-ops">
+                        {% if loc.is_active %}
+                        <form method="post" action="/location/{{ loc.code }}/deactivate" class="inline-form">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <button class="btn btn-sm btn-ghost text-danger" title="停用"><i class="bi bi-pause-fill"></i></button>
+                            <button class="link-btn is-danger" title="停用 {{ loc.code }}" aria-label="停用 {{ loc.code }}"><i class="bi bi-pause-fill" aria-hidden="true"></i></button>
                         </form>
                         {% endif %}
-                        <button class="btn btn-sm btn-ghost" data-bs-toggle="collapse" data-bs-target="#edit-{{ loop.index }}"><i class="bi bi-pencil"></i></button>
-                        <form method="post" action="/location/{{ loc.code }}/edit" class="collapse d-inline-flex gap-1" id="edit-{{ loop.index }}">
+                        <button type="button" class="link-btn" data-bs-toggle="collapse" data-bs-target="#edit-{{ loop.index }}" aria-controls="edit-{{ loop.index }}" aria-label="重命名 {{ loc.code }}"><i class="bi bi-pencil" aria-hidden="true"></i></button>
+                    </td>
+                </tr>
+                <tr class="collapse" id="edit-{{ loop.index }}">
+                    <td colspan="5">
+                        <form method="post" action="/location/{{ loc.code }}/edit" class="query-row">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <input name="name" class="form-control form-control-sm" value="{{ loc.name or '' }}" placeholder="名称" style="width:120px">
-                            <button class="btn btn-sm btn-accent">保存</button>
+                            <div class="field">
+                                <label class="form-label" for="name-{{ loop.index }}">重命名 {{ loc.code }}</label>
+                                <input id="name-{{ loop.index }}" name="name" class="form-control" value="{{ loc.name or '' }}" placeholder="名称">
+                            </div>
+                            <button class="btn btn-accent"><i class="bi bi-check-lg" aria-hidden="true"></i> 保存</button>
                         </form>
                     </td>
                 </tr>
+                {% else %}
+                <tr><td colspan="5"><div class="empty-state"><i class="bi bi-geo-alt" aria-hidden="true"></i><p>暂无库位，先创建一个</p></div></td></tr>
                 {% endfor %}
             </tbody>
         </table>

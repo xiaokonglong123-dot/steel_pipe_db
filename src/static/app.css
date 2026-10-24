@@ -766,6 +766,9 @@ body.auth-page {
 .dropzone i { font-size: 26px; color: var(--text-dim); }
 .dropzone.has-file { border-color: var(--accent); color: var(--text); }
 .dropzone .filename { font-family: var(--mono); color: var(--accent); font-size: 12px; }
+.dropzone .dz-hint { font-size: 11px; color: var(--text-dim); max-width: 640px; line-height: 1.6; }
+.dropzone input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.input-mono { font-family: var(--mono); font-size: 11.5px; }
 
 /* 导入结果摘要 */
 .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 10px; }
@@ -778,6 +781,10 @@ body.auth-page {
 .error-list { list-style: none; margin: 0; padding: 0; font-size: 11.5px; }
 .error-list li { padding: 3px 0; border-bottom: 1px solid var(--border); color: var(--danger); font-family: var(--mono); }
 .error-list li:last-child { border-bottom: none; }
+.summary-line { display: flex; align-items: center; gap: 6px; padding: 7px 10px; margin-bottom: 8px; font-size: 12px; border: 1px solid; }
+.summary-line.is-ok { background: var(--ok-soft); border-color: #1d4a33; color: var(--ok); }
+.summary-line.is-warn { background: var(--warn-soft); border-color: #55430f; color: var(--warn); }
+.summary-line.is-bad { background: var(--danger-soft); border-color: #5a2530; color: var(--danger); }
 
 /* ═══════════════════════════ 18. 响应式 ═══════════════════════════ */
 @media (max-width: 1180px) {
