@@ -165,6 +165,7 @@
 | 5 | 修复 | §5.1 | `standards/list.html` 旧分页链接会丢 `grade` 筛选参数，改用 `pager` 宏后 `filter_query` 透传 |
 | 6 | 清理 | §5.1、AGENTS.md | `app.css` 删除迁移期兼容别名（`.surface/.card/.badge.bg-*/.btn-secondary/.form-text/.input-group-text/.form-check-label/.form-section/.chip/.text-accent/.page-sub`），模板已零引用；补 820px/560px 断点，390px 视口无横向溢出 |
 | 7 | 校验 | — | 实测（headless Chromium，DB 副本 `data/ui-preview.db`）：15 条路由全 200、零 console/网络错误；390×844 下 `documentWidth == windowWidth == 390`；`pytest -m "not slow"` 165 passed + 3 deselected；`ruff check` 零报错 |
+| 8 | 修复 | §5.1、§7、§14、§15 | 未认证浏览器导航原本返回裸 JSON `{"detail":"not authenticated"}`（`get_current_user` 抛 401，无页面级处理器）。新增 `StarletteHTTPException` 处理器：**仅当 `Accept` 含 `text/html`** 时 303 → `/login`；API/XHR（`fetch` 的 `*/*`、curl）仍返回 401 原文，路由契约与既有测试不变。新增 2 项测试（`/`、`/tubes` 带 `Accept: text/html` → 303 + `Location: /login`） |
 
 ---
 
@@ -997,7 +998,7 @@ def upgrade():
 | `ImportTooLargeError` | 413 | CSV > 20MB | import 路由捕获 |
 | `ImportFormatError` | 400 | CSV 解析失败/缺必需列 | import 路由捕获 |
 | `ImportRowLimitError` | 400 | CSV 行数 > 10,000（D7） | import 路由捕获 |
-| HTTPException 401 | 401 | 未认证 | security.py 抛出 |
+| HTTPException 401 | 401（浏览器导航 → 303 `/login`） | 未认证 | security.py 抛出；`Accept: text/html` 时由 `main.py` 的处理器重定向，其余仍 401 |
 | HTTPException 403 | 403 | CSRF 失败 / require_roles 不通过 | security.py 抛出 |
 | HTTPException 429 | 429 | 登录限流 | auth 路由抛出 |
 | HTTPException 413 | 413 | 任意端点请求体超限 | 中间件（路由前） |
