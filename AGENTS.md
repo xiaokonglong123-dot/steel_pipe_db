@@ -52,16 +52,21 @@ Ayanami_Rei/
 │   │       ├── routers/users.py
 │   │       └── services/user_service.py
 │   ├── templates/          # Jinja2 SSR templates — grouped by module
-│   │   ├── base.html       # Shared layout (Bootstrap 5 shell)
+│   │   ├── base.html       # Shared layout (topbar/flash/scripts blocks)
+│   │   ├── _macros.html    # 共享宏：状态/角色/盘点/审计徽章 + 分页
 │   │   ├── auth/login.html
 │   │   ├── dashboard/index.html
-│   │   ├── warehouse/      # tube_list, stock_in, stock_out, transfer, check, etc.
+│   │   ├── warehouse/      # tubes_list, stock_in, stock_out, transfer, check, etc.
 │   │   │   ├── check_list.html
 │   │   │   ├── check_detail.html
 │   │   │   └── check_report.html
+│   │   ├── standards/      # list, edit
 │   │   ├── users/          # user_list, user_form
 │   │   └── audit/          # audit_logs
-│   │                           # (no static/ — Bootstrap 5.3.3 + Icons via jsdelivr CDN)
+│   └── static/             # 本地资产（无 CDN 依赖）
+│       ├── app.css         # token 层 + 组件（方向 B：工业数据网格）
+│       ├── app.js          # 条件编辑器、密度、批量选择/操作坞
+│       └── vendor/         # bootstrap 5.3.3 + bootstrap-icons 1.11.3
 ├── rust-core/              # PyO3 native module (maturin) — flat structure
 │   ├── Cargo.toml
 │   └── src/
@@ -91,6 +96,8 @@ Ayanami_Rei/
 | CSV import with compliance check | `src/modules/warehouse/services/import_service.py` |
 | Rust: JWT, compliance, audit hashing | `rust-core/src/` |
 | CSRF token generation | `src/security.py` |
+| 设计系统 token / 组件 CSS | `src/static/app.css` |
+| 共享模板宏（徽章/分页） | `src/templates/_macros.html` |
 | App factory, middleware, startup | `src/main.py` |
 | Alembic migrations | `migrations/versions/` |
 | Design authority | `docs/2026-07-13-api5ct-inventory-design.md` |
@@ -123,6 +130,8 @@ Ayanami_Rei/
 22. `pipe_id` format: `{SP|SCP}-{grade}-{od}x{wt}-{uuid8}`.
 23. Rust modules MUST be pure functions with zero state (no chain tip, no session). Call via `anyio.to_thread.run_sync`.
 24. Concurrent stock-out test: `asyncio.gather` + `httpx.AsyncClient(ASGITransport)` → 1 success, N-1 HTTP 409.
+25. **MUST** 前端沿用单一设计系统：样式只写进 `src/static/app.css`（模板内不再写 `<style>`），状态一律用 `_macros.html` 的徽章宏——**图标 + 文字 + 颜色**三重编码，颜色不得作为唯一信息载体（色盲模式）。新页面套 `.panel/.panel-head/.panel-body`、`.form-grid`、`.table`、`.ops-row`、`.pager`。
+26. **MUST** 静态资产本地 vendor（`src/static/vendor/`），`main.py` 挂载 `/static`；不引 CDN。
 
 ---
 

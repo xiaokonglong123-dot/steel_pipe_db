@@ -25,7 +25,7 @@
                 <dt>库位</dt><dd>{{ tube.location or '—' }}</dd>
                 <dt>状态</dt><dd>{{ status_badge(tube.status) }}</dd>
                 <dt>质量标记</dt>
-                <dd>{{ quality_badge(tube.quality_mark) }}{% if tube.quality_note %} <span class="plain" style="font-family:var(--font);color:var(--text-muted)">— {{ tube.quality_note }}</span>{% endif %}</dd>
+                <dd>{{ quality_badge(tube.quality_mark) }}{% if tube.quality_note %} <span class="subject-meta">— {{ tube.quality_note }}</span>{% endif %}</dd>
                 <dt>合规</dt><dd>{{ compliance_badge(tube.compliance_pass) }}</dd>
                 <dt>生产商</dt><dd class="plain">{{ tube.manufacturer }}</dd>
                 <dt>入库时间</dt><dd>{{ tube.stock_in_time.strftime('%Y-%m-%d %H:%M') if tube.stock_in_time else '—' }}</dd>
