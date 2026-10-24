@@ -190,7 +190,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     lifespan=lifespan,
     title="Ayanami_Rei",
-    version="0.7.0",
+    version="0.8.0",
 )
 
 app.add_middleware(

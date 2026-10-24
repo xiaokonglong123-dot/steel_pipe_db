@@ -1,6 +1,6 @@
 [project]
 name = "ayanami-rei"
-version = "0.7.0"
+version = "0.8.0"
 description = "API 5CT seamless pipe & screen pipe inventory management (FastAPI + Rust PyO3 + SQLite)"
 readme = "docs/2026-07-13-api5ct-inventory-design.md"
 requires-python = ">=3.11"

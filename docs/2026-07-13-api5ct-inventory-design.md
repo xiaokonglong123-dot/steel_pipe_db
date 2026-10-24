@@ -1,7 +1,7 @@
 # SteelPipe — 无缝钢管与筛管库存管理系统 设计文档（修订版）
 
 > 版本：v0.8.0（D11：盘点 落地；D12：质量标注 落地）
-> 日期：2026-08-01
+> 日期：2026-08-01（正文实现状态标注于 2026-10-24 全面对齐代码，见 §0.10）
 > 标准：API 5CT
 > 技术栈：Python (FastAPI) + Rust (PyO3) + SQLite
 > 状态标注约定：`[已实现]` / `[部分实现]` / `[未实现-规划中]` / `[缺陷修正-待实现]` —— 各章节均标注当前实现状态，便于对照代码
@@ -98,11 +98,11 @@
 |---|---|---|---|
 | D11 | 功能 | §5.3、§14 | 盘点 /tubes/check 实现（check_sessions/check_items 两表、missing 状态、单事务原子确认、盘盈走合规、recover 找回、8 端点、3 页面） |
 
-### 0.8 本次修订（v0.7.0 → v0.8.0，2026-08-01）
+### 0.8 历史修订（v0.7.0 → v0.8.0，2026-08-01 归档）
 
 | D12 | 功能 | §4.2、§7 | 质量标注 /tubes/quality 独立页面（GET/POST operator，csrf，guard status='in_stock'，audit action='quality_mark'） |
 
-### 0.9 实现状态总览（2026-08-01 实测基线）
+### 0.9 实现状态总览（2026-08-01 实测基线；2026-10-24 复核，见 §0.10）
 
 | 设计项 | 状态 | 说明 |
 |---|---|---|
@@ -111,19 +111,19 @@
 | refresh 真轮换（/auth/refresh 端点） | ✅ 已实现 | `POST /auth/refresh`（2026-07-31 落地） |
 | CSRF 双提交 | ✅ 已实现 | `require_csrf` + 表单隐藏字段；支持 `X-CSRF-Token` header（batch JSON 已修复） |
 | 登录限流（IP + 用户名双层） | ✅ 已实现 | `LoginRateLimiter` |
-| 角色权限 | ✅ 已实现 | tubes 写路径 `require_operator`、audit verify + standards 写路径 `require_admin`、users `require_admin`（2026-07-31 补齐） |
+| 角色权限 | ✅ 已实现 | tubes 写路径 `require_operator`、standards 写路径 + users + **audit verify（GET+POST）** `require_admin`、库位管理 `require_admin`（2026-10-24 复核补齐） |
 | 手动入库 + 合规校验 | ✅ 已实现 | `stock_in` + `rust_compliance.validate_tube` |
 | CSV 批量导入 | ✅ 已实现 | `import_service.py`（pandas，20MB 上限，行级部分成功） |
-| Excel 批量导入 | ❌ 未实现 | 设计有 openpyxl 路径，代码仅 CSV |
+| Excel 批量导入 | ❌ 未实现（残留已移除） | openpyxl 仅为选型；死函数 `import_tubes_excel` + 无 UI 入口的路由 `/tubes/import-excel` 于 2026-10-24 删除（D17），该路径 POST 现为 405 |
 | 按编号出库 | ✅ 已实现 | TOCTOU 守卫 + `problematic` 需 admin |
-| 批量筛选出库 | ❌ 未实现 | 仅单根出库 |
+| 批量出库（列表页勾选） | ✅ 已实现（原子） | `POST /tubes/stock-out/batch`，单 `BEGIN IMMEDIATE` + 任一失败整体回滚（D13，2026-10-24）；**「按条件筛选」独立向导页仍未实现** |
 | 跨库位调拨 | ✅ 已实现 | `transfer` + used_count 同事务增减 |
 | 出库不足提示临近库位 | ❌ 未实现 | §5.4 规划 |
 | 库存盘点（/tubes/check） | ✅ 已实现 | §5.3；盘点单持久化、原子确认、盘盈合规、recover |
-| check_sessions/check_items | ✅ 已实现 | D11 盘点单与明细持久化 |
+| check_sessions/check_items | ✅ 已实现 | D11 盘点单与明细持久化（迁移 `20260801_000000`，live DB 2026-10-24 已 upgrade 到该 head） |
 | 质量标注（/tubes/quality） | ✅ 已实现 | 独立页面，TOCTOU 守卫 + 审计 |
-| 管子详情（/tubes/{pipe_id}） | ❌ 未实现 | 规划 |
-| 库位管理（/locations*） | ❌ 未实现 | 仅 DEFAULT 种子 + transfer 候选列表 |
+| 管子详情（/tubes/{pipe_id}） | ✅ 已实现 | `tubes.py` GET 处理器 + `warehouse/tube_detail.html`（含交易历史与审计记录；D14） |
+| 库位管理（/locations*） | ✅ 已实现（1 个列表页） | `location_list.html` + POST create/edit/deactivate，全部 `require_admin` + CSRF；表单内联，无独立详情/新增页（D15）。**写操作不写审计、不用 `BEGIN IMMEDIATE`**（§17） |
 | 批次查询（/batches） | ❌ 未实现 | 规划 |
 | 用户管理 CRUD + 会话吊销 | ✅ 已实现 | `users` 模块 |
 | 审计哈希链（写入同事务 + 20K 分段验证） | ✅ 已实现 | `audit_service._write_audit` + `_verify_chunked` |
@@ -132,6 +132,24 @@
 | used_count 每日对账 cron | ❌ 未实现 | 需部署方按 §16 配置 |
 | 数据备份/恢复脚本 | ❌ 未实现 | 需部署方按 §16 配置 |
 | API 5CT 标准管理（/standards） | ✅ 已实现 | CRUD + 删除（参考数据硬删） |
+
+### 0.10 对齐修订（v0.8.0，2026-10-24）—— 正文实现状态全面对齐代码
+
+2026-10-24 对全部路由 / 模板 / schema 做一次清单核对，修正 §0.9、§5、§7、§12、§13、§14、§17 中已过时的实现状态。本次**不改设计意图**，只改标注与差异说明。
+
+| # | 类型 | 位置 | 变更说明 |
+|---|---|---|---|
+| 1 | 对齐 | §0.9、§5.1、§5.6、§17 | 管子详情 `/tubes/{pipe_id}`：❌ → ✅（GET 处理器 + `tube_detail.html`，含交易历史与审计记录；测试 `test_quality.py::test_tube_detail_200`） |
+| 2 | 对齐 | §0.9、§5.1、§5.7、§17 | 库位管理 `/locations*`：❌ → ✅（1 个列表页 + create/edit/deactivate 三个 POST，`require_admin` + CSRF；表单内联） |
+| 3 | 功能 | §5.5、§12.1、§14、§17、AGENTS.md | 批量出库：❌ → **✅ 已实现且原子**（D13）。`POST /tubes/stock-out/batch` 单 `BEGIN IMMEDIATE`、逐根 TOCTOU 守卫、任一失败整体回滚、单个 `Transaction` + 逐根 `TransactionItem` 与审计行；替换旧的「逐根独立提交 + 吞异常」实现 |
+| 4 | 移除 | §5.2、§8、§17 | Excel 导入：openpyxl 仅为选型，代码从未实现；残留死函数 `import_tubes_excel` 与无 UI 入口的路由 `/tubes/import-excel` 于 2026-10-24 删除（D17） |
+| 5 | 对齐 | §5.6 | 正文残留的「独立标注页面 /tubes/quality 未实现」「盘点未实现」表述修正（D12 与 D11 均已落地） |
+| 6 | 对齐 | §0.9、§5.1、§7、§14 | `/audit/verify` 收紧为 **GET + POST 均 admin**（2026-10-24）；GET 原为任意认证用户可读 |
+| 7 | 对齐 | §5.2、§15 | `RequestBodySizeLimitMiddleware` 加固：除 `Content-Length` 快路径外逐块统计**真实字节**，超限发一次 413 并中断 body 流（伪造/低报 `Content-Length` 无法绕过；不产生 ASGI 双响应） |
+| 8 | 对齐 | §13.1、§6 | 测试矩阵更新为 2026-10-24 实测：**16 文件 / 160 项（157 通过 + 3 slow）**；新增 `test_batch_stockout.py`（5 项） |
+| 9 | 版本 | §0.1、pyproject.toml、main.py | 应用版本号补至 `0.8.0`（D12 落地时漏 bump；文档头部与 AGENTS.md 已按 v0.8.0） |
+| 10 | 缺口记录 | §17 | 新增缺口：库位写操作（create/edit/deactivate）**不写审计、不用 `BEGIN IMMEDIATE`**；`deactivate` 单向、**无重新启用入口**；`/locations*` 与 `/tubes/{pipe_id}` 落在 `tubes.py` 而非独立模块 |
+| 11 | 核实非缺陷 | §4.1 | `tubes.pipe_id` 为行级 `UNIQUE (pipe_id)`，而管子仅软删除（`deleted_at`）、从不物理删除 → 唯一约束与软删除**无冲突**（2026-10-24 核查排除，不再作为潜在缺陷跟踪） |
 
 ---
 
@@ -149,12 +167,14 @@
 |---|---|
 | 单根管材的信息录入（手动 + CSV 批量导入） | ✅ 已实现 |
 | 按编号出库 | ✅ 已实现 |
-| 按条件筛选批量出库 | ❌ 未实现（规划） |
+| 列表勾选批量出库（单事务原子） | ✅ 已实现（D13，2026-10-24） |
+| 按条件筛选批量出库（独立向导页） | ❌ 未实现（规划） |
 | 跨库位调拨（从其他库位调货满足出库需求） | ✅ 已实现 |
 | 库存查询与筛选（含质量问题/报废管单独筛选） | ⚠️ 部分实现（筛选字段：status/location/steel_grade/quality_mark） |
 | 库存盘点 | ✅ 已实现 |
-| 问题管/报废管标注与管理 | ⚠️ 部分实现（入库时标记 + 出库/调拨守卫；无独立标注页面） |
-| 基础角色权限（管理员、仓库操作员、查看者） | ✅ 已实现（D1 已落地：tubes 写路径 require_operator、audit verify + standards 写路径 require_admin、users require_admin） |
+| 问题管/报废管标注与管理 | ✅ 已实现（入库时标记 + 独立标注页 /tubes/quality + 出库/调拨守卫） |
+| 库位管理（列表/新增/编辑/停用） | ✅ 已实现（D15，2026-10-24；写操作无审计，见 §17） |
+| 基础角色权限（管理员、仓库操作员、查看者） | ✅ 已实现（D1 已落地：tubes 写路径 require_operator、standards 写路径 + users + audit verify 全方法 + 库位管理 require_admin） |
 | 操作审计日志（防篡改哈希链） | ✅ 已实现 |
 
 **本期不包含**：
@@ -381,6 +401,8 @@ async def lifespan(app):
 **`pipe_id` 生成规则（对齐实现）**：入库时若未提供则自动生成
 `{SP|SCP}-{grade}-{od:.1f}x{wt:.2f}-{uuid8}`，其中 `SP`=seamless、`SCP`=screen，`uuid8` 为 8 位 uuid 短码，`od` 保留 1 位小数、`wt` 保留 2 位小数（printf 风格，如 `88.9x8.00`）。允许手动覆盖，但须满足 UNIQUE；手动值做**弱格式校验**（`_validate_pipe_id_format`：前缀须匹配 `SP-`/`SCP-` 且段数为 4；od/wt/uuid 段内容不校验）。校验失败 → **422 表单重渲染**（v0.4.0 修复，此前冒泡为 500，见 §17 D8）。
 
+**唯一约束 ↔ 软删除（2026-10-24 核实为非缺陷）**：`tubes.pipe_id` 为**行级**约束 `UNIQUE (pipe_id)`，不是 `WHERE deleted_at IS NULL` 的部分索引。因管子只软删除、从不物理删除，软删行的 `pipe_id` 仍占位，故唯一约束与软删除语义**不冲突**。仅当手动指定一个已软删管子的 `pipe_id` 才会命中 UNIQUE 冲突；`_generate_pipe_id` 使用 uuid8，实际不会碰撞。
+
 ### 4.2 类型扩展表  `[已实现]`
 
 **seamless_pipe_specs**（1:1，按 pipe_id）
@@ -492,32 +514,33 @@ async def lifespan(app):
 
 ## 5. Web 页面设计
 
-### 5.1 页面清单（v0.7.0 对齐实现状态）
+### 5.1 页面清单（2026-10-24 对齐实现状态）
 
 | 页面 | 路径 | 设计角色限制 | 实现角色限制（现状） | 状态 |
 |---|---|---|---|---|
 | 登录页 | /login | 无 | 无 | ✅ 已实现 |
 | 登出 | /logout | 无 | POST（CSRF 保护，`BEGIN IMMEDIATE` 清 last_refresh_jti——D3 已落地） | ✅ 已实现 |
 | 仪表盘 | / 与 /dashboard | 全部 | 全部（get_current_user） | ✅ 已实现 |
-| 管子列表 | /tubes | 全部 | 全部（`deleted_at IS NULL` 已过滤——D6 已落地） | ✅ 已实现 |
+| 管子列表 | /tubes | 全部 | 全部（`deleted_at IS NULL` 已过滤——D6 已落地；页内含批量出库勾选表单） | ✅ 已实现 |
+| 批量出库（列表勾选） | /tubes → POST /tubes/stock-out/batch | admin, operator | admin, operator（require_operator + CSRF；**单事务原子**——D13，2026-10-24） | ✅ 已实现 |
 | 入库页面 | /tubes/stock-in | admin, operator | admin, operator（require_operator——D1 已落地） | ✅ 已实现 |
 | 批量入库(JSON) | /tubes/stock-in/batch | admin, operator | admin, operator（CSRF header 已支持——D2 已落地） | ✅ 已实现 |
 | 出库页面 | /tubes/stock-out | admin, operator | admin, operator（require_operator） | ✅ 已实现 |
 | 调拨页面 | /tubes/transfer | admin, operator | admin, operator（require_operator） | ✅ 已实现 |
 | CSV 导入 | /tubes/import | admin, operator | admin, operator（require_operator；10K 行上限——D7 已落地） | ✅ 已实现 |
-| 审计日志 | /audit（设计原写 /audit-logs） | admin | **全部** | ✅ 已实现 |
-| 审计链验证 | /audit/verify | admin | 全部（GET+POST 双处理器） | ✅ 已实现 |
-| API 5CT 标准 | /standards | 全部 | 全部（写操作**内联 admin 检查**，403） | ✅ 已实现 |
+| 审计日志 | /audit（设计原写 /audit-logs） | admin | **全部认证用户**（有意放宽，便于自查） | ✅ 已实现 |
+| 审计链验证 | /audit/verify | admin | admin（GET + POST 双处理器；2026-10-24 起 GET 亦挂 `require_admin`） | ✅ 已实现 |
+| API 5CT 标准 | /standards | 全部 | 全部（写操作 `require_admin`；**GET 为内联 admin 检查**，偏差见 §7 D1 落地细节） | ✅ 已实现 |
 | 用户管理 | /users | admin | admin（require_admin） | ✅ 已实现 |
-| 质量标注 | /tubes/quality | admin, operator | — | ✅ 已实现（`quality.html`） |
+| 质量标注 | /tubes/quality | admin, operator | admin, operator（require_operator + CSRF——D12） | ✅ 已实现（`quality.html`） |
 | 盘点列表 | /tubes/check | admin, operator | admin, operator（operator 门禁） | ✅ 已实现（`check_list.html`） |
 | 盘点详情 | /tubes/check/{check_id} | admin, operator | admin, operator（operator 门禁） | ✅ 已实现（`check_detail.html`） |
 | 盘点报告 | /tubes/check/{check_id}/report | admin, operator | admin, operator（operator 门禁） | ✅ 已实现（`check_report.html`） |
-| 管子详情 | /tubes/{pipe_id} | 全部 | — | ❌ 未实现（规划） |
-| 库位列表/新增/编辑/详情 | /locations* | 见设计 | — | ❌ 未实现（规划） |
+| 管子详情 | /tubes/{pipe_id} | 全部 | 全部（get_current_user） | ✅ 已实现（`tube_detail.html`；含交易历史 + 审计记录，D14） |
+| 库位列表 | /locations | 见设计 | admin（require_admin；写操作要求 CSRF） | ✅ 已实现（`location_list.html`；新增/编辑/deactivate 表单内联，**无独立详情/新增页**） |
 | 批次查询 | /batches | 全部 | — | ❌ 未实现（规划） |
 
-> 前端样式：v0.2.x 起全部模板（**16 个模板页面，原 13 个，新增 3 个盘点页面**，含 transfer.html、standards/edit.html）采用统一的轻量设计令牌体系（`--accent` indigo、`.surface` 卡片、`.btn-accent` 等），Bootstrap Icons 内联，无 emoji。
+> 前端样式：v0.2.x 起全部模板（**18 个页面模板 + `base.html`**）采用统一的轻量设计令牌体系（`--accent` indigo、`.surface` 卡片、`.btn-accent` 等），Bootstrap Icons 内联，无 emoji。
 
 ### 5.2 入库流程  `[已实现，导入语义与设计有差异]`
 
@@ -527,13 +550,13 @@ async def lifespan(app):
      ├── 通过 → 写 tubes + 扩展表, status=in_stock, 记录 transaction + 审计
      └── 失败 → 422 提示具体不合规项（ComplianceError，表单重渲染）
 
-批量导入:  [已实现——仅 CSV；Excel(xlsx) 未实现]
+批量导入:  [已实现——仅 CSV；Excel(xlsx) 从未实现（2026-10-24 移除残留死代码，D17）]
   CSV 选择 → pandas 解析（UTF-8 含 BOM 容错, dtype=str）
    → 必需列校验 → 逐行校验（合规 + 字段） → 显示导入结果: 成功/跳过/失败原因
 ```
 
 **导入加固（v0.3.0 对齐实现）**：
-- 文件大小上限 **20MB**：raw ASGI 中间件在 body 解析前拒绝（HTTP 413）+ service 层 `MAX_IMPORT_BYTES` 二次防御。
+- 文件大小上限 **20MB**：raw ASGI 中间件在 body 解析前拒绝（HTTP 413）+ service 层 `MAX_IMPORT_BYTES` 二次防御。中间件两层判定（2026-10-24 加固）：(1) `Content-Length` 超限的快路径直接 413；(2) 逐块统计**真实字节**，超限时发一次 413 并以 `http.disconnect` 中断 body 流，同时丢弃应用后续响应——**低报/伪造 `Content-Length` 无法绕过，且不会产生 ASGI 双响应**。
 - 必需列：`pipe_type / outer_diameter_mm / wall_thickness_mm / length_m / steel_grade / location / manufacturer`，任一缺失整行跳过并标注。
 - CSV 编码：pandas `dtype=str` 解析，UTF-8 含 BOM 容错。
 - **事务语义（对齐实际）**：**每行独立 `BEGIN IMMEDIATE` 事务**——行级部分成功（错误行收集到 `errors` 列表，成功行提交，整体不回滚）。设计原稿"单事务可整体回滚"未实现。**行数上限（2026-07-31 D7 落地）**：`MAX_IMPORT_ROWS = 10_000` 行/次，超限抛 `ImportRowLimitError` → HTTP 400（提示分批导入）；检查发生在逐行处理之前。
@@ -568,24 +591,27 @@ async def lifespan(app):
 
 设计稿中"出库库存不足时提示可用调拨的临近库位（基于 locations.used_count）"**未实现**（规划中）。
 
-### 5.5 出库流程  `[已实现（单根）；批量筛选出库未实现]`
+### 5.5 出库流程  `[已实现（单根 + 列表勾选批量）；「按条件筛选」独立向导页未实现]`
 
 ```
 按编号: [输入 pipe_id] → [确认] → [备注] → [出库]
-批量: [筛选] → [勾选] → [单据号/备注] → [批量出库]   ← 未实现（规划）
+批量: [列表页勾选（可用筛选后的列表）] → [批量出库] → 单事务原子提交   ← 已实现（D13，2026-10-24）
 所有出库走 §12 的串行事务，防止并发超卖。
 ```
 
-### 5.6 问题管/报废管管理  `[部分实现]`
+**批量出库语义（对齐实现，2026-10-24）**：`POST /tubes/stock-out/batch` 在**单个 `BEGIN IMMEDIATE`** 内对选中集合逐根执行守卫，**任一失败整体回滚**（`ConflictError`→409、`ForbiddenError`→403 经应用级异常处理器返回），成功时写 1 个 `Transaction`（remark 默认 `batch(n)`）+ 逐根 `TransactionItem` 与审计行；空选择为无操作 303。批量表单当前仅提交 `pipe_ids` + `csrf_token`（**无单据号/备注字段**，service 的 `remark` 参数已就位但路由未接）。仍未实现：独立「筛选 → 批量」向导页（§0.9、§17）。
 
-`quality_mark` 与 `status` 独立；入库时可标记；`problematic` 出库/调拨需 admin（service 层 `ForbiddenError`）；`scrapped` 不可出库/调拨（守卫 `quality_mark != 'scrapped'`）。**独立标注页面（/tubes/quality）未实现**，盘点单列不计入可用库存（盘点未实现）。
+### 5.6 问题管/报废管管理  `[已实现]`
 
-### 5.7 库位管理流程  `[部分实现]`
+`quality_mark` 与 `status` 独立；入库时可标记；`problematic` 出库/调拨需 admin（service 层 `ForbiddenError`）；`scrapped` 不可出库/调拨（守卫 `quality_mark != 'scrapped'`）。**独立标注页面 `/tubes/quality`（GET + POST，require_operator + CSRF）已实现（D12，2026-08-01）**；盘点单列不计入可用库存（盘点 D11 已落地）。
 
-- **物理删除限制**：已关联管子的库位不可物理删除（FK `ON DELETE RESTRICT`）——约束已实现。
-- **停用机制**：`is_active` 标记；停用库位不参与出库/调拨候选列表——**候选列表逻辑已实现（transfer 表单），库位管理页面未实现**。
+### 5.7 库位管理流程  `[已实现（1 个列表页）；写操作审计与重新启用未实现]`
+
+- **物理删除限制**：已关联管子的库位不可物理删除（FK `ON DELETE RESTRICT`）——约束已实现；且**无删除路由**（仅 `deactivate` 停用），物理删除在应用层不可达。
+- **停用机制**：`is_active` 标记；停用库位不参与出库/调拨候选列表——候选列表逻辑已实现（transfer 表单）；**库位管理页 `/locations` 已实现**（列表 + create/edit/deactivate，`require_admin` + CSRF）。`deactivate` **单向**，无重新启用入口。
 - **首次部署**：启动 lifespan 幂等种子 `DEFAULT` 库位——已实现。
-- **容量监控**：`used_count` + `capacity` 展示——**页面未实现**（数据模型就绪）。
+- **容量监控**：`used_count`（含 `capacity` 存在时显示 `used / capacity`）与状态徽章在列表页展示——**已实现**（`location_list.html`）。
+- **审计缺口（2026-10-24 记录）**：库位 create/edit/deactivate 使用裸 `session.commit()`，**不写审计、不用 `BEGIN IMMEDIATE`**——与管子操作/用户管理/标准管理的审计覆盖不一致（见 §17）。
 
 ---
 
@@ -616,6 +642,8 @@ Ayanami_Rei/
 │   │   ├── auth/routers/auth.py
 │   │   ├── warehouse/
 │   │   │   ├── routers/ (tubes.py, audit.py, standards.py)
+│   │   │   │   # tubes.py 同时承载 /tubes/{pipe_id}（详情）、/tubes/quality、/locations*
+│   │   │   │   # 与全部盘点端点 —— 尚未按领域拆分为独立 router 文件
 │   │   │   └── services/ (tube_service.py, import_service.py, audit_service.py, standards_service.py, check_service.py)
 │   │   └── users/
 │   │       ├── routers/users.py
@@ -623,10 +651,13 @@ Ayanami_Rei/
 │   ├── templates/              # 按模块分组：base, auth/, dashboard/, warehouse/, users/, audit/, standards/
 │   │   ├── warehouse/check_list.html
 │   │   ├── warehouse/check_detail.html
-│   │   └── warehouse/check_report.html
+│   │   ├── warehouse/check_report.html
+│   │   ├── warehouse/tube_detail.html    # D14 管子详情
+│   │   ├── warehouse/location_list.html  # D15 库位管理（列表 + 内联表单）
+│   │   └── warehouse/quality.html        # D12 质量标注
 │   │                           # （无 static/ —— Bootstrap 5.3.3 + Icons 走 jsdelivr CDN，见 §8）
 ├── rust-core/src/ (lib.rs, auth.rs, compliance.rs, audit.rs)   # 保持扁平（跨领域纯函数）
-├── tests/                      # 15 个测试文件（见 §13）
+├── tests/                      # 16 个测试文件（见 §13）
 └── docs/
 ```
 
@@ -642,7 +673,7 @@ Ayanami_Rei/
 | JWT 签发/校验 + 全局吊销 | Rust auth + users.token_version | ✅ 已实现 | 吊销经 `revoke_all_sessions` |
 | 防篡改审计（哈希链） | Python 调 Rust audit（纯函数） | ✅ 已实现 | tip 状态在 DB（§4.7） |
 | API 5CT 合规校验 | Rust compliance | ✅ 已实现 | 纯函数，5 项检查 |
-| 角色校验 | FastAPI 依赖注入 | ✅ 已实现 | users 模块 require_admin；tubes 写路径 require_operator；audit verify + standards 写路径 require_admin（2026-07-31 D1 落地） |
+| 角色校验 | FastAPI 依赖注入 | ✅ 已实现 | users 模块 require_admin；tubes 写路径 require_operator；standards 写路径 + users + audit verify（GET+POST）+ 库位管理 require_admin（2026-07-31 D1 落地；2026-10-24 复核补齐 audit verify GET 与 /locations*） |
 | CSRF 防护 | 自实现 `require_csrf` | ✅ 已实现 | 表单路径正常；支持 `X-CSRF-Token` header（batch JSON 已修复，2026-07-31 D2 落地） |
 | 登录限流 | 自实现 `LoginRateLimiter` | ✅ 已实现 | 双层：IP ≤5 次/60s（429）；用户名 10 次/300s → 锁 300s。锁定触发（第 10 次失败）写 1 条 `login_lockout` 审计（`user_id=NULL`）；锁定期间 / IP 层 429 / 单次失败不写审计 |
 | Cookie 会话 | httpOnly 签名 cookie | ✅ 已实现 | access+refresh 均 httpOnly + SameSite=Lax；**无 secure**（LAN 部署有意）；**无 max-age**（浏览器会话级，有效期靠 JWT exp） |
@@ -659,12 +690,14 @@ Ayanami_Rei/
 | 端点组 | 修正后权限 |
 |---|---|
 | GET /tubes、/audit、/standards、/、/dashboard | 全部（viewer 可读） |
-| POST /tubes/stock-in、/stock-out、/transfer、/import、/stock-in/batch | admin, operator（`require_operator`） |
+| POST /tubes/stock-in、/stock-out、/stock-out/batch、/transfer、/import、/stock-in/batch | admin, operator（`require_operator`） |
 | POST /standards*（含 delete） | admin（`require_admin` 替换内联检查） |
-| POST /audit/verify | admin（设计意图） |
+| GET + POST /audit/verify | admin（GET 于 2026-10-24 收紧） |
+| /locations*（列表 + 写操作） | admin（`require_admin`；写操作另需 CSRF） |
+| /tubes/quality（GET/POST） | admin, operator（`require_operator`） |
 | /users* | admin（现状保持） |
 
-落地细节：tubes.py 5 个写路由补 `Depends(require_operator)`；audit.py 拆分 GET/POST 双处理器，POST /audit/verify 挂 `Depends(require_admin)`（GET 保持开放）；standards.py 3 个 POST 内联检查替换为 `Depends(require_admin)`（GET 保留内联检查，与既有测试断言一致）。新增 14 项角色矩阵测试（viewer→403、operator 允许 tubes/禁止 audit verify、admin 全通过）。偏差：设计表"GET /standards → 全部"未落地（GET 仍 admin 内联检查），因既有测试 `test_get_standards_operator_returns_403` 断言 operator→403；如需开放可后续改测试。
+落地细节：tubes.py 5 个写路由补 `Depends(require_operator)`；audit.py 拆分 GET/POST 双处理器，POST /audit/verify 挂 `Depends(require_admin)`；standards.py 3 个 POST 内联检查替换为 `Depends(require_admin)`（GET 保留内联检查，与既有测试断言一致）。新增 14 项角色矩阵测试（viewer→403、operator 允许 tubes/禁止 audit verify、admin 全通过）。偏差：设计表"GET /standards → 全部"未落地（GET 仍 admin 内联检查），因既有测试 `test_get_standards_operator_returns_403` 断言 operator→403；如需开放可后续改测试。**2026-10-24 变更**：GET /audit/verify 亦挂 `require_admin`（此前任意认证用户可读链验证结果）；库位管理确认全 `require_admin`。
 
 ### D2 — batch JSON 入库 CSRF 断裂（✅ 已实现 2026-07-31）
 
@@ -713,7 +746,7 @@ POST /auth/refresh  [Depends(require_csrf)]
 | ORM | SQLAlchemy 2.0（async） | 成熟 |
 | 迁移 | Alembic | 管理 schema 演进 |
 | CSV | pandas | 解析健壮（含 BOM 容错） |
-| Excel | openpyxl（xlsx） | 设计选型；**本期未实现**（未来补 xlsx 导入时启用） |
+| Excel | openpyxl（xlsx） | 设计选型；**本期未实现**（未来补 xlsx 导入时启用）。残留死代码 `import_tubes_excel` 已于 2026-10-24 移除（D17） |
 | Rust 集成 | maturin + PyO3 | 构建原生模块 |
 | 密码学 | Rust argon2 + sha2 + jsonwebtoken | 标准，下沉安全核心 |
 
@@ -807,7 +840,7 @@ BEGIN IMMEDIATE;
 COMMIT;
 ```
 
-批量出库：同一事务内对选中集合逐一执行守卫，任一失败则整体回滚（**批量出库未实现**；当前单根路径即上述模式）。并发验证：`asyncio.gather` 5 并发出库 → 恰 1 成功 + 4 ConflictError（测试已覆盖）。
+批量出库：**已实现（D13，2026-10-24）**——`stock_out_batch` 在单个 `BEGIN IMMEDIATE` 内对选中集合逐一执行守卫，任一失败则整体回滚；成功时 1 个 `Transaction` + 逐根 `TransactionItem`/审计行，`locations.used_count` 逐库位递减（`AND used_count > 0` 防下溢）。覆盖测试见 `tests/test_batch_stockout.py`（成功递减、未知 pipe_id 回滚、重复 pipe_id 回滚、空选择无操作）。并发验证：`asyncio.gather` 5 并发出库 → 恰 1 成功 + 4 ConflictError（测试已覆盖）。
 
 ### 12.2 used_count 维护  `[已实现]`
 
@@ -836,35 +869,36 @@ def upgrade():
         batch_op.alter_column("existing_col", nullable=False)
 ```
 
-初始迁移无此问题（直接 `create_table` 创建全部表）。现有迁移链：`20260713_083945_initial`（9 表 8 索引）→ `20260713_084000_add_audit_ts`（audit_logs.ts）→ `8ce24f163996`（standard_specs.grade 唯一约束）。已知漂移：audit_logs.ts nullable 不一致（§4.7）。
+初始迁移无此问题（直接 `create_table` 创建全部表）。现有迁移链：`20260713_083945_initial`（9 表 8 索引）→ `20260713_084000_add_audit_ts`（audit_logs.ts）→ `8ce24f163996`（standard_specs.grade 唯一约束）→ `20260801_000000_add_check_tables`（check_sessions + check_items，D11）。已知漂移：audit_logs.ts nullable 不一致（§4.7）。**部署注记（2026-10-24）**：live DB `data/inventory.db` 曾停在 `8ce24f163996`，已按「先 `sqlite3 .backup` 再 `alembic upgrade head`」升级到 `20260801_000000`；升级前目标文件写入 `data/backup/`。
 
-### 13.1 测试矩阵（v0.7.0 实测基线，2026-08-01）
+### 13.1 测试矩阵（2026-10-24 实测基线）
 
-**15 个测试文件，无 conftest（每文件自足：独立 test DB、`sys.path.insert`、env 预置、依赖覆盖 stub）**。pytest 配置：`asyncio_mode=auto`，markers `slow` / `requires_rust`（后者注册未用）。共 **146 项：143 通过 + 3 项 slow**（`-m "not slow"` 可跳过 21K 行审计压力测试；基线：143 passed, 3 deselected）。
+**16 个测试文件，无 conftest（每文件自足：独立 test DB、`sys.path.insert`、env 预置、依赖覆盖 stub）**。pytest 配置：`asyncio_mode=auto`，markers `slow` / `requires_rust`（后者注册未用）。共 **160 项：157 通过 + 3 项 slow**（`-m "not slow"` 跳过 21K 行审计压力测试；运行：`uv run --inexact pytest -m "not slow" -q` —— `--inexact` 防止 `uv sync` 移除 maturin 装出的 `rust_core`；slow 用例 `-m slow` 另跑，3 项通过）。
 
-| 文件 | 覆盖内容 |
-|---|---|
-| test_security.py | JWT 401/登录/静默刷新/CSRF 403-200/LoginRateLimiter（IP 5 次、用户名 10 次锁定） |
-| test_concurrent_stockout.py | 5 并发出库 → 1 成功 4 ConflictError；used_count 递减；problematic 需 admin |
-| test_audit_route.py | /audit 401/200；GET+POST /audit/verify；CSRF 403 |
-| test_audit_chain_20k.py | 3× slow：21K 行跨 20K chunk 边界验证（完整/篡改/首断即停） |
-| test_panic_recovery.py | Rust 边界：畸形 hash/JWT → False/None；chunk>20K → ValueError；DB 后续可用 |
-| test_import_http.py | CSV 导入：200/413（>20MB）/400（缺列）/逐行错误收集 |
-| test_routes_protection.py | 路由矩阵：/tubes 401-200-200；/users 403（operator）；/standards CRUD 全链路 + CSRF |
-| test_admin_audit.py | 管理写操作审计：用户 4 操作 + standards 3 操作 → 审计行；失败路径零审计；密码哈希不入 detail；混合操作后链验证 ok |
-| test_login_lockout_audit.py | 登录锁定触发审计：10 次失败写 1 行（user_id NULL）/9 次不写/锁定后 429 不新增/IP 层不写/链完整/成功清除 |
-| test_tubes_routes.py | stock-in/out/batch/transfer 全链路：303/409/TOCTOU/CSRF 缺失 403/pipe_id 正则/手动 pipe_id 非法 → 422 重渲染（2026-08-01 新增） |
-| test_stock_in_compliance.py | 合规门：通过持久化 True；越界 → ComplianceError 原子回滚；未知钢级；compliance_pass=True 跳过 |
-| test_upload_limit.py | 中间件：超限 413、恰限值不 413 |
-| test_used_count.py | 入库/出库/调拨后 used_count == COUNT(*)；refresh_used_count 修复漂移 |
-| test_check.py | D11 盘点：盘点单持久化、逐根标记、盘亏 missing、盘盈合规、原子确认、recover、审计与权限（22 项） |
-| test_quality.py | D12 质量标注：独立 /tubes/quality 页面、TOCTOU 守卫、audit（6 项） |
+| 文件 | 项数 | 覆盖内容 |
+|---|---|---|
+| test_security.py | 14 | JWT 401/登录/静默刷新/CSRF 403-200/LoginRateLimiter（IP 5 次、用户名 10 次锁定） |
+| test_concurrent_stockout.py | 3 | 5 并发出库 → 1 成功 4 ConflictError；used_count 递减；problematic 需 admin |
+| test_audit_route.py | 8 | /audit 401/200（admin+viewer）；GET /audit/verify 401/403/200；POST /audit/verify CSRF 403/200 |
+| test_audit_chain_20k.py | 3 | slow：21K 行跨 20K chunk 边界验证（完整/篡改/首断即停） |
+| test_panic_recovery.py | 7 | Rust 边界：畸形 hash/JWT → False/None；chunk>20K → ValueError；DB 后续可用 |
+| test_import_http.py | 7 | CSV 导入：200/413（>20MB）/400（缺列）/逐行错误收集 |
+| test_routes_protection.py | 33 | 路由矩阵：/tubes 401-200-200；/users 403（operator）；/standards CRUD 全链路 + CSRF |
+| test_admin_audit.py | 13 | 管理写操作审计：用户 4 操作 + standards 3 操作 → 审计行；失败路径零审计；密码哈希不入 detail；混合操作后链验证 ok |
+| test_login_lockout_audit.py | 6 | 登录锁定触发审计：10 次失败写 1 行（user_id NULL）/9 次不写/锁定后 429 不新增/IP 层不写/链完整/成功清除 |
+| test_tubes_routes.py | 15 | stock-in/out/batch/transfer 全链路：303/409/TOCTOU/CSRF 缺失 403/pipe_id 正则/手动 pipe_id 非法 → 422 重渲染；库位停用软删；已移除的 `/tubes/import-excel` → 405 |
+| test_batch_stockout.py | 5 | D13 批量出库：成功出库 + used_count 递减 + 单 Transaction + 逐根审计；未知 pipe_id 整体回滚；重复 pipe_id 整体回滚；空选择无操作（2026-10-24 新增） |
+| test_stock_in_compliance.py | 6 | 合规门：通过持久化 True；越界 → ComplianceError 原子回滚；未知钢级；compliance_pass=True 跳过 |
+| test_upload_limit.py | 5 | 中间件：声明超限 413、恰限值不 413、低报 Content-Length 仍 413（真实字节计数 + 单响应）、快路径不读 body、边界放行（2026-10-24 扩充） |
+| test_used_count.py | 5 | 入库/出库/调拨后 used_count == COUNT(*)；refresh_used_count 修复漂移 |
+| test_check.py | 22 | D11 盘点：盘点单持久化、逐根标记、盘亏 missing、盘盈合规、原子确认、recover、审计与权限 |
+| test_quality.py | 8 | D12 质量标注：独立 /tubes/quality 页面、TOCTOU 守卫、audit；含 D14 管子详情冒烟与 D15 库位管理快测 |
 
 > 已知测试盲区：~~viewer 越权（D1 修正后需补）~~ ✅ 已补 14 项、~~batch JSON CSRF（D2 修正后需补真实依赖测试）~~ ✅ require_csrf header 路径已实现（测试 stub 依赖的覆盖策略保留）、~~auth 路径线程池（D5）~~ ✅ 函数签名未变，测试无需改动。剩余盲区：无 viewer→403 的 standards 读路径断言（GET 仍 admin 内联检查，属既有行为）。
 
 ---
 
-## 14. API 端点总表（新增，v0.3.0）
+## 14. API 端点总表（新增，v0.3.0；2026-10-24 补 D13 批量出库、D14 管子详情、D15 库位管理、质量标注端点）
 
 > 约定：除登录/登出外全部要求 `get_current_user`；写方法（POST/PUT/DELETE）要求 `require_csrf`；错误响应 JSON `{"detail": "..."}`（SSR 表单错误为 422 重渲染或 409/403 页）。角色列 = 实现现状（D1 已落地）。
 
@@ -884,6 +918,7 @@ def upgrade():
 | GET | /tubes | 任意 | query: status, location, steel_grade, quality_mark, page | 200 tubes_list（分页 20，`deleted_at IS NULL` 已过滤——D6 已落地） |
 | GET | /tubes/stock-out/{pipe_id} | 任意 | — | 200 出库确认表单 |
 | POST | /tubes/stock-out | admin, operator | form: pipe_id, csrf_token | 303 → /tubes；409 ConflictError（竞争/报废/已出）；403 ForbiddenError（problematic 非 admin） |
+| POST | /tubes/stock-out/batch | admin, operator | form: pipe_ids（可重复）+ csrf_token | 303 → /tubes（空选择亦 303 无操作）；**单个 BEGIN IMMEDIATE 原子**，任一失败整体回滚 → 409/403（D13，2026-10-24） |
 | GET | /tubes/transfer/{pipe_id} | 任意 | — | 200 调拨表单；404 管不存在 |
 | POST | /tubes/transfer | admin, operator | form: pipe_id, target_location, remark?, csrf_token | 303 → /tubes；409（同库位/非在库/竞争）；403（problematic 非 admin） |
 | GET | /tubes/stock-in | 任意 | — | 200 入库表单（set CSRF cookie） |
@@ -901,8 +936,15 @@ def upgrade():
 | POST | /tubes/check/{check_id}/confirm | admin | form: csrf_token | 303/200；单个 BEGIN IMMEDIATE 原子应用差异；失败整体回滚并保持 open |
 | POST | /tubes/check/{check_id}/cancel | admin, operator | form: csrf_token | 303 → /tubes/check；409 非 open 盘点单 |
 | POST | /tubes/recover/{pipe_id} | admin, operator | form: csrf_token | 303；missing → in_stock + 审计；409 状态冲突 |
+| GET | /tubes/quality | admin, operator | query: pipe_id? | 200 质量标注表单（`quality.html`） |
+| POST | /tubes/quality | admin, operator | form: pipe_id, quality_mark, quality_note?, csrf_token | 303 → /tubes/quality；422 重渲染（非法标注/守卫失败）；audit action=quality_mark |
+| GET | /tubes/{pipe_id} | 任意 | — | 200 管子详情（交易历史 + 审计记录，`tube_detail.html`；D14）；404 |
+| GET | /locations | admin | — | 200 库位列表（`location_list.html`；used_count/capacity、状态、内联新增/编辑/停用表单） |
+| POST | /locations | admin | form: code, name?, csrf_token | 303 → /locations；409 库位已存在 |
+| POST | /location/{code}/edit | admin | form: name?, csrf_token | 303 → /locations；404 |
+| POST | /location/{code}/deactivate | admin | form: csrf_token | 303 → /locations（`is_active=False`，单向无重新启用）；404 |
 | GET | /audit | 任意 | — | 200 最近 50 条审计日志 |
-| GET | /audit/verify | 任意 | — | 200 验证页（空链也 200） |
+| GET | /audit/verify | admin | — | 200 验证页（空链也 200）；401 未认证；403 非 admin（2026-10-24 收紧） |
 | POST | /audit/verify | admin | form: csrf_token | 200 verify_result {ok, broken, verified_total} |
 | GET | /standards | admin（内联检查，已知偏差：设计"全部"未落地） | query: grade, page | 200 规格列表 |
 | POST | /standards | admin（require_admin 依赖） | form: steel_grade, outer_diameter_mm?, min_wall_thickness_mm?, max_wall_thickness_mm?, csrf_token | 303 → /standards；409 钢级已存在 |
@@ -1017,14 +1059,16 @@ sqlite3 "$RESTORE_DIR/restore_test.db" "PRAGMA integrity_check;"   # 期望: ok
 
 | 缺口 | 说明 |
 |---|---|
-| 质量标注 /tubes/quality | ✅ 已实现（D12， operator+，TOCTOU 守卫，audit quality_mark） |
-| 批量筛选出库 | §5.5 |
-| 管子详情 /tubes/{pipe_id} | 含操作历史 |
-| 库位管理 /locations*（4 页） | 数据模型就绪 |
+| 质量标注 /tubes/quality | ✅ 已实现（D12，operator+，TOCTOU 守卫，audit quality_mark） |
+| 管子详情 /tubes/{pipe_id} | ✅ 已实现（D14，含交易历史 + 审计记录） |
+| 库位管理 /locations* | ✅ 已实现（D15，1 个列表页 + create/edit/deactivate；表单内联，非设计稿的 4 个独立页面） |
+| 出库「按条件筛选」独立向导页 | §5.5；**列表页勾选批量出库已实现且原子（D13）**，缺的是独立筛选→批量向导 |
 | 批次查询 /batches | batch_no/heat_no 追溯 |
-| Excel 导入 | openpyxl 路径（选型已定） |
+| Excel 导入 | ❌ 未实现；openpyxl 仅为选型，残留死代码已于 2026-10-24 移除（D17） |
 | 强制入库审批（forced_intake 审计） | §11 |
 | 出库不足临近库位提示 | §5.4 |
+| 库位写操作审计 | **新增（2026-10-24）**：`/locations` create/edit/deactivate 不写审计、不用 `BEGIN IMMEDIATE`（裸 commit），与管子/用户/标准管理的审计覆盖不一致 |
+| 库位重新启用 | **新增（2026-10-24）**：`deactivate` 单向，`is_active=True` 无入口；停用后仅能直改 DB |
 | used_count 对账 CLI 入口 | 独立命令（免 HTTP 会话） |
 | audit_logs.ts 回填 + NOT NULL 收紧迁移 | §4.7 漂移修复 |
 | 审计哈希链月度快照 | 定期落库 |
@@ -1041,7 +1085,7 @@ sqlite3 "$RESTORE_DIR/restore_test.db" "PRAGMA integrity_check;"   # 期望: ok
 
 ## 附录 A：参考文档
 
-- 本设计文档（v0.7.0，2026-08-01；D1-D11 已实现，代码与文档全量核对同步）
-- `AGENTS.md`（项目约定速查，v0.8.0 同步更新：角色门禁现状、logout 改 POST、/auth/refresh、登录锁定审计、143 项测试基线）
+- 本设计文档（v0.8.0；D1-D12 全部落地，D13-D15/D17 于 2026-10-24 对齐落地，见 §0.10）
+- `AGENTS.md`（项目约定速查，v0.8.0 同步更新：角色门禁现状、logout 改 POST、/auth/refresh、登录锁定审计、批量出库原子性、160 项测试基线 = 157 通过 + 3 slow）
 - 迁移脚本：`migrations/versions/`
 - 测试：`tests/`
