@@ -21,7 +21,6 @@ from src.modules.warehouse.services.import_service import (
     ImportRowLimitError,
     ImportTooLargeError,
     import_tubes_csv,
-    import_tubes_excel,
 )
 from src.modules.warehouse.services.check_service import (
     CheckConflictError,
@@ -987,33 +986,6 @@ async def quality_update(
     return RedirectResponse(url=f"/tubes/quality?pipe_id={pipe_id}", status_code=303)
 
 
-@router.post("/tubes/import-excel")
-async def tubes_import_excel(
-    request: Request,
-    file: UploadFile | None = File(None),
-    user=Depends(get_current_user),
-    _role=Depends(require_operator),
-    _: None = Depends(require_csrf),
-):
-    if file is None or not file.filename:
-        token = request.cookies.get("csrf_token") or generate_csrf_token()
-        rendered = templates.TemplateResponse("warehouse/import.html", {"request": request, "user": user, "csrf_token": token, "error": "请选择文件"})
-        set_csrf_cookie(rendered, token)
-        return rendered
-    content = await file.read()
-    try:
-        result = await import_tubes_excel(content, user.id, user.role)
-    except ImportTooLargeError as e:
-        token = request.cookies.get("csrf_token") or generate_csrf_token()
-        rendered = templates.TemplateResponse("warehouse/import.html", {"request": request, "user": user, "csrf_token": token, "error": str(e)})
-        set_csrf_cookie(rendered, token)
-        return rendered
-    token = request.cookies.get("csrf_token") or generate_csrf_token()
-    rendered = templates.TemplateResponse("warehouse/import.html", {"request": request, "user": user, "csrf_token": token, "result": result})
-    set_csrf_cookie(rendered, token)
-    return rendered
-    return RedirectResponse(url=f"/tubes/quality?pipe_id={pipe_id}", status_code=303)
-
 @router.get("/locations")
 async def location_list(request: Request, session: AsyncSession = Depends(get_session), user=Depends(get_current_user), _role=Depends(require_admin)):
     locs = (await session.execute(select(Location).order_by(Location.code))).scalars().all()
@@ -1045,14 +1017,14 @@ async def location_edit(code: str, request: Request, name: str = Form(""), csrf_
 
 @router.post("/location/{code}/deactivate")
 async def location_deactivate(code: str, request: Request, csrf_token: str = Form(...), session: AsyncSession = Depends(get_session), user=Depends(get_current_user), _role=Depends(require_admin), _: None = Depends(require_csrf)):
-    loc = (await session.query(Location).where(Location.code == code)).first()
+    loc = (
+        await session.execute(select(Location).where(Location.code == code))
+    ).scalars().first()
     if not loc:
         raise HTTPException(status_code=404)
     loc.is_active = False
-    session.add(loc)
     await session.commit()
     return RedirectResponse(url="/locations", status_code=303)
-    return RedirectResponse(url=f"/tubes/quality?pipe_id={pipe_id}", status_code=303)
 
 
 @router.get("/tubes/{pipe_id}")

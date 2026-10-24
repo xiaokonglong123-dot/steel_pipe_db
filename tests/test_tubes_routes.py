@@ -11,6 +11,8 @@ Covered:
 * POST /tubes/transfer when source==target → 409 ConflictError.
 * POST /tubes/transfer of an already-out (in_transfer) tube → 409.
 * POST /tubes/transfer missing CSRF → 403.
+* POST /location/{code}/deactivate → 303 + is_active=False (row kept).
+* POST /tubes/import-excel → 405 (half-wired Excel route removed).
 
 Each seeded StandardSpec must match L80 / 88.9 / wall in min..max range so
 the API 5CT compliance gate in stock_in is satisfied.
@@ -463,4 +465,44 @@ def test_list_tubes_excludes_soft_deleted(client):
             # but the deleted_at filter must still exclude it.
             r_filtered = await c.get("/tubes?status=in_stock", follow_redirects=False)
             assert pipe_id not in r_filtered.text
+    asyncio.run(run())
+
+
+def test_post_location_deactivate_soft_deletes(client):
+    """POST /location/{code}/deactivate soft-deletes (is_active=False) and
+    keeps the row. Regression: the handler previously used ``session.query``
+    on an AsyncSession → AttributeError → 500."""
+    app.dependency_overrides[get_current_user] = _stub_user(1)
+    app.dependency_overrides[require_csrf] = _allow_csrf()
+    async def run():
+        async with client as c:
+            r = await c.post(
+                "/location/WH-B/deactivate",
+                data={"csrf_token": "stub"},
+                follow_redirects=False,
+            )
+        assert r.status_code == 303, (r.status_code, r.text[:400])
+        assert r.headers["location"] == "/locations"
+        with SyncSession() as s:
+            row = s.get(Location, "WH-B")
+            assert row is not None, "soft-delete must keep the row"
+            assert row.is_active is False
+    asyncio.run(run())
+
+
+def test_post_import_excel_route_removed(client):
+    """The broken, unimplemented Excel import route is gone. POSTing to it
+    now yields 405 (the path only exists as the GET /tubes/{pipe_id} detail
+    route) instead of a 500 from a half-wired handler."""
+    app.dependency_overrides[get_current_user] = _stub_user(1)
+    app.dependency_overrides[require_csrf] = _allow_csrf()
+    async def run():
+        async with client as c:
+            r = await c.post(
+                "/tubes/import-excel",
+                files={"file": ("x.xlsx", b"not-an-xlsx", "application/vnd.ms-excel")},
+                data={"csrf_token": "stub"},
+                follow_redirects=False,
+            )
+        assert r.status_code == 405, (r.status_code, r.text[:200])
     asyncio.run(run())

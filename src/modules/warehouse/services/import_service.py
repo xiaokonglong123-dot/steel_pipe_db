@@ -13,7 +13,6 @@ blocking the FastAPI async event loop (project rule #60).
 from __future__ import annotations
 
 import io
-import openpyxl
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -279,65 +278,5 @@ async def import_tubes_csv(
                 {"row": idx, "error": str(exc),
                  "pipe_id": pipe_id_val or ""}
             )
-
-    return result
-
-
-# D17 — Excel import using openpyxl
-
-async def import_tubes_excel(
-    content: bytes,
-    operator_id: int,
-    role: str,
-    engine=None,
-) -> ImportResult:
-    if len(content) > MAX_IMPORT_BYTES:
-        raise ImportTooLargeError(f"file exceeds {MAX_IMPORT_BYTES // 1024 // 1024} MB")
-    try:
-        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
-    except Exception:
-        raise ImportTooLargeError("failed to parse Excel file")
-    ws = wb.active
-    rows = list(ws.iter_rows(values_only=True))
-    if len(rows) < 2:
-        wb.close()
-        return ImportResult(ok=0, errors=[{"row": 0, "error": "empty or header-only file", "pipe_id": ""}])
-    headers = [str(c).strip() if c else "" for c in rows[0]]
-    required = {"type", "outer_diameter_mm", "wall_thickness_mm", "length_m", "steel_grade", "location", "manufacturer"}
-    if not required.issubset(headers):
-        wb.close()
-        return ImportResult(ok=0, errors=[{"row": 0, "error": f"missing columns: {required - set(headers)}", "pipe_id": ""}])
-    data_rows = [dict(zip(headers, r)) for r in rows[1:]]
-    wb.close()
-    if len(data_rows) > MAX_IMPORT_ROWS:
-        raise ImportTooLargeError(f"rows {len(data_rows)} exceeds max {MAX_IMPORT_ROWS}")
-    eng = engine or db.engine
-    result = ImportResult(ok=0, errors=[], total_rows=len(data_rows))
-    for idx, row in enumerate(data_rows, 1):
-        try:
-            pipe_id_val = row.get("pipe_id") or None
-            await stock_in(
-                type_=row["type_id"],
-                outer_diameter_mm=float(row["outer_diameter_mm"]),
-                wall_thickness_mm=float(row["wall_thickness_mm"]),
-                length_m=float(row["length_m"]),
-                steel_grade=row["steel_grade"],
-                location=row["location"],
-                operator_id=operator_id,
-                manufacturer=row["manufacturer"],
-                pipe_id=pipe_id_val,
-                thread_type=row.get("thread_type") or None,
-                api_5ct_cert=row.get("api_5ct_cert") or None,
-                batch_no=row.get("batch_no") or None,
-                heat_no=row.get("heat_no") or None,
-                heat_treat_method=row.get("heat_treat_method") or None,
-                quality_mark=row.get("quality_mark") or "normal",
-                quality_note=row.get("quality_note") or None,
-                compliance_pass=None,
-                engine=eng,
-            )
-            result.ok += 1
-        except Exception as exc:
-            result.errors.append({"row": idx, "error": str(exc), "pipe_id": pipe_id_val or ""})
 
     return result
