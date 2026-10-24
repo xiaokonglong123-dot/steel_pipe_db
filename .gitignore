@@ -24,6 +24,7 @@ migrations/versions/__pycache__/
 # Environment
 .env
 .env.*
+!.env.example
 
 # IDE
 .idea/
@@ -39,7 +40,11 @@ Thumbs.db
 data/
 
 # Al
-.omo 
+.omo
 .omo/*
 .cortexkit
 .cortexkit/*
+
+# Agent-workflow scratch trees (local absolute paths, raw pytest output)
+.superpowers/
+
