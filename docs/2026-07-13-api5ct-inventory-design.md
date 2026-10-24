@@ -66,7 +66,7 @@
 | 2 | 对齐 | §14 | 角色列同步 D1 落地现状：POST /tubes/stock-out、/transfer、/stock-in、/import → admin, operator（require_operator）；/audit/verify 拆分 GET（任意）/POST（admin）；GET /standards → admin（内联检查，已知偏差）；POST /standards → admin（require_admin 依赖） |
 | 3 | 对齐 | §14 | POST /tubes/stock-out 表单字段修正：实际仅 pipe_id + csrf_token（service 支持 remark 但路由未接，移除 `remark?`） |
 | 4 | 缺陷修正→✅ | §4.1、§17（D8） | 手动 pipe_id 弱校验（前缀 + 4 段）描述修正；单管表单路径非法 pipe_id 曾冒泡 **500**，现捕获 ValueError → **422 表单重渲染** + 1 项测试 |
-| 5 | 对齐 | §5.1、§6、§8 | 前端资源：**无 `src/static/` 目录**，Bootstrap 5.3.3 + Icons 走 jsdelivr CDN；模板实为 base.html + **12 个页面**（含 transfer.html、standards/edit.html） |
+| 5 | 对齐 | §5.1、§6、§8 | 前端资源：**无 `src/static/` 目录**，Bootstrap 5.3.3 + Icons 走 jsdelivr CDN；模板实为 base.html + **12 个页面**（含 transfer.html、standards/edit.html）。（⚠️ 该条于 2026-10-24 前端重写后失效，现状见 §0.11） |
 | 6 | 对齐 | §15 | 异常表补 `ImportRowLimitError` → 400（D7 落地时漏列） |
 | 7 | 缺口记录 | §4.7、§17 | 用户管理（create_user/update_user/revoke/toggle）与 standards 写操作**不入审计链**——§4.7 action 示例含 create_user 系设计意图，实现仅 warehouse 管操作写审计；列入 §17 功能缺口 |
 | 8 | 对齐 | 附录 A | AGENTS.md 已同步（v0.4.0，2026-08-01），移除"待同步"备注 |
@@ -151,6 +151,20 @@
 | 10 | 缺口记录 → 已修复 | §5.7、§13.1、§14、§17、AGENTS.md | 库位写操作（create/edit/deactivate）原为裸 `session.commit()`：**不写审计、不用 `BEGIN IMMEDIATE`**。2026-10-24 抽出 `location_service`，三操作用单 `BEGIN IMMEDIATE` + 同事务审计行（`create_location` / `update_location` / `deactivate_location`），失败路径（重复/不存在/已停用/名称未变）回滚零审计；重复库位与重复停用由 `HTTPException(409)` 改为 **409 渲染错误横幅**，详情页 `location_list.html` 新增 `error` 块。剩余缺口：`deactivate` 仍单向、**无重新启用入口**；`/locations*` 与 `/tubes/{pipe_id}` 仍落在 `tubes.py` 而非独立模块 |
 | 11 | 工具链 | pyproject.toml、AGENTS.md | 接入 `ruff check` 门禁：规则集显式声明（`E4/E7/E9/F/I/UP/B/C4/SIM/RET/RUF/ASYNC/BLE`，非 `ALL`——`D`/`ANN` 要求无收益的改写），豁免 `RUF001-003`（中文注释的全角标点）、`tests/*` 的 `E402`（测试须先 `sys.path.insert` + 设 env 再导入 `src`）、FastAPI 依赖默认值（`flake8-bugbear.extend-immutable-calls`）；`.superpowers/` 快照目录排除（非源码）。清理既存报错后 `uv run --inexact ruff check` 归零（2026-10-24） |
 | 12 | 核实非缺陷 | §4.1 | `tubes.pipe_id` 为行级 `UNIQUE (pipe_id)`，而管子仅软删除（`deleted_at`）、从不物理删除 → 唯一约束与软删除**无冲突**（2026-10-24 核查排除，不再作为潜在缺陷跟踪） |
+
+### 0.11 前端重写（v0.8.0，2026-10-24）—— 本地设计系统替换 CDN Bootstrap
+
+全部 20 个模板（19 个页面 + `base.html`）从零重写，**废弃旧页面代码**，不改后端路由与业务语义。仅有的后端改动是新增静态挂载。
+
+| # | 类型 | 位置 | 变更说明 |
+|---|---|---|---|
+| 1 | 架构 | §5.1、§6、§8、§附录 A | 新增 `src/static/`：`app.css`（token 层 + 组件）、`app.js`（条件编辑器/密度/批量选择）、`vendor/`（bootstrap 5.3.3 + bootstrap-icons 1.11.3 本地拷贝）。`main.py` 挂载 `/static`，**不再引 jsdelivr CDN** |
+| 2 | 架构 | §5.1、§6 | 新增 `src/templates/_macros.html`：状态/类型/质量/合规/角色/盘点/审计动作徽章 + 分页宏。所有状态展示统一走宏，**图标 + 文字 + 颜色**三重编码（色盲模式：颜色不是唯一信息载体） |
+| 3 | 视觉 | §5.1 | 设计方向「B · 工业数据网格」：高密度表格、粘性表头、行左状态轨（`rail-in/out/transit/issue`，实线/虚线/点线形状冗余）、条件芯片筛选、显式批量模式与操作坞；深色主题为默认 |
+| 4 | 约束 | §5.1 | 模板内**不写 `<style>`**，样式只进 `app.css`；模板分模块存放（`auth/ dashboard/ warehouse/ standards/ users/ audit/`），`standards/` 为新拆目录（原 `standards/list|edit` 平铺） |
+| 5 | 修复 | §5.1 | `standards/list.html` 旧分页链接会丢 `grade` 筛选参数，改用 `pager` 宏后 `filter_query` 透传 |
+| 6 | 清理 | §5.1、AGENTS.md | `app.css` 删除迁移期兼容别名（`.surface/.card/.badge.bg-*/.btn-secondary/.form-text/.input-group-text/.form-check-label/.form-section/.chip/.text-accent/.page-sub`），模板已零引用；补 820px/560px 断点，390px 视口无横向溢出 |
+| 7 | 校验 | — | 实测（headless Chromium，DB 副本 `data/ui-preview.db`）：15 条路由全 200、零 console/网络错误；390×844 下 `documentWidth == windowWidth == 390`；`pytest -m "not slow"` 165 passed + 3 deselected；`ruff check` 零报错 |
 
 ---
 
@@ -541,7 +555,7 @@ async def lifespan(app):
 | 库位列表 | /locations | 见设计 | admin（require_admin；写操作要求 CSRF） | ✅ 已实现（`location_list.html`；新增/编辑/deactivate 表单内联，**无独立详情/新增页**） |
 | 批次查询 | /batches | 全部 | — | ❌ 未实现（规划） |
 
-> 前端样式：v0.2.x 起全部模板（**18 个页面模板 + `base.html`**）采用统一的轻量设计令牌体系（`--accent` indigo、`.surface` 卡片、`.btn-accent` 等），Bootstrap Icons 内联，无 emoji。
+> 前端样式（2026-10-24 重写）：全部 **19 个页面模板 + `base.html` + `_macros.html`** 采用本地设计系统（`src/static/app.css` 的 token 层 + `.panel/.form-grid/.table/.ops-row/.pager` 组件，方向「工业数据网格」）；Bootstrap 5.3.3 与 Icons 1.11.3 本地 vendor，`main.py` 挂载 `/static`，无 CDN。状态徽章一律走 `_macros.html`（图标 + 文字 + 颜色三重编码），模板内无 `<style>`、无 emoji。详见 §0.11。
 
 ### 5.2 入库流程  `[已实现，导入语义与设计有差异]`
 
@@ -649,14 +663,18 @@ Ayanami_Rei/
 │   │   └── users/
 │   │       ├── routers/users.py
 │   │       └── services/user_service.py
-│   ├── templates/              # 按模块分组：base, auth/, dashboard/, warehouse/, users/, audit/, standards/
+│   ├── templates/              # 按模块分组：base, _macros, auth/, dashboard/, warehouse/, users/, audit/, standards/
+│   │   ├── _macros.html        # 共享宏：状态/类型/质量/合规/角色/盘点/审计徽章 + 分页
 │   │   ├── warehouse/check_list.html
 │   │   ├── warehouse/check_detail.html
 │   │   ├── warehouse/check_report.html
 │   │   ├── warehouse/tube_detail.html    # D14 管子详情
 │   │   ├── warehouse/location_list.html  # D15 库位管理（列表 + 内联表单）
 │   │   └── warehouse/quality.html        # D12 质量标注
-│   │                           # （无 static/ —— Bootstrap 5.3.3 + Icons 走 jsdelivr CDN，见 §8）
+│   ├── static/                 # 本地资产（无 CDN 依赖，见 §8、§0.11）
+│   │   ├── app.css             # token 层 + 组件（方向 B：工业数据网格）
+│   │   ├── app.js              # 条件编辑器、密度、批量选择/操作坞
+│   │   └── vendor/             # bootstrap 5.3.3 + bootstrap-icons 1.11.3
 ├── rust-core/src/ (lib.rs, auth.rs, compliance.rs, audit.rs)   # 保持扁平（跨领域纯函数）
 ├── tests/                      # 16 个测试文件（见 §13）
 └── docs/
@@ -742,7 +760,7 @@ POST /auth/refresh  [Depends(require_csrf)]
 |---|---|---|
 | Web 框架 | FastAPI | 异步、类型校验、OpenAPI |
 | 模板 | Jinja2（CompatTemplates） | 无前后端分离 |
-| CSS | Bootstrap 5.3.3（jsdelivr CDN） | 无需构建，无本地静态资源 |
+| CSS | 本地 `src/static/app.css` + Bootstrap 5.3.3（本地 vendor） | 无需构建；无 CDN 依赖（2026-10-24 起，见 §0.11） |
 | 数据库 | SQLite（WAL） | 局域网零运维 |
 | ORM | SQLAlchemy 2.0（async） | 成熟 |
 | 迁移 | Alembic | 管理 schema 演进 |
