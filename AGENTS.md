@@ -21,7 +21,6 @@ API 5CT seamless pipe & screen pipe inventory management. Tracks stock-in/out, t
 ```
 Ayanami_Rei/
 ├── pyproject.toml          # Python deps (FastAPI, SQLAlchemy, Alembic, etc.)
-├── Cargo.toml              # Rust workspace root
 ├── migrations/             # Alembic migration scripts (flat — timestamped files)
 │   ├── alembic.ini
 │   └── versions/
@@ -168,7 +167,8 @@ python tests/test_concurrent_stockout.py
 - Genesis audit hash: `sha256("AYANAMI_REI_GENESIS")` — constant lives in `src/models.py` (not Rust); Rust `audit.rs` is a pure function taking `prev_hash`.
 - Manual `pipe_id` is weakly validated in `tube_service._validate_pipe_id_format` (SP-/SCP- prefix + 4 parts); failures re-render stock-in form with 422 (was 500, fixed 2026-08-01, D8).
 - `busy_timeout=5000` on DB backup command — prevents SQLITE_BUSY under write load.
-- Test baseline (2026-08-01): 143 passed + 3 deselected (slow 20K audit stress) via `pytest -m "not slow"`.
+- Test baseline (2026-10-24): 157 passed + 3 deselected via `pytest -m "not slow"`; the 3 slow tests (20K audit stress) pass under `pytest -m slow`. Run with `uv run --inexact pytest -m "not slow" -q` (`--inexact` keeps the maturin-installed `rust_core` extraneous package; a plain `uv sync` removes it).
+- Batch stock-out (`POST /tubes/stock-out/batch`) is **atomic**: one `BEGIN IMMEDIATE`, per-tube TOCTOU guard, any failure rolls the whole batch back (409/403 via app-level handlers), one `Transaction` header + per-tube `TransactionItem` + per-tube audit row. Empty selection = no-op 303. Single-tube route unchanged; batch stock-**in** and CSV import remain per-row partial-success by design.
 - Audit covers warehouse tube ops + user management (create_user/update_user/revoke_sessions/toggle_user) + standards writes (create/update/delete with pre-delete snapshot) + login lockout trigger（第 10 次失败）写审计（action=login_lockout、user_id=NULL、detail=username+ip+failures+locked_for）；锁定期间/IP 层 429 不审计；AuditLog.user_id is the actor (v0.6.0, D10).
 - 盘点语义：`check_sessions`/`check_items` 持久化；盘亏使用 `status='missing'`（新状态值，非 `out_stock`）；确认单在单个 `BEGIN IMMEDIATE` 内原子应用（失败整体回滚、session 保持 open、零审计）；盘盈走 compliance；recover 找回；仅 confirm/recover 写审计。
 - Refer to design doc §4.1 for `pipe_id` auto-generation details and overrides.
