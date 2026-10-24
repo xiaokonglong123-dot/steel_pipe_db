@@ -28,6 +28,13 @@ from src.modules.warehouse.services.import_service import (
     ImportTooLargeError,
     import_tubes_csv,
 )
+from src.modules.warehouse.services.location_service import (
+    LocationConflictError,
+    LocationNotFoundError,
+    create_location,
+    deactivate_location,
+    update_location,
+)
 from src.modules.warehouse.services.check_service import (
     CheckConflictError,
     add_surplus,
@@ -995,44 +1002,103 @@ async def quality_update(
     return RedirectResponse(url=f"/tubes/quality?pipe_id={pipe_id}", status_code=303)
 
 
-@router.get("/locations")
-async def location_list(request: Request, session: AsyncSession = Depends(get_session), user=Depends(get_current_user), _role=Depends(require_admin)):
-    locs = (await session.execute(select(Location).order_by(Location.code))).scalars().all()
+async def _render_locations(
+    request: Request,
+    session: AsyncSession,
+    user: User,
+    *,
+    error: str | None = None,
+    status_code: int = 200,
+):
+    """Render the location list, optionally with an error banner (409 paths)."""
+    locs = (
+        await session.execute(select(Location).order_by(Location.code))
+    ).scalars().all()
     token = request.cookies.get("csrf_token") or generate_csrf_token()
-    rendered = templates.TemplateResponse("warehouse/location_list.html", {"request": request, "user": user, "csrf_token": token, "locations": locs})
+    rendered = templates.TemplateResponse(
+        "warehouse/location_list.html",
+        {
+            "request": request,
+            "user": user,
+            "csrf_token": token,
+            "locations": locs,
+            "error": error,
+        },
+        status_code=status_code,
+    )
     set_csrf_cookie(rendered, token)
     return rendered
 
 
+@router.get("/locations")
+async def location_list(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(get_current_user),
+    _role=Depends(require_admin),
+):
+    return await _render_locations(request, session, user)
+
+
 @router.post("/locations")
-async def location_create(request: Request, code: str = Form(...), name: str = Form(""), csrf_token: str = Form(...), session: AsyncSession = Depends(get_session), user=Depends(get_current_user), _role=Depends(require_admin), _: None = Depends(require_csrf)):
-    existing = (await session.execute(select(Location).where(Location.code == code))).scalars().first()
-    if existing:
-        raise HTTPException(status_code=409, detail=f"location '{code}' already exists")
-    session.add(Location(code=code, name=name or None, used_count=0, is_active=True))
-    await session.commit()
+async def location_create(
+    request: Request,
+    code: str = Form(...),
+    name: str = Form(""),
+    csrf_token: str = Form(...),
+    session: AsyncSession = Depends(get_session),
+    user=Depends(get_current_user),
+    _role=Depends(require_admin),
+    _: None = Depends(require_csrf),
+):
+    """Create a location — audited in the same BEGIN IMMEDIATE txn."""
+    try:
+        await create_location(code, name, engine=session.bind, actor_id=user.id)
+    except LocationConflictError as e:
+        return await _render_locations(
+            request, session, user, error=str(e), status_code=409
+        )
     return RedirectResponse(url="/locations", status_code=303)
 
 
 @router.post("/location/{code}/edit")
-async def location_edit(code: str, request: Request, name: str = Form(""), csrf_token: str = Form(...), session: AsyncSession = Depends(get_session), user=Depends(get_current_user), _role=Depends(require_admin), _: None = Depends(require_csrf)):
-    loc = (await session.execute(select(Location).where(Location.code == code))).scalars().first()
-    if not loc:
-        raise HTTPException(status_code=404)
-    loc.name = name or None
-    await session.commit()
+async def location_edit(
+    code: str,
+    request: Request,
+    name: str = Form(""),
+    csrf_token: str = Form(...),
+    session: AsyncSession = Depends(get_session),
+    user=Depends(get_current_user),
+    _role=Depends(require_admin),
+    _: None = Depends(require_csrf),
+):
+    """Rename a location — audited; an unchanged name is a silent no-op."""
+    try:
+        await update_location(code, name, engine=session.bind, actor_id=user.id)
+    except LocationNotFoundError:
+        raise HTTPException(status_code=404) from None
     return RedirectResponse(url="/locations", status_code=303)
 
 
 @router.post("/location/{code}/deactivate")
-async def location_deactivate(code: str, request: Request, csrf_token: str = Form(...), session: AsyncSession = Depends(get_session), user=Depends(get_current_user), _role=Depends(require_admin), _: None = Depends(require_csrf)):
-    loc = (
-        await session.execute(select(Location).where(Location.code == code))
-    ).scalars().first()
-    if not loc:
-        raise HTTPException(status_code=404)
-    loc.is_active = False
-    await session.commit()
+async def location_deactivate(
+    code: str,
+    request: Request,
+    csrf_token: str = Form(...),
+    session: AsyncSession = Depends(get_session),
+    user=Depends(get_current_user),
+    _role=Depends(require_admin),
+    _: None = Depends(require_csrf),
+):
+    """Soft-disable a location — audited; already-inactive → 409."""
+    try:
+        await deactivate_location(code, engine=session.bind, actor_id=user.id)
+    except LocationNotFoundError:
+        raise HTTPException(status_code=404) from None
+    except LocationConflictError as e:
+        return await _render_locations(
+            request, session, user, error=str(e), status_code=409
+        )
     return RedirectResponse(url="/locations", status_code=303)
 
 

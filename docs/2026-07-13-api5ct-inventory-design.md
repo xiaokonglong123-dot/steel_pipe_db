@@ -123,7 +123,7 @@
 | check_sessions/check_items | ✅ 已实现 | D11 盘点单与明细持久化（迁移 `20260801_000000`，live DB 2026-10-24 已 upgrade 到该 head） |
 | 质量标注（/tubes/quality） | ✅ 已实现 | 独立页面，TOCTOU 守卫 + 审计 |
 | 管子详情（/tubes/{pipe_id}） | ✅ 已实现 | `tubes.py` GET 处理器 + `warehouse/tube_detail.html`（含交易历史与审计记录；D14） |
-| 库位管理（/locations*） | ✅ 已实现（1 个列表页） | `location_list.html` + POST create/edit/deactivate，全部 `require_admin` + CSRF；表单内联，无独立详情/新增页（D15）。**写操作不写审计、不用 `BEGIN IMMEDIATE`**（§17） |
+| 库位管理（/locations*） | ✅ 已实现（1 个列表页） | `location_list.html` + POST create/edit/deactivate，全部 `require_admin` + CSRF；表单内联，无独立详情/新增页（D15）。写操作走 `location_service`：单个 `BEGIN IMMEDIATE` + 同事务审计行（2026-10-24 补齐） |
 | 批次查询（/batches） | ❌ 未实现 | 规划 |
 | 用户管理 CRUD + 会话吊销 | ✅ 已实现 | `users` 模块 |
 | 审计哈希链（写入同事务 + 20K 分段验证） | ✅ 已实现 | `audit_service._write_audit` + `_verify_chunked` |
@@ -148,7 +148,7 @@
 | 7 | 对齐 | §5.2、§15 | `RequestBodySizeLimitMiddleware` 加固：除 `Content-Length` 快路径外逐块统计**真实字节**，超限发一次 413 并中断 body 流（伪造/低报 `Content-Length` 无法绕过；不产生 ASGI 双响应） |
 | 8 | 对齐 | §13.1、§6 | 测试矩阵更新为 2026-10-24 实测：**16 文件 / 160 项（157 通过 + 3 slow）**；新增 `test_batch_stockout.py`（5 项） |
 | 9 | 版本 | §0.1、pyproject.toml、main.py | 应用版本号补至 `0.8.0`（D12 落地时漏 bump；文档头部与 AGENTS.md 已按 v0.8.0） |
-| 10 | 缺口记录 | §17 | 新增缺口：库位写操作（create/edit/deactivate）**不写审计、不用 `BEGIN IMMEDIATE`**；`deactivate` 单向、**无重新启用入口**；`/locations*` 与 `/tubes/{pipe_id}` 落在 `tubes.py` 而非独立模块 |
+| 10 | 缺口记录 → 已修复 | §5.7、§13.1、§14、§17、AGENTS.md | 库位写操作（create/edit/deactivate）原为裸 `session.commit()`：**不写审计、不用 `BEGIN IMMEDIATE`**。2026-10-24 抽出 `location_service`，三操作用单 `BEGIN IMMEDIATE` + 同事务审计行（`create_location` / `update_location` / `deactivate_location`），失败路径（重复/不存在/已停用/名称未变）回滚零审计；重复库位与重复停用由 `HTTPException(409)` 改为 **409 渲染错误横幅**，详情页 `location_list.html` 新增 `error` 块。剩余缺口：`deactivate` 仍单向、**无重新启用入口**；`/locations*` 与 `/tubes/{pipe_id}` 仍落在 `tubes.py` 而非独立模块 |
 | 11 | 核实非缺陷 | §4.1 | `tubes.pipe_id` 为行级 `UNIQUE (pipe_id)`，而管子仅软删除（`deleted_at`）、从不物理删除 → 唯一约束与软删除**无冲突**（2026-10-24 核查排除，不再作为潜在缺陷跟踪） |
 
 ---
@@ -173,7 +173,7 @@
 | 库存查询与筛选（含质量问题/报废管单独筛选） | ⚠️ 部分实现（筛选字段：status/location/steel_grade/quality_mark） |
 | 库存盘点 | ✅ 已实现 |
 | 问题管/报废管标注与管理 | ✅ 已实现（入库时标记 + 独立标注页 /tubes/quality + 出库/调拨守卫） |
-| 库位管理（列表/新增/编辑/停用） | ✅ 已实现（D15，2026-10-24；写操作无审计，见 §17） |
+| 库位管理（列表/新增/编辑/停用） | ✅ 已实现（D15，2026-10-24；写操作同事务审计，见 §5.7） |
 | 基础角色权限（管理员、仓库操作员、查看者） | ✅ 已实现（D1 已落地：tubes 写路径 require_operator、standards 写路径 + users + audit verify 全方法 + 库位管理 require_admin） |
 | 操作审计日志（防篡改哈希链） | ✅ 已实现 |
 
@@ -605,13 +605,13 @@ async def lifespan(app):
 
 `quality_mark` 与 `status` 独立；入库时可标记；`problematic` 出库/调拨需 admin（service 层 `ForbiddenError`）；`scrapped` 不可出库/调拨（守卫 `quality_mark != 'scrapped'`）。**独立标注页面 `/tubes/quality`（GET + POST，require_operator + CSRF）已实现（D12，2026-08-01）**；盘点单列不计入可用库存（盘点 D11 已落地）。
 
-### 5.7 库位管理流程  `[已实现（1 个列表页）；写操作审计与重新启用未实现]`
+### 5.7 库位管理流程  `[已实现（1 个列表页）；重新启用未实现]`
 
 - **物理删除限制**：已关联管子的库位不可物理删除（FK `ON DELETE RESTRICT`）——约束已实现；且**无删除路由**（仅 `deactivate` 停用），物理删除在应用层不可达。
 - **停用机制**：`is_active` 标记；停用库位不参与出库/调拨候选列表——候选列表逻辑已实现（transfer 表单）；**库位管理页 `/locations` 已实现**（列表 + create/edit/deactivate，`require_admin` + CSRF）。`deactivate` **单向**，无重新启用入口。
 - **首次部署**：启动 lifespan 幂等种子 `DEFAULT` 库位——已实现。
 - **容量监控**：`used_count`（含 `capacity` 存在时显示 `used / capacity`）与状态徽章在列表页展示——**已实现**（`location_list.html`）。
-- **审计缺口（2026-10-24 记录）**：库位 create/edit/deactivate 使用裸 `session.commit()`，**不写审计、不用 `BEGIN IMMEDIATE`**——与管子操作/用户管理/标准管理的审计覆盖不一致（见 §17）。
+- **审计（2026-10-24 补齐）**：库位 create/edit/deactivate 全部改为 `location_service` 的裸 conn + 单 `BEGIN IMMEDIATE`，审计行写入**同一事务**（`create_location` / `update_location` / `deactivate_location`，`user_id` = 操作者）。失败路径回滚且零审计：库位已存在、库位不存在、已停用、重命名时名称未变（后者与 `user_service.update_user` 的"无变更即静默"语义一致）。此前为裸 `session.commit()`、不写审计。
 
 ---
 
@@ -873,7 +873,7 @@ def upgrade():
 
 ### 13.1 测试矩阵（2026-10-24 实测基线）
 
-**16 个测试文件，无 conftest（每文件自足：独立 test DB、`sys.path.insert`、env 预置、依赖覆盖 stub）**。pytest 配置：`asyncio_mode=auto`，markers `slow` / `requires_rust`（后者注册未用）。共 **160 项：157 通过 + 3 项 slow**（`-m "not slow"` 跳过 21K 行审计压力测试；运行：`uv run --inexact pytest -m "not slow" -q` —— `--inexact` 防止 `uv sync` 移除 maturin 装出的 `rust_core`；slow 用例 `-m slow` 另跑，3 项通过）。
+**16 个测试文件，无 conftest（每文件自足：独立 test DB、`sys.path.insert`、env 预置、依赖覆盖 stub）**。2026-10-24 复核实测。pytest 配置：`asyncio_mode=auto`，markers `slow` / `requires_rust`（后者注册未用）。共 **168 项：165 通过 + 3 项 slow**（`-m "not slow"` 跳过 21K 行审计压力测试；运行：`uv run --inexact pytest -m "not slow" -q` —— `--inexact` 防止 `uv sync` 移除 maturin 装出的 `rust_core`；slow 用例 `-m slow` 另跑，3 项通过）。
 
 | 文件 | 项数 | 覆盖内容 |
 |---|---|---|
@@ -884,7 +884,7 @@ def upgrade():
 | test_panic_recovery.py | 7 | Rust 边界：畸形 hash/JWT → False/None；chunk>20K → ValueError；DB 后续可用 |
 | test_import_http.py | 7 | CSV 导入：200/413（>20MB）/400（缺列）/逐行错误收集 |
 | test_routes_protection.py | 33 | 路由矩阵：/tubes 401-200-200；/users 403（operator）；/standards CRUD 全链路 + CSRF |
-| test_admin_audit.py | 13 | 管理写操作审计：用户 4 操作 + standards 3 操作 → 审计行；失败路径零审计；密码哈希不入 detail；混合操作后链验证 ok |
+| test_admin_audit.py | 21 | 管理写操作审计：用户 4 操作 + standards 3 操作 + 库位 3 操作 → 审计行；失败路径零审计（重复库位/库位不存在/已停用/名称未变）；密码哈希不入 detail；混合操作后链验证 ok（含库位操作后链完整，2026-10-24 扩 8 项） |
 | test_login_lockout_audit.py | 6 | 登录锁定触发审计：10 次失败写 1 行（user_id NULL）/9 次不写/锁定后 429 不新增/IP 层不写/链完整/成功清除 |
 | test_tubes_routes.py | 15 | stock-in/out/batch/transfer 全链路：303/409/TOCTOU/CSRF 缺失 403/pipe_id 正则/手动 pipe_id 非法 → 422 重渲染；库位停用软删；已移除的 `/tubes/import-excel` → 405 |
 | test_batch_stockout.py | 5 | D13 批量出库：成功出库 + used_count 递减 + 单 Transaction + 逐根审计；未知 pipe_id 整体回滚；重复 pipe_id 整体回滚；空选择无操作（2026-10-24 新增） |
@@ -940,9 +940,9 @@ def upgrade():
 | POST | /tubes/quality | admin, operator | form: pipe_id, quality_mark, quality_note?, csrf_token | 303 → /tubes/quality；422 重渲染（非法标注/守卫失败）；audit action=quality_mark |
 | GET | /tubes/{pipe_id} | 任意 | — | 200 管子详情（交易历史 + 审计记录，`tube_detail.html`；D14）；404 |
 | GET | /locations | admin | — | 200 库位列表（`location_list.html`；used_count/capacity、状态、内联新增/编辑/停用表单） |
-| POST | /locations | admin | form: code, name?, csrf_token | 303 → /locations；409 库位已存在 |
-| POST | /location/{code}/edit | admin | form: name?, csrf_token | 303 → /locations；404 |
-| POST | /location/{code}/deactivate | admin | form: csrf_token | 303 → /locations（`is_active=False`，单向无重新启用）；404 |
+| POST | /locations | admin | form: code, name?, csrf_token | 303 → /locations；409 库位已存在（渲染错误横幅，非 JSON）；审计 `create_location` |
+| POST | /location/{code}/edit | admin | form: name?, csrf_token | 303 → /locations；404；名称未变为静默 303（零审计）；审计 `update_location` |
+| POST | /location/{code}/deactivate | admin | form: csrf_token | 303 → /locations（`is_active=False`，单向无重新启用）；404；已停用 → 409（渲染错误横幅）；审计 `deactivate_location` |
 | GET | /audit | 任意 | — | 200 最近 50 条审计日志 |
 | GET | /audit/verify | admin | — | 200 验证页（空链也 200）；401 未认证；403 非 admin（2026-10-24 收紧） |
 | POST | /audit/verify | admin | form: csrf_token | 200 verify_result {ok, broken, verified_total} |
@@ -1042,7 +1042,9 @@ sqlite3 "$RESTORE_DIR/restore_test.db" "PRAGMA integrity_check;"   # 期望: ok
 
 ## 17. 已知缺口与待办清单（新增）
 
-### 缺陷修正（D1-D10 已全部落地 ✅，留档备查）
+### 缺陷修正（D1-D18 已全部落地 ✅，留档备查；D9-D17 见 §0.4-§0.10）
+
+> D9-D12、D13-D17 分散在 §0.4-§0.10 的修订表内（`D9` 用户/标准写审计、`D10` 登录锁定审计、`D11` 盘点、`D12` 质量标注、`D13` 原子批量出库、`D14` 管子详情、`D15` 库位管理、`D17` 移除 Excel 残留），下表的 D1-D8 保留原始留档编号。
 
 | ID | 缺陷 | 修正方案 | 落地位置/状态 |
 |---|---|---|---|
@@ -1054,6 +1056,7 @@ sqlite3 "$RESTORE_DIR/restore_test.db" "PRAGMA integrity_check;"   # 期望: ok
 | D6 | list_tubes 显示软删管 | 补 `deleted_at IS NULL` 过滤 | ✅ tubes.py list_tubes；1 项测试 |
 | D7 | CSV 导入无行数上限 | 设计上限（建议 10K 行/次，超限拒绝并提示分批） | ✅ MAX_IMPORT_ROWS=10_000 + ImportRowLimitError→400；2 项测试 |
 | D8 | 手动 pipe_id 非法 → 500 | 单管入库路由捕获 `ValueError` → 422 表单重渲染 | ✅ tubes.py do_stock_in（2026-08-01）；1 项测试 |
+| D18 | 库位写操作在审计链之外（裸 `session.commit()`，无审计、无 `BEGIN IMMEDIATE`） | 抽出 `location_service`，三写操作单事务 + 同事务审计行；重复/已停用 → 409 渲染错误横幅 | ✅ location_service.py + tubes.py 路由（2026-10-24）；8 项测试 |
 
 ### 功能缺口（规划中）
 
@@ -1067,8 +1070,8 @@ sqlite3 "$RESTORE_DIR/restore_test.db" "PRAGMA integrity_check;"   # 期望: ok
 | Excel 导入 | ❌ 未实现；openpyxl 仅为选型，残留死代码已于 2026-10-24 移除（D17） |
 | 强制入库审批（forced_intake 审计） | §11 |
 | 出库不足临近库位提示 | §5.4 |
-| 库位写操作审计 | **新增（2026-10-24）**：`/locations` create/edit/deactivate 不写审计、不用 `BEGIN IMMEDIATE`（裸 commit），与管子/用户/标准管理的审计覆盖不一致 |
-| 库位重新启用 | **新增（2026-10-24）**：`deactivate` 单向，`is_active=True` 无入口；停用后仅能直改 DB |
+| 库位写操作审计 | ✅ 已修复（2026-10-24）：`location_service` 三写操作改为单 `BEGIN IMMEDIATE` + 同事务审计行；此前为裸 `session.commit()`、不写审计（见 §0.10 #10、§5.7） |
+| 库位重新启用 | **缺口（2026-10-24）**：`deactivate` 单向，`is_active=True` 无入口；停用后仅能直改 DB |
 | used_count 对账 CLI 入口 | 独立命令（免 HTTP 会话） |
 | audit_logs.ts 回填 + NOT NULL 收紧迁移 | §4.7 漂移修复 |
 | 审计哈希链月度快照 | 定期落库 |

@@ -46,6 +46,7 @@ Ayanami_Rei/
 │   │   │       ├── import_service.py  # CSV import (pandas, 20MB limit)
 │   │   │       ├── standards_service.py  # API 5CT 标准规格 CRUD + 审计（v0.5.0）
 │   │   │       ├── check_service.py   # 盘点单持久化、差异应用、recover
+│   │   │       ├── location_service.py # 库位 create/rename/deactivate + 审计（2026-10-24）
 │   │   │       └── audit_service.py   # Write-audit + Rust compute_hash calls
 │   │   └── users/          # 用户管理 (cross-cutting — user CRUD)
 │   │       ├── routers/users.py
@@ -86,6 +87,7 @@ Ayanami_Rei/
 | ORM models (tubes, users, audit, etc.) | `src/models.py` |
 | Business logic: stock-out, transfer, surplus | `src/modules/warehouse/services/tube_service.py` |
 | Audit hash chain writes + reads | `src/modules/warehouse/services/audit_service.py` |
+| Location create/rename/deactivate (audited) | `src/modules/warehouse/services/location_service.py` |
 | CSV import with compliance check | `src/modules/warehouse/services/import_service.py` |
 | Rust: JWT, compliance, audit hashing | `rust-core/src/` |
 | CSRF token generation | `src/security.py` |
@@ -116,7 +118,7 @@ Ayanami_Rei/
 17. **MUST** use `with op.batch_alter_table()` in ALL Alembic migrations (SQLite ALTER TABLE is crippled).
 18. **MUST** use `sqlite3 .backup` (NOT `cp`) for DB backups; set `busy_timeout=5000`.
 19. **MUST** separate seamless vs screen fields via type extension tables (1:1 by `pipe_id`).
-20. **MUST** enforce roles: `admin` / `operator` / `viewer` only. Warehouse write routes require `require_operator`; audit verify + standards write + users require `require_admin`.
+20. **MUST** enforce roles: `admin` / `operator` / `viewer` only. Warehouse write routes require `require_operator`; audit verify + standards write + users + location writes require `require_admin`.
 21. **MUST** set upload limit to 20MB (override FastAPI default ~2MB).
 22. `pipe_id` format: `{SP|SCP}-{grade}-{od}x{wt}-{uuid8}`.
 23. Rust modules MUST be pure functions with zero state (no chain tip, no session). Call via `anyio.to_thread.run_sync`.
@@ -167,10 +169,11 @@ python tests/test_concurrent_stockout.py
 - Genesis audit hash: `sha256("AYANAMI_REI_GENESIS")` — constant lives in `src/models.py` (not Rust); Rust `audit.rs` is a pure function taking `prev_hash`.
 - Manual `pipe_id` is weakly validated in `tube_service._validate_pipe_id_format` (SP-/SCP- prefix + 4 parts); failures re-render stock-in form with 422 (was 500, fixed 2026-08-01, D8).
 - `busy_timeout=5000` on DB backup command — prevents SQLITE_BUSY under write load.
-- Test baseline (2026-10-24): 157 passed + 3 deselected via `pytest -m "not slow"`; the 3 slow tests (20K audit stress) pass under `pytest -m slow`. Run with `uv run --inexact pytest -m "not slow" -q` (`--inexact` keeps the maturin-installed `rust_core` extraneous package; a plain `uv sync` removes it).
+- Test baseline (2026-10-24): 165 passed + 3 deselected via `pytest -m "not slow"`; the 3 slow tests (20K audit stress) pass under `pytest -m slow`. Run with `uv run --inexact pytest -m "not slow" -q` (`--inexact` keeps the maturin-installed `rust_core` extraneous package; a plain `uv sync` removes it).
+- 库位写操作（`POST /locations`、`/location/{code}/edit|deactivate`）走 `location_service`：单 `BEGIN IMMEDIATE` + 同事务审计行，失败路径回滚零审计（重复库位 409 / 不存在 404 / 已停用 409 / 重命名名称未变静默 303）；重复与已停用返回 409 并渲染 `location_list.html` 的 `error` 横幅（非 JSON detail）。
 - Batch stock-out (`POST /tubes/stock-out/batch`) is **atomic**: one `BEGIN IMMEDIATE`, per-tube TOCTOU guard, any failure rolls the whole batch back (409/403 via app-level handlers), one `Transaction` header + per-tube `TransactionItem` + per-tube audit row. Empty selection = no-op 303. Single-tube route unchanged; batch stock-**in** and CSV import remain per-row partial-success by design.
-- Audit covers warehouse tube ops + user management (create_user/update_user/revoke_sessions/toggle_user) + standards writes (create/update/delete with pre-delete snapshot) + login lockout trigger（第 10 次失败）写审计（action=login_lockout、user_id=NULL、detail=username+ip+failures+locked_for）；锁定期间/IP 层 429 不审计；AuditLog.user_id is the actor (v0.6.0, D10).
-- 已知审计缺口：库位管理 `/locations` + `/location/{code}/edit|deactivate`（`require_admin` + CSRF）使用裸 `session.commit()`，**不写审计、不用 `BEGIN IMMEDIATE`**，与管子/用户/标准管理的审计覆盖不一致；`deactivate` 单向、无重新启用入口。`/locations*`、`/tubes/{pipe_id}`（详情）、`/tubes/quality`、全部盘点端点均落在 `warehouse/routers/tubes.py`，未拆成独立 router 文件。
+- Audit covers warehouse tube ops + user management (create_user/update_user/revoke_sessions/toggle_user) + standards writes (create/update/delete with pre-delete snapshot) + location writes (create_location/update_location/deactivate_location, `location_service.py`) + login lockout trigger（第 10 次失败）写审计（action=login_lockout、user_id=NULL、detail=username+ip+failures+locked_for）；锁定期间/IP 层 429 不审计；AuditLog.user_id is the actor (v0.6.0, D10).
+- 已知缺口：库位 `deactivate` 单向、无重新启用入口。`/locations*`、`/tubes/{pipe_id}`（详情）、`/tubes/quality`、全部盘点端点均落在 `warehouse/routers/tubes.py`，未拆成独立 router 文件（库位业务逻辑已抽到 `location_service.py`）。
 - 盘点语义：`check_sessions`/`check_items` 持久化；盘亏使用 `status='missing'`（新状态值，非 `out_stock`）；确认单在单个 `BEGIN IMMEDIATE` 内原子应用（失败整体回滚、session 保持 open、零审计）；盘盈走 compliance；recover 找回；仅 confirm/recover 写审计。
 - Refer to design doc §4.1 for `pipe_id` auto-generation details and overrides.
 - Refer to design doc §12 for full TOCTOU guard pseudocode.

@@ -3,6 +3,8 @@
 Covers:
 * create_user / update_user / revoke_sessions / toggle_user -> audit rows
 * create_standard / update_standard / delete_standard -> audit rows
+* create_location / update_location / deactivate_location -> audit rows
+  (the location write path was the last one outside the chain; closed 2026-10-24)
 * failure paths write zero audit rows (rollback)
 * update_user password changes never leak the hash into detail
 * mixed operations keep the audit hash chain verifiable
@@ -32,7 +34,7 @@ from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 from rust_core import auth as rust_auth
 from src import database as db
 from src.main import app
-from src.models import AuditLog, Base, StandardSpec, User
+from src.models import AuditLog, Base, Location, StandardSpec, User
 from src.security import get_current_user, require_csrf
 from src.modules.users.services.user_service import update_user
 
@@ -52,6 +54,8 @@ def _seed():
             s.delete(row)
         for row in s.query(StandardSpec).all():
             s.delete(row)
+        for row in s.query(Location).all():
+            s.delete(row)
         s.commit()
         s.add(User(
             id=1, username="admin", role="admin", display_name="Admin",
@@ -67,6 +71,9 @@ def _seed():
             id=1, grade="L80", outer_diameter_mm=88.9,
             min_wall_thickness_mm=6.0, max_wall_thickness_mm=10.0,
             length_tolerance_mm=0.5, source="API 5CT",
+        ))
+        s.add(Location(
+            code="WH-A", name="A", used_count=0, is_active=True,
         ))
         s.commit()
 
@@ -330,6 +337,104 @@ def test_duplicate_grade_no_audit(client):
     assert _audit_count() == 0
 
 
+# --- location ops audit (last write path outside the chain, closed) --------
+
+
+def test_create_location_writes_audit(client):
+    _as_admin()
+    async def run():
+        async with client as c:
+            r = await _post(c, "/locations", {"code": "WH-B", "name": "B 区"})
+        assert r.status_code == 303, r.text[:400]
+    asyncio.run(run())
+    row = _last_audit()
+    assert row is not None
+    assert row.action == "create_location"
+    assert "code=WH-B" in row.detail
+    assert "name=B 区" in row.detail
+    assert row.user_id == 1
+    with SyncSession() as s:
+        loc = s.query(Location).filter(Location.code == "WH-B").first()
+        assert loc is not None and loc.is_active
+
+
+def test_duplicate_location_no_audit(client):
+    _as_admin()
+    async def run():
+        async with client as c:
+            r = await _post(c, "/locations", {"code": "WH-A", "name": "dup"})
+        assert r.status_code == 409, r.text[:400]
+        assert "已存在" in r.text
+    asyncio.run(run())
+    assert _audit_count() == 0
+    with SyncSession() as s:
+        assert s.query(Location).count() == 1
+
+
+def test_location_rename_writes_audit(client):
+    _as_admin()
+    async def run():
+        async with client as c:
+            r = await _post(c, "/location/WH-A/edit", {"name": "A2"})
+        assert r.status_code == 303, r.text[:400]
+    asyncio.run(run())
+    row = _last_audit()
+    assert row is not None
+    assert row.action == "update_location"
+    assert "code=WH-A" in row.detail
+    assert "name=A->A2" in row.detail
+    assert row.user_id == 1
+
+
+def test_location_rename_unchanged_no_audit(client):
+    _as_admin()
+    async def run():
+        async with client as c:
+            r = await _post(c, "/location/WH-A/edit", {"name": "A"})
+        assert r.status_code == 303, r.text[:400]
+    asyncio.run(run())
+    assert _audit_count() == 0
+
+
+def test_location_rename_missing_is_404_no_audit(client):
+    _as_admin()
+    async def run():
+        async with client as c:
+            r = await _post(c, "/location/NOPE/edit", {"name": "x"})
+        assert r.status_code == 404, r.text[:400]
+    asyncio.run(run())
+    assert _audit_count() == 0
+
+
+def test_location_deactivate_writes_audit(client):
+    _as_admin()
+    async def run():
+        async with client as c:
+            r = await _post(c, "/location/WH-A/deactivate", {})
+        assert r.status_code == 303, r.text[:400]
+    asyncio.run(run())
+    row = _last_audit()
+    assert row is not None
+    assert row.action == "deactivate_location"
+    assert "is_active=true->false" in row.detail
+    assert row.user_id == 1
+    with SyncSession() as s:
+        assert not s.query(Location).filter(Location.code == "WH-A").first().is_active
+
+
+def test_location_deactivate_twice_is_409_no_extra_audit(client):
+    _as_admin()
+    async def run():
+        async with client as c:
+            r = await _post(c, "/location/WH-A/deactivate", {})
+            assert r.status_code == 303, r.text[:400]
+            r = await _post(c, "/location/WH-A/deactivate", {})
+        assert r.status_code == 409, r.text[:400]
+        assert "已停用" in r.text
+    asyncio.run(run())
+    assert _audit_count() == 1
+
+
 # --- hash-chain continuity -------------------------------------------------
 
 
@@ -358,3 +463,21 @@ def test_chain_verifies_after_mixed_ops(client):
         assert "哈希链完整" in v.text
     asyncio.run(run())
     assert _audit_count() == 4
+
+
+def test_chain_verifies_after_location_ops(client):
+    _as_admin()
+    async def run():
+        async with client as c:
+            for url, data in (
+                ("/locations", {"code": "WH-C", "name": "C"}),
+                ("/location/WH-C/edit", {"name": "C 区"}),
+                ("/location/WH-C/deactivate", {}),
+            ):
+                r = await _post(c, url, data)
+                assert r.status_code == 303, r.text[:400]
+            v = await _post(c, "/audit/verify", {})
+        assert v.status_code == 200, v.text[:400]
+        assert "哈希链完整" in v.text
+    asyncio.run(run())
+    assert _audit_count() == 3
