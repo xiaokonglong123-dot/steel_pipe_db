@@ -49,6 +49,50 @@
   {%- endif -%}
 {%- endmacro %}
 
+{# 审计动作：图标 + 文字 + 颜色三重编码 #}
+{% macro audit_action_badge(action) -%}
+  {%- if action == "stock_in" -%}
+    <span class="badge is-ok"><i class="bi bi-box-arrow-in-down" aria-hidden="true"></i>入库</span>
+  {%- elif action == "stock_out" -%}
+    <span class="badge is-danger"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>出库</span>
+  {%- elif action == "transfer" -%}
+    <span class="badge is-info"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>调拨</span>
+  {%- elif action == "forced_intake" -%}
+    <span class="badge is-warn"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i>强制入库</span>
+  {%- elif action in ("create_location", "update_location", "deactivate_location") -%}
+    <span class="badge is-info"><i class="bi bi-geo-alt" aria-hidden="true"></i>库位</span>
+  {%- elif action in ("create_standard", "update_standard", "delete_standard") -%}
+    <span class="badge is-violet"><i class="bi bi-list-columns" aria-hidden="true"></i>标准</span>
+  {%- elif action in ("create_user", "update_user", "revoke_sessions", "toggle_user", "login_lockout") -%}
+    <span class="badge is-violet"><i class="bi bi-people" aria-hidden="true"></i>用户</span>
+  {%- elif action == "quality_mark" -%}
+    <span class="badge is-warn"><i class="bi bi-clipboard-pulse" aria-hidden="true"></i>质量</span>
+  {%- else -%}
+    <span class="badge is-none"><i class="bi bi-dot" aria-hidden="true"></i>{{ action }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{# 用户角色：图标 + 文字 + 颜色三重编码 #}
+{% macro role_badge(role) -%}
+  {%- if role == "admin" -%}
+    <span class="badge is-danger"><i class="bi bi-shield-fill" aria-hidden="true"></i>管理员</span>
+  {%- elif role == "operator" -%}
+    <span class="badge is-info"><i class="bi bi-wrench" aria-hidden="true"></i>操作员</span>
+  {%- elif role == "viewer" -%}
+    <span class="badge is-none"><i class="bi bi-eye" aria-hidden="true"></i>查看者</span>
+  {%- else -%}
+    <span class="badge is-none"><i class="bi bi-dash-circle" aria-hidden="true"></i>{{ role }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro user_active_badge(active) -%}
+  {%- if active -%}
+    <span class="badge is-ok"><i class="bi bi-check-lg" aria-hidden="true"></i>启用</span>
+  {%- else -%}
+    <span class="badge is-none"><i class="bi bi-slash-circle" aria-hidden="true"></i>禁用</span>
+  {%- endif -%}
+{%- endmacro %}
+
 {# 盘点单状态 #}
 {% macro check_status_badge(status) -%}
   {%- if status == "open" -%}

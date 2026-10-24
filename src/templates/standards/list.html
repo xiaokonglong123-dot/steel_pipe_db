@@ -1,152 +1,100 @@
 {% extends "base.html" %}
+{% from "_macros.html" import pager %}
 {% block title %}API 5CT 标准规格 · Ayanami_Rei{% endblock %}
 
-{% block styles %}
-<style>
-    .page-head h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-strong); }
-    .page-head .sub { color: var(--text-faint); font-size: 13px; margin-bottom: 22px; }
-    .filter-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .add-spec-card {
-        background: var(--bg-subtle);
-        border: 1px dashed var(--border-strong);
-        border-radius: 12px;
-        padding: 18px 20px;
-        margin-bottom: 22px;
-    }
-    .add-spec-card .section-title {
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--text-strong);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        margin-bottom: 14px;
-        display: flex; align-items: center; gap: 6px;
-    }
-    .add-spec-card .section-title i { color: var(--accent); }
-    .add-spec-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr 1fr auto;
-        gap: 10px;
-        align-items: end;
-    }
-    .add-spec-grid .form-label { display: block; }
-    .table code {
-        background: var(--accent-soft); color: var(--accent);
-        padding: 1px 6px; border-radius: 4px;
-    }
-    .empty {
-        text-align: center; padding: 50px 0;
-        color: var(--text-faint); font-size: 13px;
-    }
-    .empty i { font-size: 40px; color: var(--text-disabled); display: block; margin-bottom: 12px; }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="page-head">
-    <h1><i class="bi bi-rulers" style="color:var(--accent);margin-right:8px"></i>API 5CT 标准规格</h1>
-    <div class="sub">入库合规校验的钢级 / 外径 / 壁厚容差数据源</div>
-</div>
+<header class="page-head">
+    <div class="title-row">
+        <h1><i class="bi bi-list-columns" aria-hidden="true"></i>API 5CT 标准规格</h1>
+        <span class="stat-inline">入库合规校验的钢级 / 外径 / 壁厚容差数据源 · 共 {{ total }} 条</span>
+    </div>
+</header>
 
-<div class="surface">
-    <div class="surface-head">
-        <h4><i class="bi bi-search" style="color:var(--accent)"></i> 已记录规格</h4>
-        <form method="GET" action="/standards" class="filter-row">
-            <input type="text" name="grade" value="{{ grade_filter or '' }}" class="form-control form-control-sm" placeholder="按钢级过滤" style="width:160px">
-            <button type="submit" class="btn btn-subtle btn-sm"><i class="bi bi-funnel"></i> 筛选</button>
-            <a href="/standards" class="btn btn-ghost btn-sm" title="重置"><i class="bi bi-x-lg"></i></a>
+{% if ok %}
+<div class="alert alert-success flash" role="status"><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>{{ ok }}</span></div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger flash" role="alert"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>{{ error }}</span></div>
+{% endif %}
+
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-plus-square" aria-hidden="true"></i> 新增规格</h2></div>
+    <div class="panel-body">
+        <form method="POST" action="/standards" class="query-row">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="field">
+                <label class="form-label" for="n-grade">钢级</label>
+                <input id="n-grade" type="text" name="steel_grade" class="form-control" required placeholder="J55">
+            </div>
+            <div class="field">
+                <label class="form-label" for="n-od">外径 (mm)</label>
+                <input id="n-od" type="number" step="0.01" name="outer_diameter_mm" class="form-control" placeholder="73.0">
+            </div>
+            <div class="field">
+                <label class="form-label" for="n-min">最小壁厚 (mm)</label>
+                <input id="n-min" type="number" step="0.01" name="min_wall_thickness_mm" class="form-control" placeholder="5.51">
+            </div>
+            <div class="field">
+                <label class="form-label" for="n-max">最大壁厚 (mm)</label>
+                <input id="n-max" type="number" step="0.01" name="max_wall_thickness_mm" class="form-control" placeholder="5.51">
+            </div>
+            <button type="submit" class="btn btn-accent"><i class="bi bi-plus-lg" aria-hidden="true"></i> 添加</button>
         </form>
     </div>
-    <div class="surface-body">
-        {% if ok %}
-        <div class="alert alert-success flash"><i class="bi bi-check-circle me-1"></i> {{ ok }}</div>
-        {% endif %}
-        {% if error %}
-        <div class="alert alert-danger flash"><i class="bi bi-exclamation-triangle me-1"></i> {{ error }}</div>
-        {% endif %}
+</div>
 
-        <div class="add-spec-card">
-            <div class="section-title"><i class="bi bi-plus-square"></i> 新增规格</div>
-            <form method="POST" action="/standards">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <div class="add-spec-grid">
-                    <div>
-                        <label class="form-label">钢级</label>
-                        <input type="text" name="steel_grade" class="form-control form-control-sm" required placeholder="如 J55">
-                    </div>
-                    <div>
-                        <label class="form-label">外径 (mm)</label>
-                        <input type="number" step="0.01" name="outer_diameter_mm" class="form-control form-control-sm" placeholder="73.0">
-                    </div>
-                    <div>
-                        <label class="form-label">最小壁厚 (mm)</label>
-                        <input type="number" step="0.01" name="min_wall_thickness_mm" class="form-control form-control-sm" placeholder="5.51">
-                    </div>
-                    <div>
-                        <label class="form-label">最大壁厚 (mm)</label>
-                        <input type="number" step="0.01" name="max_wall_thickness_mm" class="form-control form-control-sm" placeholder="5.51">
-                    </div>
-                    <div>
-                        <button type="submit" class="btn btn-accent btn-sm"><i class="bi bi-plus-lg"></i> 添加</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-
-        {% if specs %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>钢级</th>
-                        <th>外径 (mm)</th>
-                        <th>最小壁厚 (mm)</th>
-                        <th>最大壁厚 (mm)</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in specs %}
-                    <tr>
-                        <td style="color:var(--text-faint);font-size:12px">{{ s.id }}</td>
-                        <td><code>{{ s.grade }}</code></td>
-                        <td>{{ s.outer_diameter_mm if s.outer_diameter_mm is not none else '—' }}</td>
-                        <td>{{ s.min_wall_thickness_mm if s.min_wall_thickness_mm is not none else '—' }}</td>
-                        <td>{{ s.max_wall_thickness_mm if s.max_wall_thickness_mm is not none else '—' }}</td>
-                        <td>
-                            <a href="/standards/{{ s.id }}/edit" class="btn btn-subtle btn-sm" title="编辑">
-                                <i class="bi bi-pencil"></i> 编辑
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <nav>
-            <ul class="pagination justify-content-center mt-3">
-                <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                    <a class="page-link" href="?page={{ page - 1 }}{% if grade_filter %}&grade={{ grade_filter }}{% endif %}">上一页</a>
-                </li>
-                <li class="page-item active"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
-                <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-                    <a class="page-link" href="?page={{ page + 1 }}{% if grade_filter %}&grade={{ grade_filter }}{% endif %}">下一页</a>
-                </li>
-            </ul>
-        </nav>
-        <p class="text-center text-muted" style="font-size:12px">共 {{ total }} 条</p>
-        {% else %}
-        <div class="empty">
-            <i class="bi bi-rulers"></i>
-            暂无标准规格记录
-        </div>
-        {% endif %}
+<div class="panel">
+    <div class="panel-head">
+        <h2><i class="bi bi-table" aria-hidden="true"></i> 已记录规格</h2>
+        <form method="GET" action="/standards" class="query-row" style="gap:4px">
+            <div class="field" style="min-width:150px">
+                <label class="form-label" for="grade-filter">按钢级过滤</label>
+                <input id="grade-filter" type="text" name="grade" value="{{ grade_filter or '' }}" class="form-control form-control-sm" placeholder="J55">
+            </div>
+            <button type="submit" class="btn btn-subtle btn-sm"><i class="bi bi-funnel" aria-hidden="true"></i> 筛选</button>
+            <a href="/standards" class="btn btn-ghost btn-sm" title="重置" aria-label="重置筛选"><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+        </form>
     </div>
+    {% if specs %}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col" class="num">ID</th>
+                    <th scope="col">钢级</th>
+                    <th scope="col" class="num">外径 (mm)</th>
+                    <th scope="col" class="num">最小壁厚 (mm)</th>
+                    <th scope="col" class="num">最大壁厚 (mm)</th>
+                    <th scope="col" class="col-ops">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in specs %}
+                <tr>
+                    <td class="num">{{ s.id }}</td>
+                    <td><code>{{ s.grade }}</code></td>
+                    <td class="num">{{ s.outer_diameter_mm if s.outer_diameter_mm is not none else '—' }}</td>
+                    <td class="num">{{ s.min_wall_thickness_mm if s.min_wall_thickness_mm is not none else '—' }}</td>
+                    <td class="num">{{ s.max_wall_thickness_mm if s.max_wall_thickness_mm is not none else '—' }}</td>
+                    <td class="col-ops">
+                        <a href="/standards/{{ s.id }}/edit" class="btn btn-subtle btn-sm"><i class="bi bi-pencil" aria-hidden="true"></i> 编辑</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="pager">
+        <span class="pager-info">第 <b>{{ page }}</b> / <b>{{ total_pages }}</b> 页 · 共 <b>{{ total }}</b> 条</span>
+        {{ pager(page, total_pages, ("grade=" ~ grade_filter) if grade_filter else "") }}
+    </div>
+    {% else %}
+    <div class="panel-body">
+        <div class="empty-state">
+            <i class="bi bi-list-columns" aria-hidden="true"></i>
+            <p>暂无标准规格记录{% if grade_filter %}（钢级 {{ grade_filter }} 无匹配）{% endif %}</p>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

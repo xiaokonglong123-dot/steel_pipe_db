@@ -1,104 +1,71 @@
 {% extends "base.html" %}
+{% from "_macros.html" import role_badge, user_active_badge %}
 {% block title %}用户管理 · Ayanami_Rei{% endblock %}
 
-{% block styles %}
-<style>
-    .page-head { margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; }
-    .page-head h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-strong); }
-    .badge.role-admin    { background: var(--danger-soft); color: #fca5a5; border-color: rgba(248,113,113,0.35); }
-    .badge.role-operator { background: var(--accent-soft); color: #93c5fd; border-color: rgba(59,130,246,0.35); }
-    .badge.role-viewer   { background: var(--bg-subtle); color: var(--text-muted); border-color: var(--border); }
-    .action-cell {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-    .action-cell form { display: inline; }
-    .empty {
-        text-align: center; padding: 60px 0;
-        color: var(--text-faint); font-size: 13px;
-    }
-    .empty i { font-size: 40px; color: var(--text-disabled); display: block; margin-bottom: 12px; }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="page-head">
-    <h1><i class="bi bi-people" style="color:var(--accent);margin-right:8px"></i>用户管理</h1>
-    <a href="/users/create" class="btn btn-accent btn-sm"><i class="bi bi-person-plus"></i> 新建用户</a>
-</div>
+<header class="page-head">
+    <div class="title-row">
+        <h1><i class="bi bi-people" aria-hidden="true"></i>用户管理</h1>
+        <span class="stat-inline">{{ users|length }} 个账户 · 角色仅 admin / operator / viewer</span>
+    </div>
+    <a href="/users/create" class="btn btn-accent btn-sm"><i class="bi bi-person-plus" aria-hidden="true"></i> 新建用户</a>
+</header>
 
-<div class="surface">
-    <div class="surface-body" style="padding: 0;">
-        {% if users %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>用户名</th>
-                        <th>显示名</th>
-                        <th>角色</th>
-                        <th>状态</th>
-                        <th>创建时间</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for u in users %}
-                    <tr>
-                        <td style="color:var(--text-faint);font-size:12px">{{ u.id }}</td>
-                        <td><strong style="color:var(--text-strong)">{{ u.username }}</strong></td>
-                        <td>{{ u.display_name }}</td>
-                        <td>
-                            {% if u.role == "admin" %}
-                            <span class="badge role-admin">管理员</span>
-                            {% elif u.role == "operator" %}
-                            <span class="badge role-operator">操作员</span>
-                            {% else %}
-                            <span class="badge role-viewer">查看者</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if u.active %}
-                            <span class="badge bg-success">启用</span>
-                            {% else %}
-                            <span class="badge bg-secondary">禁用</span>
-                            {% endif %}
-                        </td>
-                        <td style="font-family:'SF Mono',monospace;font-size:12px;color:var(--text-muted)">{{ u.created_at.strftime('%Y-%m-%d') }}</td>
-                        <td>
-                            <div class="action-cell">
-                                <a href="/users/edit/{{ u.id }}" class="btn btn-subtle btn-sm"><i class="bi bi-pencil"></i> 编辑</a>
+<div class="panel">
+    {% if users %}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col" class="num">ID</th>
+                    <th scope="col">用户名</th>
+                    <th scope="col">显示名</th>
+                    <th scope="col">角色</th>
+                    <th scope="col">状态</th>
+                    <th scope="col">创建时间</th>
+                    <th scope="col" class="col-ops">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td class="num">{{ u.id }}</td>
+                    <td><code>{{ u.username }}</code></td>
+                    <td>{{ u.display_name }}</td>
+                    <td>{{ role_badge(u.role) }}</td>
+                    <td>{{ user_active_badge(u.active) }}</td>
+                    <td class="num">{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+                    <td class="col-ops">
+                        <div class="ops-row">
+                            <div class="ops-line">
+                                <a href="/users/edit/{{ u.id }}" class="btn btn-subtle btn-sm"><i class="bi bi-pencil" aria-hidden="true"></i> 编辑</a>
                                 <form method="POST" action="/users/revoke/{{ u.id }}" onsubmit="return confirm('确认要强制该用户的所有会话失效吗？')">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <button type="submit" class="btn btn-ghost btn-sm" title="踢下线">
-                                        <i class="bi bi-power"></i> 踢下线
+                                    <button type="submit" class="btn btn-ghost btn-sm" title="强制该用户全部会话失效">
+                                        <i class="bi bi-power" aria-hidden="true"></i> 踢下线
                                     </button>
                                 </form>
-                                <form method="POST" action="/users/toggle/{{ u.id }}">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="active" value="{{ 'false' if u.active else 'true' }}">
-                                    {% if u.active %}
-                                    <button type="submit" class="btn btn-danger-subtle btn-sm"><i class="bi bi-pause-circle"></i> 禁用</button>
-                                    {% else %}
-                                    <button type="submit" class="btn btn-accent btn-sm"><i class="bi bi-play-circle"></i> 启用</button>
-                                    {% endif %}
-                                </form>
                             </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div class="empty">
-            <i class="bi bi-people"></i>
-            暂无用户
-        </div>
-        {% endif %}
+                            <form method="POST" action="/users/toggle/{{ u.id }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="active" value="{{ 'false' if u.active else 'true' }}">
+                                {% if u.active %}
+                                <button type="submit" class="btn btn-danger-subtle btn-sm"><i class="bi bi-pause-circle" aria-hidden="true"></i> 禁用</button>
+                                {% else %}
+                                <button type="submit" class="btn btn-accent btn-sm"><i class="bi bi-play-circle" aria-hidden="true"></i> 启用</button>
+                                {% endif %}
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+    {% else %}
+    <div class="panel-body">
+        <div class="empty-state"><i class="bi bi-people" aria-hidden="true"></i><p>暂无用户</p></div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

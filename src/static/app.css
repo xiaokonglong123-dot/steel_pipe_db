@@ -716,6 +716,23 @@ body.auth-page {
 .form-hint code { color: var(--text-muted); }
 .form-label .req { color: var(--danger); font-weight: 700; }
 
+/* 角色单选卡（用户表单） */
+.role-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.role-option {
+  position: relative;
+  cursor: pointer;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-base);
+  padding: 8px 10px;
+}
+.role-option:hover { border-color: var(--accent); }
+.role-option input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
+.role-option.selected { border-color: var(--accent); background: var(--accent-soft); }
+.role-option .ro-title { display: flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--text); }
+.role-option.selected .ro-title { color: var(--accent); }
+.role-option .ro-desc { margin-top: 2px; font-size: 11px; color: var(--text-dim); }
+@media (max-width: 620px) { .role-grid { grid-template-columns: 1fr; } }
+
 /* 主体对象（出库/转移/详情页顶部） */
 .subject {
   display: flex;
@@ -785,6 +802,9 @@ body.auth-page {
 .summary-line.is-ok { background: var(--ok-soft); border-color: #1d4a33; color: var(--ok); }
 .summary-line.is-warn { background: var(--warn-soft); border-color: #55430f; color: var(--warn); }
 .summary-line.is-bad { background: var(--danger-soft); border-color: #5a2530; color: var(--danger); }
+.broken-row { margin: 4px 0 0; padding: 5px 10px; background: var(--bg-base); border: 1px solid var(--border-strong); border-left: 3px solid var(--danger); font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
+.broken-row code { color: var(--danger); background: none; }
+.detail-cell { max-width: 420px; color: var(--text-muted); font-size: 11.5px; overflow-wrap: anywhere; }
 .ops-row { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .ops-row form, .ops-line { display: inline-flex; gap: 4px; align-items: center; margin: 0; }
 .ops-row .btn { white-space: nowrap; }

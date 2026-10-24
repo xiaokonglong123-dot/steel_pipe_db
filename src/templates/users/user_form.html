@@ -1,96 +1,52 @@
 {% extends "base.html" %}
 {% block title %}{% if editing %}编辑用户{% else %}新建用户{% endif %} · Ayanami_Rei{% endblock %}
 
-{% block styles %}
-<style>
-    .form-shell { max-width: 560px; margin: 24px auto 0; }
-    .page-head h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-strong); }
-    .page-head .sub { color: var(--text-faint); font-size: 13px; margin-bottom: 22px; }
-    .form-buttons {
-        margin-top: 24px;
-        padding-top: 20px;
-        border-top: 1px solid var(--border);
-        display: flex; gap: 10px;
-    }
-    .hint-text { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
-    .role-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-    }
-    .role-option {
-        cursor: pointer;
-        border: 1px solid var(--border);
-        background: var(--bg-elevated);
-        border-radius: 10px;
-        padding: 12px 14px;
-        transition: border-color .15s ease, background .15s ease;
-        position: relative;
-    }
-    .role-option:hover { border-color: var(--border-strong); background: var(--bg-hover); }
-    .role-option input[type=radio] {
-        position: absolute; opacity: 0; pointer-events: none;
-    }
-    .role-option.selected {
-        border-color: var(--accent);
-        background: var(--accent-soft);
-    }
-    .role-option .ro-title {
-        font-weight: 600; color: var(--text-strong);
-        font-size: 13.5px;
-        display: flex; align-items: center; gap: 6px;
-    }
-    .role-option .ro-desc {
-        font-size: 12px; color: var(--text-faint); margin-top: 4px;
-    }
-    .role-option.selected .ro-title { color: var(--accent); }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="form-shell">
-    <div class="page-head">
+<header class="page-head">
+    <div class="title-row">
         <h1>
             {% if editing %}
-            <i class="bi bi-person-gear" style="color:var(--accent);margin-right:8px"></i>编辑用户
+            <i class="bi bi-person-gear" aria-hidden="true"></i>编辑用户
             {% else %}
-            <i class="bi bi-person-plus" style="color:var(--accent);margin-right:8px"></i>新建用户
+            <i class="bi bi-person-plus" aria-hidden="true"></i>新建用户
             {% endif %}
         </h1>
-        <div class="sub">{% if editing %}修改用户信息 · 角色与密码{% else %}创建新用户 · 分配角色{% endif %}</div>
+        <span class="stat-inline">{% if editing %}修改显示名 · 角色与密码{% else %}创建新用户 · 分配角色{% endif %}</span>
     </div>
+</header>
 
-    <div class="surface">
-        <div class="surface-body">
+<div class="narrow">
+    <div class="panel">
+        <div class="panel-body">
             {% if error %}
-            <div class="alert alert-danger flash"><i class="bi bi-exclamation-triangle me-1"></i> {{ error }}</div>
+            <div class="alert alert-danger flash" role="alert"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>{{ error }}</span></div>
             {% endif %}
 
             <form method="POST" action="{% if editing %}/users/edit/{{ editing.id }}{% else %}/users/create{% endif %}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-                <div class="mb-3">
+                <div class="field mb-2">
                     <label for="username" class="form-label">用户名</label>
                     <input type="text" class="form-control" id="username" name="username" value="{{ editing.username if editing else '' }}" {% if editing %}disabled{% else %}required{% endif %}>
-                    {% if editing %}<div class="hint-text"><i class="bi bi-lock"></i> 用户名不可修改</div>{% endif %}
+                    {% if editing %}<span class="form-hint"><i class="bi bi-lock" aria-hidden="true"></i> 用户名不可修改</span>{% endif %}
                 </div>
 
-                <div class="mb-3">
+                <div class="field mb-2">
                     <label for="display_name" class="form-label">显示名</label>
                     <input type="text" class="form-control" id="display_name" name="display_name" value="{{ editing.display_name if editing else '' }}" required>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">角色</label>
+                <div class="field mb-2">
+                    <span class="form-label">角色</span>
                     <div class="role-grid">
                         {% for r in roles %}
                         <label class="role-option {% if (editing and editing.role == r) or (not editing and r == 'viewer') %}selected{% endif %}">
                             <input type="radio" name="role" value="{{ r }}" data-role
                                 {% if (editing and editing.role == r) or (not editing and r == 'viewer') %}checked{% endif %}>
                             <div class="ro-title">
-                                {% if r == 'admin' %}<i class="bi bi-shield-fill"></i> 管理员
-                                {% elif r == 'operator' %}<i class="bi bi-wrench"></i> 操作员
-                                {% else %}<i class="bi bi-eye"></i> 查看者{% endif %}
+                                {% if r == 'admin' %}<i class="bi bi-shield-fill" aria-hidden="true"></i> 管理员
+                                {% elif r == 'operator' %}<i class="bi bi-wrench" aria-hidden="true"></i> 操作员
+                                {% else %}<i class="bi bi-eye" aria-hidden="true"></i> 查看者{% endif %}
                             </div>
                             <div class="ro-desc">
                                 {% if r == 'admin' %}全部权限
@@ -102,18 +58,18 @@
                     </div>
                 </div>
 
-                <div class="mb-3">
+                <div class="field mb-2">
                     <label for="password" class="form-label">
-                        密码 {% if editing %} <span style="font-weight:400;text-transform:none;letter-spacing:normal;color:var(--text-faint)">(留空则不修改)</span>{% endif %}
+                        密码 {% if editing %}<span class="form-hint" style="text-transform:none;letter-spacing:normal">（留空则不修改）</span>{% endif %}
                     </label>
                     <input type="password" class="form-control" id="password" name="password"
                            {% if editing %}placeholder="留空保持原密码"{% else %}required{% endif %} minlength="6">
-                    {% if not editing %}<div class="hint-text">最少 6 个字符</div>{% endif %}
+                    {% if not editing %}<span class="form-hint">最少 6 个字符</span>{% endif %}
                 </div>
 
-                <div class="form-buttons">
+                <div class="form-actions">
                     <button type="submit" class="btn btn-accent">
-                        <i class="bi bi-check-lg"></i> {% if editing %}保存修改{% else %}创建用户{% endif %}
+                        <i class="bi bi-check-lg" aria-hidden="true"></i> {% if editing %}保存修改{% else %}创建用户{% endif %}
                     </button>
                     <a href="/users" class="btn btn-ghost">取消</a>
                 </div>
