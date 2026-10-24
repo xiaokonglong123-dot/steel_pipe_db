@@ -1,0 +1,451 @@
+# Task 1 review package (D11: migration + models + stock_in extraction)
+## diff: src/models.py
+--- .superpowers/sdd/2026-08-01-check/baseline/task-1/models.py	2026-08-01 09:20:30.317968634 +0000
++++ src/models.py	2026-08-01 09:21:32.493451205 +0000
+@@ -208,3 +208,42 @@
+     max_wall_thickness_mm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+     length_tolerance_mm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+     source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
++
++
++# ---------------------------------------------------------------------------
++# check_sessions / check_items  —  inventory check (盘点, D11)
++# ---------------------------------------------------------------------------
++
++
++class CheckSession(Base):
++    __tablename__ = "check_sessions"
++
++    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
++    location: Mapped[str] = mapped_column(String(32), nullable=False)
++    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")  # open/confirmed/cancelled
++    created_by: Mapped[int] = mapped_column(Integer, nullable=False)
++    confirmed_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
++    )
++    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
++    remark: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
++
++
++class CheckItem(Base):
++    __tablename__ = "check_items"
++
++    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
++    check_id: Mapped[int] = mapped_column(
++        Integer,
++        ForeignKey("check_sessions.id", ondelete="CASCADE"),
++        nullable=False,
++        index=True,
++    )
++    pipe_id: Mapped[str] = mapped_column(String, nullable=False)
++    result: Mapped[str] = mapped_column(String(16), nullable=False)  # ok/missing/moved/surplus
++    actual_location: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
++    surplus_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
++    )
+
+
+## diff: src/modules/warehouse/services/tube_service.py
+--- .superpowers/sdd/2026-08-01-check/baseline/task-1/tube_service.py	2026-08-01 09:20:30.317968634 +0000
++++ src/modules/warehouse/services/tube_service.py	2026-08-01 09:22:02.576452733 +0000
+@@ -260,6 +260,166 @@
+     )
+ 
+ 
++async def _insert_tube_with_compliance(
++    conn: object,
++    type_: str,
++    outer_diameter_mm: float,
++    wall_thickness_mm: float,
++    length_m: float,
++    steel_grade: str,
++    location: str,
++    operator_id: int,
++    manufacturer: str,
++    pipe_id: str | None = None,
++    thread_type: str | None = None,
++    api_5ct_cert: str | None = None,
++    batch_no: str | None = None,
++    heat_no: str | None = None,
++    heat_treat_method: str | None = None,
++    quality_mark: str = "normal",
++    quality_note: str | None = None,
++    seamless_specs: dict | None = None,
++    screen_specs: dict | None = None,
++    compliance_pass: bool | None = None,
++) -> dict:
++    # -- 0. API 5CT compliance gate --------------------------------------
++    if compliance_pass is None:
++        spec = await _load_std_spec_for_grade(conn, steel_grade)
++        if spec is None:
++            raise ComplianceError(
++                f"no standard spec for grade '{steel_grade}'"
++            )
++        params = _build_tube_params_for_compliance(
++            type_,
++            outer_diameter_mm,
++            wall_thickness_mm,
++            length_m,
++            steel_grade,
++            thread_type,
++            screen_specs,
++        )
++        result = await anyio.to_thread.run_sync(
++            rust_compliance.validate_tube, params, spec
++        )
++        if not result.passed:
++            reasons = "; ".join(
++                f"{c.check_name}: {c.reason}"
++                for c in result.checks
++                if not c.passed and c.reason
++            )
++            raise ComplianceError(
++                f"API 5CT compliance failed — {reasons}"
++            )
++        compliance_pass = True
++    else:
++        compliance_pass = bool(compliance_pass)
++
++    # -- 1. Uniqueness check --------------------------------------------
++    existing = (
++        await conn.execute(
++            text("SELECT 1 FROM tubes WHERE pipe_id=:pid AND deleted_at IS NULL"),
++            {"pid": pipe_id},
++        )
++    ).fetchone()
++    if existing is not None:
++        raise ConflictError(f"pipe_id '{pipe_id}' already exists")
++
++    # -- 2. Verify location exists and is active ------------------------
++    loc = (
++        await conn.execute(
++            text("SELECT 1 FROM locations WHERE code=:c AND is_active=1"),
++            {"c": location},
++        )
++    ).fetchone()
++    if loc is None:
++        raise ConflictError(f"location '{location}' not found or inactive")
++
++    # -- 3. INSERT tube --------------------------------------------------
++    now = datetime.now(timezone.utc)
++    await conn.execute(
++        Tube.__table__.insert().values(
++            pipe_id=pipe_id,
++            **{Tube.type_.name: type_},
++            outer_diameter_mm=outer_diameter_mm,
++            wall_thickness_mm=wall_thickness_mm,
++            length_m=length_m,
++            steel_grade=steel_grade,
++            thread_type=thread_type,
++            api_5ct_cert=api_5ct_cert,
++            manufacturer=manufacturer,
++            batch_no=batch_no,
++            heat_no=heat_no,
++            heat_treat_method=heat_treat_method,
++            location=location,
++            status="in_stock",
++            quality_mark=quality_mark,
++            quality_note=quality_note,
++            compliance_pass=compliance_pass,
++            stock_in_time=now,
++            created_at=now,
++            updated_at=now,
++        )
++    )
++
++    # -- 4. INSERT extension specs ---------------------------------------
++    if type_ == "seamless_pipe" and seamless_specs:
++        await conn.execute(
++            SeamlessPipeSpec.__table__.insert().values(
++                pipe_id=pipe_id,
++                **seamless_specs,
++            )
++        )
++    elif type_ == "screen_pipe" and screen_specs:
++        await conn.execute(
++            ScreenPipeSpec.__table__.insert().values(
++                pipe_id=pipe_id,
++                **screen_specs,
++            )
++        )
++
++    # -- 5. Increment location counter -----------------------------------
++    await conn.execute(
++        text("UPDATE locations SET used_count = used_count + 1 WHERE code=:c"),
++        {"c": location},
++    )
++
++    # -- 6. Transaction header + item ------------------------------------
++    ts_txn = datetime.now(timezone.utc)
++    res = await conn.execute(
++        Transaction.__table__.insert().values(
++            type="in",
++            operator_id=operator_id,
++            remark="stock_in",
++            created_at=ts_txn,
++        )
++    )
++    txn_id = res.inserted_primary_key[0]
++
++    await conn.execute(
++        TransactionItem.__table__.insert().values(
++            transaction_id=txn_id,
++            pipe_id=pipe_id,
++            source_location=None,
++            target_location=location,
++        )
++    )
++
++    # -- 7. Audit --------------------------------------------------------
++    await _write_audit(
++        conn,
++        "stock_in",
++        f"pipe_id={pipe_id} txn={txn_id} compliant={compliance_pass}",
++        operator_id,
++    )
++
++    return {
++        "pipe_id": pipe_id,
++        "transaction_id": txn_id,
++        "location": location,
++        "compliance_pass": compliance_pass,
++    }
++
++
+ async def stock_in(
+     type_: str,
+     outer_diameter_mm: float,
+@@ -306,6 +466,8 @@
+         for the manual stock-in router path).
+       - ``True``/``False`` → caller has already verified (e.g. CSV import)
+         and the value is persisted as-is; no Rust call is made.
++
++    核心逻辑见 `_insert_tube_with_compliance`
+     """
+     eng = engine or db.engine
+ 
+@@ -318,147 +480,30 @@
+     async with eng.connect() as conn:
+         await begin_immediate(conn)
+         try:
+-            # -- 0. API 5CT compliance gate --------------------------------------
+-            if compliance_pass is None:
+-                spec = await _load_std_spec_for_grade(conn, steel_grade)
+-                if spec is None:
+-                    await conn.rollback()
+-                    raise ComplianceError(
+-                        f"no standard spec for grade '{steel_grade}'"
+-                    )
+-                params = _build_tube_params_for_compliance(
+-                    type_,
+-                    outer_diameter_mm,
+-                    wall_thickness_mm,
+-                    length_m,
+-                    steel_grade,
+-                    thread_type,
+-                    screen_specs,
+-                )
+-                result = await anyio.to_thread.run_sync(
+-                    rust_compliance.validate_tube, params, spec
+-                )
+-                if not result.passed:
+-                    reasons = "; ".join(
+-                        f"{c.check_name}: {c.reason}"
+-                        for c in result.checks
+-                        if not c.passed and c.reason
+-                    )
+-                    await conn.rollback()
+-                    raise ComplianceError(
+-                        f"API 5CT compliance failed — {reasons}"
+-                    )
+-                compliance_pass = True
+-            else:
+-                compliance_pass = bool(compliance_pass)
+-
+-            # -- 1. Uniqueness check --------------------------------------------
+-            existing = (
+-                await conn.execute(
+-                    text("SELECT 1 FROM tubes WHERE pipe_id=:pid AND deleted_at IS NULL"),
+-                    {"pid": pipe_id},
+-                )
+-            ).fetchone()
+-            if existing is not None:
+-                await conn.rollback()
+-                raise ConflictError(f"pipe_id '{pipe_id}' already exists")
+-
+-            # -- 2. Verify location exists and is active ------------------------
+-            loc = (
+-                await conn.execute(
+-                    text("SELECT 1 FROM locations WHERE code=:c AND is_active=1"),
+-                    {"c": location},
+-                )
+-            ).fetchone()
+-            if loc is None:
+-                await conn.rollback()
+-                raise ConflictError(f"location '{location}' not found or inactive")
+-
+-            # -- 3. INSERT tube --------------------------------------------------
+-            now = datetime.now(timezone.utc)
+-            await conn.execute(
+-                Tube.__table__.insert().values(
+-                    pipe_id=pipe_id,
+-                    **{Tube.type_.name: type_},
+-                    outer_diameter_mm=outer_diameter_mm,
+-                    wall_thickness_mm=wall_thickness_mm,
+-                    length_m=length_m,
+-                    steel_grade=steel_grade,
+-                    thread_type=thread_type,
+-                    api_5ct_cert=api_5ct_cert,
+-                    manufacturer=manufacturer,
+-                    batch_no=batch_no,
+-                    heat_no=heat_no,
+-                    heat_treat_method=heat_treat_method,
+-                    location=location,
+-                    status="in_stock",
+-                    quality_mark=quality_mark,
+-                    quality_note=quality_note,
+-                    compliance_pass=compliance_pass,
+-                    stock_in_time=now,
+-                    created_at=now,
+-                    updated_at=now,
+-                )
+-            )
+-
+-            # -- 4. INSERT extension specs ---------------------------------------
+-            if type_ == "seamless_pipe" and seamless_specs:
+-                await conn.execute(
+-                    SeamlessPipeSpec.__table__.insert().values(
+-                        pipe_id=pipe_id,
+-                        **seamless_specs,
+-                    )
+-                )
+-            elif type_ == "screen_pipe" and screen_specs:
+-                await conn.execute(
+-                    ScreenPipeSpec.__table__.insert().values(
+-                        pipe_id=pipe_id,
+-                        **screen_specs,
+-                    )
+-                )
+-
+-            # -- 5. Increment location counter -----------------------------------
+-            await conn.execute(
+-                text("UPDATE locations SET used_count = used_count + 1 WHERE code=:c"),
+-                {"c": location},
+-            )
+-
+-            # -- 6. Transaction header + item ------------------------------------
+-            ts_txn = datetime.now(timezone.utc)
+-            res = await conn.execute(
+-                Transaction.__table__.insert().values(
+-                    type="in",
+-                    operator_id=operator_id,
+-                    remark="stock_in",
+-                    created_at=ts_txn,
+-                )
+-            )
+-            txn_id = res.inserted_primary_key[0]
+-
+-            await conn.execute(
+-                TransactionItem.__table__.insert().values(
+-                    transaction_id=txn_id,
+-                    pipe_id=pipe_id,
+-                    source_location=None,
+-                    target_location=location,
+-                )
+-            )
+-
+-            # -- 7. Audit --------------------------------------------------------
+-            await _write_audit(
++            result = await _insert_tube_with_compliance(
+                 conn,
+-                "stock_in",
+-                f"pipe_id={pipe_id} txn={txn_id} compliant={compliance_pass}",
++                type_,
++                outer_diameter_mm,
++                wall_thickness_mm,
++                length_m,
++                steel_grade,
++                location,
+                 operator_id,
++                manufacturer,
++                pipe_id=pipe_id,
++                thread_type=thread_type,
++                api_5ct_cert=api_5ct_cert,
++                batch_no=batch_no,
++                heat_no=heat_no,
++                heat_treat_method=heat_treat_method,
++                quality_mark=quality_mark,
++                quality_note=quality_note,
++                seamless_specs=seamless_specs,
++                screen_specs=screen_specs,
++                compliance_pass=compliance_pass,
+             )
+-
+             await conn.commit()
+-            return {
+-                "pipe_id": pipe_id,
+-                "transaction_id": txn_id,
+-                "location": location,
+-                "compliance_pass": compliance_pass,
+-            }
++            return result
+ 
+         except Exception:
+             await conn.rollback()
+
+
+## new file: migrations/versions/20260801_000000_add_check_tables.py
+"""Add check_sessions + check_items for inventory check (盘点, D11).
+
+Revision ID: 20260801_000000_add_check_tables
+Revises: 8ce24f163996
+Create Date: 2026-08-01
+"""
+
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+revision: str = "20260801_000000_add_check_tables"
+down_revision: Union[str, None] = "8ce24f163996"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    op.create_table(
+        "check_sessions",
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column("location", sa.String(32), nullable=False),
+        sa.Column("status", sa.String(16), server_default=sa.text("'open'"), nullable=False),
+        sa.Column("created_by", sa.Integer, nullable=False),
+        sa.Column("confirmed_by", sa.Integer, nullable=True),
+        sa.Column("created_at", sa.DateTime, nullable=False),
+        sa.Column("confirmed_at", sa.DateTime, nullable=True),
+        sa.Column("remark", sa.Text, nullable=True),
+    )
+    op.create_table(
+        "check_items",
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column(
+            "check_id",
+            sa.Integer,
+            sa.ForeignKey("check_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("pipe_id", sa.String, nullable=False),
+        sa.Column("result", sa.String(16), nullable=False),
+        sa.Column("actual_location", sa.String(32), nullable=True),
+        sa.Column("surplus_data", sa.Text, nullable=True),
+        sa.Column("created_at", sa.DateTime, nullable=False),
+    )
+    op.create_index("ix_check_items_check_id", "check_items", ["check_id"])
+
+
+def downgrade() -> None:
+    op.drop_index("ix_check_items_check_id", table_name="check_items")
+    op.drop_table("check_items")
+    op.drop_table("check_sessions")

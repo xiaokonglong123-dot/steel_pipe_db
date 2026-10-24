@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}批量导入 · Ayanami_Rei{% endblock %}
+
+{% block styles %}
+<style>
+    .page-head h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-strong); }
+    .page-head .sub { color: var(--text-faint); font-size: 13px; margin-bottom: 22px; }
+    .section-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-strong);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 14px;
+    }
+    .section-title i { color: var(--accent); }
+    .upload-zone {
+        border: 1.5px dashed var(--border-strong);
+        background: var(--bg-subtle);
+        border-radius: 12px;
+        padding: 28px 20px;
+        text-align: center;
+        transition: border-color .2s ease, background .2s ease;
+        margin-bottom: 14px;
+    }
+    .upload-zone:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+    }
+    .upload-zone .upload-icon {
+        width: 44px; height: 44px;
+        margin: 0 auto 12px;
+        border-radius: 12px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        color: var(--accent);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 22px;
+    }
+    .upload-zone .upload-title {
+        font-size: 14px; font-weight: 500; color: var(--text-strong); margin-bottom: 4px;
+    }
+    .upload-zone .upload-hint {
+        font-size: 12.5px; color: var(--text-faint);
+    }
+    .upload-zone input[type=file] {
+        position: absolute;
+        opacity: 0; pointer-events: none;
+        width: 0; height: 0;
+    }
+    .upload-zone label {
+        display: inline-block;
+        margin-top: 12px;
+        cursor: pointer;
+    }
+    .file-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12.5px;
+        font-weight: 500;
+        margin-top: 10px;
+    }
+    .divider-soft {
+        margin: 28px 0 24px;
+        border: 0;
+        border-top: 1px solid var(--border);
+    }
+    .import-results {
+        margin: 20px 0 0;
+    }
+    .summary-card {
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-size: 13.5px;
+        margin-bottom: 12px;
+        border: 1px solid;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .summary-card.success { background: var(--success-soft); color: #86efac; border-color: rgba(52,211,153,0.35); }
+    .summary-card.warning { background: var(--warning-soft); color: #fcd34d; border-color: rgba(251,191,36,0.35); }
+    .summary-card.danger  { background: var(--danger-soft); color: #fca5a5; border-color: rgba(248,113,113,0.35); }
+    .summary-card i { font-size: 16px; }
+    .error-list {
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-size: 12.5px;
+        color: var(--text-muted);
+        margin-top: 8px;
+    }
+    .error-list ul { margin: 0; padding-left: 18px; }
+    .error-list li { line-height: 1.65; }
+    .batch-textarea {
+        font-family: "SF Mono", "JetBrains Mono", "Menlo", monospace;
+        font-size: 12.5px;
+        background: var(--bg-subtle);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <h1><i class="bi bi-filetype-csv" style="color:var(--accent);margin-right:8px"></i>批量导入</h1>
+    <div class="sub">CSV 文件批量入库 · 20MB 上限 · 逐行 API 5CT 合规校验</div>
+</div>
+
+<div class="surface">
+    <div class="surface-body">
+
+        <div class="section-title"><i class="bi bi-cloud-arrow-up"></i> CSV 文件上传</div>
+        <form method="POST" action="/tubes/import" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="upload-zone" id="dropzone">
+                <div class="upload-icon"><i class="bi bi-filetype-csv"></i></div>
+                <div class="upload-title">拖放 CSV 文件到此处, 或点击下方按钮选择</div>
+                <div class="upload-hint">支持 .csv 格式, 单文件最大 20MB, 必填列: pipe_type, outer_diameter_mm, wall_thickness_mm, length_m, steel_grade, location, manufacturer</div>
+                <label for="file" class="btn btn-accent btn-sm mt-2"><i class="bi bi-folder2-open"></i> 选择文件</label>
+                <input type="file" id="file" name="file" accept=".csv" required onchange="document.getElementById('filetag').textContent = this.files[0] ? this.files[0].name : ''; document.getElementById('filetag').style.display = this.files[0] ? 'inline-flex' : 'none';">
+                <div id="filetag" class="file-tag" style="display:none;"><i class="bi bi-file-earmark"></i><span></span></div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-accent"><i class="bi bi-upload"></i> 上传并导入</button>
+                <a href="/tubes" class="btn btn-ghost">取消</a>
+            </div>
+        </form>
+
+        {% if import_result %}
+        <div class="import-results">
+            {% if import_result.ok %}
+            <div class="summary-card success"><i class="bi bi-check-circle"></i> 成功导入 {{ import_result.ok }} 行</div>
+            {% else %}
+            <div class="summary-card warning"><i class="bi bi-exclamation-circle"></i> 没有行被成功导入</div>
+            {% endif %}
+
+            {% if import_result.errors %}
+            <div class="summary-card danger"><i class="bi bi-x-circle"></i> 失败 {{ import_result.errors|length }} 行</div>
+            <div class="error-list">
+                <ul>
+                    {% for e in import_result.errors %}
+                    <li>第 <strong>{{ e.row }}</strong> 行{% if e.pipe_id %} (pipe_id={{ e.pipe_id }}){% endif %}: {{ e.error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <hr class="divider-soft">
+
+        <div class="section-title"><i class="bi bi-braces"></i> 批量 JSON 手动录入</div>
+        <div class="mb-3">
+            <textarea class="form-control batch-textarea" id="batch_json" rows="8"
+                      placeholder='[{"type": "seamless_pipe", "outer_diameter_mm": 73.0, "wall_thickness_mm": 5.51, "length_m": 9.6, "steel_grade": "J55", "location": "A-01", "manufacturer": "Tianjin"}]'></textarea>
+            <div class="form-text mt-1">格式: [{"type": "seamless_pipe", ...}, ...] · 无缝管 (seamless_pipe) 或筛管 (screen_pipe)</div>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-accent" onclick="submitBatch()"><i class="bi bi-send"></i> 提交批量录入</button>
+            <a href="/tubes" class="btn btn-ghost">取消</a>
+        </div>
+
+        <div id="batch_results" class="import-results" style="display: none;">
+            <div id="batch_ok" class="summary-card success" style="display: none;"><i class="bi bi-check-circle"></i> <span></span></div>
+            <div id="batch_errors" class="summary-card danger" style="display: none;"><i class="bi bi-x-circle"></i> <span></span>
+                <ul id="batch_error_list" class="mb-0" style="margin-left: 8px;"></ul>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+function submitBatch() {
+    var textarea = document.getElementById('batch_json');
+    var resultsDiv = document.getElementById('batch_results');
+    var okDiv = document.getElementById('batch_ok');
+    var okSpan = okDiv.querySelector('span');
+    var errorsDiv = document.getElementById('batch_errors');
+    var errorsSpan = errorsDiv.querySelector('span');
+    var errorList = document.getElementById('batch_error_list');
+
+    resultsDiv.style.display = 'none';
+    okDiv.style.display = 'none';
+    errorsDiv.style.display = 'none';
+
+    var jsonStr = textarea.value.trim();
+    if (!jsonStr) {
+        errorsSpan.textContent = '输入错误: 请输入 JSON 数据';
+        errorList.innerHTML = '';
+        errorsDiv.style.display = 'flex';
+        resultsDiv.style.display = 'block';
+        return;
+    }
+
+    var parsed;
+    try {
+        parsed = JSON.parse(jsonStr);
+    } catch (e) {
+        errorsSpan.textContent = 'JSON 解析错误';
+        errorList.innerHTML = '<li>' + e.message + '</li>';
+        errorsDiv.style.display = 'flex';
+        resultsDiv.style.display = 'block';
+        return;
+    }
+
+    if (!Array.isArray(parsed)) {
+        errorsSpan.textContent = '格式错误: 输入必须是 JSON 数组';
+        errorList.innerHTML = '';
+        errorsDiv.style.display = 'flex';
+        resultsDiv.style.display = 'block';
+        return;
+    }
+
+    fetch('/tubes/stock-in/batch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': '{{ csrf_token }}'},
+        body: jsonStr
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        resultsDiv.style.display = 'block';
+        if (data.ok && data.ok > 0) {
+            okSpan.textContent = '成功导入 ' + data.ok + ' 根管子';
+            okDiv.style.display = 'flex';
+        }
+        if (data.errors && data.errors.length > 0) {
+            errorsSpan.textContent = '导入错误 ' + data.errors.length + ' 条';
+            errorList.innerHTML = '';
+            data.errors.forEach(function(err) {
+                var li = document.createElement('li');
+                li.textContent = err;
+                errorList.appendChild(li);
+            });
+            errorsDiv.style.display = 'flex';
+        }
+        if ((!data.errors || data.errors.length === 0) && (!data.ok || data.ok === 0)) {
+            okSpan.textContent = '没有管子被导入';
+            okDiv.style.display = 'flex';
+        }
+        if (!data.errors || data.errors.length === 0) {
+            textarea.value = '';
+        }
+    })
+    .catch(function(err) {
+        resultsDiv.style.display = 'block';
+        errorsSpan.textContent = '请求失败';
+        errorList.innerHTML = '<li>' + err.message + '</li>';
+        errorsDiv.style.display = 'flex';
+    });
+}
+</script>
+{% endblock %}

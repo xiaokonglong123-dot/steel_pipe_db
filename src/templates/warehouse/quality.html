@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h2>质量标注</h2>
+
+  <!-- lookup -->
+  <form method="get" class="mb-4">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label for="pipe_id_lookup" class="form-label">Pipe ID</label>
+        <input type="text" id="pipe_id_lookup" name="pipe_id"
+               value="{{ pipe_id or '' }}" class="form-control" required>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-accent">查询</button>
+      </div>
+    </div>
+  </form>
+
+  {% if error and not tube %}
+    <div class="alert alert-warning">{{ error }}</div>
+  {% endif %}
+
+  {% if tube %}
+  <hr>
+  <p><strong>{{ tube.pipe_id }}</strong>
+     &mdash; {{ tube.steel_grade }} {{ tube.outer_diameter_mm }}&times;{{ tube.wall_thickness_mm }}&thinsp;mm
+     &bull; 当前：<code>{{ tube.quality_mark }}</code>
+     {% if tube.quality_note %}({{ tube.quality_note }}){% endif %}
+  </p>
+
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="pipe_id" value="{{ tube.pipe_id }}">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label for="quality_mark" class="form-label">质量标记</label>
+        <select name="quality_mark" id="quality_mark" class="form-select">
+          <option value="normal" {% if tube.quality_mark == 'normal' %}selected{% endif %}>normal</option>
+          <option value="problematic" {% if tube.quality_mark == 'problematic' %}selected{% endif %}>problematic</option>
+          <option value="scrapped" {% if tube.quality_mark == 'scrapped' %}selected{% endif %}>scrapped</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label for="quality_note" class="form-label">备注</label>
+        <input type="text" id="quality_note" name="quality_note"
+               value="{{ tube.quality_note or '' }}" class="form-control"
+               placeholder="可选">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-accent">更新</button>
+      </div>
+    </div>
+  </form>
+
+  {% if error %}
+    <div class="alert alert-warning mt-3">{{ error }}</div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

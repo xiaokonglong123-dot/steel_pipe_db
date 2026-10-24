@@ -1,0 +1,497 @@
+# D10 final whole-branch review package
+# Plan: docs/superpowers/plans/2026-08-01-login-lockout-audit.md
+
+## diff: src/security.py
+--- .superpowers/sdd/2026-08-01-login-lockout-audit/baseline/task-1/security.py	2026-08-01 08:21:38.919268675 +0000
++++ src/security.py	2026-08-01 08:23:31.353274386 +0000
+@@ -242,6 +242,9 @@
+     Tier 2 - Username-level: <=10 failures in 5 minutes -> 5-minute lockout.
+     """
+ 
++    MAX_FAILURES = 10          # 用户名层锁定阈值（触发审计写入）
++    LOCKOUT_SECONDS = 300.0    # 锁定时长 + 滚动窗口
++
+     def __init__(self) -> None:
+         self.ip_hits: dict[str, list[float]] = {}
+         self.user_fail: dict[str, dict[str, float | int | None]] = {}
+@@ -278,9 +281,11 @@
+                 return False
+         return True
+ 
+-    def record_failure(self, username: str) -> None:
++    def record_failure(self, username: str) -> bool:
+         """Record a failed login attempt for this username.
+ 
++        Returns True iff this failure just triggered a lockout.
++
+         Within a rolling 300s window, after 10 failures the username
+         is locked out for 300 seconds.
+         """
+@@ -294,13 +299,18 @@
+         rec = self.user_fail[username]
+ 
+         window_start = rec.get("window_start")
+-        if window_start is None or now - (window_start if isinstance(window_start, float) else 0.0) > 300.0:
++        if window_start is None or now - (window_start if isinstance(window_start, float) else 0.0) > self.LOCKOUT_SECONDS:
+             rec["count"] = 0
+             rec["window_start"] = now
+ 
+         rec["count"] = (rec.get("count") or 0) + 1
+-        if rec["count"] is not None and rec["count"] >= 10:
+-            rec["locked_until"] = now + 300.0
++        locked_before = rec.get("locked_until")
++        if rec["count"] is not None and rec["count"] >= self.MAX_FAILURES:
++            rec["locked_until"] = now + self.LOCKOUT_SECONDS
++            # 刚触发 ⇔ locked_until 从非未来（None/已过期）→ 未来
++            if not (isinstance(locked_before, float) and locked_before > now):
++                return True
++        return False
+ 
+     def record_success(self, username: str) -> None:
+         """Clear failure record on successful login."""
+
+## diff: src/modules/auth/routers/auth.py
+--- .superpowers/sdd/2026-08-01-login-lockout-audit/baseline/task-1/auth.py	2026-08-01 08:21:38.921268675 +0000
++++ src/modules/auth/routers/auth.py	2026-08-01 08:26:23.272283118 +0000
+@@ -1,6 +1,7 @@
+ """Authentication routes: login, logout, dashboard."""
+ 
+ import anyio
++import logging
+ from fastapi import APIRouter, Depends, Form, HTTPException, Request
+ from fastapi.responses import RedirectResponse
+ from sqlalchemy import select
+@@ -9,7 +10,7 @@
+ from rust_core import auth as rust_auth
+ from src.database import get_session
+ from src.models import User
+-from src.modules.warehouse.services.audit_service import begin_immediate
++from src.modules.warehouse.services.audit_service import _write_audit, begin_immediate
+ from src.security import (
+     CSRF_COOKIE,
+     REFRESH_COOKIE,
+@@ -17,6 +18,7 @@
+     generate_csrf_token,
+     get_current_user,
+     issue_auth_tokens,
++    LoginRateLimiter,
+     login_limiter,
+     require_csrf,
+     set_auth_cookies,
+@@ -24,6 +26,8 @@
+ )
+ from src.templates_env import templates
+ 
++logger = logging.getLogger(__name__)
++
+ router = APIRouter()
+ 
+ 
+@@ -84,7 +88,20 @@
+         )
+     ):
+         login_limiter.record_ip(ip)
+-        login_limiter.record_failure(username)
++        just_locked = login_limiter.record_failure(username)
++        if just_locked:
++            detail = (
++                f"username={username} ip={ip} "
++                f"failures={LoginRateLimiter.MAX_FAILURES} "
++                f"locked_for={LoginRateLimiter.LOCKOUT_SECONDS:g}s"
++            )
++            try:
++                async with session.bind.connect() as conn:
++                    await begin_immediate(conn)
++                    await _write_audit(conn, "login_lockout", detail, user_id=None)
++                    await conn.commit()
++            except Exception:
++                logger.exception("login lockout audit write failed")
+         raise HTTPException(status_code=401, detail="invalid credentials")
+ 
+     login_limiter.record_success(username)
+
+## NEW FILE: tests/test_login_lockout_audit.py (full)
+"""Login lockout audit tests (D10).
+
+Covers:
+* 10th failed login triggers exactly one login_lockout audit row (user_id NULL)
+* 9 failures write nothing
+* locked attempts (429) do not add new audit rows
+* IP-tier 429s write nothing (username tier never reached)
+* audit hash chain stays verifiable after a lockout event
+* successful login clears failure records without writing audit
+
+Rate limiter is a module-level singleton — the autouse fx fixture resets
+ip_hits / user_fail so tests never contaminate each other. 10-failure tests
+use distinct X-Forwarded-For IPs: the IP tier (<=5/min) would 429 the 6th
+same-IP attempt before the username tier ever locks.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+TEST_DB_PATH = "data/test_login_lockout_audit.db"
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-login-lockout")
+
+from rust_core import auth as rust_auth
+
+rust_auth.init(os.environ["JWT_SECRET_KEY"])
+
+from httpx import ASGITransport, AsyncClient
+import pytest
+from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import sessionmaker as sync_sessionmaker
+
+from src import database as db
+from src.main import app
+from src.models import AuditLog, Base, User
+from src.security import get_current_user, login_limiter, require_csrf
+
+
+SYNC_DB_URL = f"sqlite:///{TEST_DB_PATH}"
+ASYNC_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
+sync_engine = create_sync_engine(SYNC_DB_URL, echo=False)
+SyncSession = sync_sessionmaker(bind=sync_engine)
+
+
+def _seed():
+    Base.metadata.create_all(bind=sync_engine)
+    with SyncSession() as s:
+        for row in s.query(AuditLog).all():
+            s.delete(row)
+        for row in s.query(User).all():
+            s.delete(row)
+        s.commit()
+        s.add(User(
+            id=1, username="admin", role="admin", display_name="Admin",
+            active=True, password_hash=rust_auth.hash_password("Pa$$w0rd"),
+            token_version=0,
+        ))
+        s.commit()
+
+
+def _reset_db():
+    if os.path.exists(TEST_DB_PATH):
+        os.remove(TEST_DB_PATH)
+    for ext in ("-wal", "-shm"):
+        p = TEST_DB_PATH + ext
+        if os.path.exists(p):
+            os.remove(p)
+
+
+def _allow_csrf():
+    async def _dep():
+        return None
+    return _dep
+
+
+def _stub_user(user_id: int):
+    async def _dep():
+        with SyncSession() as s:
+            return s.get(User, user_id)
+    return _dep
+
+
+def _audit_rows() -> list[AuditLog]:
+    with SyncSession() as s:
+        return s.query(AuditLog).order_by(AuditLog.id).all()
+
+
+def _audit_count() -> int:
+    with SyncSession() as s:
+        return s.query(AuditLog).count()
+
+
+@pytest.fixture
+def client():
+    transport = ASGITransport(app=app)
+    return AsyncClient(transport=transport, base_url="http://test")
+
+
+@pytest.fixture(autouse=True)
+def fx():
+    _reset_db()
+    _seed()
+    login_limiter.ip_hits.clear()
+    login_limiter.user_fail.clear()
+    db.engine = create_async_engine(ASYNC_DB_URL, echo=False)
+    db.async_session_factory = async_sessionmaker(
+        db.engine, class_=AsyncSession, expire_on_commit=False
+    )
+    yield
+    app.dependency_overrides.clear()
+    Base.metadata.drop_all(bind=sync_engine)
+    sync_engine.dispose()
+    login_limiter.ip_hits.clear()
+    login_limiter.user_fail.clear()
+
+
+async def _post(client, url: str, data: dict, xff: str):
+    return await client.post(
+        url,
+        data={**data, "csrf_token": "test-csrf"},
+        headers={"X-Forwarded-For": xff},
+        follow_redirects=False,
+    )
+
+
+async def _fail_n_times(client, n: int, start_ip: int = 1) -> str:
+    """Send n failed logins (wrong password) from distinct XFF IPs.
+
+    Returns the IP used for the n-th (last) attempt.
+    """
+    last_ip = ""
+    for i in range(start_ip, start_ip + n):
+        last_ip = f"203.0.113.{i}"
+        r = await _post(
+            client, "/login", {"username": "admin", "password": "WrongPass!"}, last_ip
+        )
+        assert r.status_code == 401, r.text[:200]
+    return last_ip
+
+
+def test_10th_failure_triggers_lockout_audit(client):
+    app.dependency_overrides[require_csrf] = _allow_csrf()
+
+    async def run():
+        async with client as c:
+            last_ip = await _fail_n_times(c, 10)
+            return last_ip
+
+    last_ip = asyncio.run(run())
+    rows = _audit_rows()
+    assert len(rows) == 1, f"expected exactly 1 audit row, got {len(rows)}"
+    row = rows[0]
+    assert row.action == "login_lockout"
+    assert row.user_id is None
+    assert "username=admin" in row.detail
+    assert f"ip={last_ip}" in row.detail
+    assert "failures=10" in row.detail
+    assert "locked_for=300s" in row.detail
+
+
+def test_9_failures_no_audit(client):
+    app.dependency_overrides[require_csrf] = _allow_csrf()
+
+    async def run():
+        async with client as c:
+            await _fail_n_times(c, 9)
+
+    asyncio.run(run())
+    assert _audit_count() == 0
+
+
+def test_locked_attempt_no_new_audit(client):
+    app.dependency_overrides[require_csrf] = _allow_csrf()
+
+    async def run():
+        async with client as c:
+            await _fail_n_times(c, 10)
+            r = await _post(
+                c, "/login", {"username": "admin", "password": "WrongPass!"}, "203.0.113.99"
+            )
+            return r
+
+    r = asyncio.run(run())
+    assert r.status_code == 429, r.text[:200]
+    assert _audit_count() == 1
+
+
+def test_ip_429_no_audit(client):
+    app.dependency_overrides[require_csrf] = _allow_csrf()
+
+    async def run():
+        async with client as c:
+            for i in range(6):
+                r = await _post(
+                    c, "/login", {"username": "admin", "password": "WrongPass!"}, "203.0.113.50"
+                )
+                if i < 5:
+                    assert r.status_code == 401, r.text[:200]
+            return r
+
+    r = asyncio.run(run())
+    assert r.status_code == 429, r.text[:200]
+    assert _audit_count() == 0
+
+
+def test_chain_verifies_after_lockout(client):
+    app.dependency_overrides[get_current_user] = _stub_user(1)
+    app.dependency_overrides[require_csrf] = _allow_csrf()
+
+    async def run():
+        async with client as c:
+            await _fail_n_times(c, 10)
+            v = await _post(c, "/audit/verify", {}, "203.0.113.88")
+            return v
+
+    v = asyncio.run(run())
+    assert v.status_code == 200, v.text[:400]
+    assert "哈希链完整" in v.text
+
+
+def test_success_clears_failures_no_audit(client):
+    app.dependency_overrides[require_csrf] = _allow_csrf()
+
+    async def run():
+        async with client as c:
+            await _fail_n_times(c, 3)
+            r = await _post(
+                c, "/login", {"username": "admin", "password": "Pa$$w0rd"}, "203.0.113.77"
+            )
+            return r
+
+    r = asyncio.run(run())
+    assert r.status_code == 303, r.text[:200]
+    assert _audit_count() == 0
+
+## diff: docs/2026-07-13-api5ct-inventory-design.md
+--- .superpowers/sdd/2026-08-01-login-lockout-audit/baseline/task-2/2026-07-13-api5ct-inventory-design.md	2026-08-01 08:34:23.053307488 +0000
++++ docs/2026-07-13-api5ct-inventory-design.md	2026-08-01 08:39:08.496321986 +0000
+@@ -1,6 +1,6 @@
+ # SteelPipe — 无缝钢管与筛管库存管理系统 设计文档（修订版）
+ 
+-> 版本：v0.5.0（v0.4.0 功能版：用户/标准管理写操作审计落地）
++> 版本：v0.6.0（v0.5.0 功能版：登录锁定触发审计落地）
+ > 日期：2026-08-01
+ > 标准：API 5CT
+ > 技术栈：Python (FastAPI) + Rust (PyO3) + SQLite
+@@ -72,7 +72,7 @@
+ | 8 | 对齐 | 附录 A | AGENTS.md 已同步（v0.4.0，2026-08-01），移除"待同步"备注 |
+ | 9 | 版本 | §0.1 头部 | 应用版本号 0.2.2 → **0.3.0**（pyproject.toml + main.py），与文档 v0.3.0 对齐；rust-core 保持 0.1.0（独立模块版本） |
+ 
+-### 0.5 本次修订（v0.4.0 → v0.5.0，2026-08-01）
++### 0.5 历史修订（v0.4.0 → v0.5.0，2026-08-01 归档）
+ 
+ 用户管理与标准管理写操作审计落地（D9，对应 spec `docs/superpowers/specs/2026-08-01-audit-gap-design.md`）：
+ 
+@@ -84,7 +84,15 @@
+ | 4 | 测试 | §13 | 新增 test_admin_audit.py（13 项）；基线 96 → 109 通过 + 3 slow |
+ | 5 | 版本 | §0.1 | 应用版本号 0.3.0 → 0.4.0 |
+ 
+-### 0.6 实现状态总览（2026-08-01 实测基线）
++### 0.6 本次修订（v0.5.0 → v0.6.0，2026-08-01）
++
++| # | 类型 | 位置 | 变更说明 |
++|---|---|---|---|
++| 1 | 功能 | §7、§17 | D10 登录锁定审计落地：用户名第 10 次失败触发锁定时写 1 条审计行（action=login_lockout、user_id=NULL=系统事件、detail=username+ip+failures+locked_for）；锁定期间 429 / IP 层 429 / 单次失败均不审计（防刷）；设计文档 §17 缺口移除 |
++| 2 | 对齐 | §13.1 | 测试矩阵：12 → 13 文件，基线 112/109+3 → 118/115+3；新增 test_login_lockout_audit.py（6 项） |
++| 3 | 版本 | §0.1 头部 | 应用版本 0.4.0 → 0.5.0（pyproject.toml + main.py） |
++
++### 0.7 实现状态总览（2026-08-01 实测基线）
+ 
+ | 设计项 | 状态 | 说明 |
+ |---|---|---|
+@@ -411,7 +419,7 @@
+ |---|---|---|
+ | id | INTEGER PK | 自增主键 |
+ | user_id | INTEGER | 操作人 |
+-| action | TEXT NOT NULL | 操作类型（stock_in / stock_out / transfer / create_user / update_user / revoke_sessions / toggle_user / create_standard / update_standard / delete_standard） |
++| action | TEXT NOT NULL | 操作类型（stock_in / stock_out / transfer / create_user / update_user / revoke_sessions / toggle_user / create_standard / update_standard / delete_standard / login_lockout） |
+ | detail | TEXT | 详细描述 |
+ | prev_hash | TEXT NOT NULL | 上一条日志的哈希 |
+ | current_hash | TEXT NOT NULL | SHA-256(prev_hash ‖ action ‖ detail ‖ ts) |
+@@ -420,7 +428,7 @@
+ 
+ > ⚠️ **已知漂移（v0.3.0 记录）**：ORM 模型声明 `ts` NOT NULL（`models.py`），但迁移 `20260713_084000_add_audit_ts.py` 以 nullable=True 添加。现有行可能为 NULL；service 写入时总填值。后续迁移可补数据回填与 NOT NULL 收紧（见 §17 待办）。
+ > 数据库层无 FK（user_id 为普通整数）。
+-> ✅ **实现现状（v0.5.0）**：审计覆盖 warehouse 管操作 + 用户管理 4 操作 + standards 3 写操作（v0.5.0 D9 落地）。登录锁定/解锁审计仍为 §17 缺口。
++> ✅ **实现现状（v0.6.0）**：审计覆盖 warehouse 管操作 + 用户管理 4 操作 + standards 3 写操作（v0.5.0 D9 落地）+ 登录锁定触发（第 10 次失败，`action=login_lockout`、`user_id=NULL`；v0.6.0 D10 落地）。锁定期间 / IP 层 429 / 单次登录失败均不写审计。
+ 
+ **哈希链写入协议（对齐实现）**：
+ 1. `prev_hash` = `SELECT current_hash FROM audit_logs ORDER BY id DESC LIMIT 1`；首条记录用固定创世常量 **`GENESIS_HASH = sha256("AYANAMI_REI_GENESIS")`**，定义于 **`src/models.py`**（`2e3874e8f41f106cc35d41312497bf350acebadc6ab2ebf6728631a9c180cd40`），**不在 Rust**。
+@@ -569,7 +577,7 @@
+ │   ├── templates/              # 按模块分组：base, auth/, dashboard/, warehouse/, users/, audit/, standards/
+ │   │                           # （无 static/ —— Bootstrap 5.3.3 + Icons 走 jsdelivr CDN，见 §8）
+ ├── rust-core/src/ (lib.rs, auth.rs, compliance.rs, audit.rs)   # 保持扁平（跨领域纯函数）
+-├── tests/                      # 11 个测试文件（见 §13）
++├── tests/                      # 13 个测试文件（见 §13）
+ └── docs/
+ ```
+ 
+@@ -587,7 +595,7 @@
+ | API 5CT 合规校验 | Rust compliance | ✅ 已实现 | 纯函数，5 项检查 |
+ | 角色校验 | FastAPI 依赖注入 | ✅ 已实现 | users 模块 require_admin；tubes 写路径 require_operator；audit verify + standards 写路径 require_admin（2026-07-31 D1 落地） |
+ | CSRF 防护 | 自实现 `require_csrf` | ✅ 已实现 | 表单路径正常；支持 `X-CSRF-Token` header（batch JSON 已修复，2026-07-31 D2 落地） |
+-| 登录限流 | 自实现 `LoginRateLimiter` | ✅ 已实现 | 双层：IP ≤5 次/60s（429）；用户名 10 次/300s → 锁 300s。**锁定不写审计日志**（设计原稿有写审计，未实现） |
++| 登录限流 | 自实现 `LoginRateLimiter` | ✅ 已实现 | 双层：IP ≤5 次/60s（429）；用户名 10 次/300s → 锁 300s。锁定触发（第 10 次失败）写 1 条 `login_lockout` 审计（`user_id=NULL`）；锁定期间 / IP 层 429 / 单次失败不写审计 |
+ | Cookie 会话 | httpOnly 签名 cookie | ✅ 已实现 | access+refresh 均 httpOnly + SameSite=Lax；**无 secure**（LAN 部署有意）；**无 max-age**（浏览器会话级，有效期靠 JWT exp） |
+ | 登出 | POST /logout | ✅ 已实现 | `BEGIN IMMEDIATE` 内清 `last_refresh_jti`（已发 refresh 立即失效）+ 删 cookie（2026-07-31 D3 落地） |
+ | SQLite 文件权限 | OS 层 | ✅ | — |
+@@ -781,9 +789,9 @@
+ 
+ 初始迁移无此问题（直接 `create_table` 创建全部表）。现有迁移链：`20260713_083945_initial`（9 表 8 索引）→ `20260713_084000_add_audit_ts`（audit_logs.ts）→ `8ce24f163996`（standard_specs.grade 唯一约束）。已知漂移：audit_logs.ts nullable 不一致（§4.7）。
+ 
+-### 13.1 测试矩阵（v0.5.0 实测基线，2026-08-01）
++### 13.1 测试矩阵（v0.6.0 实测基线，2026-08-01）
+ 
+-**12 个测试文件，无 conftest（每文件自足：独立 test DB、`sys.path.insert`、env 预置、依赖覆盖 stub）**。pytest 配置：`asyncio_mode=auto`，markers `slow` / `requires_rust`（后者注册未用）。共 **112 项：109 通过 + 3 项 slow**（`-m "not slow"` 可跳过 21K 行审计压力测试；实测输出：109 passed, 3 deselected）。
+
+## diff: AGENTS.md
+--- .superpowers/sdd/2026-08-01-login-lockout-audit/baseline/task-2/AGENTS.md	2026-08-01 08:34:23.053307488 +0000
++++ AGENTS.md	2026-08-01 08:35:39.205311356 +0000
+@@ -1,7 +1,7 @@
+ # AGENTS.md — Ayanami_Rei
+ 
+ **Generated:** 2026-08-01
+-**Version:** v0.5.0
++**Version:** v0.6.0
+ **Design Authority:** `docs/2026-07-13-api5ct-inventory-design.md`
+ **Stack:** Python FastAPI + Rust PyO3 + SQLite (WAL) + Jinja2 SSR + Bootstrap 5
+ **Deployment:** Single worker (`uvicorn --workers 1`). SQLite single-writer.
+@@ -164,8 +164,8 @@
+ - Genesis audit hash: `sha256("AYANAMI_REI_GENESIS")` — constant lives in `src/models.py` (not Rust); Rust `audit.rs` is a pure function taking `prev_hash`.
+ - Manual `pipe_id` is weakly validated in `tube_service._validate_pipe_id_format` (SP-/SCP- prefix + 4 parts); failures re-render stock-in form with 422 (was 500, fixed 2026-08-01, D8).
+ - `busy_timeout=5000` on DB backup command — prevents SQLITE_BUSY under write load.
+-- Test baseline (2026-08-01): 109 passed + 3 deselected (slow 20K audit stress) via `pytest -m "not slow"`.
+-- Audit covers warehouse tube ops + user management (create_user/update_user/revoke_sessions/toggle_user) + standards writes (create/update/delete with pre-delete snapshot); AuditLog.user_id is the actor (v0.5.0, D9).
++- Test baseline (2026-08-01): 115 passed + 3 deselected (slow 20K audit stress) via `pytest -m "not slow"`.
++- Audit covers warehouse tube ops + user management (create_user/update_user/revoke_sessions/toggle_user) + standards writes (create/update/delete with pre-delete snapshot) + login lockout trigger（第 10 次失败）写审计（action=login_lockout、user_id=NULL、detail=username+ip+failures+locked_for）；锁定期间/IP 层 429 不审计；AuditLog.user_id is the actor (v0.6.0, D10).
+ - Refer to design doc §4.1 for `pipe_id` auto-generation details and overrides.
+ - Refer to design doc §12 for full TOCTOU guard pseudocode.
+ - Refer to design doc §3.1 for schema DDL.
+
+## diff: pyproject.toml
+--- .superpowers/sdd/2026-08-01-login-lockout-audit/baseline/task-2/pyproject.toml	2026-08-01 08:34:23.053307488 +0000
++++ pyproject.toml	2026-08-01 08:35:39.214311356 +0000
+@@ -1,6 +1,6 @@
+ [project]
+ name = "ayanami-rei"
+-version = "0.4.0"
++version = "0.5.0"
+ description = "API 5CT seamless pipe & screen pipe inventory management (FastAPI + Rust PyO3 + SQLite)"
+ readme = "docs/2026-07-13-api5ct-inventory-design.md"
+ requires-python = ">=3.11"
+
+## diff: src/main.py
+--- .superpowers/sdd/2026-08-01-login-lockout-audit/baseline/task-2/main.py	2026-08-01 08:34:23.053307488 +0000
++++ src/main.py	2026-08-01 08:35:39.215311356 +0000
+@@ -169,7 +169,7 @@
+ app = FastAPI(
+     lifespan=lifespan,
+     title="Ayanami_Rei",
+-    version="0.4.0",
++    version="0.5.0",
+ )
+ 
+ app.add_middleware(
+
+## diff: docs/superpowers/specs/2026-08-01-login-lockout-audit-design.md
+--- .superpowers/sdd/2026-08-01-login-lockout-audit/baseline/task-2/2026-08-01-login-lockout-audit-design.md	2026-08-01 08:21:38.923268675 +0000
++++ docs/superpowers/specs/2026-08-01-login-lockout-audit-design.md	2026-08-01 08:35:39.216311356 +0000
+@@ -1,7 +1,7 @@
+ # 登录锁定审计（D10）设计
+ 
+ **日期：** 2026-08-01
+-**状态：** 已确认（设计确认 → spec 审阅中）
++**状态：** 已实现（D10, 2026-08-01）
+ **前置：** D9 审计缺口修复（user/standards 写操作审计，2026-08-01 已落地）
+ **设计文档缺口来源：** `docs/2026-07-13-api5ct-inventory-design.md` §17 功能缺口表「登录锁定写审计日志 | §7 设计意图补全」；v0.3.0 归档行 11 记载"文档原写'写入审计日志'，实现未写，已按实现对齐"——即审计登录锁定是**原设计意图**，本 spec 补全。
+ 

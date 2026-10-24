@@ -1,0 +1,38 @@
+# Task 3 review package
+## diff: tests/test_admin_audit.py (appended test 13)
+--- .superpowers/sdd/2026-08-01-audit-gap/baseline/task-3/test_admin_audit.py	2026-08-01 07:43:11.480151472 +0000
++++ tests/test_admin_audit.py	2026-08-01 07:43:33.592152595 +0000
+@@ -328,3 +328,33 @@
+         assert r.status_code == 409, r.text[:400]
+     asyncio.run(run())
+     assert _audit_count() == 0
++
++
++# --- hash-chain continuity -------------------------------------------------
++
++
++def test_chain_verifies_after_mixed_ops(client):
++    _as_admin()
++    async def run():
++        async with client as c:
++            r = await _post(c, "/users/create", {
++                "username": "alice", "password": "Secret1!",
++                "display_name": "Alice", "role": "operator",
++            })
++            assert r.status_code == 303, r.text[:400]
++            r = await _post(c, "/standards", {
++                "steel_grade": "N80",
++                "outer_diameter_mm": "114.3",
++                "min_wall_thickness_mm": "7.0",
++                "max_wall_thickness_mm": "11.0",
++            })
++            assert r.status_code == 303, r.text[:400]
++            r = await _post(c, "/standards/1/delete", {})
++            assert r.status_code == 303, r.text[:400]
++            r = await _post(c, "/users/revoke/2", {})
++            assert r.status_code == 303, r.text[:400]
++            v = await _post(c, "/audit/verify", {})
++        assert v.status_code == 200, v.text[:400]
++        assert "哈希链完整" in v.text
++    asyncio.run(run())
++    assert _audit_count() == 4

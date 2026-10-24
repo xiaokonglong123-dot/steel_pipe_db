@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}转移管子 · Ayanami_Rei{% endblock %}
+
+{% block styles %}
+<style>
+    .confirm-shell { max-width: 640px; margin: 24px auto 0; }
+    .page-head h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-strong); }
+    .page-head .sub { color: var(--text-faint); font-size: 13px; }
+    .pipe-hero {
+        background: var(--accent-soft);
+        border: 1px solid rgba(59, 130, 246, 0.35);
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .pipe-hero .icon {
+        width: 36px; height: 36px;
+        border-radius: 8px;
+        background: rgba(59, 130, 246, 0.15);
+        color: #93c5fd;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 18px;
+    }
+    .pipe-hero .meta { color: var(--text-strong); }
+    .pipe-hero .meta strong { font-weight: 600; }
+    .pipe-hero code {
+        color: #93c5fd;
+        background: rgba(59, 130, 246, 0.15);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 13px;
+    }
+    .location-arrow {
+        display: inline-flex; align-items: center; gap: 8px;
+        margin: 4px 0 18px;
+        padding: 10px 14px;
+        background: var(--bg-subtle);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+    .location-arrow strong {
+        color: var(--text-strong);
+        font-family: "SF Mono", "JetBrains Mono", "Menlo", monospace;
+        font-size: 12.5px;
+        background: var(--bg-elevated);
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+    }
+    .location-arrow i { color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="confirm-shell">
+    <div class="page-head">
+        <h1><i class="bi bi-arrow-left-right" style="color:var(--accent);margin-right:8px"></i>转移管子</h1>
+        <div class="sub">将管子从当前库位移到目标库位（状态保持 <span class="badge bg-success">在库</span>）</div>
+    </div>
+
+    <div class="surface">
+        <div class="surface-body">
+            {% if error %}
+            <div class="alert alert-danger flash" role="alert">{{ error }}</div>
+            {% endif %}
+
+            <div class="pipe-hero">
+                <div class="icon"><i class="bi bi-box-seam"></i></div>
+                <div class="meta">
+                    <strong>管子编号:</strong> <code>{{ tube.pipe_id }}</code>
+                    &nbsp;·&nbsp;
+                    <strong>规格:</strong> <span style="font-family:'SF Mono',monospace;font-size:12.5px;color:var(--accent)">{{ tube.outer_diameter_mm }}×{{ tube.wall_thickness_mm }} {{ tube.steel_grade or '' }}</span>
+                </div>
+            </div>
+
+            <div class="location-arrow">
+                <span>当前:</span>
+                <strong>{{ tube.location or '—' }}</strong>
+                <i class="bi bi-arrow-right"></i>
+                <span>目标:</span>
+                <select name="__placeholder" disabled style="font-family:'SF Mono',monospace;font-size:12.5px;background:var(--bg-elevated);padding:2px 8px;border-radius:4px;border:1px solid var(--border);color:var(--text-strong)">
+                    <option>选择下面表单</option>
+                </select>
+            </div>
+
+            {% if not locations %}
+            <div class="alert alert-warning flash" role="alert">没有可用的目标库位 — 请先在管理中创建其它库位</div>
+            {% else %}
+            <form method="POST" action="/tubes/transfer">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="pipe_id" value="{{ tube.pipe_id }}">
+
+                <div class="mb-3">
+                    <label class="form-label" for="target_location">目标库位</label>
+                    <select class="form-select" id="target_location" name="target_location" required>
+                        {% for loc in locations %}
+                        <option value="{{ loc.code }}">{{ loc.code }} — {{ loc.name }} (当前 {{ loc.used_count }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="remark">备注（可选）</label>
+                    <input class="form-control" id="remark" name="remark" type="text" placeholder="例如：调拨单号 / 阶段用途">
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-accent">
+                        <i class="bi bi-check-lg"></i> 确认转移
+                    </button>
+                    <a href="/tubes" class="btn btn-ghost">取消</a>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

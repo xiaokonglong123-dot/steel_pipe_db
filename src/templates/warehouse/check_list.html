@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h2>库存盘点</h2>
+  <p class="text-muted">选择库位新建盘点单，逐根核对后由管理员确认。</p>
+</div>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="post" action="/tubes/check" class="row g-3 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="col-auto">
+        <label class="form-label">库位</label>
+        <select name="location" class="form-select" required>
+          {% for loc in locations %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label">备注（可选）</label>
+        <input type="text" name="remark" class="form-control" value="{{ form.remark if form else '' }}">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-accent">新建盘点单</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<table class="table">
+  <thead><tr><th>#</th><th>库位</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+  <tbody>
+  {% for c in checks %}
+    <tr>
+      <td>{{ c.id }}</td>
+      <td>{{ c.location }}</td>
+      <td>{{ c.status }}</td>
+      <td>{{ c.created_at }}</td>
+      <td><a class="btn btn-sm btn-outline-primary" href="/tubes/check/{{ c.id }}">核对</a>
+          <a class="btn btn-sm btn-outline-secondary" href="/tubes/check/{{ c.id }}/report">报告</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-muted">暂无盘点单</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

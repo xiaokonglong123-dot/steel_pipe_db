@@ -1,0 +1,205 @@
+# Task 4 review package
+## diff: docs/2026-07-13-api5ct-inventory-design.md
+--- .superpowers/sdd/2026-08-01-audit-gap/baseline/task-4/2026-07-13-api5ct-inventory-design.md	2026-08-01 07:46:30.184161565 +0000
++++ docs/2026-07-13-api5ct-inventory-design.md	2026-08-01 07:49:36.045171005 +0000
+@@ -1,6 +1,6 @@
+ # SteelPipe — 无缝钢管与筛管库存管理系统 设计文档（修订版）
+ 
+-> 版本：v0.4.0（v0.3.0 同步修订版：代码全量核对 + 漂移修正 + 测试基线更新）
++> 版本：v0.5.0（v0.4.0 功能版：用户/标准管理写操作审计落地）
+ > 日期：2026-08-01
+ > 标准：API 5CT
+ > 技术栈：Python (FastAPI) + Rust (PyO3) + SQLite
+@@ -52,17 +52,17 @@
+ | 19 | 补全 | §14 | 新增 API 端点总表（约 30 端点：方法/路径/权限/CSRF/请求/响应/错误码） |
+ | 20 | 补全 | §15 | 新增统一异常映射表（Conflict→409 / Forbidden→403 / Compliance→422） |
+ | 21 | 补全 | §16 | 新增运维实操：对账 cron 脚本、备份/恢复脚本（含 7 天保留、busy_timeout、integrity_check 演练）、部署清单与 env 表、构建步骤 |
+-| 22 | 补全 | §13 | 测试矩阵对齐实测：11 文件 / 56 项（53 通过 + 3 slow 可选），无 conftest、每文件自足 |
++| 22 | 补全 | §13 | 测试矩阵对齐实测（历史基线，后续版本已更新），无 conftest、每文件自足 |
+ | 23 | 结构 | §0.5 | 新增"实现状态总览"对照表，作为版本演进基线 |
+ | 24 | 结构 | 全文 | 每章统一标注 `[已实现]/[部分实现]/[未实现]/[缺陷修正-待实现]` |
+ 
+-### 0.4 本次修订（v0.3.0 → v0.4.0，2026-08-01）
++### 0.4 历史修订（v0.3.0 → v0.4.0，2026-08-01 归档）
+ 
+ 基于 2026-08-01 对代码库的**全量逐节核对**（迁移逐列、11 个测试文件逐个、34 处 Rust 调用点、全部路由），本版做同步修正：
+ 
+ | # | 类型 | 位置 | 变更说明 |
+ |---|---|---|---|
+-| 1 | 对齐 | §13 | 测试矩阵更新为实测基线：**99 项（96 通过 + 3 slow）**；修正 v0.3.0"共 56 项"与 D1-D7 声称新增 24 项的算术矛盾 |
++| 1 | 对齐 | §13 | 测试矩阵更新为历史实测基线（旧版记录，后续版本已更新）；修正 v0.3.0 测试数量与 D1-D7 声称新增项数的算术矛盾 |
+ | 2 | 对齐 | §14 | 角色列同步 D1 落地现状：POST /tubes/stock-out、/transfer、/stock-in、/import → admin, operator（require_operator）；/audit/verify 拆分 GET（任意）/POST（admin）；GET /standards → admin（内联检查，已知偏差）；POST /standards → admin（require_admin 依赖） |
+ | 3 | 对齐 | §14 | POST /tubes/stock-out 表单字段修正：实际仅 pipe_id + csrf_token（service 支持 remark 但路由未接，移除 `remark?`） |
+ | 4 | 缺陷修正→✅ | §4.1、§17（D8） | 手动 pipe_id 弱校验（前缀 + 4 段）描述修正；单管表单路径非法 pipe_id 曾冒泡 **500**，现捕获 ValueError → **422 表单重渲染** + 1 项测试 |
+@@ -72,7 +72,19 @@
+ | 8 | 对齐 | 附录 A | AGENTS.md 已同步（v0.4.0，2026-08-01），移除"待同步"备注 |
+ | 9 | 版本 | §0.1 头部 | 应用版本号 0.2.2 → **0.3.0**（pyproject.toml + main.py），与文档 v0.3.0 对齐；rust-core 保持 0.1.0（独立模块版本） |
+ 
+-### 0.5 实现状态总览（2026-08-01 实测基线）
++### 0.5 本次修订（v0.4.0 → v0.5.0，2026-08-01）
++
++用户管理与标准管理写操作审计落地（D9，对应 spec `docs/superpowers/specs/2026-08-01-audit-gap-design.md`）：
++
++| # | 类型 | 位置 | 变更说明 |
++|---|---|---|---|
++| 1 | 功能 | §4.7 | 审计 action 清单补全：create_user / update_user / revoke_sessions / toggle_user / create_standard / update_standard / delete_standard；AuditLog.user_id = 操作者 |
++| 2 | 功能 | §17 | 移除「用户管理/标准管理写操作审计」缺口行；standards 硬删改为**审计 + 删前快照**（不再「不审计」） |
++| 3 | 结构 | §6 | 新增 `warehouse/services/standards_service.py` |
++| 4 | 测试 | §13 | 新增 test_admin_audit.py（13 项）；基线 96 → 109 通过 + 3 slow |
++| 5 | 版本 | §0.1 | 应用版本号 0.3.0 → 0.4.0 |
++
++### 0.6 实现状态总览（2026-08-01 实测基线）
+ 
+ | 设计项 | 状态 | 说明 |
+ |---|---|---|
+@@ -399,7 +411,7 @@
+ |---|---|---|
+ | id | INTEGER PK | 自增主键 |
+ | user_id | INTEGER | 操作人 |
+-| action | TEXT NOT NULL | 操作类型（stock_in / stock_out / transfer / create_user / ...） |
++| action | TEXT NOT NULL | 操作类型（stock_in / stock_out / transfer / create_user / update_user / revoke_sessions / toggle_user / create_standard / update_standard / delete_standard） |
+ | detail | TEXT | 详细描述 |
+ | prev_hash | TEXT NOT NULL | 上一条日志的哈希 |
+ | current_hash | TEXT NOT NULL | SHA-256(prev_hash ‖ action ‖ detail ‖ ts) |
+@@ -408,7 +420,7 @@
+ 
+ > ⚠️ **已知漂移（v0.3.0 记录）**：ORM 模型声明 `ts` NOT NULL（`models.py`），但迁移 `20260713_084000_add_audit_ts.py` 以 nullable=True 添加。现有行可能为 NULL；service 写入时总填值。后续迁移可补数据回填与 NOT NULL 收紧（见 §17 待办）。
+ > 数据库层无 FK（user_id 为普通整数）。
+-> ⚠️ **实现现状（v0.4.0 记录）**：`_write_audit` 调用点仅存在于 warehouse 管操作（stock_in / stock_out / transfer）。用户管理（create_user / update_user / revoke / toggle）与 standards 写操作**当前不写审计日志**；action 示例 create_user 系设计意图，缺口见 §17。
++> ✅ **实现现状（v0.5.0）**：审计覆盖 warehouse 管操作 + 用户管理 4 操作 + standards 3 写操作（v0.5.0 D9 落地）。登录锁定/解锁审计仍为 §17 缺口。
+ 
+ **哈希链写入协议（对齐实现）**：
+ 1. `prev_hash` = `SELECT current_hash FROM audit_logs ORDER BY id DESC LIMIT 1`；首条记录用固定创世常量 **`GENESIS_HASH = sha256("AYANAMI_REI_GENESIS")`**，定义于 **`src/models.py`**（`2e3874e8f41f106cc35d41312497bf350acebadc6ab2ebf6728631a9c180cd40`），**不在 Rust**。
+@@ -550,7 +562,7 @@
+ │   │   ├── auth/routers/auth.py
+ │   │   ├── warehouse/
+ │   │   │   ├── routers/ (tubes.py, audit.py, standards.py)
+-│   │   │   └── services/ (tube_service.py, import_service.py, audit_service.py)
++│   │   │   └── services/ (tube_service.py, import_service.py, audit_service.py, standards_service.py)
+ │   │   └── users/
+ │   │       ├── routers/users.py
+ │   │       └── services/user_service.py
+@@ -769,9 +781,9 @@
+ 
+ 初始迁移无此问题（直接 `create_table` 创建全部表）。现有迁移链：`20260713_083945_initial`（9 表 8 索引）→ `20260713_084000_add_audit_ts`（audit_logs.ts）→ `8ce24f163996`（standard_specs.grade 唯一约束）。已知漂移：audit_logs.ts nullable 不一致（§4.7）。
+ 
+-### 13.1 测试矩阵（v0.4.0 实测基线，2026-08-01）
++### 13.1 测试矩阵（v0.5.0 实测基线，2026-08-01）
+ 
+-**11 个测试文件，无 conftest（每文件自足：独立 test DB、`sys.path.insert`、env 预置、依赖覆盖 stub）**。pytest 配置：`asyncio_mode=auto`，markers `slow` / `requires_rust`（后者注册未用）。共 **99 项：96 通过 + 3 项 slow**（`-m "not slow"` 可跳过 21K 行审计压力测试；实测输出：96 passed, 3 deselected）。
++**12 个测试文件，无 conftest（每文件自足：独立 test DB、`sys.path.insert`、env 预置、依赖覆盖 stub）**。pytest 配置：`asyncio_mode=auto`，markers `slow` / `requires_rust`（后者注册未用）。共 **112 项：109 通过 + 3 项 slow**（`-m "not slow"` 可跳过 21K 行审计压力测试；实测输出：109 passed, 3 deselected）。
+ 
+ | 文件 | 覆盖内容 |
+ |---|---|
+@@ -782,6 +794,7 @@
+ | test_panic_recovery.py | Rust 边界：畸形 hash/JWT → False/None；chunk>20K → ValueError；DB 后续可用 |
+ | test_import_http.py | CSV 导入：200/413（>20MB）/400（缺列）/逐行错误收集 |
+ | test_routes_protection.py | 路由矩阵：/tubes 401-200-200；/users 403（operator）；/standards CRUD 全链路 + CSRF |
++| test_admin_audit.py | 管理写操作审计：用户 4 操作 + standards 3 操作 → 审计行；失败路径零审计；密码哈希不入 detail；混合操作后链验证 ok |
+ | test_tubes_routes.py | stock-in/out/batch/transfer 全链路：303/409/TOCTOU/CSRF 缺失 403/pipe_id 正则/手动 pipe_id 非法 → 422 重渲染（2026-08-01 新增） |
+ | test_stock_in_compliance.py | 合规门：通过持久化 True；越界 → ComplianceError 原子回滚；未知钢级；compliance_pass=True 跳过 |
+ | test_upload_limit.py | 中间件：超限 413、恰限值不 413 |
+@@ -947,11 +960,10 @@
+ | audit_logs.ts 回填 + NOT NULL 收紧迁移 | §4.7 漂移修复 |
+ | 登录锁定写审计日志 | §7 设计意图补全 |
+ | 审计哈希链月度快照 | 定期落库 |
+-| 用户管理/标准管理写操作审计 | create_user / update_user / revoke / toggle 与 standards 写操作不入审计链（§4.7 action 示例含 create_user 系设计意图；2026-08-01 记录） |
+ 
+ ### 已知实现取舍（有意为之，勿改）
+ 
+-- `standards` 删除为**硬删**（参考数据非业务数据，注释明确）。
++- `standards` 删除为**硬删**（审计 + 删前快照，v0.5.0 起）。
+ - `transaction_items.pipe_id` 无 FK（防级联删管）。
+ - Cookie 无 `secure=True`（LAN 部署）；部署方若上 HTTPS 应开启。
+ - CSV 导入行级部分成功（非整体回滚）——设计已对齐。
+@@ -961,7 +973,7 @@
+ 
+ ## 附录 A：参考文档
+ 
+-- 本设计文档（v0.4.0，2026-08-01；D1-D8 已实现，代码与文档全量核对同步）
+-- `AGENTS.md`（项目约定速查，v0.4.0 同步更新：角色门禁现状、logout 改 POST、/auth/refresh、96 项测试基线）
++- 本设计文档（v0.5.0，2026-08-01；D1-D9 已实现，代码与文档全量核对同步）
++- `AGENTS.md`（项目约定速查，v0.5.0 同步更新：角色门禁现状、logout 改 POST、/auth/refresh、109 项测试基线）
+ - 迁移脚本：`migrations/versions/`
+ - 测试：`tests/`
+
+## diff: AGENTS.md
+--- .superpowers/sdd/2026-08-01-audit-gap/baseline/task-4/AGENTS.md	2026-08-01 07:46:30.186161565 +0000
++++ AGENTS.md	2026-08-01 07:48:14.948166886 +0000
+@@ -1,7 +1,7 @@
+ # AGENTS.md — Ayanami_Rei
+ 
+ **Generated:** 2026-08-01
+-**Version:** v0.4.0
++**Version:** v0.5.0
+ **Design Authority:** `docs/2026-07-13-api5ct-inventory-design.md`
+ **Stack:** Python FastAPI + Rust PyO3 + SQLite (WAL) + Jinja2 SSR + Bootstrap 5
+ **Deployment:** Single worker (`uvicorn --workers 1`). SQLite single-writer.
+@@ -45,6 +45,7 @@
+ │   │   │   └── services/
+ │   │   │       ├── tube_service.py    # Business logic for tube operations
+ │   │   │       ├── import_service.py  # CSV import (pandas, 20MB limit)
++│   │   │       ├── standards_service.py  # API 5CT 标准规格 CRUD + 审计（v0.5.0）
+ │   │   │       └── audit_service.py   # Write-audit + Rust compute_hash calls
+ │   │   └── users/          # 用户管理 (cross-cutting — user CRUD)
+ │   │       ├── routers/users.py
+@@ -163,7 +164,8 @@
+ - Genesis audit hash: `sha256("AYANAMI_REI_GENESIS")` — constant lives in `src/models.py` (not Rust); Rust `audit.rs` is a pure function taking `prev_hash`.
+ - Manual `pipe_id` is weakly validated in `tube_service._validate_pipe_id_format` (SP-/SCP- prefix + 4 parts); failures re-render stock-in form with 422 (was 500, fixed 2026-08-01, D8).
+ - `busy_timeout=5000` on DB backup command — prevents SQLITE_BUSY under write load.
+-- Test baseline (2026-08-01): 96 passed + 3 deselected (slow 20K audit stress) via `pytest -m "not slow"`.
++- Test baseline (2026-08-01): 109 passed + 3 deselected (slow 20K audit stress) via `pytest -m "not slow"`.
++- Audit covers warehouse tube ops + user management (create_user/update_user/revoke_sessions/toggle_user) + standards writes (create/update/delete with pre-delete snapshot); AuditLog.user_id is the actor (v0.5.0, D9).
+ - Refer to design doc §4.1 for `pipe_id` auto-generation details and overrides.
+ - Refer to design doc §12 for full TOCTOU guard pseudocode.
+ - Refer to design doc §3.1 for schema DDL.
+
+## diff: pyproject.toml
+--- .superpowers/sdd/2026-08-01-audit-gap/baseline/task-4/pyproject.toml	2026-08-01 07:46:30.186161565 +0000
++++ pyproject.toml	2026-08-01 07:48:14.949166886 +0000
+@@ -1,6 +1,6 @@
+ [project]
+ name = "ayanami-rei"
+-version = "0.3.0"
++version = "0.4.0"
+ description = "API 5CT seamless pipe & screen pipe inventory management (FastAPI + Rust PyO3 + SQLite)"
+ readme = "docs/2026-07-13-api5ct-inventory-design.md"
+ requires-python = ">=3.11"
+
+## diff: src/main.py
+--- .superpowers/sdd/2026-08-01-audit-gap/baseline/task-4/main.py	2026-08-01 07:46:30.186161565 +0000
++++ src/main.py	2026-08-01 07:48:14.949166886 +0000
+@@ -169,7 +169,7 @@
+ app = FastAPI(
+     lifespan=lifespan,
+     title="Ayanami_Rei",
+-    version="0.3.0",
++    version="0.4.0",
+ )
+ 
+ app.add_middleware(
+
+## diff: docs/superpowers/specs/2026-08-01-audit-gap-design.md
+--- .superpowers/sdd/2026-08-01-audit-gap/baseline/task-4/2026-08-01-audit-gap-design.md	2026-08-01 07:46:30.187161565 +0000
++++ docs/superpowers/specs/2026-08-01-audit-gap-design.md	2026-08-01 07:49:01.668169259 +0000
+@@ -1,8 +1,8 @@
+ # 审计缺口修复：用户管理 + 标准管理写操作审计
+ 
+ **日期**：2026-08-01
+-**状态**：待审阅
+-**设计权威**：`docs/2026-07-13-api5ct-inventory-design.md`（v0.4.0，2026-08-01）
++**状态**：已实现（2026-08-01，D9 落地，见设计文档 v0.5.0）
++**设计权威**：`docs/2026-07-13-api5ct-inventory-design.md`（v0.5.0，2026-08-01）
+ **相关缺口**：设计文档 §17「用户管理/标准管理写操作审计」（2026-08-01 全量核对时记录）
+ 
+ ---
+@@ -119,7 +119,7 @@
+   - §4.7：action 类型清单补全（7 种管理操作）
+   - §17：移除「用户管理/标准管理写操作审计」缺口行；移除/改写「standards 硬删不审计」取舍行（现改为审计并快照）
+   - §13：测试矩阵补 `test_admin_audit.py` 行、基线数更新
+-  - §0.4：现「本次修订（v0.3.0 → v0.4.0）」标题改为「历史修订（v0.3.0 → v0.4.0，2026-08-01 归档）」；新增「§0.4 本次修订（v0.4.0 → v0.5.0）」；状态总览保持 §0.5；grep 修正文档内「§0.4」指代
++  - §0.4：现「本次修订（v0.3.0 → v0.4.0）」标题改为「历史修订（v0.3.0 → v0.4.0，2026-08-01 归档）」；新增「§0.5 本次修订（v0.4.0 → v0.5.0）」；状态总览重编号为 §0.6；grep 修正文档内「§0.4」指代
+ - **AGENTS.md**：NOTES 补审计覆盖范围说明
+ - **应用版本**：0.3.0 → 0.4.0（新功能版本，`pyproject.toml` + `main.py`）
+ 
+
