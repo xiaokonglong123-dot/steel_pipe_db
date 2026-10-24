@@ -1,40 +1,70 @@
 {% extends "base.html" %}
+{% from "_macros.html" import check_status_badge, check_result_badge %}
+{% block title %}盘点报告 · #{{ detail.session.id }}{% endblock %}
+
 {% block content %}
-<div class="page-head">
-  <h2>盘点报告 — {{ detail.session.location }}（#{{ detail.session.id }}）</h2>
-  <p class="text-muted">状态：{{ detail.session.status }}</p>
+<header class="page-head">
+    <div class="title-row">
+        <h1><i class="bi bi-file-text" aria-hidden="true"></i>盘点报告 · <code>{{ detail.session.location }}</code></h1>
+        {{ check_status_badge(detail.session.status) }}
+        <span class="stat-inline">盘点单 #{{ detail.session.id }}</span>
+    </div>
+    {% if detail.session.status == "open" %}
+    <a class="btn btn-ghost btn-sm" href="/tubes/check/{{ detail.session.id }}"><i class="bi bi-check2-square" aria-hidden="true"></i> 继续核对</a>
+    {% endif %}
+</header>
+
+<section class="result-grid" aria-label="盘点结果统计">
+    <div class="result-cell is-ok"><div class="k">一致</div><div class="v">{{ counts.ok }}</div></div>
+    <div class="result-cell is-bad"><div class="k">缺失</div><div class="v">{{ counts.missing }}</div></div>
+    <div class="result-cell is-warn"><div class="k">位置异常</div><div class="v">{{ counts.moved }}</div></div>
+    <div class="result-cell"><div class="k">盘盈</div><div class="v">{{ counts.surplus }}</div></div>
+</section>
+
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-journal-text" aria-hidden="true"></i> 明细（{{ detail["items"]|length }}）</h2></div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col">管子编号</th>
+                    <th scope="col">结果</th>
+                    <th scope="col">实际库位</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in detail["items"] %}
+                <tr>
+                    <td><code>{{ it.pipe_id }}</code></td>
+                    <td>{{ check_result_badge(it.result) }}</td>
+                    <td>{{ it.actual_location or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3"><div class="empty-state"><i class="bi bi-journal" aria-hidden="true"></i><p>暂无记录</p></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
-
-{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
-
-<div class="row g-3 mb-4">
-  <div class="col-3"><div class="card"><div class="card-body"><h4>{{ counts.ok }}</h4><div class="text-muted">一致</div></div></div></div>
-  <div class="col-3"><div class="card"><div class="card-body"><h4>{{ counts.missing }}</h4><div class="text-muted">缺失</div></div></div></div>
-  <div class="col-3"><div class="card"><div class="card-body"><h4>{{ counts.moved }}</h4><div class="text-muted">位置异常</div></div></div></div>
-  <div class="col-3"><div class="card"><div class="card-body"><h4>{{ counts.surplus }}</h4><div class="text-muted">盘盈</div></div></div></div>
-</div>
-
-<table class="table table-sm">
-  <thead><tr><th>pipe_id</th><th>结果</th><th>实际库位</th></tr></thead>
-  <tbody>
-  {% for it in detail["items"] %}
-    <tr><td>{{ it.pipe_id }}</td><td>{{ it.result }}</td><td>{{ it.actual_location or "" }}</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
 
 {% if detail.session.status == "open" %}
-<div class="d-flex gap-2">
-  {% if user.role == "admin" %}
-  <form method="post" action="/tubes/check/{{ detail.session.id }}/confirm">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button class="btn btn-accent">管理员确认</button>
-  </form>
-  {% endif %}
-  <form method="post" action="/tubes/check/{{ detail.session.id }}/cancel">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button class="btn btn-outline-danger">取消盘点单</button>
-  </form>
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-shield-check" aria-hidden="true"></i> 收尾</h2></div>
+    <div class="panel-body">
+        <p class="form-hint mb-2">确认后差异在单个 <code>BEGIN IMMEDIATE</code> 事务内原子应用，失败整体回滚、盘点单保持 open、零审计。</p>
+        <div class="form-actions">
+            {% if user.role == "admin" %}
+            <form method="post" action="/tubes/check/{{ detail.session.id }}/confirm" class="inline-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-accent"><i class="bi bi-check-lg" aria-hidden="true"></i> 管理员确认</button>
+            </form>
+            {% endif %}
+            <form method="post" action="/tubes/check/{{ detail.session.id }}/cancel" class="inline-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-danger-subtle"><i class="bi bi-x-lg" aria-hidden="true"></i> 取消盘点单</button>
+            </form>
+        </div>
+    </div>
 </div>
 {% endif %}
 {% endblock %}

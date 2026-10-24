@@ -49,6 +49,34 @@
   {%- endif -%}
 {%- endmacro %}
 
+{# 盘点单状态 #}
+{% macro check_status_badge(status) -%}
+  {%- if status == "open" -%}
+    <span class="badge is-info"><i class="bi bi-hourglass-split" aria-hidden="true"></i>进行中</span>
+  {%- elif status == "confirmed" -%}
+    <span class="badge is-ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>已确认</span>
+  {%- elif status == "cancelled" -%}
+    <span class="badge is-none"><i class="bi bi-slash-circle" aria-hidden="true"></i>已取消</span>
+  {%- else -%}
+    <span class="badge is-none"><i class="bi bi-dash-circle" aria-hidden="true"></i>{{ status }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{# 盘点结果：一致 / 缺失 / 位置异常 / 盘盈 #}
+{% macro check_result_badge(result) -%}
+  {%- if result == "ok" -%}
+    <span class="badge is-ok"><i class="bi bi-check-lg" aria-hidden="true"></i>一致</span>
+  {%- elif result == "missing" -%}
+    <span class="badge is-danger"><i class="bi bi-question-octagon" aria-hidden="true"></i>缺失</span>
+  {%- elif result == "moved" -%}
+    <span class="badge is-warn"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>位置异常</span>
+  {%- elif result == "surplus" -%}
+    <span class="badge is-violet"><i class="bi bi-plus-circle" aria-hidden="true"></i>盘盈</span>
+  {%- else -%}
+    <span class="badge is-none"><i class="bi bi-dash-circle" aria-hidden="true"></i>{{ result }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
 {# 行左状态轨的 tr 类：形状（实线/虚线/点线）+ 颜色双重编码 #}
 {% macro rail_class(tube) -%}
   {%- if tube.quality_mark == "scrapped" or tube.compliance_pass is sameas false -%}rail-issue

@@ -1,98 +1,175 @@
 {% extends "base.html" %}
-{% block content %}
-<div class="page-head">
-  <h2>盘点核对 — {{ detail.session.location }}（#{{ detail.session.id }}）</h2>
-  <p class="text-muted">状态：{{ detail.session.status }}</p>
-  <a class="btn btn-sm btn-outline-secondary" href="/tubes/check/{{ detail.session.id }}/report">查看报告</a>
-</div>
+{% from "_macros.html" import check_status_badge, check_result_badge, quality_badge %}
+{% block title %}盘点核对 · #{{ detail.session.id }}{% endblock %}
 
-{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+{% block content %}
+<header class="page-head">
+    <div class="title-row">
+        <h1><i class="bi bi-check2-square" aria-hidden="true"></i>盘点核对 · <code>{{ detail.session.location }}</code></h1>
+        {{ check_status_badge(detail.session.status) }}
+        <span class="stat-inline">盘点单 #{{ detail.session.id }}</span>
+    </div>
+    <a class="btn btn-ghost btn-sm" href="/tubes/check/{{ detail.session.id }}/report"><i class="bi bi-file-text" aria-hidden="true"></i> 查看报告</a>
+</header>
 
 {% if detail.session.status == "open" %}
-<h5 class="mt-4">在库管子</h5>
-<table class="table table-sm">
-  <thead><tr><th>pipe_id</th><th>规格</th><th>质量</th><th>核对结果</th><th>操作</th></tr></thead>
-  <tbody>
-  {% for t in detail.tubes %}
-    {% set item = detail["items"] | selectattr("pipe_id", "equalto", t.pipe_id) | first %}
-    <tr>
-      <td>{{ t.pipe_id }}</td>
-      <td>{{ t.steel_grade }} {{ t.outer_diameter_mm }}x{{ t.wall_thickness_mm }} {{ t.length_m }}m</td>
-      <td>{{ t.quality_mark }}</td>
-      <td>{% if item %}<span class="badge bg-info">{{ item.result }}</span>{% else %}<span class="text-muted">未核对</span>{% endif %}</td>
-      <td class="d-flex gap-1">
-        <form method="post" action="/tubes/check/{{ detail.session.id }}/items">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="pipe_id" value="{{ t.pipe_id }}">
-          <input type="hidden" name="result" value="ok">
-          <button class="btn btn-sm btn-outline-success">一致</button>
-        </form>
-        <form method="post" action="/tubes/check/{{ detail.session.id }}/items">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="pipe_id" value="{{ t.pipe_id }}">
-          <input type="hidden" name="result" value="missing">
-          <button class="btn btn-sm btn-outline-danger">缺失</button>
-        </form>
-        <form method="post" action="/tubes/check/{{ detail.session.id }}/items" class="d-flex gap-1">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="pipe_id" value="{{ t.pipe_id }}">
-          <input type="hidden" name="result" value="moved">
-          <select name="actual_location" class="form-select form-select-sm">
-            {% for loc in detail.locations %}{% if loc != detail.session.location %}<option value="{{ loc }}">{{ loc }}</option>{% endif %}{% endfor %}
-          </select>
-          <button class="btn btn-sm btn-outline-warning">位置异常</button>
-        </form>
-      </td>
-    </tr>
-  {% else %}
-    <tr><td colspan="5" class="text-muted">该库位无在库管子</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-box-seam" aria-hidden="true"></i> 在库管子（{{ detail.tubes|length }}）</h2></div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col">管子编号</th>
+                    <th scope="col">规格</th>
+                    <th scope="col">质量</th>
+                    <th scope="col">核对结果</th>
+                    <th scope="col" class="col-ops">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in detail.tubes %}
+                {% set item = detail["items"] | selectattr("pipe_id", "equalto", t.pipe_id) | first %}
+                <tr>
+                    <td><code>{{ t.pipe_id }}</code></td>
+                    <td>{{ t.steel_grade }} {{ t.outer_diameter_mm }}×{{ t.wall_thickness_mm }} {{ t.length_m }}m</td>
+                    <td>{{ quality_badge(t.quality_mark) }}</td>
+                    <td>{% if item %}{{ check_result_badge(item.result) }}{% else %}<span class="badge is-none"><i class="bi bi-dash-lg" aria-hidden="true"></i>未核对</span>{% endif %}</td>
+                    <td class="col-ops wrap">
+                        <div class="ops-row">
+                        <div class="ops-line">
+                            <form method="post" action="/tubes/check/{{ detail.session.id }}/items">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="pipe_id" value="{{ t.pipe_id }}">
+                                <input type="hidden" name="result" value="ok">
+                                <button class="btn btn-sm btn-accent" title="标记一致">一致</button>
+                            </form>
+                            <form method="post" action="/tubes/check/{{ detail.session.id }}/items">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="pipe_id" value="{{ t.pipe_id }}">
+                                <input type="hidden" name="result" value="missing">
+                                <button class="btn btn-sm btn-danger-subtle" title="标记缺失">缺失</button>
+                            </form>
+                        </div>
+                        <form method="post" action="/tubes/check/{{ detail.session.id }}/items">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="pipe_id" value="{{ t.pipe_id }}">
+                            <input type="hidden" name="result" value="moved">
+                            <select name="actual_location" class="form-select form-select-sm" aria-label="实际库位">
+                                {% for loc in detail.locations %}{% if loc != detail.session.location %}<option value="{{ loc }}">{{ loc }}</option>{% endif %}{% endfor %}
+                            </select>
+                            <button class="btn btn-sm btn-subtle" title="标记位置异常">位置异常</button>
+                        </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5"><div class="empty-state"><i class="bi bi-box" aria-hidden="true"></i><p>该库位无在库管子</p></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 
-<h5 class="mt-4">盘盈录入</h5>
-<form method="post" action="/tubes/check/{{ detail.session.id }}/surplus" class="row g-3">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <div class="col-2"><label class="form-label">类型</label>
-    <select name="type" class="form-select"><option value="seamless_pipe">无缝</option><option value="screen_pipe">筛管</option></select></div>
-  <div class="col-2"><label class="form-label">钢级</label><input name="steel_grade" class="form-control" required></div>
-  <div class="col-2"><label class="form-label">外径 mm</label><input name="outer_diameter_mm" type="number" step="any" class="form-control" required></div>
-  <div class="col-2"><label class="form-label">壁厚 mm</label><input name="wall_thickness_mm" type="number" step="any" class="form-control" required></div>
-  <div class="col-2"><label class="form-label">长度 m</label><input name="length_m" type="number" step="any" class="form-control" required></div>
-  <div class="col-2"><label class="form-label">生产厂</label><input name="manufacturer" class="form-control" required></div>
-  <div class="col-2"><label class="form-label">螺纹</label><input name="thread_type" class="form-control"></div>
-  <div class="col-2"><label class="form-label">API 5CT 证书</label><input name="api_5ct_cert" class="form-control"></div>
-  <div class="col-2"><label class="form-label">批次</label><input name="batch_no" class="form-control"></div>
-  <div class="col-2"><label class="form-label">炉号</label><input name="heat_no" class="form-control"></div>
-  <div class="col-2"><label class="form-label">热处理</label><input name="heat_treat_method" class="form-control"></div>
-  <div class="col-2"><label class="form-label">质量</label>
-    <select name="quality_mark" class="form-select"><option value="normal">normal</option><option value="problematic">problematic</option></select></div>
-  <div class="col-2"><label class="form-label">备注</label><input name="quality_note" class="form-control"></div>
-  <div class="col-12"><button class="btn btn-accent">添加盘盈</button></div>
-</form>
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-plus-circle" aria-hidden="true"></i> 盘盈录入</h2></div>
+    <div class="panel-body">
+        <form method="post" action="/tubes/check/{{ detail.session.id }}/surplus">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-grid">
+                <div class="field">
+                    <label class="form-label" for="s-type">类型</label>
+                    <select id="s-type" name="type" class="form-select"><option value="seamless_pipe">无缝</option><option value="screen_pipe">筛管</option></select>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-grade">钢级</label>
+                    <input id="s-grade" name="steel_grade" class="form-control" required>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-od">外径 (mm)</label>
+                    <input id="s-od" name="outer_diameter_mm" type="number" step="any" class="form-control" required>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-wt">壁厚 (mm)</label>
+                    <input id="s-wt" name="wall_thickness_mm" type="number" step="any" class="form-control" required>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-len">长度 (m)</label>
+                    <input id="s-len" name="length_m" type="number" step="any" class="form-control" required>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-mfr">生产厂</label>
+                    <input id="s-mfr" name="manufacturer" class="form-control" required>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-thread">螺纹</label>
+                    <input id="s-thread" name="thread_type" class="form-control">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-cert">API 5CT 证书</label>
+                    <input id="s-cert" name="api_5ct_cert" class="form-control">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-batch">批次</label>
+                    <input id="s-batch" name="batch_no" class="form-control">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-heat">炉号</label>
+                    <input id="s-heat" name="heat_no" class="form-control">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-ht">热处理</label>
+                    <input id="s-ht" name="heat_treat_method" class="form-control">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="s-qm">质量</label>
+                    <select id="s-qm" name="quality_mark" class="form-select"><option value="normal">正常</option><option value="problematic">问题管</option></select>
+                </div>
+                <div class="field span-2">
+                    <label class="form-label" for="s-note">备注</label>
+                    <input id="s-note" name="quality_note" class="form-control">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-accent"><i class="bi bi-plus-lg" aria-hidden="true"></i> 添加盘盈</button>
+                <span class="form-hint">盘盈同样走 API 5CT 合规校验</span>
+            </div>
+        </form>
+    </div>
+</div>
 {% endif %}
 
-<h5 class="mt-4">已记录项</h5>
-<table class="table table-sm">
-  <thead><tr><th>pipe_id</th><th>结果</th><th>实际库位</th><th></th></tr></thead>
-  <tbody>
-  {% for it in detail["items"] %}
-    <tr>
-      <td>{{ it.pipe_id }}</td>
-      <td>{{ it.result }}</td>
-      <td>{{ it.actual_location or "" }}</td>
-      <td>
-        {% if it.result == "surplus" and detail.session.status == "open" %}
-        <form method="post" action="/tubes/check/{{ detail.session.id }}/surplus/{{ it.id }}/delete">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button class="btn btn-sm btn-outline-danger">删除</button>
-        </form>
-        {% endif %}
-      </td>
-    </tr>
-  {% else %}
-    <tr><td colspan="4" class="text-muted">暂无记录</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-journal-text" aria-hidden="true"></i> 已记录项（{{ detail["items"]|length }}）</h2></div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col">管子编号</th>
+                    <th scope="col">结果</th>
+                    <th scope="col">实际库位</th>
+                    <th scope="col" class="col-ops">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in detail["items"] %}
+                <tr>
+                    <td><code>{{ it.pipe_id }}</code></td>
+                    <td>{{ check_result_badge(it.result) }}</td>
+                    <td>{{ it.actual_location or '—' }}</td>
+                    <td class="col-ops">
+                        {% if it.result == "surplus" and detail.session.status == "open" %}
+                        <form method="post" action="/tubes/check/{{ detail.session.id }}/surplus/{{ it.id }}/delete" class="inline-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button class="link-btn is-danger" aria-label="删除盘盈 {{ it.pipe_id }}"><i class="bi bi-trash" aria-hidden="true"></i> 删除</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4"><div class="empty-state"><i class="bi bi-journal" aria-hidden="true"></i><p>暂无记录</p></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}

@@ -1,48 +1,65 @@
 {% extends "base.html" %}
+{% from "_macros.html" import check_status_badge %}
+{% block title %}库存盘点 · Ayanami_Rei{% endblock %}
+
 {% block content %}
-<div class="page-head">
-  <h2>库存盘点</h2>
-  <p class="text-muted">选择库位新建盘点单，逐根核对后由管理员确认。</p>
+<header class="page-head">
+    <div class="title-row">
+        <h1><i class="bi bi-clipboard-check" aria-hidden="true"></i>库存盘点</h1>
+        <span class="stat-inline">选择库位新建盘点单 · 逐根核对 · 管理员确认后原子应用差异</span>
+    </div>
+</header>
+
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-plus-lg" aria-hidden="true"></i> 新建盘点单</h2></div>
+    <div class="panel-body">
+        <form method="post" action="/tubes/check" class="query-row">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="field">
+                <label class="form-label" for="check-location">库位</label>
+                <select id="check-location" name="location" class="form-select" required>
+                    {% for loc in locations %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label class="form-label" for="check-remark">备注</label>
+                <input type="text" id="check-remark" name="remark" class="form-control" value="{{ form.remark if form else '' }}" placeholder="可选">
+            </div>
+            <button type="submit" class="btn btn-accent"><i class="bi bi-clipboard-plus" aria-hidden="true"></i> 新建</button>
+        </form>
+    </div>
 </div>
 
-{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
-
-<div class="card mb-4">
-  <div class="card-body">
-    <form method="post" action="/tubes/check" class="row g-3 align-items-end">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="col-auto">
-        <label class="form-label">库位</label>
-        <select name="location" class="form-select" required>
-          {% for loc in locations %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-auto">
-        <label class="form-label">备注（可选）</label>
-        <input type="text" name="remark" class="form-control" value="{{ form.remark if form else '' }}">
-      </div>
-      <div class="col-auto">
-        <button type="submit" class="btn btn-accent">新建盘点单</button>
-      </div>
-    </form>
-  </div>
+<div class="panel">
+    <div class="panel-head"><h2><i class="bi bi-list-ul" aria-hidden="true"></i> 盘点单（{{ checks|length }}）</h2></div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col" class="num">#</th>
+                    <th scope="col">库位</th>
+                    <th scope="col">状态</th>
+                    <th scope="col">创建时间</th>
+                    <th scope="col" class="col-ops">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in checks %}
+                <tr>
+                    <td class="num">{{ c.id }}</td>
+                    <td><code>{{ c.location }}</code></td>
+                    <td>{{ check_status_badge(c.status) }}</td>
+                    <td class="num">{{ c.created_at }}</td>
+                    <td class="col-ops">
+                        <a class="btn btn-sm btn-subtle" href="/tubes/check/{{ c.id }}"><i class="bi bi-check2-square" aria-hidden="true"></i> 核对</a>
+                        <a class="btn btn-sm btn-ghost" href="/tubes/check/{{ c.id }}/report"><i class="bi bi-file-text" aria-hidden="true"></i> 报告</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5"><div class="empty-state"><i class="bi bi-clipboard-check" aria-hidden="true"></i><p>暂无盘点单</p></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
-
-<table class="table">
-  <thead><tr><th>#</th><th>库位</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
-  <tbody>
-  {% for c in checks %}
-    <tr>
-      <td>{{ c.id }}</td>
-      <td>{{ c.location }}</td>
-      <td>{{ c.status }}</td>
-      <td>{{ c.created_at }}</td>
-      <td><a class="btn btn-sm btn-outline-primary" href="/tubes/check/{{ c.id }}">核对</a>
-          <a class="btn btn-sm btn-outline-secondary" href="/tubes/check/{{ c.id }}/report">报告</a></td>
-    </tr>
-  {% else %}
-    <tr><td colspan="5" class="text-muted">暂无盘点单</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
 {% endblock %}
