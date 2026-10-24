@@ -2,10 +2,12 @@
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import anyio
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -195,6 +197,11 @@ app.add_middleware(
     RequestBodySizeLimitMiddleware,
     max_upload_size=settings.MAX_UPLOAD_SIZE,
 )
+
+# -- Static assets (vendored Bootstrap/Icons + app.css/app.js) ---------------
+# Served locally: the app runs on an isolated LAN with no internet access.
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # -- Register routers -------------------------------------------------------
 register_all_routers(app)

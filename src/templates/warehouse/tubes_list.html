@@ -1,202 +1,223 @@
 {% extends "base.html" %}
+{% from "_macros.html" import status_badge, type_badge, quality_badge, compliance_badge, rail_class, pager %}
 {% block title %}管子列表 · Ayanami_Rei{% endblock %}
 
-{% block styles %}
-<style>
-    .page-head {
-        margin-bottom: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .page-head h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-strong); }
-    .page-head .count-pill {
-        background: var(--accent-soft);
-        border: 1px solid rgba(59,130,246,0.35);
-        color: var(--accent);
-        padding: 4px 12px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-    }
-    .filter-bar {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 10px;
-        margin-bottom: 18px;
-    }
-    .filter-bar select, .filter-bar input {
-        font-size: 13px;
-    }
-    .filter-bar .col { display: flex; gap: 6px; }
-    .toolbar-row {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-bottom: 18px;
-    }
-</style>
-{% endblock %}
+{% set filter_labels = {"status": "状态", "location": "库位", "steel_grade": "钢级", "quality_mark": "质量", "batch_no": "批次", "heat_no": "炉号"} %}
+{% set value_labels = {"in_stock": "在库", "out_stock": "已出库", "in_transfer": "调拨中", "missing": "盘亏",
+                       "normal": "正常", "problematic": "问题", "scrapped": "报废"} %}
 
 {% block content %}
-<div class="page-head">
-    <h1><i class="bi bi-box-seam" style="color:var(--accent);margin-right:8px"></i>管子列表</h1>
-    <span class="count-pill">共 {{ total }} 根</span>
-</div>
-
-<div class="surface">
-    <div class="surface-body">
-        <div class="toolbar-row">
-            <a href="/tubes/stock-in" class="btn btn-accent btn-sm"><i class="bi bi-plus-circle"></i> 入库新管</a>
-            <a href="/tubes/import" class="btn btn-subtle btn-sm"><i class="bi bi-filetype-csv"></i> CSV 批量导入</a>
-        </div>
-
-        <form method="GET" action="/tubes" class="filter-bar">
-            <select name="status" class="form-select form-select-sm">
-                <option value="">状态 (全部)</option>
-                <option value="in_stock" {% if status_filter == "in_stock" %}selected{% endif %}>在库</option>
-                <option value="out_stock" {% if status_filter == "out_stock" %}selected{% endif %}>已出库</option>
-                <option value="in_transfer" {% if status_filter == "in_transfer" %}selected{% endif %}>调拨中</option>
-            </select>
-            <input type="text" name="location" class="form-control form-control-sm" placeholder="库位" value="{{ location_filter or '' }}">
-            <input type="text" name="steel_grade" class="form-control form-control-sm" placeholder="钢级" value="{{ steel_grade_filter or '' }}">
-            <select name="quality_mark" class="form-select form-select-sm">
-                <option value="">质量 (全部)</option>
-                <option value="normal" {% if quality_mark_filter == "normal" %}selected{% endif %}>正常</option>
-                <option value="problematic" {% if quality_mark_filter == "problematic" %}selected{% endif %}>问题管</option>
-                <option value="scrapped" {% if quality_mark_filter == "scrapped" %}selected{% endif %}>报废</option>
-            </select>
-            <input type="text" name="batch_no" class="form-control form-control-sm" placeholder="批次号" value="{{ batch_no_filter or '' }}">
-            <input type="text" name="heat_no" class="form-control form-control-sm" placeholder="炉号" value="{{ heat_no_filter or '' }}">
-            <div class="col">
-                <button type="submit" class="btn btn-subtle btn-sm flex-grow-1"><i class="bi bi-funnel"></i> 筛选</button>
-                <a href="/tubes" class="btn btn-ghost btn-sm" title="清除"><i class="bi bi-x-lg"></i></a>
-            </div>
-        </form>
-
-        {% if tubes %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" onclick="document.querySelectorAll('.batch-check').forEach(c=>c.checked=this.checked)" title="全选"></th>
-                        <th>编号</th>
-                        <th>类型</th>
-                        <th>外径×壁厚</th>
-                        <th>长度 (m)</th>
-                        <th>钢级</th>
-                        <th>库位</th>
-                        <th>状态</th>
-                        <th>质量</th>
-                        <th>合规</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for tube in tubes %}
-                    <tr>
-                        <td>
-                            {% if tube.status == "in_stock" and tube.quality_mark != "scrapped" %}
-                            <input type="checkbox" class="batch-check" name="pipe_ids" value="{{ tube.pipe_id }}" form="batch-out-form">
-                            {% endif %}
-                        </td>
-                        <td><code>{{ tube.pipe_id }}</code></td>
-                        <td>
-                            {% if tube.type_ == "seamless_pipe" %}
-                            <span class="badge bg-primary">无缝管</span>
-                            {% elif tube.type_ == "screen_pipe" %}
-                            <span class="badge bg-info">筛管</span>
-                            {% else %}
-                            <span class="badge bg-secondary">{{ tube.type_ }}</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ "%.1f"|format(tube.outer_diameter_mm) }} × {{ "%.2f"|format(tube.wall_thickness_mm) }}</td>
-                        <td>{{ "%.2f"|format(tube.length_m) }}</td>
-                        <td>{{ tube.steel_grade }}</td>
-                        <td>{{ tube.location }}</td>
-                        <td>
-                            {% if tube.status == "in_stock" %}
-                            <span class="badge bg-success">在库</span>
-                            {% elif tube.status == "out_stock" %}
-                            <span class="badge bg-secondary">已出库</span>
-                            {% elif tube.status == "in_transfer" %}
-                            <span class="badge bg-warning">调拨中</span>
-                            {% else %}
-                            <span class="badge bg-secondary">{{ tube.status }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if tube.quality_mark == "normal" %}
-                            <span class="badge bg-success">正常</span>
-                            {% elif tube.quality_mark == "problematic" %}
-                            <span class="badge bg-warning">问题</span>
-                            {% elif tube.quality_mark == "scrapped" %}
-                            <span class="badge bg-danger">报废</span>
-                            {% else %}
-                            <span class="badge bg-secondary">{{ tube.quality_mark }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if tube.compliance_pass is none %}
-                            <span class="badge bg-light">未检</span>
-                            {% elif tube.compliance_pass %}
-                            <span class="badge bg-success">通过</span>
-                            {% else %}
-                            <span class="badge bg-danger">未通过</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if tube.status == "in_stock" and tube.quality_mark != "scrapped" %}
-                            <div class="d-flex gap-1">
-                                <a href="/tubes/transfer/{{ tube.pipe_id }}" class="btn btn-subtle btn-sm" title="转移到其它库位">
-                                    <i class="bi bi-arrow-left-right"></i> 转移
-                                </a>
-                                <a href="/tubes/stock-out/{{ tube.pipe_id }}" class="btn btn-danger-subtle btn-sm" title="从库存中移除">
-                                    <i class="bi bi-box-arrow-up-right"></i> 出库
-                                </a>
-                            </div>
-                            {% else %}
-                            <span class="text-muted">—</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <form id="batch-out-form" method="post" action="/tubes/stock-out/batch" class="d-flex justify-content-end gap-2 mt-2">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="btn btn-danger-subtle btn-sm" onclick="return confirm('确认批量出库选中的管子？')">
-                <i class="bi bi-box-arrow-up-right"></i> 批量出库
-            </button>
-        </form>
-
-        {% if total_pages > 1 %}
-        <nav>
-            <ul class="pagination justify-content-center mb-0 mt-3">
-                <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                    <a class="page-link" href="?page={{ page - 1 }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if location_filter %}&location={{ location_filter }}{% endif %}{% if steel_grade_filter %}&steel_grade={{ steel_grade_filter }}{% endif %}{% if quality_mark_filter %}&quality_mark={{ quality_mark_filter }}{% endif %}">上一页</a>
-                </li>
-                {% for p in range(1, total_pages + 1) %}
-                <li class="page-item {% if p == page %}active{% endif %}">
-                    <a class="page-link" href="?page={{ p }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if location_filter %}&location={{ location_filter }}{% endif %}{% if steel_grade_filter %}&steel_grade={{ steel_grade_filter }}{% endif %}{% if quality_mark_filter %}&quality_mark={{ quality_mark_filter }}{% endif %}">{{ p }}</a>
-                </li>
-                {% endfor %}
-                <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-                    <a class="page-link" href="?page={{ page + 1 }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if location_filter %}&location={{ location_filter }}{% endif %}{% if steel_grade_filter %}&steel_grade={{ steel_grade_filter }}{% endif %}{% if quality_mark_filter %}&quality_mark={{ quality_mark_filter }}{% endif %}">下一页</a>
-                </li>
-            </ul>
-        </nav>
-        {% endif %}
-
-        {% else %}
-        <div class="text-center py-5">
-            <i class="bi bi-box-seam" style="font-size:48px;color:var(--text-disabled)"></i>
-            <p class="text-muted mt-3 mb-0">没有找到符合条件的管子。</p>
-        </div>
-        {% endif %}
+<div data-grid>
+  <header class="page-head">
+    <div class="title-row">
+      <h1><i class="bi bi-box-seam" aria-hidden="true"></i>管子列表</h1>
+      <span class="stat-inline">共 <b class="num">{{ total }}</b> 根</span>
+      {% if filter_values %}
+      <span class="stat-inline text-dim">{{ filter_values|length }} 个条件生效</span>
+      {% endif %}
     </div>
+    <div class="head-actions">
+      <a href="/tubes/import" class="btn btn-subtle btn-sm"><i class="bi bi-filetype-csv" aria-hidden="true"></i> CSV 导入</a>
+      {% if user and user.role in ['admin', 'operator'] %}
+      <a href="/tubes/stock-in" class="btn btn-accent btn-sm"><i class="bi bi-plus-lg" aria-hidden="true"></i> 入库新管</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <section class="panel toolbar-panel">
+    <div class="cond-row">
+      <span class="cond-label">条件</span>
+      {% for key, val in filter_values.items() %}
+      <span class="cond">
+        {{ filter_labels.get(key, key) }} <b>=</b> {{ value_labels.get(val, val) }}
+        <a class="cond-x" href="{{ remove_links[key] }}" aria-label="移除条件 {{ filter_labels.get(key, key) }}"><i class="bi bi-x" aria-hidden="true"></i></a>
+      </span>
+      {% endfor %}
+      {% if not filter_values %}
+      <span class="text-dim" style="font-size:11.5px">未设置条件，显示全部在册管子</span>
+      {% endif %}
+      <button type="button" class="btn btn-ghost btn-sm" id="cond-toggle" aria-expanded="false" aria-controls="cond-editor">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i> 添加条件
+      </button>
+      <span class="cond-spacer"></span>
+      {% if filter_values %}
+      <a class="btn btn-ghost btn-sm" href="/tubes"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> 重置</a>
+      {% endif %}
+    </div>
+
+    <form class="cond-editor" id="cond-editor" method="get" action="/tubes" hidden>
+      <div class="field">
+        <label for="f-status">状态</label>
+        <select id="f-status" name="status" class="form-select form-select-sm">
+          <option value="">全部</option>
+          <option value="in_stock" {% if status_filter == "in_stock" %}selected{% endif %}>在库</option>
+          <option value="out_stock" {% if status_filter == "out_stock" %}selected{% endif %}>已出库</option>
+          <option value="in_transfer" {% if status_filter == "in_transfer" %}selected{% endif %}>调拨中</option>
+          <option value="missing" {% if status_filter == "missing" %}selected{% endif %}>盘亏</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-location">库位</label>
+        <select id="f-location" name="location" class="form-select form-select-sm">
+          <option value="">全部</option>
+          {% for code, name in locations %}
+          <option value="{{ code }}" {% if location_filter == code %}selected{% endif %}>{{ code }}{% if name and name != code %} · {{ name }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-grade">钢级</label>
+        <select id="f-grade" name="steel_grade" class="form-select form-select-sm">
+          <option value="">全部</option>
+          {% for g in steel_grades %}
+          <option value="{{ g }}" {% if steel_grade_filter == g %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-quality">质量</label>
+        <select id="f-quality" name="quality_mark" class="form-select form-select-sm">
+          <option value="">全部</option>
+          <option value="normal" {% if quality_mark_filter == "normal" %}selected{% endif %}>正常</option>
+          <option value="problematic" {% if quality_mark_filter == "problematic" %}selected{% endif %}>问题管</option>
+          <option value="scrapped" {% if quality_mark_filter == "scrapped" %}selected{% endif %}>报废</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-batch">批次号</label>
+        <select id="f-batch" name="batch_no" class="form-select form-select-sm">
+          <option value="">全部</option>
+          {% for b in batch_nos %}
+          <option value="{{ b }}" {% if batch_no_filter == b %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-heat">炉号</label>
+        <select id="f-heat" name="heat_no" class="form-select form-select-sm">
+          <option value="">全部</option>
+          {% for h in heat_nos %}
+          <option value="{{ h }}" {% if heat_no_filter == h %}selected{% endif %}>{{ h }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field field-actions" style="grid-column: 1 / -1">
+        <button class="btn btn-accent btn-sm" type="submit"><i class="bi bi-funnel" aria-hidden="true"></i> 应用条件</button>
+        <a class="btn btn-ghost btn-sm" href="/tubes">清空</a>
+      </div>
+    </form>
+
+    <div class="view-row">
+      <span class="seg-label">视图</span>
+      <div class="segmented" role="group" aria-label="行密度">
+        <button type="button" class="seg active" data-density="dense" aria-pressed="true">紧凑</button>
+        <button type="button" class="seg" data-density="comfort" aria-pressed="false">舒适</button>
+      </div>
+      <span class="cond-spacer"></span>
+      {% if user and user.role in ['admin', 'operator'] %}
+      <label class="mode-switch">
+        <input type="checkbox" id="batch-mode" checked>
+        <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+        <span class="switch-text">批量模式</span>
+      </label>
+      <span class="kbd-hint"><kbd>Esc</kbd> 退出批量模式</span>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="panel">
+    {% if tubes %}
+    <div class="grid-scroll grid-dense">
+      <table class="table align-middle">
+        <caption class="visually-hidden">管子库存列表，共 {{ total }} 条，含状态、质量与合规标注</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="c-rail" aria-label="状态指示"></th>
+            <th scope="col" class="col-pick pick-col"><input class="form-check-input" type="checkbox" data-select-all aria-label="全选本页管子"></th>
+            <th scope="col">编号</th>
+            <th scope="col">类型</th>
+            <th scope="col" class="num">外径</th>
+            <th scope="col" class="num">壁厚</th>
+            <th scope="col" class="num">长度</th>
+            <th scope="col">钢级</th>
+            <th scope="col">批次</th>
+            <th scope="col">炉号</th>
+            <th scope="col">库位</th>
+            <th scope="col">状态</th>
+            <th scope="col">质量</th>
+            <th scope="col">合规</th>
+            <th scope="col" class="col-ops">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tube in tubes %}
+          {% set operable = tube.status == "in_stock" and tube.quality_mark != "scrapped" %}
+          <tr class="{{ rail_class(tube) }}">
+            <td class="c-rail" aria-hidden="true"></td>
+            <td class="col-pick pick-col">
+              {% if operable %}
+              <input class="form-check-input row-pick" type="checkbox" form="batch-out-form" name="pipe_ids" value="{{ tube.pipe_id }}" aria-label="选择 {{ tube.pipe_id }}">
+              {% endif %}
+            </td>
+            <td><a class="mono" href="/tubes/{{ tube.pipe_id }}">{{ tube.pipe_id }}</a></td>
+            <td>{{ type_badge(tube.type_) }}</td>
+            <td class="num">{{ "%.1f"|format(tube.outer_diameter_mm) }}</td>
+            <td class="num">{{ "%.2f"|format(tube.wall_thickness_mm) }}</td>
+            <td class="num">{{ "%.2f"|format(tube.length_m) }}</td>
+            <td>{{ tube.steel_grade }}</td>
+            <td class="mono">{{ tube.batch_no or "—" }}</td>
+            <td class="mono">{{ tube.heat_no or "—" }}</td>
+            <td class="mono">{{ tube.location }}</td>
+            <td>{{ status_badge(tube.status) }}</td>
+            <td>{{ quality_badge(tube.quality_mark) }}</td>
+            <td>{{ compliance_badge(tube.compliance_pass) }}</td>
+            <td class="col-ops">
+              {% if operable and user and user.role in ['admin', 'operator'] %}
+              <div class="ops">
+                <a class="act" href="/tubes/transfer/{{ tube.pipe_id }}">转移</a>
+                <a class="act act-danger" href="/tubes/stock-out/{{ tube.pipe_id }}">出库</a>
+              </div>
+              {% else %}
+              <span class="act-disabled">{% if tube.status == "in_transfer" %}调拨中{% elif tube.status == "out_stock" %}已出库{% elif tube.status == "missing" %}盘亏{% else %}不可出库{% endif %}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pager">
+      <span class="pager-info">
+        第 <b>{{ page }}</b> / <b>{{ total_pages }}</b> 页 · 每页 <b>20</b> · 命中 <b>{{ total }}</b>
+      </span>
+      {{ pager(page, total_pages, filter_query) }}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bi bi-box-seam" aria-hidden="true"></i>
+      <p>没有符合条件的管子。</p>
+      {% if filter_values %}
+      <a class="btn btn-subtle btn-sm" href="/tubes"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> 清除筛选条件</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  {% if user and user.role in ['admin', 'operator'] %}
+  <form id="batch-out-form" method="post" action="/tubes/stock-out/batch" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  </form>
+  <div class="dock" id="batch-dock" role="region" aria-label="批量出库" hidden>
+    <span class="dock-count"><i class="bi bi-check2-square" aria-hidden="true"></i>已选 <b data-dock-count>0</b> 根</span>
+    <span class="dock-ids" data-dock-ids></span>
+    <span class="dock-actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-dock-clear>清空</button>
+      <button type="submit" form="batch-out-form" class="btn btn-danger-subtle btn-sm" data-dock-submit>
+        <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> 批量出库
+      </button>
+    </span>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

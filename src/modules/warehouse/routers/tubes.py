@@ -1,5 +1,7 @@
 """Tube routes: list, stock-in, stock-out, import (minimal slice)."""
 
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select, text
@@ -68,20 +70,26 @@ router = APIRouter()
 PAGE_SIZE = 20
 
 
-@router.get("/tubes")
-async def list_tubes(
+async def _render_tube_list(
     request: Request,
-    session: AsyncSession = Depends(get_session),
-    user=Depends(get_current_user),
-    status: str | None = Query(None),
-    location: str | None = Query(None),
-    steel_grade: str | None = Query(None),
-    quality_mark: str | None = Query(None),
-    batch_no: str | None = Query(None),
-    heat_no: str | None = Query(None),
-    page: int = Query(1, ge=1),
+    session: AsyncSession,
+    user: User,
+    *,
+    page: int = 1,
+    status: str | None = None,
+    location: str | None = None,
+    steel_grade: str | None = None,
+    quality_mark: str | None = None,
+    batch_no: str | None = None,
+    heat_no: str | None = None,
+    error: str | None = None,
+    status_code: int = 200,
 ):
-    """List tubes with optional filters and pagination."""
+    """Render the tube list with filters, candidate values and pagination.
+
+    Reused by the GET route and by error paths of other routes that used to
+    render ``warehouse/tubes_list.html`` with a partial context.
+    """
     stmt = select(Tube)
     # D6: soft-deleted tubes must never appear in the listing.
     stmt = stmt.where(Tube.deleted_at.is_(None))
@@ -113,7 +121,50 @@ async def list_tubes(
 
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
 
-    return templates.TemplateResponse(
+    # Filter candidate values: the form offers pickers instead of free text.
+    async def _distinct(column) -> list[str]:
+        values_stmt = (
+            select(column)
+            .where(Tube.deleted_at.is_(None), column.is_not(None))
+            .distinct()
+            .order_by(column)
+            .limit(200)
+        )
+        return list((await session.execute(values_stmt)).scalars().all())
+
+    location_rows = (
+        await session.execute(
+            select(Location.code, Location.name)
+            .where(Location.is_active.is_(True))
+            .order_by(Location.code)
+            .limit(200)
+        )
+    ).all()
+
+    filter_values = {
+        "status": status,
+        "location": location,
+        "steel_grade": steel_grade,
+        "quality_mark": quality_mark,
+        "batch_no": batch_no,
+        "heat_no": heat_no,
+    }
+    # Pagination must carry every active filter, not just the four original ones.
+    filter_query = urlencode({k: v for k, v in filter_values.items() if v})
+    active_filters = {k: v for k, v in filter_values.items() if v}
+    # One-click remove for each active filter chip.
+    remove_links = {
+        k: "/tubes"
+        + (
+            "?" + urlencode({f: v for f, v in active_filters.items() if f != k})
+            if len(active_filters) > 1
+            else ""
+        )
+        for k in active_filters
+    }
+
+    token = request.cookies.get("csrf_token") or generate_csrf_token()
+    rendered = templates.TemplateResponse(
         "warehouse/tubes_list.html",
         {
             "request": request,
@@ -128,7 +179,47 @@ async def list_tubes(
             "quality_mark_filter": quality_mark,
             "batch_no_filter": batch_no,
             "heat_no_filter": heat_no,
+            "filter_query": filter_query,
+            "filter_values": active_filters,
+            "remove_links": remove_links,
+            "locations": location_rows,
+            "steel_grades": await _distinct(Tube.steel_grade),
+            "batch_nos": await _distinct(Tube.batch_no),
+            "heat_nos": await _distinct(Tube.heat_no),
+            "csrf_token": token,
+            "error": error,
         },
+        status_code=status_code,
+    )
+    set_csrf_cookie(rendered, token)
+    return rendered
+
+
+@router.get("/tubes")
+async def list_tubes(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(get_current_user),
+    status: str | None = Query(None),
+    location: str | None = Query(None),
+    steel_grade: str | None = Query(None),
+    quality_mark: str | None = Query(None),
+    batch_no: str | None = Query(None),
+    heat_no: str | None = Query(None),
+    page: int = Query(1, ge=1),
+):
+    """List tubes with optional filters and pagination."""
+    return await _render_tube_list(
+        request,
+        session,
+        user,
+        page=page,
+        status=status,
+        location=location,
+        steel_grade=steel_grade,
+        quality_mark=quality_mark,
+        batch_no=batch_no,
+        heat_no=heat_no,
     )
 
 
@@ -894,16 +985,14 @@ async def tube_recover(
     request: Request,
     pipe_id: str,
     csrf_token: str = Form(...),
+    session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
     try:
         await recover_missing(pipe_id=pipe_id, actor_id=user.id)
     except CheckConflictError as e:
-        return _render_check_template(
-            request,
-            "warehouse/tubes_list.html",
-            {"request": request, "user": user, "error": str(e)},
-            status_code=409,
+        return await _render_tube_list(
+            request, session, user, error=str(e), status_code=409
         )
     return RedirectResponse(url="/tubes", status_code=303)
 

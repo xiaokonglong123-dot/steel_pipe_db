@@ -1,0 +1,92 @@
+{# ═══════════════════════════════════════════════════════════════════
+   共享宏 · 状态/类型徽章与分页
+   徽章一律「图标 + 文字」，颜色只是第三重编码（色盲模式下仍可区分）。
+   ═══════════════════════════════════════════════════════════════════ #}
+
+{% macro status_badge(status) -%}
+  {%- if status == "in_stock" -%}
+    <span class="badge is-ok"><i class="bi bi-check-lg" aria-hidden="true"></i>在库</span>
+  {%- elif status == "out_stock" -%}
+    <span class="badge is-none"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>已出库</span>
+  {%- elif status == "in_transfer" -%}
+    <span class="badge is-warn"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>调拨中</span>
+  {%- elif status == "missing" -%}
+    <span class="badge is-danger"><i class="bi bi-question-octagon" aria-hidden="true"></i>盘亏</span>
+  {%- else -%}
+    <span class="badge is-none"><i class="bi bi-dash-circle" aria-hidden="true"></i>{{ status }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro type_badge(type_) -%}
+  {%- if type_ == "seamless_pipe" -%}
+    <span class="cell-tag tag-sp"><i class="bi bi-circle-fill" aria-hidden="true"></i>SP</span> 无缝
+  {%- elif type_ == "screen_pipe" -%}
+    <span class="cell-tag tag-scp"><i class="bi bi-grid-3x3" aria-hidden="true"></i>SCP</span> 筛管
+  {%- else -%}
+    <span class="cell-tag">{{ type_ }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro quality_badge(mark) -%}
+  {%- if mark == "normal" -%}
+    <span class="badge is-ok"><i class="bi bi-check-lg" aria-hidden="true"></i>正常</span>
+  {%- elif mark == "problematic" -%}
+    <span class="badge is-warn"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>问题</span>
+  {%- elif mark == "scrapped" -%}
+    <span class="badge is-danger"><i class="bi bi-x-octagon-fill" aria-hidden="true"></i>报废</span>
+  {%- else -%}
+    <span class="badge is-none"><i class="bi bi-dash-circle" aria-hidden="true"></i>{{ mark }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro compliance_badge(passed) -%}
+  {%- if passed is none -%}
+    <span class="badge is-none"><i class="bi bi-dash-lg" aria-hidden="true"></i>未检</span>
+  {%- elif passed -%}
+    <span class="badge is-ok"><i class="bi bi-patch-check" aria-hidden="true"></i>通过</span>
+  {%- else -%}
+    <span class="badge is-danger"><i class="bi bi-x-circle" aria-hidden="true"></i>未通过</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{# 行左状态轨的 tr 类：形状（实线/虚线/点线）+ 颜色双重编码 #}
+{% macro rail_class(tube) -%}
+  {%- if tube.quality_mark == "scrapped" or tube.compliance_pass is sameas false -%}rail-issue
+  {%- elif tube.status == "in_transfer" -%}rail-transit
+  {%- elif tube.status == "out_stock" or tube.status == "missing" -%}rail-out
+  {%- else -%}rail-in
+  {%- endif -%}
+{%- endmacro %}
+
+{# 分页：只渲染首尾 + 当前页 ±2，避免 N 个链接 #}
+{% macro pager(page, total_pages, filter_query="", anchor="") -%}
+  {%- set lo = [1, page - 2]|max -%}
+  {%- set hi = [total_pages, page + 2]|min -%}
+  {%- set base = "?" ~ (filter_query ~ "&" if filter_query else "") ~ "page=" -%}
+  <nav aria-label="分页">
+    <ul class="pagination pagination-sm">
+      <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+        {% if page <= 1 %}<span class="page-link"><i class="bi bi-chevron-left" aria-hidden="true"></i><span class="visually-hidden">上一页</span></span>
+        {% else %}<a class="page-link" href="{{ base }}{{ page - 1 }}{{ anchor }}" rel="prev"><i class="bi bi-chevron-left" aria-hidden="true"></i><span class="visually-hidden">上一页</span></a>{% endif %}
+      </li>
+      {% if lo > 1 %}
+      <li class="page-item"><a class="page-link" href="{{ base }}1{{ anchor }}">1</a></li>
+      {% if lo > 2 %}<li class="page-item"><span class="page-link">…</span></li>{% endif %}
+      {% endif %}
+      {% for p in range(lo, hi + 1) %}
+      <li class="page-item {% if p == page %}active{% endif %}"{% if p == page %} aria-current="page"{% endif %}>
+        {% if p == page %}<span class="page-link">{{ p }}</span>
+        {% else %}<a class="page-link" href="{{ base }}{{ p }}{{ anchor }}">{{ p }}</a>{% endif %}
+      </li>
+      {% endfor %}
+      {% if hi < total_pages %}
+      {% if hi < total_pages - 1 %}<li class="page-item"><span class="page-link">…</span></li>{% endif %}
+      <li class="page-item"><a class="page-link" href="{{ base }}{{ total_pages }}{{ anchor }}">{{ total_pages }}</a></li>
+      {% endif %}
+      <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+        {% if page >= total_pages %}<span class="page-link"><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="visually-hidden">下一页</span></span>
+        {% else %}<a class="page-link" href="{{ base }}{{ page + 1 }}{{ anchor }}" rel="next"><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="visually-hidden">下一页</span></a>{% endif %}
+      </li>
+    </ul>
+  </nav>
+{%- endmacro %}
