@@ -158,6 +158,9 @@ alembic upgrade head
 # DB backup (use .backup, NOT cp)
 sqlite3 data/inventory.db ".backup data/backup/inventory_$(date +%F).db"
 
+# Lint (must be zero errors; config in pyproject.toml [tool.ruff.lint])
+uv run --inexact ruff check
+
 # Concurrent stock-out test
 python tests/test_concurrent_stockout.py
 ```
@@ -169,6 +172,7 @@ python tests/test_concurrent_stockout.py
 - Genesis audit hash: `sha256("AYANAMI_REI_GENESIS")` — constant lives in `src/models.py` (not Rust); Rust `audit.rs` is a pure function taking `prev_hash`.
 - Manual `pipe_id` is weakly validated in `tube_service._validate_pipe_id_format` (SP-/SCP- prefix + 4 parts); failures re-render stock-in form with 422 (was 500, fixed 2026-08-01, D8).
 - `busy_timeout=5000` on DB backup command — prevents SQLITE_BUSY under write load.
+- Lint is wired (2026-10-24): `uv run --inexact ruff check` must report **zero**. Selection is explicit in `pyproject.toml` (`E4/E7/E9/F/I/UP/B/C4/SIM/RET/RUF/ASYNC/BLE`) — deliberately not `ALL`, because `D`/`ANN` would demand docstring/annotation churn with no runtime benefit. Waived: `RUF001-003` (Chinese comments use fullwidth punctuation), `tests/*` E402 (test files must `sys.path.insert` + set env before importing `src`), and FastAPI's `Depends`/`Form`/`Query`/`File` defaults via `flake8-bugbear.extend-immutable-calls`. `.superpowers/` snapshots are excluded — they are frozen pre-change copies, not source. One deliberate in-code waiver: `# noqa: BLE001` on the batch **stock-in** per-row error collector.
 - Test baseline (2026-10-24): 165 passed + 3 deselected via `pytest -m "not slow"`; the 3 slow tests (20K audit stress) pass under `pytest -m slow`. Run with `uv run --inexact pytest -m "not slow" -q` (`--inexact` keeps the maturin-installed `rust_core` extraneous package; a plain `uv sync` removes it).
 - 库位写操作（`POST /locations`、`/location/{code}/edit|deactivate`）走 `location_service`：单 `BEGIN IMMEDIATE` + 同事务审计行，失败路径回滚零审计（重复库位 409 / 不存在 404 / 已停用 409 / 重命名名称未变静默 303）；重复与已停用返回 409 并渲染 `location_list.html` 的 `error` 横幅（非 JSON detail）。
 - Batch stock-out (`POST /tubes/stock-out/batch`) is **atomic**: one `BEGIN IMMEDIATE`, per-tube TOCTOU guard, any failure rolls the whole batch back (409/403 via app-level handlers), one `Transaction` header + per-tube `TransactionItem` + per-tube audit row. Empty selection = no-op 303. Single-tube route unchanged; batch stock-**in** and CSV import remain per-row partial-success by design.

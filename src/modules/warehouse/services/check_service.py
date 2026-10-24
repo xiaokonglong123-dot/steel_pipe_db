@@ -10,8 +10,7 @@ all differences atomically in ONE ``BEGIN IMMEDIATE`` transaction
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 
@@ -37,7 +36,7 @@ CHECK_RESULTS = ("ok", "missing", "moved", "surplus")
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def _load_session(conn, check_id: int) -> dict:

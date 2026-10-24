@@ -12,22 +12,16 @@ by the HTTP router layer and mapped to 409 / 403 responses.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import anyio
 from sqlalchemy import text
 
-from rust_core import audit as rust_audit
 from rust_core import compliance as rust_compliance
 from src import database as db
 from src.models import (
-    AuditLog,
-    GENESIS_HASH,
-    Location,
-    SeamlessPipeSpec,
     ScreenPipeSpec,
-    StandardSpec,
+    SeamlessPipeSpec,
     Transaction,
     TransactionItem,
     Tube,
@@ -39,7 +33,6 @@ from src.modules.warehouse.services.audit_service import (
     _write_audit,
     begin_immediate,
 )
-
 
 # ---------------------------------------------------------------------------
 # Stock-out  (出库)
@@ -104,7 +97,7 @@ async def stock_out(
                     "AND deleted_at IS NULL "
                     "AND quality_mark != 'scrapped'"
                 ),
-                {"t": datetime.now(timezone.utc), "pid": pipe_id},
+                {"t": datetime.now(UTC), "pid": pipe_id},
             )
             if res.rowcount != 1:
                 await conn.rollback()
@@ -122,7 +115,7 @@ async def stock_out(
             )
 
             # -- 5. Transaction header + item -----------------------------------
-            ts_txn = datetime.now(timezone.utc)
+            ts_txn = datetime.now(UTC)
             res = await conn.execute(
                 Transaction.__table__.insert().values(
                     type="out",
@@ -221,7 +214,7 @@ async def stock_out_batch(
                         "AND deleted_at IS NULL "
                         "AND quality_mark != 'scrapped'"
                     ),
-                    {"t": datetime.now(timezone.utc), "pid": pipe_id},
+                    {"t": datetime.now(UTC), "pid": pipe_id},
                 )
                 if res.rowcount != 1:
                     raise ConflictError(f"tube {pipe_id} stock-out lost race")
@@ -240,7 +233,7 @@ async def stock_out_batch(
 
             # -- 5. Transaction header + one item per tube -------------------
             n = len(location_by_pipe)
-            ts_txn = datetime.now(timezone.utc)
+            ts_txn = datetime.now(UTC)
             res = await conn.execute(
                 Transaction.__table__.insert().values(
                     type="out",
@@ -322,7 +315,7 @@ def _validate_pipe_id_format(pipe_id: str, type_: str) -> None:
 async def _load_std_spec_for_grade(
     conn: object,
     grade: str,
-) -> Optional[rust_compliance.StandardSpec]:
+) -> rust_compliance.StandardSpec | None:
     """Read the ``standard_specs`` row for *grade* on the given async conn.
 
     Returns ``None`` when no row exists.  Uses raw SQL (not ORM) so it runs on
@@ -456,7 +449,7 @@ async def _insert_tube_with_compliance(
         raise ConflictError(f"location '{location}' not found or inactive")
 
     # -- 3. INSERT tube --------------------------------------------------
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     await conn.execute(
         Tube.__table__.insert().values(
             pipe_id=pipe_id,
@@ -505,7 +498,7 @@ async def _insert_tube_with_compliance(
     )
 
     # -- 6. Transaction header + item ------------------------------------
-    ts_txn = datetime.now(timezone.utc)
+    ts_txn = datetime.now(UTC)
     res = await conn.execute(
         Transaction.__table__.insert().values(
             type="in",
@@ -718,7 +711,7 @@ async def transfer(
             )
 
             # -- 5. Transaction header + item -----------------------------------
-            ts_txn = datetime.now(timezone.utc)
+            ts_txn = datetime.now(UTC)
             res = await conn.execute(
                 Transaction.__table__.insert().values(
                     type="move",
@@ -772,12 +765,12 @@ async def update_quality_mark(
     engine=None,
 ) -> dict[str, str | None]:
     """Modify the quality_mark / quality_note of an in-stock pipe."""
-    from src.modules.warehouse.services.audit_service import begin_immediate, _write_audit
+    from src.modules.warehouse.services.audit_service import _write_audit, begin_immediate
     eng = engine or db.engine
     async with eng.connect() as conn:
         await begin_immediate(conn)
         try:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             r = await conn.execute(
                 text(
                     "UPDATE tubes SET quality_mark=:m, quality_note=:n, updated_at=:t "

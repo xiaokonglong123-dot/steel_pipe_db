@@ -7,20 +7,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.models import (
-    Tube, Location, User,
-    AuditLog, SeamlessPipeSpec, ScreenPipeSpec, Transaction, TransactionItem,
-)
-from src.modules.warehouse.services.tube_service import (
-    stock_in,
-    stock_out,
-    stock_out_batch,
-    transfer,
-    update_quality_mark,
+    AuditLog,
+    Location,
+    ScreenPipeSpec,
+    SeamlessPipeSpec,
+    Transaction,
+    TransactionItem,
+    Tube,
+    User,
 )
 from src.modules.warehouse.services.audit_service import (
     ComplianceError,
     ConflictError,
-    ForbiddenError,
+)
+from src.modules.warehouse.services.check_service import (
+    CheckConflictError,
+    add_surplus,
+    cancel_check,
+    confirm_check,
+    create_check,
+    delete_surplus_item,
+    get_check_detail,
+    list_checks,
+    mark_item,
+    recover_missing,
 )
 from src.modules.warehouse.services.import_service import (
     ImportFormatError,
@@ -35,17 +45,12 @@ from src.modules.warehouse.services.location_service import (
     deactivate_location,
     update_location,
 )
-from src.modules.warehouse.services.check_service import (
-    CheckConflictError,
-    add_surplus,
-    cancel_check,
-    confirm_check,
-    create_check,
-    delete_surplus_item,
-    get_check_detail,
-    list_checks,
-    mark_item,
-    recover_missing,
+from src.modules.warehouse.services.tube_service import (
+    stock_in,
+    stock_out,
+    stock_out_batch,
+    transfer,
+    update_quality_mark,
 )
 from src.schemas import BatchStockInRequest, BatchStockInResponse
 from src.security import (
@@ -151,7 +156,7 @@ async def stock_out_form(
 @router.post("/tubes/stock-out")
 async def do_stock_out(
     pipe_id: str = Form(...),
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     session: AsyncSession = Depends(get_session),
     user=Depends(get_current_user),
     _role: User = Depends(require_operator),
@@ -251,7 +256,7 @@ async def do_transfer(
     pipe_id: str = Form(...),
     target_location: str = Form(...),
     remark: str = Form(""),
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     user=Depends(get_current_user),
     _role: User = Depends(require_operator),
     _: None = Depends(require_csrf),
@@ -324,7 +329,7 @@ async def do_stock_in(
     heat_treat_method: str = Form(""),
     quality_mark: str = Form("normal"),
     quality_note: str = Form(""),
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     surface_treatment: str = Form(""),
     end_protector: str = Form(""),
     screen_type: str = Form(""),
@@ -511,7 +516,10 @@ async def do_batch_stock_in(
                 engine=session.bind,
             )
             ok_count += 1
-        except Exception as e:
+        # Per-row partial success is the documented contract for this endpoint
+        # (AGENTS.md: batch stock-in collects per-row errors, unlike the atomic
+        # batch *stock-out* route).
+        except Exception as e:  # noqa: BLE001
             errors.append({"index": i, "error": str(e), "pipe_id": entry.pipe_id or ""})
 
     return BatchStockInResponse(ok=ok_count, errors=errors)
@@ -541,7 +549,7 @@ async def import_form(
 async def do_import(
     request: Request,
     file: UploadFile = File(...),
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     session: AsyncSession = Depends(get_session),
     user=Depends(get_current_user),
     _role: User = Depends(require_operator),

@@ -11,16 +11,13 @@ both tube_service and (future) import_service.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import anyio
 from sqlalchemy import text
 
 from rust_core import audit as rust_audit
-from src import database as db
-from src.models import AuditLog, GENESIS_HASH
-
+from src.models import GENESIS_HASH, AuditLog
 
 # ---------------------------------------------------------------------------
 # Domain exceptions  (shared across all warehouse services)
@@ -53,14 +50,14 @@ class ComplianceError(Exception):
 
 async def _now_iso() -> str:
     """Stable ISO-8601 timestamp string suitable for audit-hash input."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 async def _write_audit(
     conn: object,
     action: str,
     detail: str,
-    user_id: Optional[int] = None,
+    user_id: int | None = None,
 ) -> None:
     """Read chain tip, compute new hash, insert audit row.
 
@@ -82,7 +79,7 @@ async def _write_audit(
     )
 
     # 3. Insert audit record
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     await conn.execute(
         AuditLog.__table__.insert().values(
             user_id=user_id,

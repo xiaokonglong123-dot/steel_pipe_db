@@ -7,10 +7,8 @@ retrofitted incrementally without breaking changes.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
-
 
 # ---------------------------------------------------------------------------
 # Tube schemas
@@ -27,19 +25,19 @@ class TubeOut(BaseModel):
     wall_thickness_mm: float
     length_m: float
     steel_grade: str
-    thread_type: Optional[str] = None
-    api_5ct_cert: Optional[str] = None
+    thread_type: str | None = None
+    api_5ct_cert: str | None = None
     manufacturer: str
-    batch_no: Optional[str] = None
-    heat_no: Optional[str] = None
-    heat_treat_method: Optional[str] = None
+    batch_no: str | None = None
+    heat_no: str | None = None
+    heat_treat_method: str | None = None
     location: str
     status: str
     quality_mark: str
-    quality_note: Optional[str] = None
-    stock_in_time: Optional[datetime] = None
-    stock_out_time: Optional[datetime] = None
-    compliance_pass: Optional[bool] = None
+    quality_note: str | None = None
+    stock_in_time: datetime | None = None
+    stock_out_time: datetime | None = None
+    compliance_pass: bool | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -58,25 +56,25 @@ class TubeListResponse(BaseModel):
 class SeamlessPipeSpecIn(BaseModel):
     """Optional seamless pipe specification on stock-in."""
 
-    surface_treatment: Optional[str] = None
-    end_protector: Optional[str] = None
+    surface_treatment: str | None = None
+    end_protector: str | None = None
 
 
 class ScreenPipeSpecIn(BaseModel):
     """Optional screen pipe specification on stock-in."""
 
-    screen_type: Optional[str] = None  # wire_wrapped / slotted / precision
-    slot_width_mm: Optional[float] = None
-    slot_density: Optional[float] = None
-    filtration_rating_um: Optional[float] = None
-    base_pipe_grade: Optional[str] = None
-    slot_pattern: Optional[str] = None
+    screen_type: str | None = None  # wire_wrapped / slotted / precision
+    slot_width_mm: float | None = None
+    slot_density: float | None = None
+    filtration_rating_um: float | None = None
+    base_pipe_grade: str | None = None
+    slot_pattern: str | None = None
 
 
 class StockInRequest(BaseModel):
     """Single-tube stock-in form fields."""
 
-    pipe_id: Optional[str] = Field(
+    pipe_id: str | None = Field(
         default=None, description="Leave empty for auto-generation"
     )
     pipe_type: str = Field(alias="type", description="seamless_pipe / screen_pipe")
@@ -86,15 +84,15 @@ class StockInRequest(BaseModel):
     steel_grade: str = Field(min_length=1)
     location: str = Field(min_length=1)
     manufacturer: str = Field(min_length=1)
-    thread_type: Optional[str] = None
-    api_5ct_cert: Optional[str] = None
-    batch_no: Optional[str] = None
-    heat_no: Optional[str] = None
-    heat_treat_method: Optional[str] = None
+    thread_type: str | None = None
+    api_5ct_cert: str | None = None
+    batch_no: str | None = None
+    heat_no: str | None = None
+    heat_treat_method: str | None = None
     quality_mark: str = Field(default="normal")
-    quality_note: Optional[str] = None
-    seamless_specs: Optional[SeamlessPipeSpecIn] = None
-    screen_specs: Optional[ScreenPipeSpecIn] = None
+    quality_note: str | None = None
+    seamless_specs: SeamlessPipeSpecIn | None = None
+    screen_specs: ScreenPipeSpecIn | None = None
 
     @field_validator("pipe_type")
     @classmethod
@@ -132,7 +130,7 @@ class StockOutRequest(BaseModel):
     """Stock-out request (existing)."""
 
     pipe_id: str = Field(min_length=1)
-    remark: Optional[str] = None
+    remark: str | None = None
 
 
 class TransferRequest(BaseModel):
@@ -140,7 +138,7 @@ class TransferRequest(BaseModel):
 
     pipe_id: str = Field(min_length=1)
     target_location: str = Field(min_length=1)
-    remark: Optional[str] = None
+    remark: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -181,9 +179,9 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     """Update an existing user. Password is optional."""
 
-    display_name: Optional[str] = Field(default=None, min_length=1, max_length=128)
-    role: Optional[str] = None
-    password: Optional[str] = Field(default=None, min_length=6, max_length=128)
+    display_name: str | None = Field(default=None, min_length=1, max_length=128)
+    role: str | None = None
+    password: str | None = Field(default=None, min_length=6, max_length=128)
 
     @field_validator("role")
     @classmethod
@@ -205,9 +203,9 @@ class AuditLogOut(BaseModel):
     """Public audit log entry for list views."""
 
     id: int
-    user_id: Optional[int] = None
+    user_id: int | None = None
     action: str
-    detail: Optional[str] = None
+    detail: str | None = None
     current_hash: str
     created_at: datetime
 
@@ -219,7 +217,7 @@ class ChainVerifyResult(BaseModel):
 
     ok: bool
     broken: list[dict] = []
-    tip: Optional[str] = None
+    tip: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -231,9 +229,9 @@ class LocationOut(BaseModel):
     """Public location representation."""
 
     code: str
-    name: Optional[str] = None
+    name: str | None = None
     used_count: int
-    capacity: Optional[int] = None
+    capacity: int | None = None
     is_active: bool
 
     model_config = {"from_attributes": True}
@@ -249,11 +247,11 @@ class StandardSpecOut(BaseModel):
 
     id: int
     grade: str
-    outer_diameter_mm: Optional[float] = None
-    min_wall_thickness_mm: Optional[float] = None
-    max_wall_thickness_mm: Optional[float] = None
-    length_tolerance_mm: Optional[float] = None
-    source: Optional[str] = None
+    outer_diameter_mm: float | None = None
+    min_wall_thickness_mm: float | None = None
+    max_wall_thickness_mm: float | None = None
+    length_tolerance_mm: float | None = None
+    source: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -262,14 +260,14 @@ class ComplianceCheckRequest(BaseModel):
     """Request to check a tube against a standard spec."""
 
     spec_id: int = Field(gt=0)
-    pipe_id: Optional[str] = None
+    pipe_id: str | None = None
     pipe_type: str = Field(alias="type")
     outer_diameter_mm: float = Field(gt=0)
     wall_thickness_mm: float = Field(gt=0)
     length_m: float = Field(gt=0)
     steel_grade: str = Field(min_length=1)
-    thread_type: Optional[str] = None
-    screen_specs: Optional[ScreenPipeSpecIn] = None
+    thread_type: str | None = None
+    screen_specs: ScreenPipeSpecIn | None = None
 
     @field_validator("pipe_type")
     @classmethod

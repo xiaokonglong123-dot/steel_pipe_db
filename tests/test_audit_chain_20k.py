@@ -29,17 +29,17 @@ TEST_DB_PATH = "data/test_audit_20k.db"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-audit-20k")
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import create_engine as create_sync_engine, text
+from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
 from src import database as db
-from src.models import AuditLog, Base, GENESIS_HASH
+from src.models import GENESIS_HASH, AuditLog, Base
 from src.modules.warehouse.routers.audit import _verify_chunked
 from src.modules.warehouse.services.audit_service import begin_immediate
-
 
 SYNC_DB_URL = f"sqlite:///{TEST_DB_PATH}"
 ASYNC_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
@@ -56,7 +56,8 @@ def _setup_db():
     """Create tables and bind src.database to the test engine, fresh."""
     if os.path.exists(TEST_DB_PATH):
         os.remove(TEST_DB_PATH)
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker as mk
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.ext.asyncio import async_sessionmaker as mk
 
     db.engine = create_async_engine(ASYNC_DB_URL, echo=False)
     db.async_session_factory = mk(
@@ -85,7 +86,7 @@ def _compute_chain_values(n: int) -> list[dict]:
     from rust_core import audit as rust_audit
 
     prev = GENESIS_HASH
-    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
     values: list[dict] = []
     for i in range(n):
         ts = (base + timedelta(seconds=i)).isoformat()
@@ -124,11 +125,9 @@ async def _insert_chain(n: int) -> None:
 async def _fetch_rows() -> list:
     from sqlalchemy import select
 
-    async with db.engine.connect() as conn:
-        result = await conn.execute(select(AuditLog).order_by(AuditLog.id.asc()))
-        # AsyncSession-less Connection scalars returns the entity id only
-        # (same SQLAlchemy 2.x quirk observed in import_service); use the
-        # unique scalars path via session.
+    # Fetch through a session rather than a raw Connection: a Connection's
+    # scalars path returns entity ids only (SQLAlchemy 2.x quirk, the same one
+    # worked around in import_service).
     factory = async_sessionmaker(db.engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
         rows = (await session.execute(select(AuditLog).order_by(AuditLog.id.asc()))).scalars().all()

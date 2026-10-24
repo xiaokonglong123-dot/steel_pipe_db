@@ -46,7 +46,7 @@ test_engine = create_async_engine(ASYNC_DB_URL, echo=False)
 
 @pytest.fixture(autouse=True)
 def setup_db():
-    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     db.engine = test_engine
     db.async_session_factory = async_sessionmaker(

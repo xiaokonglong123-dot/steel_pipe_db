@@ -28,7 +28,6 @@ os.environ.setdefault("JWT_SECRET_KEY", "test-secret-import-http")
 
 import asyncio
 from io import BytesIO
-from typing import AsyncIterator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -44,7 +43,6 @@ from src.modules.warehouse.services.import_service import (
     import_tubes_csv,
 )
 from src.security import get_current_user, require_csrf
-
 
 SYNC_DB_URL = f"sqlite:///{TEST_DB_PATH}"
 ASYNC_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
@@ -62,7 +60,7 @@ def setup_db():
     # the sessionmaker instance wholesale — `async_sessionmaker.bind = X`
     # does NOT update the existing instance's bound engine, because that
     # attribute is captured as a kwarg at construction time.
-    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession  # noqa: E402
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     db.engine = test_engine
     db.async_session_factory = async_sessionmaker(

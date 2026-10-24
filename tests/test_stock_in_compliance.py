@@ -29,16 +29,17 @@ import asyncio
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import create_engine as create_sync_engine, text
+from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
+from rust_core import auth as rust_auth
 from src import database as db
 from src.main import app
 from src.models import Base, Location, StandardSpec, User
 from src.modules.warehouse.services.audit_service import ComplianceError
 from src.modules.warehouse.services.tube_service import stock_in
-from rust_core import auth as rust_auth
 from src.security import get_current_user, require_csrf
 
 SYNC_DB_URL = f"sqlite:///{TEST_DB_PATH}"
@@ -51,7 +52,7 @@ test_engine = create_async_engine(ASYNC_DB_URL, echo=False)
 
 @pytest.fixture(autouse=True)
 def setup_db():
-    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     db.engine = test_engine
     db.async_session_factory = async_sessionmaker(

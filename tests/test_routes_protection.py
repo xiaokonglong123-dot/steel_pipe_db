@@ -34,7 +34,6 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from typing import AsyncIterator
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -42,10 +41,10 @@ TEST_DB_PATH = "data/test_routes.db"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-routes")
 
-from httpx import ASGITransport, AsyncClient
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine as create_sync_engine
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
 from rust_core import auth as rust_auth
@@ -53,7 +52,6 @@ from src import database as db
 from src.main import app
 from src.models import Base, Location, StandardSpec, User
 from src.security import get_current_user, require_csrf
-
 
 SYNC_DB_URL = f"sqlite:///{TEST_DB_PATH}"
 ASYNC_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
@@ -63,9 +61,9 @@ test_engine = create_async_engine(ASYNC_DB_URL, echo=False)
 
 
 USERS_SEED = [
-    dict(id=1, username="admin",   role="admin",    display_name="Admin"),
-    dict(id=2, username="operator",role="operator", display_name="Operator"),
-    dict(id=3, username="viewer",  role="viewer",   display_name="Viewer"),
+    {"id": 1, "username": "admin", "role": "admin", "display_name": "Admin"},
+    {"id": 2, "username": "operator", "role": "operator", "display_name": "Operator"},
+    {"id": 3, "username": "viewer", "role": "viewer", "display_name": "Viewer"},
 ]
 
 
@@ -144,7 +142,7 @@ def _enforce_csrf_with_token(token: str):
 def fx():
     _reset_db()
     _seed()
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker as mk
+    from sqlalchemy.ext.asyncio import async_sessionmaker as mk
     db.engine = create_async_engine(ASYNC_DB_URL, echo=False)
     db.async_session_factory = mk(
         db.engine, class_=AsyncSession, expire_on_commit=False

@@ -20,11 +20,11 @@ TEST_DB_PATH = "data/test_quality.db"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-quality")
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from httpx import ASGITransport, AsyncClient
 import pytest
-from sqlalchemy import create_engine as create_sync_engine, text
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import create_engine as create_sync_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
@@ -75,9 +75,9 @@ def _seed():
                     status=status,
                     quality_mark=quality_mark,
                     manufacturer="test",
-                    stock_in_time=datetime.now(timezone.utc),
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),
+                    stock_in_time=datetime.now(UTC),
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
                 )
             )
         s.commit()

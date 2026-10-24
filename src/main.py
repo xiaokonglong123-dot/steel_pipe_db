@@ -6,20 +6,19 @@ from contextlib import asynccontextmanager
 import anyio
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from sqlalchemy import select
+from starlette.types import ASGIApp, Receive, Scope, Send
 
+from rust_core import auth as rust_auth
 from src.config import settings
-from src.database import engine, async_session_factory
-from src.models import Base, Location, User
+from src.database import async_session_factory, engine
+from src.models import Location, User
 from src.modules import register_all_routers
 from src.modules.warehouse.services.audit_service import (
     ComplianceError,
     ConflictError,
     ForbiddenError,
 )
-from rust_core import auth as rust_auth
-from sqlalchemy import select
-from starlette.types import ASGIApp, Receive, Scope, Send
 
 # Shared Jinja2 templates environment.
 # Constructed by ``src.templates_env`` so routers can import the singleton
@@ -27,8 +26,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 # because ``register_all_routers`` is called at import time below).
 # Re-exported here for backwards compatibility with external callers/tests
 # that still write ``from src.main import templates``.
-from src.templates_env import templates  # noqa: E402,F401
-
+from src.templates_env import templates  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # ASGI middleware: reject oversized request bodies before the app reads them.

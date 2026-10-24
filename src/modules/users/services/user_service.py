@@ -6,8 +6,6 @@ uses token_version (global) and last_refresh_jti (single-session).
 
 from __future__ import annotations
 
-from typing import Optional
-
 import anyio
 from sqlalchemy import select
 
@@ -72,7 +70,7 @@ async def create_user(
         )
         await conn.commit()
 
-        user = User(
+        return User(
             id=result.inserted_primary_key[0],
             username=username,
             password_hash=password_hash,
@@ -82,14 +80,13 @@ async def create_user(
             last_refresh_jti=None,
             active=True,
         )
-        return user
 
 
 async def update_user(
     user_id: int,
-    display_name: Optional[str] = None,
-    role: Optional[str] = None,
-    password: Optional[str] = None,
+    display_name: str | None = None,
+    role: str | None = None,
+    password: str | None = None,
     engine: object = None,
     *,
     actor_id: int,

@@ -10,20 +10,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.models import User
+from src.modules.users.services.user_service import (
+    LastAdminError,
+    UserConflictError,
+    create_user,
+    revoke_all_sessions,
+    toggle_active,
+    update_user,
+)
 from src.security import (
     csrf_token_for,
     get_current_user,
     require_admin,
     require_csrf,
     set_csrf_cookie,
-)
-from src.modules.users.services.user_service import (
-    UserConflictError,
-    LastAdminError,
-    create_user,
-    update_user,
-    revoke_all_sessions,
-    toggle_active,
 )
 from src.templates_env import templates
 
@@ -91,7 +91,7 @@ async def create_user_handler(
     password: str = Form(...),
     display_name: str = Form(...),
     role: str = Form("viewer"),
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     user: User = Depends(get_current_user),
     _admin: User = Depends(require_admin),
     __: None = Depends(require_csrf),
@@ -169,7 +169,7 @@ async def edit_user_handler(
     display_name: str = Form(...),
     role: str = Form(...),
     password: str = Form(""),
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     user: User = Depends(get_current_user),
     _admin: User = Depends(require_admin),
     __: None = Depends(require_csrf),
@@ -197,7 +197,7 @@ async def edit_user_handler(
 @router.post("/revoke/{user_id}")
 async def revoke_user_sessions(
     user_id: int,
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     user: User = Depends(get_current_user),
     _admin: User = Depends(require_admin),
     __: None = Depends(require_csrf),
@@ -206,7 +206,7 @@ async def revoke_user_sessions(
     try:
         await revoke_all_sessions(user_id=user_id, actor_id=user.id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="user not found")
+        raise HTTPException(status_code=404, detail="user not found") from None
 
     return RedirectResponse(url="/users", status_code=303)
 
@@ -220,7 +220,7 @@ async def revoke_user_sessions(
 async def toggle_user_active(
     user_id: int,
     active: bool = Form(...),
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     user: User = Depends(get_current_user),
     _admin: User = Depends(require_admin),
     __: None = Depends(require_csrf),
@@ -231,6 +231,6 @@ async def toggle_user_active(
     except LastAdminError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except ValueError:
-        raise HTTPException(status_code=404, detail="user not found")
+        raise HTTPException(status_code=404, detail="user not found") from None
 
     return RedirectResponse(url="/users", status_code=303)

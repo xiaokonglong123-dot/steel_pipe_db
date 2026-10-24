@@ -18,24 +18,32 @@ TEST_DB_PATH = "data/test_check.db"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-check")
 
-from datetime import datetime, timezone  # noqa: E402
+from datetime import UTC, datetime
 
-from httpx import ASGITransport, AsyncClient  # noqa: E402
-import pytest  # noqa: E402
-from sqlalchemy import create_engine as create_sync_engine  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
-from sqlalchemy.orm import sessionmaker as sync_sessionmaker  # noqa: E402
+import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
-from rust_core import auth as rust_auth  # noqa: E402
+from rust_core import auth as rust_auth
 
 rust_auth.init(os.environ["JWT_SECRET_KEY"])
-from src import database as db  # noqa: E402
-from src.main import app  # noqa: E402
-from src.models import (  # noqa: E402
-    AuditLog, Base, CheckItem, CheckSession, Location, StandardSpec,
-    Transaction, TransactionItem, Tube, User,
+from src import database as db
+from src.main import app
+from src.models import (
+    AuditLog,
+    Base,
+    CheckItem,
+    CheckSession,
+    Location,
+    StandardSpec,
+    Transaction,
+    TransactionItem,
+    Tube,
+    User,
 )
-from src.security import get_current_user, require_csrf  # noqa: E402
+from src.security import get_current_user, require_csrf
 
 SYNC_DB_URL = f"sqlite:///{TEST_DB_PATH}"
 ASYNC_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
@@ -72,7 +80,7 @@ def _seed():
                    password_hash=rust_auth.hash_password("Pa$$w0rd"), active=True, token_version=0))
         s.add(User(id=3, username="viewer", role="viewer", display_name="Viewer",
                    password_hash=rust_auth.hash_password("Pa$$w0rd"), active=True, token_version=0))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for pid, qm in TUBES:
             s.add(Tube(
                 pipe_id=pid, type_="seamless_pipe",
@@ -414,7 +422,7 @@ def test_15_admin_confirm_mixed(client):
             r = await _post(c, f"/tubes/check/{cid}/confirm")
             assert r.status_code == 303, r.text[:200]
             return cid
-    cid = asyncio.run(run())
+    asyncio.run(run())
     s = _sessions()[-1]
     assert s.status == "confirmed" and s.confirmed_by == 1
     t1 = _tube(TUBES[0][0])
@@ -452,7 +460,7 @@ def test_16_confirm_atomicity_compliance_fail(client):
             r = await _post(c, f"/tubes/check/{cid}/confirm")
             assert r.status_code == 422, r.text[:200]
             return cid
-    cid = asyncio.run(run())
+    asyncio.run(run())
     s = _sessions()[-1]
     assert s.status == "open"
     assert _tube(TUBES[0][0]).status == "in_stock"
@@ -476,7 +484,7 @@ def test_17_confirm_toctou_rollback(client):
             r = await _post(c, f"/tubes/check/{cid}/confirm")
             assert r.status_code == 409, r.text[:200]
             return cid
-    cid = asyncio.run(run())
+    asyncio.run(run())
     # stock_out itself writes an audit row; confirm rolled back — no check audit
     assert _audit_count() == 1
     assert _audit_rows()[-1].action == "stock_out"
@@ -495,7 +503,7 @@ def test_18b_confirm_cancelled_session_409(client):
             r = await _post(c, f"/tubes/check/{cid}/confirm")
             assert r.status_code == 409, r.text[:200]
             return cid
-    cid = asyncio.run(run())
+    asyncio.run(run())
     assert _sessions()[-1].status == "cancelled"
     assert _audit_count() == 0
 
@@ -513,7 +521,7 @@ def test_19_recover_missing_tube(client):
             r = await _post(c, f"/tubes/recover/{TUBES[0][0]}")
             assert r.status_code == 303, r.text[:200]
             return cid
-    cid = asyncio.run(run())
+    asyncio.run(run())
     t1 = _tube(TUBES[0][0])
     assert t1.status == "in_stock"
     assert _location(WH_A).used_count == 3
@@ -556,4 +564,4 @@ def test_20b_chain_verifies_after_mixed_flow(client):
             assert v.status_code == 200, v.text[:400]
             assert "哈希链完整" in v.text
             return cid
-    cid = asyncio.run(run())
+    asyncio.run(run())

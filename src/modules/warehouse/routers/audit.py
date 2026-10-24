@@ -1,12 +1,13 @@
 """Audit log routes: view and verify hash chain."""
 
+import anyio
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rust_core import audit as rust_audit
 from src.database import get_session
-from src.models import AuditLog, GENESIS_HASH, User
+from src.models import GENESIS_HASH, AuditLog, User
 from src.security import (
     generate_csrf_token,
     get_current_user,
@@ -15,7 +16,6 @@ from src.security import (
     set_csrf_cookie,
 )
 from src.templates_env import templates
-import anyio
 
 CHUNK_SIZE = 20_000
 
@@ -75,11 +75,8 @@ async def _verify_chunked(rows: list[AuditLog]) -> dict:
     for offset in range(0, len(rows), CHUNK_SIZE):
         chunk_rows = rows[offset:offset + CHUNK_SIZE]
         chunk_dicts = [_row_to_dict(r) for r in chunk_rows]
-        chunk_pyobjects: list = await anyio.to_thread.run_sync(
-            lambda cd=chunk_dicts: [d for d in cd], chunk_dicts
-        )
         result = await anyio.to_thread.run_sync(
-            lambda: rust_audit.verify_chain_chunk(start_id, expected_prev, chunk_pyobjects)
+            rust_audit.verify_chain_chunk, start_id, expected_prev, chunk_dicts
         )
 
         ok = bool(result.get("ok", False))

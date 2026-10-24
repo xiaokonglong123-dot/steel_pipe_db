@@ -30,8 +30,8 @@ from rust_core import auth as rust_auth
 
 rust_auth.init(os.environ["JWT_SECRET_KEY"])
 
-from httpx import ASGITransport, AsyncClient
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine as create_sync_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
@@ -40,7 +40,6 @@ from src import database as db
 from src.main import app
 from src.models import AuditLog, Base, User
 from src.security import get_current_user, login_limiter, require_csrf
-
 
 SYNC_DB_URL = f"sqlite:///{TEST_DB_PATH}"
 ASYNC_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
@@ -149,8 +148,7 @@ def test_10th_failure_triggers_lockout_audit(client):
 
     async def run():
         async with client as c:
-            last_ip = await _fail_n_times(c, 10)
-            return last_ip
+            return await _fail_n_times(c, 10)
 
     last_ip = asyncio.run(run())
     rows = _audit_rows()
@@ -181,10 +179,9 @@ def test_locked_attempt_no_new_audit(client):
     async def run():
         async with client as c:
             await _fail_n_times(c, 10)
-            r = await _post(
+            return await _post(
                 c, "/login", {"username": "admin", "password": "WrongPass!"}, "203.0.113.99"
             )
-            return r
 
     r = asyncio.run(run())
     assert r.status_code == 429, r.text[:200]
@@ -216,8 +213,7 @@ def test_chain_verifies_after_lockout(client):
     async def run():
         async with client as c:
             await _fail_n_times(c, 10)
-            v = await _post(c, "/audit/verify", {}, "203.0.113.88")
-            return v
+            return await _post(c, "/audit/verify", {}, "203.0.113.88")
 
     v = asyncio.run(run())
     assert v.status_code == 200, v.text[:400]
@@ -230,10 +226,9 @@ def test_success_clears_failures_no_audit(client):
     async def run():
         async with client as c:
             await _fail_n_times(c, 3)
-            r = await _post(
+            return await _post(
                 c, "/login", {"username": "admin", "password": "Pa$$w0rd"}, "203.0.113.77"
             )
-            return r
 
     r = asyncio.run(run())
     assert r.status_code == 303, r.text[:200]

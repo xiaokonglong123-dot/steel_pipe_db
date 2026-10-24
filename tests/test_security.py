@@ -1,31 +1,31 @@
 """Tests for src/security.py — JWT auth, CSRF, login rate limiting."""
 
+import sys
+
 import pytest
-from fastapi import FastAPI, Form, Depends, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine as create_sync_engine
-from sqlalchemy.orm import sessionmaker as sync_sessionmaker
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import select
-
-import sys
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
 sys.path.insert(0, ".")
 
-from src.models import Base, User
+from rust_core import auth as rust_auth
 from src.database import get_session
+from src.models import Base, User
 from src.security import (
-    get_current_user,
-    require_csrf,
-    ensure_csrf_token,
-    issue_auth_tokens,
-    set_auth_cookies,
     ACCESS_COOKIE,
     REFRESH_COOKIE,
     LoginRateLimiter,
+    ensure_csrf_token,
+    get_current_user,
+    issue_auth_tokens,
     login_limiter,
+    require_csrf,
+    set_auth_cookies,
 )
-from rust_core import auth as rust_auth
 
 # Initialize Rust with a known test secret
 rust_auth.init("test-secret")
@@ -58,7 +58,7 @@ app = FastAPI()
 app.dependency_overrides[get_session] = override_get_session
 
 # Real auth router: exercises POST /logout (D3) and POST /auth/refresh (D4).
-from src.modules.auth.routers.auth import router as auth_router  # noqa: E402
+from src.modules.auth.routers.auth import router as auth_router
 
 app.include_router(auth_router)
 
@@ -73,7 +73,7 @@ async def protected(user=Depends(get_current_user)):
 
 @app.post("/protected-action")
 async def protected_action(
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     _csrf=Depends(require_csrf),
     user=Depends(get_current_user),
 ):

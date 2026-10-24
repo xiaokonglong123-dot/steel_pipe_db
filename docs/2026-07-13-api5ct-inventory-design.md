@@ -149,7 +149,8 @@
 | 8 | 对齐 | §13.1、§6 | 测试矩阵更新为 2026-10-24 实测：**16 文件 / 160 项（157 通过 + 3 slow）**；新增 `test_batch_stockout.py`（5 项） |
 | 9 | 版本 | §0.1、pyproject.toml、main.py | 应用版本号补至 `0.8.0`（D12 落地时漏 bump；文档头部与 AGENTS.md 已按 v0.8.0） |
 | 10 | 缺口记录 → 已修复 | §5.7、§13.1、§14、§17、AGENTS.md | 库位写操作（create/edit/deactivate）原为裸 `session.commit()`：**不写审计、不用 `BEGIN IMMEDIATE`**。2026-10-24 抽出 `location_service`，三操作用单 `BEGIN IMMEDIATE` + 同事务审计行（`create_location` / `update_location` / `deactivate_location`），失败路径（重复/不存在/已停用/名称未变）回滚零审计；重复库位与重复停用由 `HTTPException(409)` 改为 **409 渲染错误横幅**，详情页 `location_list.html` 新增 `error` 块。剩余缺口：`deactivate` 仍单向、**无重新启用入口**；`/locations*` 与 `/tubes/{pipe_id}` 仍落在 `tubes.py` 而非独立模块 |
-| 11 | 核实非缺陷 | §4.1 | `tubes.pipe_id` 为行级 `UNIQUE (pipe_id)`，而管子仅软删除（`deleted_at`）、从不物理删除 → 唯一约束与软删除**无冲突**（2026-10-24 核查排除，不再作为潜在缺陷跟踪） |
+| 11 | 工具链 | pyproject.toml、AGENTS.md | 接入 `ruff check` 门禁：规则集显式声明（`E4/E7/E9/F/I/UP/B/C4/SIM/RET/RUF/ASYNC/BLE`，非 `ALL`——`D`/`ANN` 要求无收益的改写），豁免 `RUF001-003`（中文注释的全角标点）、`tests/*` 的 `E402`（测试须先 `sys.path.insert` + 设 env 再导入 `src`）、FastAPI 依赖默认值（`flake8-bugbear.extend-immutable-calls`）；`.superpowers/` 快照目录排除（非源码）。清理既存报错后 `uv run --inexact ruff check` 归零（2026-10-24） |
+| 12 | 核实非缺陷 | §4.1 | `tubes.pipe_id` 为行级 `UNIQUE (pipe_id)`，而管子仅软删除（`deleted_at`）、从不物理删除 → 唯一约束与软删除**无冲突**（2026-10-24 核查排除，不再作为潜在缺陷跟踪） |
 
 ---
 

@@ -14,21 +14,21 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
-from sqlalchemy import create_engine as create_sync_engine, text
+from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
-from src.models import Base, Location, StandardSpec, Tube
+from src.models import Base, Location, StandardSpec
 from src.modules.warehouse.services.tube_service import (
+    refresh_used_count,
     stock_in,
     stock_out,
     transfer,
-    refresh_used_count,
 )
 
 TEST_DB_PATH = "data/test_used_count.db"

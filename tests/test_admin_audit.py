@@ -25,18 +25,18 @@ TEST_DB_PATH = "data/test_admin_audit.db"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-admin-audit")
 
-from httpx import ASGITransport, AsyncClient
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine as create_sync_engine
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
 from rust_core import auth as rust_auth
 from src import database as db
 from src.main import app
 from src.models import AuditLog, Base, Location, StandardSpec, User
-from src.security import get_current_user, require_csrf
 from src.modules.users.services.user_service import update_user
+from src.security import get_current_user, require_csrf
 
 SYNC_DB_URL = f"sqlite:///{TEST_DB_PATH}"
 ASYNC_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
@@ -110,7 +110,7 @@ def client():
 def fx():
     _reset_db()
     _seed()
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker as mk
+    from sqlalchemy.ext.asyncio import async_sessionmaker as mk
     db.engine = create_async_engine(ASYNC_DB_URL, echo=False)
     db.async_session_factory = mk(
         db.engine, class_=AsyncSession, expire_on_commit=False

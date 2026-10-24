@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import io
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import anyio
 import pandas as pd
@@ -24,7 +24,6 @@ from rust_core import compliance as rust_compliance
 from src import database as db
 from src.models import StandardSpec as StdSpecRow
 from src.modules.warehouse.services.tube_service import stock_in
-
 
 MAX_IMPORT_BYTES = 20 * 1024 * 1024
 MAX_IMPORT_ROWS = 10_000
@@ -92,7 +91,7 @@ async def _load_std_specs(engine: object) -> dict[str, rust_compliance.StandardS
     return out
 
 
-def _build_tube_params(row: dict) -> tuple[rust_compliance.TubeParams, Optional[rust_compliance.ScreenPipeParams]]:
+def _build_tube_params(row: dict) -> tuple[rust_compliance.TubeParams, rust_compliance.ScreenPipeParams | None]:
     """Construct TubeParams (and optional ScreenPipeParams) from a CSV row."""
     screen = None
     if row["pipe_type"] == "screen_pipe":
@@ -118,7 +117,7 @@ def _build_tube_params(row: dict) -> tuple[rust_compliance.TubeParams, Optional[
 async def _check_row_compliance(
     row: dict,
     std_specs: dict[str, rust_compliance.StandardSpec],
-) -> Optional[str]:
+) -> str | None:
     """Return None if row passes compliance, else a human-readable reason."""
     grade = row["steel_grade"]
     spec = std_specs.get(grade)
@@ -137,7 +136,7 @@ async def _check_row_compliance(
     return f"compliance failed — {reasons}"
 
 
-def _row_to_seamless_specs(row: dict) -> Optional[dict]:
+def _row_to_seamless_specs(row: dict) -> dict | None:
     if row["pipe_type"] != "seamless_pipe":
         return None
     spec = {}
@@ -148,7 +147,7 @@ def _row_to_seamless_specs(row: dict) -> Optional[dict]:
     return spec or None
 
 
-def _row_to_screen_specs(row: dict) -> Optional[dict]:
+def _row_to_screen_specs(row: dict) -> dict | None:
     if row["pipe_type"] != "screen_pipe":
         return None
     spec = {}
@@ -171,7 +170,7 @@ async def import_tubes_csv(
     content: bytes,
     operator_id: int,
     filename: str = "upload.csv",
-    engine: Optional[object] = None,
+    engine: object | None = None,
 ) -> ImportResult:
     """Parse CSV bytes and import each compliant row as a new tube.
 
@@ -188,7 +187,7 @@ async def import_tubes_csv(
 
     try:
         df = pd.read_csv(io.BytesIO(content), dtype=str)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise ImportFormatError(f"CSV parse failed: {exc}") from exc
 
     missing = [c for c in REQUIRED_COLS if c not in df.columns]

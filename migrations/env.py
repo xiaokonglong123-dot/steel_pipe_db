@@ -7,8 +7,8 @@ Overrides sqlalchemy.url from src.config.settings at runtime.
 import asyncio
 import sys
 from logging.config import fileConfig
-from os.path import abspath, dirname, join as pjoin
-from pathlib import Path
+from os.path import abspath, dirname
+from os.path import join as pjoin
 
 from alembic import context
 from sqlalchemy import event, pool

@@ -7,6 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.models import StandardSpec, User
+from src.modules.warehouse.services.standards_service import (
+    StandardConflictError,
+    create_standard,
+    delete_standard,
+    update_standard,
+)
 from src.security import (
     generate_csrf_token,
     get_current_user,
@@ -15,12 +21,6 @@ from src.security import (
     set_csrf_cookie,
 )
 from src.templates_env import templates
-from src.modules.warehouse.services.standards_service import (
-    StandardConflictError,
-    create_standard,
-    delete_standard,
-    update_standard,
-)
 
 router = APIRouter()
 
@@ -86,7 +86,7 @@ async def create_standard_route(
     outer_diameter_mm: float = Form(...),
     min_wall_thickness_mm: float = Form(...),
     max_wall_thickness_mm: float = Form(...),
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     user=Depends(get_current_user),
     _admin: User = Depends(require_admin),
     _: None = Depends(require_csrf),
@@ -165,7 +165,7 @@ async def update_standard_route(
     outer_diameter_mm: float = Form(...),
     min_wall_thickness_mm: float = Form(...),
     max_wall_thickness_mm: float = Form(...),
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     user=Depends(get_current_user),
     _admin: User = Depends(require_admin),
     _: None = Depends(require_csrf),
@@ -193,7 +193,7 @@ async def update_standard_route(
 @router.post("/standards/{spec_id}/delete")
 async def delete_standard_route(
     spec_id: int,
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     user=Depends(get_current_user),
     _admin: User = Depends(require_admin),
     _: None = Depends(require_csrf),

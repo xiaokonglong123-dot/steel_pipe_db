@@ -18,7 +18,8 @@ template cache key.
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from starlette.requests import Request
 from starlette.templating import Jinja2Templates

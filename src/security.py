@@ -8,12 +8,12 @@ import time
 from typing import Any
 
 import anyio
-from fastapi import Depends, Request, Response, HTTPException
+from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from rust_core import auth as rust_auth
 from src.database import get_session
 from src.models import User
-from rust_core import auth as rust_auth
 
 # ---------------------------------------------------------------------------
 # Cookie names
@@ -276,10 +276,11 @@ class LoginRateLimiter:
         if record is None:
             return True
         locked_until = record.get("locked_until")
-        if locked_until is not None and isinstance(locked_until, float):
-            if locked_until > time.time():
-                return False
-        return True
+        return not (
+            locked_until is not None
+            and isinstance(locked_until, float)
+            and locked_until > time.time()
+        )
 
     def record_failure(self, username: str) -> bool:
         """Record a failed login attempt for this username.

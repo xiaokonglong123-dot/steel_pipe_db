@@ -5,8 +5,7 @@ SQLAlchemy 2.0 typed-mapping style (Mapped / mapped_column).
 """
 
 import hashlib
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -36,12 +35,12 @@ class Tube(Base):
     wall_thickness_mm: Mapped[float] = mapped_column(Float, nullable=False)
     length_m: Mapped[float] = mapped_column(Float, nullable=False)
     steel_grade: Mapped[str] = mapped_column(String(32), nullable=False)
-    thread_type: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    api_5ct_cert: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    thread_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    api_5ct_cert: Mapped[str | None] = mapped_column(String, nullable=True)
     manufacturer: Mapped[str] = mapped_column(String, nullable=False)
-    batch_no: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    heat_no: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    heat_treat_method: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    batch_no: Mapped[str | None] = mapped_column(String, nullable=True)
+    heat_no: Mapped[str | None] = mapped_column(String, nullable=True)
+    heat_treat_method: Mapped[str | None] = mapped_column(String, nullable=True)
     location: Mapped[str] = mapped_column(
         String(32),
         ForeignKey("locations.code", ondelete="RESTRICT"),
@@ -51,18 +50,18 @@ class Tube(Base):
     quality_mark: Mapped[str] = mapped_column(
         String(16), default="normal", nullable=False
     )  # normal / problematic / scrapped
-    quality_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    stock_in_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    stock_out_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    compliance_pass: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    quality_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stock_in_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    stock_out_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    compliance_pass: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
 
@@ -79,8 +78,8 @@ class SeamlessPipeSpec(Base):
         ForeignKey("tubes.pipe_id", ondelete="CASCADE"),
         primary_key=True,
     )
-    surface_treatment: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    end_protector: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    surface_treatment: Mapped[str | None] = mapped_column(String, nullable=True)
+    end_protector: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 # ---------------------------------------------------------------------------
@@ -95,12 +94,12 @@ class ScreenPipeSpec(Base):
         ForeignKey("tubes.pipe_id", ondelete="CASCADE"),
         primary_key=True,
     )
-    screen_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # wire_wrapped / slotted / precision
-    slot_width_mm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    slot_density: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    filtration_rating_um: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    base_pipe_grade: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    slot_pattern: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    screen_type: Mapped[str | None] = mapped_column(String, nullable=True)  # wire_wrapped / slotted / precision
+    slot_width_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    slot_density: Mapped[float | None] = mapped_column(Float, nullable=True)
+    filtration_rating_um: Mapped[float | None] = mapped_column(Float, nullable=True)
+    base_pipe_grade: Mapped[str | None] = mapped_column(String, nullable=True)
+    slot_pattern: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 # ---------------------------------------------------------------------------
@@ -116,10 +115,10 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)  # admin / operator / viewer
     token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    last_refresh_jti: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    last_refresh_jti: Mapped[str | None] = mapped_column(String, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
 
 
@@ -133,10 +132,10 @@ class Transaction(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     type_: Mapped[str] = mapped_column("type", String(16), nullable=False)  # in / out / move / check
     operator_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    reference_no: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    remark: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    reference_no: Mapped[str | None] = mapped_column(String, nullable=True)
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
 
 
@@ -154,8 +153,8 @@ class TransactionItem(Base):
         nullable=False,
     )
     pipe_id: Mapped[str] = mapped_column(String, nullable=False)
-    source_location: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    target_location: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    source_location: Mapped[str | None] = mapped_column(String, nullable=True)
+    target_location: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 # ---------------------------------------------------------------------------
@@ -166,9 +165,9 @@ class Location(Base):
     __tablename__ = "locations"
 
     code: Mapped[str] = mapped_column(String(32), primary_key=True)
-    name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
     used_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    capacity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
@@ -180,14 +179,14 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     action: Mapped[str] = mapped_column(String, nullable=False)
-    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     prev_hash: Mapped[str] = mapped_column(String, nullable=False)
     current_hash: Mapped[str] = mapped_column(String, nullable=False)
     ts: Mapped[str] = mapped_column("ts", String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
 
 
@@ -203,11 +202,11 @@ class StandardSpec(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     grade: Mapped[str] = mapped_column(String, nullable=False)
-    outer_diameter_mm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    min_wall_thickness_mm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    max_wall_thickness_mm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    length_tolerance_mm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    outer_diameter_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    min_wall_thickness_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_wall_thickness_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    length_tolerance_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 # ---------------------------------------------------------------------------
@@ -222,12 +221,12 @@ class CheckSession(Base):
     location: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")  # open/confirmed/cancelled
     created_by: Mapped[int] = mapped_column(Integer, nullable=False)
-    confirmed_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    confirmed_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
-    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    remark: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class CheckItem(Base):
@@ -242,8 +241,8 @@ class CheckItem(Base):
     )
     pipe_id: Mapped[str] = mapped_column(String, nullable=False)
     result: Mapped[str] = mapped_column(String(16), nullable=False)  # ok/missing/moved/surplus
-    actual_location: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    surplus_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    actual_location: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    surplus_data: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )

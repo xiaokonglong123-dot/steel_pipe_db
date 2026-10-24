@@ -24,10 +24,11 @@ TEST_DB_PATH = "data/test_stockout.db"
 
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import create_engine as create_sync_engine, text
+from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
@@ -77,8 +78,8 @@ def setup_db():
             location="DEFAULT",
             status="in_stock",
             quality_mark="normal",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         session.add(tube1)
 
@@ -94,8 +95,8 @@ def setup_db():
             location="DEFAULT",
             status="in_stock",
             quality_mark="problematic",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         session.add(tube2)
 
@@ -165,8 +166,7 @@ def test_concurrent_stock_out():
         conflicts = [r for r in results if isinstance(r, ConflictError)]
 
         assert len(successes) == 1, (
-            f"expected 1 success, got {len(successes)}: "
-            f"{[s for s in successes]}"
+            f"expected 1 success, got {len(successes)}: {successes}"
         )
         assert len(conflicts) == 4, (
             f"expected 4 conflicts, got {len(conflicts)}"

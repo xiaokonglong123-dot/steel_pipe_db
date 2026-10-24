@@ -6,19 +6,25 @@ success path plus the rollback guarantees (missing pipe_id, duplicate
 pipe_id) that the previous per-tube implementation did not provide.
 """
 
-import asyncio, os, sys
+import asyncio
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 TEST_DB_PATH = "data/test_batch_stockout.db"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 os.environ.setdefault("JWT_SECRET_KEY", "test-batch")
 
-from datetime import datetime, timezone
-from httpx import ASGITransport, AsyncClient
+from datetime import UTC, datetime
+
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine as sync_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
+
 from rust_core import auth as rust_auth
+
 rust_auth.init(os.environ["JWT_SECRET_KEY"])
 from src import database as db
 from src.main import app
@@ -35,22 +41,25 @@ T1, T2, T3 = "SP-bs1", "SP-bs2", "SP-bs3"
 def _seed():
     Base.metadata.create_all(bind=se)
     with SS() as s:
-        for t in [AuditLog, Tube, Location, User]: s.query(t).delete()
+        for t in [AuditLog, Tube, Location, User]:
+            s.query(t).delete()
         s.commit()
         s.add(Location(code="BATCH", name="B", used_count=3, is_active=True))
         s.add(User(id=2, username="op", role="operator", display_name="O", password_hash=rust_auth.hash_password("p"), active=True, token_version=0))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for pid in [T1, T2, T3]:
             s.add(Tube(pipe_id=pid, type_="seamless_pipe", outer_diameter_mm=80.0, wall_thickness_mm=6.0, length_m=10.0, steel_grade="H40", location="BATCH", status="in_stock", quality_mark="normal", manufacturer="m", stock_in_time=now, created_at=now, updated_at=now))
         s.commit()
 
 def _reset():
-    for p in [TEST_DB_PATH, TEST_DB_PATH+"-wal", TEST_DB_PATH+"-shm"]:
-        if os.path.exists(p): os.remove(p)
+    for p in [TEST_DB_PATH, TEST_DB_PATH + "-wal", TEST_DB_PATH + "-shm"]:
+        if os.path.exists(p):
+            os.remove(p)
 
 def _stub(uid):
     async def f():
-        with SS() as s: return s.query(User).get(uid)
+        with SS() as s:
+            return s.query(User).get(uid)
     return f
 
 def _allow_csrf():
@@ -107,9 +116,9 @@ def test_batch_out_decrements_used_count_and_writes_one_txn(client):
         assert s.query(Location).filter(Location.code=="BATCH").first().used_count == 1
         logs = s.query(AuditLog).all()
         assert len(logs) == 2
-        assert all(l.action == "stock_out" for l in logs)
-        assert all("batch=2" in (l.detail or "") for l in logs)
-        assert {l.detail.split("pipe_id=")[1].split()[0] for l in logs} == {T1, T2}
+        assert all(log.action == "stock_out" for log in logs)
+        assert all("batch=2" in (log.detail or "") for log in logs)
+        assert {log.detail.split("pipe_id=")[1].split()[0] for log in logs} == {T1, T2}
 
 
 def test_batch_out_unknown_pipe_id_rolls_back_whole_batch(client):

@@ -1,7 +1,8 @@
 """Authentication routes: login, logout, dashboard."""
 
-import anyio
 import logging
+
+import anyio
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -14,11 +15,11 @@ from src.modules.warehouse.services.audit_service import _write_audit, begin_imm
 from src.security import (
     CSRF_COOKIE,
     REFRESH_COOKIE,
+    LoginRateLimiter,
     clear_auth_cookies,
     generate_csrf_token,
     get_current_user,
     issue_auth_tokens,
-    LoginRateLimiter,
     login_limiter,
     require_csrf,
     set_auth_cookies,
@@ -66,7 +67,7 @@ async def login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
-    csrf_token: str = Form(...),  # noqa: ARG001
+    csrf_token: str = Form(...),
     session: AsyncSession = Depends(get_session),
     _: None = Depends(require_csrf),
 ):
@@ -205,7 +206,7 @@ async def dashboard(
     """Render the dashboard home page with summary stats."""
     from sqlalchemy import func, select
 
-    from src.models import Tube, AuditLog
+    from src.models import AuditLog, Tube
 
     total = await session.scalar(select(func.count(Tube.id)))
     in_stock = await session.scalar(

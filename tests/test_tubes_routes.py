@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -31,10 +31,11 @@ TEST_DB_PATH = "data/test_tubes_routes.db"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-tubes-routes")
 
-from httpx import ASGITransport, AsyncClient
 import pytest
-from sqlalchemy import create_engine as create_sync_engine, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
 from rust_core import auth as rust_auth
@@ -42,7 +43,6 @@ from src import database as db
 from src.main import app
 from src.models import Base, Location, StandardSpec, User
 from src.security import get_current_user, require_csrf
-
 
 SYNC_DB_URL = f"sqlite:///{TEST_DB_PATH}"
 ASYNC_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
@@ -111,7 +111,7 @@ def client():
 def fx():
     _reset_db()
     _seed()
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker as mk
+    from sqlalchemy.ext.asyncio import async_sessionmaker as mk
     db.engine = create_async_engine(ASYNC_DB_URL, echo=False)
     db.async_session_factory = mk(
         db.engine, class_=AsyncSession, expire_on_commit=False
@@ -455,7 +455,7 @@ def test_list_tubes_excludes_soft_deleted(client):
             async with test_engine.begin() as conn:
                 await conn.execute(
                     text("UPDATE tubes SET deleted_at=:t WHERE pipe_id=:p"),
-                    {"t": datetime.now(timezone.utc), "p": pipe_id},
+                    {"t": datetime.now(UTC), "p": pipe_id},
                 )
 
             r_after = await c.get("/tubes", follow_redirects=False)
