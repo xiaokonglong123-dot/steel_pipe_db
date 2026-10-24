@@ -10,8 +10,9 @@
     <link rel="stylesheet" href="/static/app.css">
     {% block styles %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     {%- set path = request.url.path -%}
+    {% block topbar %}
     <nav class="topbar" aria-label="主导航">
         <div class="topbar-inner">
             <a class="brand" href="/dashboard"><span class="brand-mark" aria-hidden="true"></span>AYANAMI_REI</a>
@@ -44,6 +45,7 @@
             </div>
         </div>
     </nav>
+    {% endblock %}
 
     <main class="app-container">
         {% block flash %}

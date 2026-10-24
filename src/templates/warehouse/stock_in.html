@@ -1,129 +1,43 @@
 {% extends "base.html" %}
 {% block title %}单管入库 · Ayanami_Rei{% endblock %}
 
-{% block styles %}
-<style>
-    .page-head { margin-bottom: 20px; }
-    .page-head h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-strong); }
-    .page-head .sub { color: var(--text-faint); font-size: 13px; margin-top: 4px; }
-    .spec-section h6 {
-        font-size: 13px; font-weight: 600;
-        color: var(--accent);
-        text-transform: uppercase; letter-spacing: 0.05em;
-        margin: 0 0 12px 0;
-        display: flex; align-items: center; gap: 6px;
-    }
-    .spec-section .divider {
-        border: 0; border-top: 1px dashed var(--border-strong);
-        margin: 24px 0 16px;
-    }
-    .form-buttons {
-        margin-top: 28px;
-        display: flex; gap: 10px;
-        padding-top: 20px;
-        border-top: 1px solid var(--border);
-    }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="page-head">
-    <h1><i class="bi bi-plus-circle" style="color:var(--accent);margin-right:8px"></i>单管入库</h1>
-    <div class="sub">手动登记单根钢管 · 自动 API 5CT 合规校验</div>
+<header class="page-head">
+    <div class="title-row">
+        <h1><i class="bi bi-plus-circle" aria-hidden="true"></i>单管入库</h1>
+        <span class="stat-inline">手动登记单根钢管 · 提交时自动 API 5CT 合规校验</span>
+    </div>
+</header>
+
+{% if error %}
+<div class="alert alert-danger flash" role="alert">
+    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>{{ error }}</span>
 </div>
+{% endif %}
 
-<div class="surface">
-    <div class="surface-body">
+<form method="POST" action="/tubes/stock-in" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-        {% if error %}
-        <div class="alert alert-danger flash" role="alert">
-            <i class="bi bi-exclamation-triangle me-1"></i>
-            {{ error }}
-        </div>
-        {% endif %}
-
-        <form method="POST" action="/tubes/stock-in" enctype="multipart/form-data">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label for="pipe_id" class="form-label">管子编号</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="pipe_id" name="pipe_id" placeholder="输入编号或留空">
-                        <span class="input-group-text">留空自动生成</span>
-                    </div>
+    <div class="panel">
+        <div class="panel-head"><h2><i class="bi bi-upc-scan" aria-hidden="true"></i> 标识与类型</h2></div>
+        <div class="panel-body">
+            <div class="form-grid">
+                <div class="field span-2">
+                    <label class="form-label" for="pipe_id">管子编号</label>
+                    <input class="form-control" id="pipe_id" name="pipe_id" type="text"
+                           placeholder="留空则由系统按 {SP|SCP}-{钢级}-{外径}x{壁厚}-{uuid8} 生成">
+                    <span class="form-hint">手填需符合 <code>SP-</code> / <code>SCP-</code> 前缀 + 4 段格式，否则 422。</span>
                 </div>
-                <div class="col-md-6">
-                    <label for="type" class="form-label">管子类型</label>
+                <div class="field">
+                    <label class="form-label" for="type">管子类型</label>
                     <select class="form-select" id="type" name="type" onchange="toggleSpecFields()">
                         {% for val, label in pipe_types %}
                         <option value="{{ val }}">{{ label }}</option>
                         {% endfor %}
                     </select>
                 </div>
-            </div>
-
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="outer_diameter_mm" class="form-label">外径 (mm)</label>
-                    <input type="number" step="0.1" class="form-control" id="outer_diameter_mm" name="outer_diameter_mm" required>
-                </div>
-                <div class="col-md-4">
-                    <label for="wall_thickness_mm" class="form-label">壁厚 (mm)</label>
-                    <input type="number" step="0.01" class="form-control" id="wall_thickness_mm" name="wall_thickness_mm" required>
-                </div>
-                <div class="col-md-4">
-                    <label for="length_m" class="form-label">长度 (m)</label>
-                    <input type="number" step="0.01" class="form-control" id="length_m" name="length_m" required>
-                </div>
-            </div>
-
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="steel_grade" class="form-label">钢级</label>
-                    <input type="text" class="form-control" id="steel_grade" name="steel_grade" required placeholder="如 J55 / L80 / P110">
-                </div>
-                <div class="col-md-4">
-                    <label for="location" class="form-label">库位</label>
-                    <select class="form-select" id="location" name="location" required>
-                        <option value="">选择库位</option>
-                        {% for loc in locations %}
-                        <option value="{{ loc.code }}">{{ loc.code }} — {{ loc.name or '' }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label for="manufacturer" class="form-label">生产厂家</label>
-                    <input type="text" class="form-control" id="manufacturer" name="manufacturer" required>
-                </div>
-            </div>
-
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="thread_type" class="form-label">螺纹类型</label>
-                    <input type="text" class="form-control" id="thread_type" name="thread_type">
-                </div>
-                <div class="col-md-4">
-                    <label for="api_5ct_cert" class="form-label">API 5CT 证书</label>
-                    <input type="text" class="form-control" id="api_5ct_cert" name="api_5ct_cert">
-                </div>
-                <div class="col-md-4">
-                    <label for="batch_no" class="form-label">批号</label>
-                    <input type="text" class="form-control" id="batch_no" name="batch_no">
-                </div>
-            </div>
-
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="heat_no" class="form-label">炉号</label>
-                    <input type="text" class="form-control" id="heat_no" name="heat_no">
-                </div>
-                <div class="col-md-4">
-                    <label for="heat_treat_method" class="form-label">热处理方式</label>
-                    <input type="text" class="form-control" id="heat_treat_method" name="heat_treat_method">
-                </div>
-                <div class="col-md-4">
-                    <label for="quality_mark" class="form-label">质量标记</label>
+                <div class="field">
+                    <label class="form-label" for="quality_mark">质量标记</label>
                     <select class="form-select" id="quality_mark" name="quality_mark">
                         {% for val, label in quality_marks %}
                         <option value="{{ val }}">{{ label }}</option>
@@ -131,81 +45,139 @@
                     </select>
                 </div>
             </div>
-
-            <div class="mb-3">
-                <label for="quality_note" class="form-label">质量备注</label>
-                <textarea class="form-control" id="quality_note" name="quality_note" rows="2"></textarea>
-            </div>
-
-            <div id="seamless_spec_fields" class="spec-section">
-                <hr class="divider">
-                <h6><i class="bi bi-circle"></i> 无缝管规格</h6>
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label for="surface_treatment" class="form-label">表面处理</label>
-                        <input type="text" class="form-control" id="surface_treatment" name="surface_treatment" placeholder="如: 磷化、镀锌、涂漆">
-                    </div>
-                    <div class="col-md-6">
-                        <label for="end_protector" class="form-label">端部保护器</label>
-                        <input type="text" class="form-control" id="end_protector" name="end_protector" placeholder="如: 塑料保护环、钢制保护环">
-                    </div>
-                </div>
-            </div>
-
-            <div id="screen_spec_fields" class="spec-section" style="display: none;">
-                <hr class="divider">
-                <h6><i class="bi bi-circle"></i> 筛管规格</h6>
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <label for="screen_type" class="form-label">筛网类型</label>
-                        <input type="text" class="form-control" id="screen_type" name="screen_type" placeholder="如: 绕丝、割缝、精密">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="slot_width_mm" class="form-label">槽宽 (mm)</label>
-                        <input type="number" step="0.01" class="form-control" id="slot_width_mm" name="slot_width_mm" value="0">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="slot_density" class="form-label">槽密度 (孔/m)</label>
-                        <input type="number" step="0.1" class="form-control" id="slot_density" name="slot_density" value="0">
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <label for="filtration_rating_um" class="form-label">过滤精度 (μm)</label>
-                        <input type="number" step="0.1" class="form-control" id="filtration_rating_um" name="filtration_rating_um" value="0">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="base_pipe_grade" class="form-label">母管钢级</label>
-                        <input type="text" class="form-control" id="base_pipe_grade" name="base_pipe_grade">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="slot_pattern" class="form-label">槽型</label>
-                        <input type="text" class="form-control" id="slot_pattern" name="slot_pattern" placeholder="如: 矩形、梯形">
-                    </div>
-                </div>
-            </div>
-
-            <div class="form-buttons">
-                <button type="submit" class="btn btn-accent"><i class="bi bi-check-lg"></i> 确认入库</button>
-                <a href="/tubes" class="btn btn-ghost">取消</a>
-            </div>
-        </form>
-
+        </div>
     </div>
-</div>
+
+    <div class="panel">
+        <div class="panel-head"><h2><i class="bi bi-rulers" aria-hidden="true"></i> 几何与材质</h2></div>
+        <div class="panel-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label class="form-label" for="outer_diameter_mm">外径 (mm) <span class="req">*</span></label>
+                    <input type="number" step="0.1" class="form-control" id="outer_diameter_mm" name="outer_diameter_mm" required>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="wall_thickness_mm">壁厚 (mm) <span class="req">*</span></label>
+                    <input type="number" step="0.01" class="form-control" id="wall_thickness_mm" name="wall_thickness_mm" required>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="length_m">长度 (m) <span class="req">*</span></label>
+                    <input type="number" step="0.01" class="form-control" id="length_m" name="length_m" required>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="steel_grade">钢级 <span class="req">*</span></label>
+                    <input type="text" class="form-control" id="steel_grade" name="steel_grade" required placeholder="J55 / L80 / P110">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="location">库位 <span class="req">*</span></label>
+                    <select class="form-select" id="location" name="location" required>
+                        <option value="">选择库位</option>
+                        {% for loc in locations %}
+                        <option value="{{ loc.code }}">{{ loc.code }} — {{ loc.name or '' }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="manufacturer">生产厂家 <span class="req">*</span></label>
+                    <input type="text" class="form-control" id="manufacturer" name="manufacturer" required>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-head"><h2><i class="bi bi-patch-check" aria-hidden="true"></i> 追溯信息</h2></div>
+        <div class="panel-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label class="form-label" for="thread_type">螺纹类型</label>
+                    <input type="text" class="form-control" id="thread_type" name="thread_type">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="api_5ct_cert">API 5CT 证书</label>
+                    <input type="text" class="form-control" id="api_5ct_cert" name="api_5ct_cert">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="batch_no">批号</label>
+                    <input type="text" class="form-control" id="batch_no" name="batch_no">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="heat_no">炉号</label>
+                    <input type="text" class="form-control" id="heat_no" name="heat_no">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="heat_treat_method">热处理方式</label>
+                    <input type="text" class="form-control" id="heat_treat_method" name="heat_treat_method">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="quality_note">质量备注</label>
+                    <input type="text" class="form-control" id="quality_note" name="quality_note">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="seamless_spec_fields" class="panel">
+        <div class="panel-head"><h2><i class="bi bi-circle" aria-hidden="true"></i> 无缝管规格</h2></div>
+        <div class="panel-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label class="form-label" for="surface_treatment">表面处理</label>
+                    <input type="text" class="form-control" id="surface_treatment" name="surface_treatment" placeholder="磷化 / 镀锌 / 涂漆">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="end_protector">端部保护器</label>
+                    <input type="text" class="form-control" id="end_protector" name="end_protector" placeholder="塑料保护环 / 钢制保护环">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="screen_spec_fields" class="panel" hidden>
+        <div class="panel-head"><h2><i class="bi bi-grid-3x3" aria-hidden="true"></i> 筛管规格</h2></div>
+        <div class="panel-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label class="form-label" for="screen_type">筛网类型</label>
+                    <input type="text" class="form-control" id="screen_type" name="screen_type" placeholder="绕丝 / 割缝 / 精密">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="slot_pattern">槽型</label>
+                    <input type="text" class="form-control" id="slot_pattern" name="slot_pattern" placeholder="矩形 / 梯形">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="slot_width_mm">槽宽 (mm)</label>
+                    <input type="number" step="0.01" class="form-control" id="slot_width_mm" name="slot_width_mm" value="0">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="slot_density">槽密度 (孔/m)</label>
+                    <input type="number" step="0.1" class="form-control" id="slot_density" name="slot_density" value="0">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="filtration_rating_um">过滤精度 (μm)</label>
+                    <input type="number" step="0.1" class="form-control" id="filtration_rating_um" name="filtration_rating_um" value="0">
+                </div>
+                <div class="field">
+                    <label class="form-label" for="base_pipe_grade">母管钢级</label>
+                    <input type="text" class="form-control" id="base_pipe_grade" name="base_pipe_grade">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-accent"><i class="bi bi-check-lg" aria-hidden="true"></i> 确认入库</button>
+        <a href="/tubes" class="btn btn-ghost">取消</a>
+        <span class="spacer"></span>
+        <span class="form-hint"><i class="bi bi-shield-check" aria-hidden="true"></i> 入库即写入审计链</span>
+    </div>
+</form>
 
 <script>
 function toggleSpecFields() {
-    var type = document.getElementById('type').value;
-    var seamless = document.getElementById('seamless_spec_fields');
-    var screen = document.getElementById('screen_spec_fields');
-    if (type === 'screen_pipe') {
-        seamless.style.display = 'none';
-        screen.style.display = 'block';
-    } else {
-        seamless.style.display = 'block';
-        screen.style.display = 'none';
-    }
+    var isScreen = document.getElementById('type').value === 'screen_pipe';
+    document.getElementById('seamless_spec_fields').hidden = isScreen;
+    document.getElementById('screen_spec_fields').hidden = !isScreen;
 }
 </script>
 {% endblock %}
