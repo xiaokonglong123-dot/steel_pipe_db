@@ -120,8 +120,9 @@ async def verify_chain_get(
     request: Request,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
+    _admin: User = Depends(require_admin),
 ):
-    """Read-only chain verification — viewable by any authenticated user."""
+    """Chain verification (admin-only, per AGENTS.md role rules)."""
     return await _render_verify_result(request, session, user)
 
 

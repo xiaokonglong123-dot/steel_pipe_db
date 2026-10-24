@@ -10,7 +10,13 @@ from src.models import (
     Tube, Location, User,
     AuditLog, SeamlessPipeSpec, ScreenPipeSpec, Transaction, TransactionItem,
 )
-from src.modules.warehouse.services.tube_service import stock_in, stock_out, transfer, update_quality_mark
+from src.modules.warehouse.services.tube_service import (
+    stock_in,
+    stock_out,
+    stock_out_batch,
+    transfer,
+    update_quality_mark,
+)
 from src.modules.warehouse.services.audit_service import (
     ComplianceError,
     ConflictError,
@@ -153,28 +159,31 @@ async def do_stock_out(
     return RedirectResponse(url="/tubes", status_code=303)
 
 
-# D13 — batch stock-out endpoint
+# D13 — batch stock-out endpoint (atomic: all pipes or none)
 @router.post("/tubes/stock-out/batch", response_model=None)
 async def do_batch_stock_out(
     request: Request,
+    session: AsyncSession = Depends(get_session),
     user=Depends(get_current_user),
     _role=Depends(require_operator),
     _csrf: None = Depends(require_csrf),
 ):
+    """Stock out every selected tube in one atomic transaction.
+
+    Any guard failure (not in_stock / scrapped / problematic without admin)
+    rolls the whole batch back and surfaces as 409/403 via the app-level
+    exception handlers — same contract as the single stock-out route.
+    Submitting with no selection is a no-op redirect.
+    """
     form = await request.form()
-    pipe_ids = form.getlist("pipe_ids")
-    ok: list[str] = []
-    errors: list[str] = []
-    for pid in pipe_ids:
-        pid = pid.strip()
-        if not pid:
-            continue
-        try:
-            await stock_out(pid, user.id, user.role)
-            ok.append(pid)
-        except Exception:
-            errors.append(pid)
-    return RedirectResponse(url="/tubes", status_code=303, headers={})
+    pipe_ids = [pid.strip() for pid in form.getlist("pipe_ids") if pid.strip()]
+    if not pipe_ids:
+        return RedirectResponse(url="/tubes", status_code=303)
+
+    await stock_out_batch(
+        pipe_ids, operator_id=user.id, role=user.role, engine=session.bind
+    )
+    return RedirectResponse(url="/tubes", status_code=303)
 
 
 # ---------------------------------------------------------------------------

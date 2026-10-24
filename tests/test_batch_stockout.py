@@ -1,4 +1,10 @@
-"""Batch stock-out - simple tests."""
+"""Batch stock-out tests.
+
+``POST /tubes/stock-out/batch`` is atomic: all selected tubes are outed in
+one ``BEGIN IMMEDIATE`` transaction, or none are. These tests cover the
+success path plus the rollback guarantees (missing pipe_id, duplicate
+pipe_id) that the previous per-tube implementation did not provide.
+"""
 
 import asyncio, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -57,9 +63,21 @@ def client():
 
 @pytest.fixture(autouse=True)
 def fx():
-    _reset(); _seed(); db.engine = ae; db.async_session_factory = async_sessionmaker(db.engine, class_=AsyncSession, expire_on_commit=False)
+    app.dependency_overrides.clear()
+    # Dispose both engines BEFORE unlinking the DB file. A pooled connection to
+    # the previous test's file keeps that inode alive after unlink, so the next
+    # test's fresh file is a *different* inode and a stale async connection
+    # would report "no such table" instead of the freshly seeded schema.
+    se.dispose()
+    asyncio.run(ae.dispose())
+    _reset()
+    _seed()
+    db.engine = ae
+    db.async_session_factory = async_sessionmaker(db.engine, class_=AsyncSession, expire_on_commit=False)
     yield
-    app.dependency_overrides.clear(); Base.metadata.drop_all(bind=se); se.dispose()
+    app.dependency_overrides.clear()
+    se.dispose()
+    asyncio.run(ae.dispose())
 
 # ----------------------------------------------------------------------
 def test_batch_out(client):
@@ -73,3 +91,68 @@ def test_batch_out(client):
     with SS() as s:
         for pid, st in [(T1,"out_stock"), (T2,"out_stock"), (T3,"in_stock")]:
             assert s.query(Tube).filter(Tube.pipe_id==pid).first().status == st
+
+
+def test_batch_out_decrements_used_count_and_writes_one_txn(client):
+    """A successful batch is one transaction with per-tube audit rows."""
+    app.dependency_overrides[get_current_user] = _stub(2)
+    app.dependency_overrides[require_csrf] = _allow_csrf
+    async def r():
+        async with client as c:
+            resp = await c.post("/tubes/stock-out/batch", data={"pipe_ids": [T1, T2], "csrf_token": "1"})
+            assert resp.status_code == 303
+    asyncio.run(r())
+    with SS() as s:
+        # used_count 3 -> 1 (two tubes out of BATCH)
+        assert s.query(Location).filter(Location.code=="BATCH").first().used_count == 1
+        logs = s.query(AuditLog).all()
+        assert len(logs) == 2
+        assert all(l.action == "stock_out" for l in logs)
+        assert all("batch=2" in (l.detail or "") for l in logs)
+        assert {l.detail.split("pipe_id=")[1].split()[0] for l in logs} == {T1, T2}
+
+
+def test_batch_out_unknown_pipe_id_rolls_back_whole_batch(client):
+    """A missing pipe_id aborts the batch: no tube changes, no used_count
+    drift, no audit rows — all-or-nothing."""
+    app.dependency_overrides[get_current_user] = _stub(2)
+    app.dependency_overrides[require_csrf] = _allow_csrf
+    async def r():
+        async with client as c:
+            resp = await c.post("/tubes/stock-out/batch", data={"pipe_ids": [T1, "SP-nope"], "csrf_token": "1"})
+            assert resp.status_code == 409
+    asyncio.run(r())
+    with SS() as s:
+        for pid in [T1, T2, T3]:
+            assert s.query(Tube).filter(Tube.pipe_id==pid).first().status == "in_stock"
+        assert s.query(Location).filter(Location.code=="BATCH").first().used_count == 3
+        assert s.query(AuditLog).count() == 0
+
+
+def test_batch_out_duplicate_pipe_id_rolls_back_whole_batch(client):
+    """Same pipe_id twice: the second guard-read sees it already out and the
+    transaction rolls back, so the first one is restored too."""
+    app.dependency_overrides[get_current_user] = _stub(2)
+    app.dependency_overrides[require_csrf] = _allow_csrf
+    async def r():
+        async with client as c:
+            resp = await c.post("/tubes/stock-out/batch", data={"pipe_ids": [T1, T1], "csrf_token": "1"})
+            assert resp.status_code == 409
+    asyncio.run(r())
+    with SS() as s:
+        assert s.query(Tube).filter(Tube.pipe_id==T1).first().status == "in_stock"
+        assert s.query(Location).filter(Location.code=="BATCH").first().used_count == 3
+        assert s.query(AuditLog).count() == 0
+
+
+def test_batch_out_empty_selection_is_noop(client):
+    app.dependency_overrides[get_current_user] = _stub(2)
+    app.dependency_overrides[require_csrf] = _allow_csrf
+    async def r():
+        async with client as c:
+            resp = await c.post("/tubes/stock-out/batch", data={"pipe_ids": ["   "], "csrf_token": "1"})
+            assert resp.status_code == 303
+    asyncio.run(r())
+    with SS() as s:
+        assert s.query(Location).filter(Location.code=="BATCH").first().used_count == 3
+        assert s.query(AuditLog).count() == 0

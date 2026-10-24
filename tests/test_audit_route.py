@@ -1,13 +1,15 @@
 """Audit日志路由 e2e 测试.
 
-PROJECT_RULES: 所有 audit 路径需 authenticated (no role guard); GET 渲染
-audit/audit_logs.html; /audit/verify post衢经 require_csrf.
+PROJECT_RULES: /audit 需 authenticated (no role guard); /audit/verify 需
+require_admin (AGENTS.md: audit verify 属 admin); GET 渲染
+audit/audit_logs.html; /audit/verify POST 经 require_csrf.
 
 覆盖:
 * GET /audit  unauth → 401
 * GET /audit  admin → 200
 * GET /audit  viewer → 200
 * GET /audit/verify on empty log → 200, chain ok (genesis only)
+* GET /audit/verify viewer → 403 (admin-only)
 * POST /audit/verify with CSRF stub → 200
 * POST /audit/verify missing CSRF → 403
 """
@@ -144,6 +146,24 @@ def test_get_audit_verify_empty_chain_returns_200(client):
         assert r.status_code == 200
         # Template render — body must contain verify_result block.
         assert b"verify" in r.content.lower()
+    asyncio.run(run())
+
+
+def test_get_audit_verify_viewer_forbidden_403(client):
+    """Chain verification is admin-only — a viewer is rejected, not served."""
+    app.dependency_overrides[get_current_user] = _stub_user(2)
+    async def run():
+        async with client as c:
+            r = await c.get("/audit/verify", follow_redirects=False)
+        assert r.status_code == 403
+    asyncio.run(run())
+
+
+def test_get_audit_verify_unauthenticated_401(client):
+    async def run():
+        async with client as c:
+            r = await c.get("/audit/verify", follow_redirects=False)
+        assert r.status_code == 401
     asyncio.run(run())
 
 

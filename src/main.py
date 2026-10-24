@@ -33,14 +33,39 @@ from src.templates_env import templates  # noqa: E402,F401
 # ---------------------------------------------------------------------------
 # ASGI middleware: reject oversized request bodies before the app reads them.
 # Starlette has no built-in request-size middleware; this raw-ASGI wrapper
-# intercepts ``receive()`` so multipart uploads over ``MAX_UPLOAD_SIZE`` are
-# truncated with HTTP 413 before ``UploadFile.read()`` can spool them to
-# memory (prevents OOM; previously ``MAX_UPLOAD_SIZE`` was dead config).
+# counts the real inbound bytes and, on overflow, emits HTTP 413 once and
+# aborts body streaming so ``UploadFile.read()`` never spools an oversized
+# body to memory (prevents OOM; previously ``MAX_UPLOAD_SIZE`` was dead
+# config). Exactly one response reaches the client.
 # ---------------------------------------------------------------------------
 
 
+def _declared_content_length(scope: Scope) -> int | None:
+    """Return the declared Content-Length as an int, or None if absent/invalid."""
+    for name, value in scope.get("headers", []):
+        if name == b"content-length":
+            try:
+                return int(value)
+            except ValueError:
+                return None
+    return None
+
+
 class RequestBodySizeLimitMiddleware:
-    """ASGI middleware enforcing a maximum inbound body size (HTTP 413)."""
+    """ASGI middleware enforcing a maximum inbound body size (HTTP 413).
+
+    Two layers:
+
+    * Fast path — a declared ``Content-Length`` over the cap is rejected
+      without reading the body (cheap, covers well-behaved clients).
+    * Streaming guard — every ``http.request`` chunk is counted against the
+      actual bytes received. On overflow the middleware emits a 413 once and
+      then (a) answers further ``receive()`` calls with ``http.disconnect``
+      so the app aborts body reading, and (b) swallows every message the app
+      tries to send afterwards. Exactly one response reaches the client —
+      no double-response, and a forged/understated ``Content-Length`` cannot
+      smuggle an oversized body past the limit.
+    """
 
     def __init__(self, app: ASGIApp, max_upload_size: int) -> None:
         self.app = app
@@ -51,38 +76,34 @@ class RequestBodySizeLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        content_length = 0
-        for name, value in scope.get("headers", []):
-            if name == b"content-length":
-                try:
-                    content_length = int(value)
-                except ValueError:
-                    content_length = 0
-                break
-
-        if content_length and content_length > self.max_upload_size:
+        content_length = _declared_content_length(scope)
+        if content_length is not None and content_length > self.max_upload_size:
             await _send_413(send, self.max_upload_size)
             return
 
         bytes_received = 0
-        exceeded = False
+        limit_exceeded = False
 
         async def wrapped_receive():
-            nonlocal bytes_received, exceeded
+            nonlocal bytes_received, limit_exceeded
+            if limit_exceeded:
+                return {"type": "http.disconnect"}
             message = await receive()
-            if not exceeded and message.get("type") == "http.request":
-                body = message.get("body", b"")
-                bytes_received += len(body)
+            if message.get("type") == "http.request":
+                bytes_received += len(message.get("body", b""))
                 if bytes_received > self.max_upload_size:
-                    exceeded = True
+                    limit_exceeded = True
                     await _send_413(send, self.max_upload_size)
+                    return {"type": "http.disconnect"}
             return message
 
-        if content_length:
-            # Pre-check already passed; stream straight through.
-            await self.app(scope, receive, send)
-        else:
-            await self.app(scope, wrapped_receive, send)
+        async def wrapped_send(message) -> None:
+            if limit_exceeded:
+                # Our 413 is already committed — drop any late app response.
+                return
+            await send(message)
+
+        await self.app(scope, wrapped_receive, wrapped_send)
 
 
 async def _send_413(send: Send, max_bytes: int) -> None:

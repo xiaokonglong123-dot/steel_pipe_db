@@ -159,6 +159,127 @@ async def stock_out(
             raise
 
 
+async def stock_out_batch(
+    pipe_ids: list[str],
+    operator_id: int,
+    role: str,
+    remark: str | None = None,
+    engine: object = None,
+) -> dict:
+    """Remove several tubes in ONE ``BEGIN IMMEDIATE`` transaction (all-or-nothing).
+
+    Unlike the per-row partial-success batch flows (batch stock-in / CSV
+    import), this is atomic: the first guard failure rolls the entire batch
+    back, leaving inventory and used_count untouched. Use when a set of
+    tubes must be outed together or not at all.
+
+    Same TOCTOU guards as :func:`stock_out`, applied per tube. A duplicate
+    pipe_id in *pipe_ids* fails on its second pass (status is now
+    ``out_stock``) and aborts the whole batch. One ``Transaction`` header
+    covers all tubes; each tube gets its own ``TransactionItem`` and audit
+    row so per-tube audit history stays searchable.
+    """
+    eng = engine or db.engine
+    if not pipe_ids:
+        raise ConflictError("no pipe_ids supplied")
+
+    async with eng.connect() as conn:
+        await begin_immediate(conn)
+        try:
+            location_by_pipe: dict[str, str] = {}
+            for pipe_id in pipe_ids:
+                # -- 1. Guard-read -------------------------------------------
+                row = (
+                    await conn.execute(
+                        text(
+                            "SELECT quality_mark, location FROM tubes "
+                            "WHERE pipe_id=:pid AND status='in_stock' "
+                            "AND deleted_at IS NULL "
+                            "AND quality_mark != 'scrapped'"
+                        ),
+                        {"pid": pipe_id},
+                    )
+                ).fetchone()
+                if row is None:
+                    raise ConflictError(
+                        f"tube {pipe_id} not available for stock-out"
+                    )
+
+                quality_mark, location = row
+
+                # -- 2. Admin gate for problematic tubes ---------------------
+                if quality_mark == "problematic" and role != "admin":
+                    raise ForbiddenError(
+                        f"problematic tube {pipe_id} requires admin"
+                    )
+
+                # -- 3. State change (TOCTOU guard) --------------------------
+                res = await conn.execute(
+                    text(
+                        "UPDATE tubes SET status='out_stock', stock_out_time=:t "
+                        "WHERE pipe_id=:pid AND status='in_stock' "
+                        "AND deleted_at IS NULL "
+                        "AND quality_mark != 'scrapped'"
+                    ),
+                    {"t": datetime.now(timezone.utc), "pid": pipe_id},
+                )
+                if res.rowcount != 1:
+                    raise ConflictError(f"tube {pipe_id} stock-out lost race")
+
+                location_by_pipe[pipe_id] = location
+
+            # -- 4. Decrement location counters ------------------------------
+            for location in location_by_pipe.values():
+                await conn.execute(
+                    text(
+                        "UPDATE locations SET used_count = used_count - 1 "
+                        "WHERE code=:loc AND used_count > 0"
+                    ),
+                    {"loc": location},
+                )
+
+            # -- 5. Transaction header + one item per tube -------------------
+            n = len(location_by_pipe)
+            ts_txn = datetime.now(timezone.utc)
+            res = await conn.execute(
+                Transaction.__table__.insert().values(
+                    type="out",
+                    operator_id=operator_id,
+                    remark=remark or f"batch({n})",
+                    created_at=ts_txn,
+                )
+            )
+            txn_id = res.inserted_primary_key[0]
+
+            # -- 6. Items + audit (per tube, same txn) -----------------------
+            for pipe_id, location in location_by_pipe.items():
+                await conn.execute(
+                    TransactionItem.__table__.insert().values(
+                        transaction_id=txn_id,
+                        pipe_id=pipe_id,
+                        source_location=location,
+                        target_location=None,
+                    )
+                )
+                await _write_audit(
+                    conn,
+                    "stock_out",
+                    f"pipe_id={pipe_id} txn={txn_id} batch={n}",
+                    operator_id,
+                )
+
+            await conn.commit()
+            return {
+                "pipe_ids": list(location_by_pipe),
+                "transaction_id": txn_id,
+                "count": n,
+            }
+
+        except Exception:
+            await conn.rollback()
+            raise
+
+
 # ---------------------------------------------------------------------------
 # Stock-in  (入库)
 # ---------------------------------------------------------------------------
