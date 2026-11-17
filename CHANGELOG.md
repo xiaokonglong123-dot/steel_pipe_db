@@ -1,7 +1,7 @@
 # CHANGELOG
 
-当前版本线为 Rust 单二进制实现。旧 Python（FastAPI + PyO3）版本记录见
-[`docs/archive/CHANGELOG-python.md`](docs/archive/CHANGELOG-python.md)。
+当前版本线为 Rust 单二进制实现。旧 Python（FastAPI + PyO3）版本记录已随旧栈资料移除，
+可在 git 历史中追溯。
 
 ## v0.1.0 — 2026-11-17
 
@@ -21,6 +21,6 @@
 
 ### 仓库整理
 
-- 归档旧 Python 栈文档与阶段计划至 `docs/archive/`
+- 移除旧 Python 栈文档与阶段计划
 - 移除旧构建产物（egg-info、rust-core/target）与本地缓存
 - 补充 `docs/screenshots/` 界面截图

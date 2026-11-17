@@ -5,7 +5,6 @@
 - 设计权威：`docs/2026-07-13-api5ct-inventory-design.md`
 - 重写方案：`docs/2026-11-17-rewrite-reference.md`
 - 行为规格：`docs/spec/`（A–H 域，编号可追溯）
-- 旧 Python 栈资料：`docs/archive/`（只读历史，不是当前实现）
 
 ## 架构
 

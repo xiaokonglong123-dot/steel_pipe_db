@@ -2,12 +2,11 @@
 
 > 版本：v1.0（2026-11-17）
 > 前提：业务语义唯一来源 = `docs/2026-07-13-api5ct-inventory-design.md`（v0.8.0）。
-> 本文件取代 `docs/2026-11-17-refactor-reference.md`（那份是渐进重构方案，已作废）。
 > 决策依据见 §0，全部来自你本轮的四个选择。
 >
 > **v1.1 修订（2026-11-17，当日）**：数据库由 PostgreSQL 16 改为 **SQLite（WAL）**。全文已按此改齐：
 > 事务串行化回到设计 §12.1 的 `BEGIN IMMEDIATE`（sqlx 的 `Pool::begin_with` 直接支持），
-> 代价是放弃多实例部署（见 §3.3、§8）。迁移、PRAGMA 与链尾表已在 M0 实测通过（`docs/milestones/M0.md`）。
+> 代价是放弃多实例部署（见 §3.3、§8）。迁移、PRAGMA 与链尾表已在 M0 实测通过。
 
 ---
 

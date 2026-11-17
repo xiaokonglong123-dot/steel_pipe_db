@@ -106,8 +106,7 @@ crates/
 web/             Vite + React SPA（nginx 式 SPA 回退由 axum 兜底）
 scripts/ci/      分层断言（依赖图即架构约束）
 deploy/          systemd 单元
-docs/            设计权威、重构参考、规格索引、里程碑记录
-  archive/       旧 Python 栈文档、UI v2 记录、阶段计划（只读历史）
+docs/            设计权威、重写方案、行为规格、UI 记录
   screenshots/   README 界面截图
 ```text
 
@@ -131,15 +130,13 @@ bash scripts/ci/layering.sh
 | [`docs/2026-07-13-api5ct-inventory-design.md`](docs/2026-07-13-api5ct-inventory-design.md) | 业务与架构的设计权威（v0.8.0） |
 | [`docs/2026-11-17-rewrite-reference.md`](docs/2026-11-17-rewrite-reference.md) | 重写方案：选型、架构、里程碑、风险 |
 | [`docs/spec/`](docs/spec/) | 从旧测试提取的行为规格（A–H 域，编号可追溯） |
-| [`docs/milestones/`](docs/milestones/) | M0–M7 交付记录与实测结果 |
 | [`docs/2026-11-17-ui-redesign-v3.md`](docs/2026-11-17-ui-redesign-v3.md) | 前端重设计 v3：石墨指挥台、token、组件与验收 |
-| [`docs/archive/`](docs/archive/) | 归档：旧 Python 栈 AGENTS/CHANGELOG、UI v2 记录、阶段计划 |
 
 ## 历史
 
 本项目由 FastAPI + PyO3 + SQLite + Jinja2 的旧实现重写而来；旧栈代码已移除，
-其行为规格保留在 `docs/spec/`，设计意图保留在设计文档中。旧栈的 AGENTS、CHANGELOG
-与阶段计划归档在 `docs/archive/`，仅作历史参考，不代表当前实现。
+其行为规格保留在 `docs/spec/`，设计意图保留在设计文档中；旧栈资料已从仓库移除，
+可在 git 历史中追溯。
 
 ## 许可证
 
