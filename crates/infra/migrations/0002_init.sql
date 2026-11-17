@@ -43,7 +43,7 @@ CREATE TABLE tubes (
     heat_no           TEXT,
     heat_treat_method TEXT,
     location          TEXT,
-    status            TEXT    NOT NULL CHECK (status IN ('in_stock', 'in_transfer', 'out_stock')),
+    status            TEXT    NOT NULL CHECK (status IN ('in_stock', 'in_transfer', 'out_stock', 'missing')),
     quality_mark      TEXT    NOT NULL DEFAULT 'normal'
                               CHECK (quality_mark IN ('normal', 'problematic', 'scrapped')),
     quality_note      TEXT,
@@ -139,7 +139,8 @@ CREATE TABLE standard_specs (
 CREATE TABLE check_sessions (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     location     TEXT    NOT NULL,
-    status       TEXT    NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'confirmed')),
+    status       TEXT    NOT NULL DEFAULT 'open'
+                         CHECK (status IN ('open', 'confirmed', 'cancelled')),
     created_by   INTEGER NOT NULL,
     confirmed_by INTEGER,
     created_at   TEXT    NOT NULL,

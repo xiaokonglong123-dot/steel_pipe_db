@@ -33,6 +33,8 @@ pub enum ApiError {
     Forbidden,
     #[error("{0}不存在")]
     NotFound(&'static str),
+    #[error("{0}不存在")]
+    NotFound2(String),
     #[error("{0}已存在")]
     Conflict(&'static str),
     #[error("尝试过于频繁")]
@@ -65,7 +67,7 @@ impl ApiError {
             Self::Invalid(_) => StatusCode::BAD_REQUEST,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
-            Self::NotFound(_) => StatusCode::NOT_FOUND,
+            Self::NotFound(_) | Self::NotFound2(_) => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
             Self::Unprocessable(_) => StatusCode::UNPROCESSABLE_ENTITY,
@@ -80,7 +82,7 @@ impl ApiError {
             Self::Invalid(_) => "invalid-request",
             Self::Unauthorized => "unauthorized",
             Self::Forbidden => "forbidden",
-            Self::NotFound(_) => "not-found",
+            Self::NotFound(_) | Self::NotFound2(_) => "not-found",
             Self::Conflict(_) => "conflict",
             Self::TooManyRequests { .. } => "too-many-requests",
             Self::Unprocessable(_) => "unprocessable",
@@ -162,6 +164,41 @@ impl From<steelpipe_service::CatalogError> for ApiError {
             E::NotFound(what) => Self::NotFound(what),
             E::Conflict(what) => Self::Conflict(what),
             E::Invalid(message) => Self::Invalid(message),
+            E::Infra(infra) => Self::from(infra),
+        }
+    }
+}
+
+impl From<steelpipe_service::CheckError> for ApiError {
+    fn from(error: steelpipe_service::CheckError) -> Self {
+        use steelpipe_service::CheckError as E;
+        match error {
+            E::NotFound(id) => Self::NotFound2(format!("盘点单 {id}")),
+            E::NotOpen => Self::StateConflict("盘点单不是 open 状态".into()),
+            E::LocationUnavailable(code) => Self::Invalid(format!("库位 {code} 不存在或已停用")),
+            E::TubeNotInScope(pipe_id) => {
+                Self::Invalid(format!("管子 {pipe_id} 不在该盘点单范围内"))
+            }
+            E::InvalidMoved => Self::Invalid("moved 结论需要不同的实际位置".into()),
+            E::NoStandardSpec(grade) => {
+                Self::Unprocessable(format!("没有钢级 {grade} 的标准规格，无法校验盘盈合规"))
+            }
+            E::ComplianceRejected(checks) => {
+                let detail = checks
+                    .iter()
+                    .map(|check| {
+                        format!(
+                            "{}: {}",
+                            check.check_name,
+                            check.reason.clone().unwrap_or_else(|| "未通过".into())
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                Self::Unprocessable(format!("盘盈合规校验未通过 —— {detail}"))
+            }
+            E::Conflict(message) => Self::StateConflict(message),
+            E::Domain(domain) => Self::StateConflict(domain.to_string()),
             E::Infra(infra) => Self::from(infra),
         }
     }
@@ -249,6 +286,12 @@ impl From<steelpipe_service::CatalogError> for ApiReject {
 
 impl From<steelpipe_service::InventoryError> for ApiReject {
     fn from(error: steelpipe_service::InventoryError) -> Self {
+        ApiError::from(error).into()
+    }
+}
+
+impl From<steelpipe_service::CheckError> for ApiReject {
+    fn from(error: steelpipe_service::CheckError) -> Self {
         ApiError::from(error).into()
     }
 }

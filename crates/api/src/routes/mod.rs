@@ -4,6 +4,7 @@
 
 pub mod auth;
 pub mod catalog;
+pub mod checks;
 pub mod meta;
 pub mod tubes;
 pub mod users;
@@ -28,6 +29,7 @@ pub fn router() -> Router<AppState> {
         .merge(users::router())
         .merge(tubes::router())
         .merge(catalog::router())
+        .merge(checks::router())
 }
 
 /// 统一失败出口：带上请求头，让 401 能按 Accept 分流成登录页跳转（A11）。
@@ -52,7 +54,9 @@ pub(crate) fn fail(error: impl Into<ApiError>, headers: &HeaderMap) -> ApiReject
         tubes::soft_delete,
         catalog::list_locations, catalog::create_location, catalog::update_location,
         catalog::set_location_active, catalog::list_standards, catalog::create_standard,
-        catalog::update_standard, catalog::delete_standard
+        catalog::update_standard, catalog::delete_standard,
+        checks::list_checks, checks::create_check, checks::check_detail, checks::mark_item,
+        checks::add_surplus, checks::remove_item, checks::confirm, checks::cancel, checks::recover
     ),
     components(schemas(
         crate::ProblemDetails,
@@ -68,7 +72,10 @@ pub(crate) fn fail(error: impl Into<ApiError>, headers: &HeaderMap) -> ApiReject
         tubes::ComplianceCheckDto,
         catalog::LocationDto, catalog::LocationListResponse, catalog::CreateLocationRequest,
         catalog::UpdateLocationRequest, catalog::SetLocationActiveRequest,
-        catalog::StandardDto, catalog::StandardListResponse, catalog::StandardRequest
+        catalog::StandardDto, catalog::StandardListResponse, catalog::StandardRequest,
+        checks::CheckSessionDto, checks::CheckItemDto, checks::CheckDetailDto,
+        checks::ExpectedTubeDto, checks::CheckListResponse, checks::CreateCheckRequest,
+        checks::MarkItemRequest, checks::ConfirmResponse
     ))
 )]
 pub struct ApiDoc;

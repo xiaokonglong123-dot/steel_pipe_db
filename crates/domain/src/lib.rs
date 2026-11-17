@@ -128,11 +128,12 @@ str_enum!(
 );
 
 str_enum!(
-    /// 管子状态（原 `tubes.status`）：在库 / 调拨中 / 已出库。
+    /// 管子状态（原 `tubes.status`）：在库 / 调拨中 / 已出库 / 盘亏。
     TubeStatus {
         InStock => "in_stock",
         InTransfer => "in_transfer",
         OutStock => "out_stock",
+        Missing => "missing",
     }
 );
 
@@ -160,6 +161,7 @@ str_enum!(
     CheckStatus {
         Open => "open",
         Confirmed => "confirmed",
+        Cancelled => "cancelled",
     }
 );
 

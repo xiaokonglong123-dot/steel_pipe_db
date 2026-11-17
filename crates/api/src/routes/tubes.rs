@@ -338,6 +338,41 @@ pub struct StockInResponse {
     pub location: String,
 }
 
+impl From<StockInRequest> for StockInInput {
+    fn from(body: StockInRequest) -> Self {
+        Self {
+            pipe_id: body.pipe_id,
+            pipe_type: body.pipe_type,
+            outer_diameter_mm: body.outer_diameter_mm,
+            wall_thickness_mm: body.wall_thickness_mm,
+            length_m: body.length_m,
+            steel_grade: body.steel_grade,
+            thread_type: body.thread_type,
+            api_5ct_cert: body.api_5ct_cert,
+            manufacturer: body.manufacturer,
+            batch_no: body.batch_no,
+            heat_no: body.heat_no,
+            heat_treat_method: body.heat_treat_method,
+            location: body.location,
+            quality_mark: body.quality_mark,
+            quality_note: body.quality_note,
+            screen: body.screen.map(|screen| ScreenPipeInput {
+                screen_type: screen.screen_type,
+                slot_width_mm: screen.slot_width_mm,
+                slot_density: screen.slot_density.unwrap_or(0.0),
+                filtration_rating_um: screen.filtration_rating_um,
+                slot_pattern: screen.slot_pattern,
+                base_pipe_grade: screen.base_pipe_grade,
+            }),
+            seamless: body.seamless.map(|seamless| SeamlessPipeInput {
+                surface_treatment: seamless.surface_treatment,
+                end_protector: seamless.end_protector,
+            }),
+            force: body.force,
+        }
+    }
+}
+
 #[utoipa::path(post, path = "/api/tubes/stock-in", tag = TUBES_TAG, summary = "入库（operator+，强制需 admin）",
     request_body = StockInRequest,
     responses(
@@ -358,41 +393,7 @@ pub async fn stock_in(
         .map_err(|error| fail(error, &headers))?;
     crate::auth::check_csrf(&headers).map_err(|error| fail(error, &headers))?;
 
-    let outcome = service(&state)
-        .stock_in(
-            &actor.0,
-            StockInInput {
-                pipe_id: body.pipe_id,
-                pipe_type: body.pipe_type,
-                outer_diameter_mm: body.outer_diameter_mm,
-                wall_thickness_mm: body.wall_thickness_mm,
-                length_m: body.length_m,
-                steel_grade: body.steel_grade,
-                thread_type: body.thread_type,
-                api_5ct_cert: body.api_5ct_cert,
-                manufacturer: body.manufacturer,
-                batch_no: body.batch_no,
-                heat_no: body.heat_no,
-                heat_treat_method: body.heat_treat_method,
-                location: body.location,
-                quality_mark: body.quality_mark,
-                quality_note: body.quality_note,
-                screen: body.screen.map(|screen| ScreenPipeInput {
-                    screen_type: screen.screen_type,
-                    slot_width_mm: screen.slot_width_mm,
-                    slot_density: screen.slot_density.unwrap_or(0.0),
-                    filtration_rating_um: screen.filtration_rating_um,
-                    slot_pattern: screen.slot_pattern,
-                    base_pipe_grade: screen.base_pipe_grade,
-                }),
-                seamless: body.seamless.map(|seamless| SeamlessPipeInput {
-                    surface_treatment: seamless.surface_treatment,
-                    end_protector: seamless.end_protector,
-                }),
-                force: body.force,
-            },
-        )
-        .await?;
+    let outcome = service(&state).stock_in(&actor.0, body.into()).await?;
 
     Ok((
         axum::http::StatusCode::CREATED,

@@ -378,6 +378,81 @@ pub async fn screen_spec(
     .map_err(InfraError::Connect)
 }
 
+/// 盘亏：`in_stock` → `missing`（带条件，0 行 = 已变化）。
+pub async fn mark_missing(
+    conn: &mut SqliteConnection,
+    pipe_id: &str,
+    location: &str,
+    now: &str,
+) -> Result<(), InfraError> {
+    let rows = sqlx::query(
+        "UPDATE tubes SET status = 'missing', updated_at = ?
+         WHERE pipe_id = ? AND location = ? AND status = 'in_stock'
+           AND deleted_at IS NULL AND quality_mark != 'scrapped'",
+    )
+    .bind(now)
+    .bind(pipe_id)
+    .bind(location)
+    .execute(conn)
+    .await
+    .map_err(InfraError::Connect)?
+    .rows_affected();
+    if rows == 0 {
+        return Err(InfraError::Conflict("管子已不满足盘亏条件，请重新核对"));
+    }
+    Ok(())
+}
+
+/// 位置异常：把在库管从 `from` 挪到 `to`（带条件守卫）。
+pub async fn move_location_guarded(
+    conn: &mut SqliteConnection,
+    pipe_id: &str,
+    from: &str,
+    to: &str,
+    now: &str,
+) -> Result<(), InfraError> {
+    let rows = sqlx::query(
+        "UPDATE tubes SET location = ?, updated_at = ?
+         WHERE pipe_id = ? AND location = ? AND status = 'in_stock'
+           AND deleted_at IS NULL AND quality_mark != 'scrapped'",
+    )
+    .bind(to)
+    .bind(now)
+    .bind(pipe_id)
+    .bind(from)
+    .execute(conn)
+    .await
+    .map_err(InfraError::Connect)?
+    .rows_affected();
+    if rows == 0 {
+        return Err(InfraError::Conflict("管子已不满足移库条件，请重新核对"));
+    }
+    Ok(())
+}
+
+/// 找回：`missing` → `in_stock`。
+pub async fn mark_in_stock_from_missing(
+    conn: &mut SqliteConnection,
+    pipe_id: &str,
+    now: &str,
+) -> Result<Option<String>, InfraError> {
+    let location = sqlx::query_scalar::<_, Option<String>>(
+        "UPDATE tubes SET status = 'in_stock', updated_at = ?
+         WHERE pipe_id = ? AND status = 'missing' AND deleted_at IS NULL
+         RETURNING location",
+    )
+    .bind(now)
+    .bind(pipe_id)
+    .fetch_one(conn)
+    .await;
+
+    match location {
+        Ok(code) => Ok(code),
+        Err(sqlx::Error::RowNotFound) => Err(InfraError::Conflict("管子不处于盘亏状态")),
+        Err(other) => Err(InfraError::Connect(other)),
+    }
+}
+
 #[derive(Debug, Clone, FromRow)]
 pub struct TubeHistoryRow {
     pub transaction_id: i64,

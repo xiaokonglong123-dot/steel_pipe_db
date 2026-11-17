@@ -147,6 +147,8 @@ pub fn transition(from: TubeStatus, to: TubeStatus) -> Result<TubeStatus, TubeEr
             | (InTransfer, InStock)
             | (InTransfer, OutStock)
             | (InStock, OutStock)
+            | (InStock, Missing)
+            | (Missing, InStock)
     );
     if allowed {
         Ok(to)
@@ -271,6 +273,7 @@ mod tests {
             (OutStock, InTransfer),
             (InStock, InStock),
             (InTransfer, InTransfer),
+            (Missing, OutStock),
         ] {
             assert!(
                 matches!(

@@ -59,7 +59,7 @@ impl InventoryError {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScreenPipeInput {
     pub screen_type: Option<String>,
     pub slot_width_mm: f64,
@@ -69,13 +69,13 @@ pub struct ScreenPipeInput {
     pub base_pipe_grade: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SeamlessPipeInput {
     pub surface_treatment: Option<String>,
     pub end_protector: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StockInInput {
     pub pipe_id: String,
     pub pipe_type: TubeType,
@@ -268,6 +268,66 @@ pub struct TubePage {
     pub page_size: i64,
 }
 
+/// 在给定事务里写入管子主表 + 类型扩展表。
+///
+/// 入库与盘点盘盈共用（盘盈也必须走同一套写路径，否则扩展表会漏）。
+pub(crate) async fn write_tube_rows(
+    uow: &mut Uow,
+    pipe_id: &str,
+    input: &StockInInput,
+    compliance_pass: bool,
+    now: &str,
+) -> Result<(), InventoryError> {
+    let draft = TubeDraft {
+        pipe_id: pipe_id.to_owned(),
+        pipe_type: input.pipe_type,
+        outer_diameter_mm: input.outer_diameter_mm,
+        wall_thickness_mm: input.wall_thickness_mm,
+        length_m: input.length_m,
+        steel_grade: input.steel_grade.clone(),
+        thread_type: input.thread_type.clone(),
+        manufacturer: input.manufacturer.clone(),
+        batch_no: input.batch_no.clone(),
+        heat_no: input.heat_no.clone(),
+        heat_treat_method: input.heat_treat_method.clone(),
+        location: input.location.clone(),
+        api_5ct_cert: input.api_5ct_cert.clone(),
+        quality_mark: input.quality_mark,
+        quality_note: input.quality_note.clone(),
+    };
+    tubes::insert(uow.conn(), pipe_id, &draft, compliance_pass, now, now)
+        .await
+        .map_err(InventoryError::from_infra)?;
+
+    match input.pipe_type {
+        TubeType::SeamlessPipe => {
+            let (surface, end) = input
+                .seamless
+                .as_ref()
+                .map(|value| {
+                    (
+                        value.surface_treatment.as_deref(),
+                        value.end_protector.as_deref(),
+                    )
+                })
+                .unwrap_or((None, None));
+            tubes::insert_seamless_spec(uow.conn(), pipe_id, surface, end).await?;
+        }
+        TubeType::ScreenPipe => {
+            let screen = input.screen.as_ref();
+            let specs = ScreenPipeParams::new(
+                screen.map_or(0.0, |value| value.slot_width_mm),
+                screen.map_or(0.0, |value| value.slot_density),
+                screen.map_or(0.0, |value| value.filtration_rating_um),
+                screen.and_then(|value| value.slot_pattern.clone()),
+            );
+            let base_grade = screen.and_then(|value| value.base_pipe_grade.as_deref());
+            tubes::insert_screen_spec(uow.conn(), pipe_id, &specs, base_grade).await?;
+        }
+    }
+    Ok(())
+}
+
 pub struct InventoryService {
     pool: DbPool,
 }
@@ -412,36 +472,7 @@ impl InventoryService {
         let now = time::now_rfc3339();
         let mut uow = Uow::begin(&self.pool).await?;
 
-        tubes::insert(uow.conn(), &pipe_id, &draft, result.passed, &now, &now)
-            .await
-            .map_err(InventoryError::from_infra)?;
-
-        match input.pipe_type {
-            TubeType::SeamlessPipe => {
-                let (surface, end) = input
-                    .seamless
-                    .as_ref()
-                    .map(|value| {
-                        (
-                            value.surface_treatment.as_deref(),
-                            value.end_protector.as_deref(),
-                        )
-                    })
-                    .unwrap_or((None, None));
-                tubes::insert_seamless_spec(uow.conn(), &pipe_id, surface, end).await?;
-            }
-            TubeType::ScreenPipe => {
-                let screen = input.screen.as_ref();
-                let specs = ScreenPipeParams::new(
-                    screen.map_or(0.0, |value| value.slot_width_mm),
-                    screen.map_or(0.0, |value| value.slot_density),
-                    screen.map_or(0.0, |value| value.filtration_rating_um),
-                    screen.and_then(|value| value.slot_pattern.clone()),
-                );
-                let base_grade = screen.and_then(|value| value.base_pipe_grade.as_deref());
-                tubes::insert_screen_spec(uow.conn(), &pipe_id, &specs, base_grade).await?;
-            }
-        }
+        write_tube_rows(&mut uow, &pipe_id, &input, result.passed, &now).await?;
 
         let transaction_id = transactions::insert(
             uow.conn(),

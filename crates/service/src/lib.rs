@@ -8,11 +8,13 @@ pub mod actions;
 pub mod auth;
 pub mod bootstrap;
 pub mod catalog;
+pub mod checks;
 pub mod inventory;
 pub mod users;
 
 pub use auth::{AuthService, AuthServiceError, Identity, LimitScope, LoginSuccess, Session};
 pub use catalog::{CatalogError, CatalogService, LocationView, StandardInput, StandardView};
+pub use checks::{CheckDetailView, CheckError, CheckService, CheckSessionView, ConfirmOutcome};
 pub use inventory::{
     HistoryView, InventoryError, InventoryService, ScreenSpecView, SeamlessSpecView, StockInInput,
     TubeDetailView, TubePage, TubeQuery, TubeView,
