@@ -1918,6 +1918,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "steelpipe-compliance"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "steelpipe-domain",
+ "thiserror",
+]
+
+[[package]]
 name = "steelpipe-domain"
 version = "0.1.0"
 dependencies = [
@@ -1936,6 +1945,7 @@ dependencies = [
  "sha2 0.10.9",
  "sqlx",
  "steelpipe-audit",
+ "steelpipe-compliance",
  "steelpipe-domain",
  "thiserror",
  "tokio",

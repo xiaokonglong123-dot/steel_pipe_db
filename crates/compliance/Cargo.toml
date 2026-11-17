@@ -1,0 +1,13 @@
+[package]
+name = "steelpipe-compliance"
+description = "API 5CT 合规判定（纯函数，五项检查）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+steelpipe-domain.workspace = true
+serde.workspace = true
+thiserror.workspace = true

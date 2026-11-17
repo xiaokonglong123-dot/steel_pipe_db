@@ -50,6 +50,7 @@ utoipa = { version = "5", features = ["chrono", "uuid"] }
 steelpipe-api = { path = "crates/api" }
 steelpipe-audit = { path = "crates/audit" }
 steelpipe-auth = { path = "crates/auth" }
+steelpipe-compliance = { path = "crates/compliance" }
 steelpipe-domain = { path = "crates/domain" }
 steelpipe-infra = { path = "crates/infra" }
 steelpipe-service = { path = "crates/service" }

@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 steelpipe-audit.workspace = true
+steelpipe-compliance.workspace = true
 steelpipe-domain.workspace = true
 sqlx.workspace = true
 chrono.workspace = true

@@ -35,6 +35,7 @@ assert_no_dep() {
 assert_no_dep steelpipe-domain axum sqlx tokio steelpipe-infra steelpipe-service
 assert_no_dep steelpipe-auth   axum sqlx tokio steelpipe-infra steelpipe-service
 assert_no_dep steelpipe-audit  axum sqlx tokio steelpipe-infra steelpipe-service
+assert_no_dep steelpipe-compliance axum sqlx tokio steelpipe-infra steelpipe-service
 assert_no_dep steelpipe-infra  axum steelpipe-api steelpipe-service
 assert_no_dep steelpipe-service axum steelpipe-api
 assert_no_dep steelpipe-api    sqlx steelpipe-infra

@@ -9,6 +9,8 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+pub mod tube;
+
 /// 字符串枚举的统一解析错误。
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 #[error("{kind} 不接受取值 {value:?}")]
