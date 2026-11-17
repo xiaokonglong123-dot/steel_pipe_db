@@ -1,0 +1,17 @@
+[package]
+name = "steelpipe-auth"
+description = "认证：argon2id 密码哈希 + HS256 JWT"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+steelpipe-domain.workspace = true
+argon2.workspace = true
+jsonwebtoken.workspace = true
+rand_core.workspace = true
+uuid.workspace = true
+serde.workspace = true
+thiserror.workspace = true

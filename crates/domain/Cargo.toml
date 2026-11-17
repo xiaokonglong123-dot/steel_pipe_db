@@ -1,0 +1,15 @@
+[package]
+name = "steelpipe-domain"
+description = "领域层：角色与不变量（无 IO 依赖）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

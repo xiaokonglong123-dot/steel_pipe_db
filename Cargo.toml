@@ -36,14 +36,19 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive", "env"] }
 rust-embed = "8"
 mime_guess = "2"
-# 安全核心（M1/M2 起启用：argon2 / jsonwebtoken / rand_core / uuid / chrono）
-# 先声明会在 clippy 的 unused_dependencies 上报错，故按里程碑逐步加入。
+# 安全核心
+argon2 = "0.5"
+jsonwebtoken = "9"
 sha2 = "0.10"
+rand_core = { version = "0.6", features = ["getrandom"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 
 # OpenAPI
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 # 内部 crate
 steelpipe-api = { path = "crates/api" }
+steelpipe-auth = { path = "crates/auth" }
+steelpipe-domain = { path = "crates/domain" }
 steelpipe-infra = { path = "crates/infra" }
 
 [profile.release]
