@@ -11,8 +11,12 @@ export type TubeFilterState = {
   grade: string
 }
 
-const STATUS_FILTERS: { value: string; label: string; countKey?: 'in_stock' | 'in_transfer' | 'missing' | 'out_stock' | 'total' }[] = [
-  { value: '', label: '全部状态', countKey: 'total' },
+const STATUS_FILTERS: {
+  value: string
+  label: string
+  countKey?: 'in_stock' | 'in_transfer' | 'missing' | 'out_stock' | 'total'
+}[] = [
+  { value: '', label: '全部', countKey: 'total' },
   { value: 'in_stock', label: '在库', countKey: 'in_stock' },
   { value: 'in_transfer', label: '调拨中', countKey: 'in_transfer' },
   { value: 'missing', label: '盘亏', countKey: 'missing' },
@@ -44,73 +48,72 @@ export function TubeFilters({
   const dirty = Boolean(state.status || state.quality || state.location || state.grade)
 
   return (
-    <aside className="filters">
-      <div className="filter-row">
-        <h3>状态</h3>
+    <div className="filters-bar">
+      <div className="chips" role="group" aria-label="按状态筛选">
         {STATUS_FILTERS.map((option) => (
           <button
             key={option.value || 'all'}
             type="button"
-            className={state.status === option.value ? 'filter-option is-active' : 'filter-option'}
+            aria-pressed={state.status === option.value}
+            className={state.status === option.value ? 'chip is-active' : 'chip'}
             onClick={() => onChange({ status: option.value })}
           >
             <span>{option.label}</span>
-            <span className="count">{option.countKey ? (stats?.tubes[option.countKey] ?? '—') : ''}</span>
+            {option.countKey ? (
+              <span className="count">{stats?.tubes[option.countKey] ?? '—'}</span>
+            ) : null}
           </button>
         ))}
       </div>
 
-      <div className="filter-row">
-        <h3>质量</h3>
+      <span className="spacer" />
+
+      <select
+        className="select select-sm filter-select"
+        aria-label="按质量筛选"
+        value={state.quality}
+        onChange={(event) => onChange({ quality: event.target.value })}
+      >
         {QUALITY_FILTERS.map((option) => (
-          <button
-            key={option.value || 'all'}
-            type="button"
-            className={state.quality === option.value ? 'filter-option is-active' : 'filter-option'}
-            onClick={() => onChange({ quality: option.value })}
-          >
-            <span>{option.label}</span>
-          </button>
+          <option key={option.value || 'all'} value={option.value}>
+            {option.label}
+          </option>
         ))}
-      </div>
+      </select>
 
-      <div className="filter-row">
-        <h3>库位</h3>
-        <select
-          className="select select-sm"
-          value={state.location}
-          onChange={(event) => onChange({ location: event.target.value })}
-        >
-          <option value="">全部库位</option>
-          {(locations?.locations ?? []).map((row) => (
-            <option key={row.code} value={row.code}>
-              {row.code}（{row.used_count}）
-            </option>
-          ))}
-        </select>
-      </div>
+      <select
+        className="select select-sm filter-select"
+        aria-label="按库位筛选"
+        value={state.location}
+        onChange={(event) => onChange({ location: event.target.value })}
+      >
+        <option value="">全部库位</option>
+        {(locations?.locations ?? []).map((row) => (
+          <option key={row.code} value={row.code}>
+            {row.code}（{row.used_count}）
+          </option>
+        ))}
+      </select>
 
-      <div className="filter-row">
-        <h3>钢级</h3>
-        <select
-          className="select select-sm"
-          value={state.grade}
-          onChange={(event) => onChange({ grade: event.target.value })}
-        >
-          <option value="">全部钢级</option>
-          {(standards?.standards ?? []).map((row) => (
-            <option key={row.id} value={row.grade}>
-              {row.grade}
-            </option>
-          ))}
-        </select>
-      </div>
+      <select
+        className="select select-sm filter-select"
+        aria-label="按钢级筛选"
+        value={state.grade}
+        onChange={(event) => onChange({ grade: event.target.value })}
+      >
+        <option value="">全部钢级</option>
+        {(standards?.standards ?? []).map((row) => (
+          <option key={row.id} value={row.grade}>
+            {row.grade}
+          </option>
+        ))}
+      </select>
 
       {dirty ? (
         <button className="btn btn-ghost btn-sm" type="button" onClick={onReset}>
           清空筛选
         </button>
       ) : null}
-    </aside>
+    </div>
   )
 }

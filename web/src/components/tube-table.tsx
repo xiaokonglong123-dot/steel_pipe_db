@@ -22,7 +22,7 @@ function SortHeader({
 }) {
   const active = sort.key === column
   return (
-    <button className="th-sort" type="button" onClick={() => onSort(column)}>
+    <button className="th-sort" type="button" onClick={() => onSort(column)} aria-sort={active ? (sort.desc ? 'descending' : 'ascending') : undefined}>
       <span>{label}</span>
       {active ? <span className="arrow">{sort.desc ? '▼' : '▲'}</span> : null}
     </button>
@@ -54,7 +54,7 @@ export function TubeTable({
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.pipe_id))
 
   return (
-    <div className="grid-scroll">
+    <div className="table-wrap">
       <table className="table">
         <thead>
           <tr>
@@ -70,7 +70,7 @@ export function TubeTable({
             <th>
               <SortHeader label="钢级" column="steel_grade" sort={sort} onSort={onSort} />
             </th>
-            <th>规格</th>
+            <th>规格 mm</th>
             <th>
               <SortHeader label="库位" column="location" sort={sort} onSort={onSort} />
             </th>
@@ -88,9 +88,14 @@ export function TubeTable({
           {rows.map((tube) => {
             const isSelected = selected.includes(tube.pipe_id)
             return (
-              <tr key={tube.pipe_id} className={isSelected ? 'is-selected' : undefined}>
+              <tr
+                key={tube.pipe_id}
+                className={isSelected ? 'is-selected' : undefined}
+                onClick={() => navigate(`/tubes/${encodeURIComponent(tube.pipe_id)}`)}
+                style={{ cursor: 'pointer' }}
+              >
                 {canWrite ? (
-                  <td>
+                  <td onClick={(event) => event.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -100,7 +105,11 @@ export function TubeTable({
                   </td>
                 ) : null}
                 <td>
-                  <Link className="link mono" to={`/tubes/${encodeURIComponent(tube.pipe_id)}`}>
+                  <Link
+                    className="cell-link"
+                    to={`/tubes/${encodeURIComponent(tube.pipe_id)}`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     {tube.pipe_id}
                   </Link>
                 </td>
@@ -118,25 +127,18 @@ export function TubeTable({
                 </td>
                 <td>
                   {tube.compliance_pass === null ? (
-                    <span className="muted">—</span>
+                    <span className="dim">—</span>
                   ) : tube.compliance_pass ? (
-                    <span className="mark is-normal">通过</span>
+                    <span className="mark is-ok">通过</span>
                   ) : (
                     <span className="badge is-warn">强制</span>
                   )}
                 </td>
-                <td className="col-actions">
+                <td className="col-actions" onClick={(event) => event.stopPropagation()}>
                   <div className="row-actions">
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      type="button"
-                      onClick={() => navigate(`/tubes/${encodeURIComponent(tube.pipe_id)}`)}
-                    >
-                      详情
-                    </button>
                     {canWrite && tube.status === 'in_stock' ? (
                       <button
-                        className="btn btn-subtle btn-sm"
+                        className="btn btn-sm"
                         type="button"
                         disabled={outPending}
                         onClick={() => onStockOut(tube.pipe_id)}
@@ -144,6 +146,13 @@ export function TubeTable({
                         出库
                       </button>
                     ) : null}
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      type="button"
+                      onClick={() => navigate(`/tubes/${encodeURIComponent(tube.pipe_id)}`)}
+                    >
+                      详情
+                    </button>
                   </div>
                 </td>
               </tr>

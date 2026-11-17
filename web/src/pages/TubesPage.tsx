@@ -6,7 +6,7 @@ import { api, type Schemas } from '../api/client'
 import { useStats } from '../components/shell'
 import { TubeFilters, type TubeFilterState } from '../components/tube-filters'
 import { TubeTable, type SortKey } from '../components/tube-table'
-import { Empty, Loader, PageHead, Pager, Problem } from '../components/ui'
+import { ConfirmDialog, Empty, Loader, PageHead, Pager, Problem, useToast } from '../components/ui'
 import { useSession } from '../session'
 
 const PAGE_SIZE = 25
@@ -32,9 +32,11 @@ export default function TubesPage() {
   const { canWrite } = useSession()
   const queryClient = useQueryClient()
   const stats = useStats()
+  const { push } = useToast()
   const [params, setParams] = useSearchParams()
   const [selected, setSelected] = useState<string[]>([])
   const [error, setError] = useState<unknown>(null)
+  const [confirmOut, setConfirmOut] = useState<string | null>(null)
 
   const sortKey = (params.get('sort') ?? '') as ViewState['sort']
   const view: ViewState = {
@@ -83,6 +85,7 @@ export default function TubesPage() {
   const onSuccess = () => {
     setSelected([])
     setError(null)
+    setConfirmOut(null)
     invalidate()
   }
 
@@ -92,14 +95,20 @@ export default function TubesPage() {
         method: 'POST',
         body: { pipe_ids: selected },
       }),
-    onSuccess,
+    onSuccess: () => {
+      push('ok', `已批量出库 ${selected.length} 根`)
+      onSuccess()
+    },
     onError: (cause) => setError(cause),
   })
 
   const singleOut = useMutation({
     mutationFn: (pipeId: string) =>
       api(`/api/tubes/${encodeURIComponent(pipeId)}/stock-out`, { method: 'POST', body: {} }),
-    onSuccess,
+    onSuccess: () => {
+      push('ok', '出库完成')
+      onSuccess()
+    },
     onError: (cause) => setError(cause),
   })
 
@@ -113,10 +122,15 @@ export default function TubesPage() {
     <section>
       <PageHead
         title="管子"
+        sub={
+          <>
+            共 <b className="num">{tubes.data?.total ?? 0}</b> 根 · 单根级 API 5CT 库存
+          </>
+        }
         actions={
           canWrite ? (
             <>
-              <Link className="btn btn-subtle" to="/import">
+              <Link className="btn" to="/import">
                 批量导入
               </Link>
               <Link className="btn btn-accent" to="/stock-in">
@@ -127,74 +141,79 @@ export default function TubesPage() {
         }
       />
 
-      <div className="split">
-        <TubeFilters
-          state={view}
-          stats={stats}
-          locations={locations.data}
-          standards={standards.data}
-          onChange={(patch) => apply(patch)}
-          onReset={() => apply({ status: '', quality: '', location: '', grade: '' })}
+      <TubeFilters
+        state={view}
+        stats={stats}
+        locations={locations.data}
+        standards={standards.data}
+        onChange={(patch) => apply(patch)}
+        onReset={() => apply({ status: '', quality: '', location: '', grade: '' })}
+      />
+
+      <Problem error={error ?? tubes.error} />
+
+      {tubes.isLoading ? (
+        <Loader />
+      ) : rows.length === 0 ? (
+        <Empty hint="调整筛选条件，或先入库一批管子">没有符合条件的管子</Empty>
+      ) : (
+        <TubeTable
+          rows={rows}
+          canWrite={canWrite}
+          selected={selected}
+          sort={{ key: view.sort, desc: view.desc }}
+          onSort={toggleSort}
+          onToggle={toggle}
+          onToggleAll={() =>
+            setSelected(
+              rows.every((row) => selected.includes(row.pipe_id)) ? [] : rows.map((row) => row.pipe_id),
+            )
+          }
+          onStockOut={(pipeId) => setConfirmOut(pipeId)}
+          outPending={singleOut.isPending}
         />
+      )}
 
-        <div className="split-main">
-          <Problem error={error ?? tubes.error} />
-
-          {tubes.isLoading ? (
-            <Loader />
-          ) : rows.length === 0 ? (
-            <Empty>没有符合条件的管子。</Empty>
-          ) : (
-            <TubeTable
-              rows={rows}
-              canWrite={canWrite}
-              selected={selected}
-              sort={{ key: view.sort, desc: view.desc }}
-              onSort={toggleSort}
-              onToggle={toggle}
-              onToggleAll={() =>
-                setSelected(
-                  rows.every((row) => selected.includes(row.pipe_id)) ? [] : rows.map((row) => row.pipe_id),
-                )
-              }
-              onStockOut={(pipeId) => {
-                if (window.confirm(`确认出库 ${pipeId}？`)) singleOut.mutate(pipeId)
-              }}
-              outPending={singleOut.isPending}
-            />
-          )}
-
-          {selected.length > 0 ? (
-            <div className="bulkbar">
-              <span>
-                已选 <strong>{selected.length}</strong> 根
-              </span>
-              <span className="spacer" />
-              <button
-                className="btn btn-accent"
-                type="button"
-                disabled={batchOut.isPending}
-                onClick={() => batchOut.mutate()}
-              >
-                {batchOut.isPending ? '出库中…' : '批量出库'}
-              </button>
-              <button className="btn btn-ghost btn-sm" type="button" onClick={() => setSelected([])}>
-                清除
-              </button>
-            </div>
-          ) : null}
-
-          <Pager
-            page={view.page}
-            pageSize={PAGE_SIZE}
-            total={tubes.data?.total ?? 0}
-            onChange={(next) => apply({ page: next })}
-          />
-          <p className="field-hint">
-            点表头可排序（编号/钢级/库位/状态/质量）；排序由后端白名单字段执行，翻页稳定。
-          </p>
+      {selected.length > 0 ? (
+        <div className="bulkbar">
+          <span>
+            已选 <strong>{selected.length}</strong> 根
+          </span>
+          <span className="hint">批量出库为原子操作，任一失败整批回滚</span>
+          <span className="spacer" />
+          <button
+            className="btn btn-accent"
+            type="button"
+            disabled={batchOut.isPending}
+            onClick={() => batchOut.mutate()}
+          >
+            {batchOut.isPending ? '出库中…' : '批量出库'}
+          </button>
+          <button className="btn btn-ghost btn-sm" type="button" onClick={() => setSelected([])}>
+            清除
+          </button>
         </div>
-      </div>
+      ) : null}
+
+      <Pager
+        page={view.page}
+        pageSize={PAGE_SIZE}
+        total={tubes.data?.total ?? 0}
+        onChange={(next) => apply({ page: next })}
+      />
+
+      <ConfirmDialog
+        open={confirmOut !== null}
+        title="确认出库？"
+        body={`管子 ${confirmOut ?? ''} 将从「在库」变为「已出库」，并写入审计链。`}
+        confirmLabel="出库"
+        tone="danger"
+        pending={singleOut.isPending}
+        onConfirm={() => {
+          if (confirmOut) singleOut.mutate(confirmOut)
+        }}
+        onCancel={() => setConfirmOut(null)}
+      />
     </section>
   )
 }

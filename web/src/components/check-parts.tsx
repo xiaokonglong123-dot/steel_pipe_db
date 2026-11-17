@@ -1,5 +1,5 @@
 import type { Schemas } from '../api/client'
-import { StatusBadge } from './ui'
+import { Empty, StatusBadge } from './ui'
 
 type Detail = Schemas['CheckDetailDto']
 type Item = Schemas['CheckItemDto']
@@ -71,61 +71,88 @@ export function CheckSidebar({
 }) {
   const open = session.status === 'open'
   return (
-    <aside className="filters">
-      <div className="filter-row">
-        <h3>盘点单</h3>
-        <div className="muted">#{session.id} · {session.location}</div>
-        <div style={{ marginTop: 4 }}>
-          <StatusBadge value={session.status} />
+    <aside className="stack aside-card">
+      <div className="card">
+        <div className="card-head">
+          <h2>盘点单</h2>
+          <span className="right">
+            <StatusBadge value={session.status} />
+          </span>
         </div>
-        <div className="field-hint">开单 {session.created_at.slice(0, 16).replace('T', ' ')}</div>
-        {session.remark ? <div className="field-hint">备注：{session.remark}</div> : null}
+        <dl className="kv-grid card-pad" style={{ gridTemplateColumns: '1fr' }}>
+          <div>
+            <dt>编号</dt>
+            <dd className="mono">#{session.id}</dd>
+          </div>
+          <div>
+            <dt>库位</dt>
+            <dd className="mono">{session.location}</dd>
+          </div>
+          <div>
+            <dt>开单时间</dt>
+            <dd className="mono">{session.created_at.replace('T', ' ').slice(0, 16)}</dd>
+          </div>
+          {session.remark ? (
+            <div>
+              <dt>备注</dt>
+              <dd>{session.remark}</dd>
+            </div>
+          ) : null}
+        </dl>
       </div>
 
-      <div className="filter-row">
-        <h3>结论</h3>
-        {FILTER_LABELS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            className={filter === option.value ? 'filter-option is-active' : 'filter-option'}
-            onClick={() => onFilter(option.value)}
-          >
-            <span>{option.label}</span>
-            <span className="count">{counts[option.value]}</span>
-          </button>
-        ))}
+      <div className="card">
+        <div className="card-head">
+          <h2>结论分布</h2>
+          <span className="sub">{counts.all} 根应盘</span>
+        </div>
+        <div className="card-pad">
+          <div className="chips">
+            {FILTER_LABELS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={filter === option.value}
+                className={filter === option.value ? 'chip is-active' : 'chip'}
+                onClick={() => onFilter(option.value)}
+              >
+                <span>{option.label}</span>
+                <span className="count">{counts[option.value]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {open ? (
-        <div className="filter-row">
-          <h3>操作</h3>
-          {isAdmin ? (
-            <button
-              className="btn btn-accent btn-sm"
-              type="button"
-              disabled={confirmPending}
-              onClick={onConfirm}
-            >
-              {confirmPending ? '确认中…' : '确认盘点'}
-            </button>
-          ) : (
-            <div className="field-hint">确认需管理员</div>
-          )}
-          {canWrite ? (
-            <button
-              className="btn btn-subtle btn-sm"
-              type="button"
-              disabled={cancelPending}
-              onClick={onCancel}
-            >
-              取消盘点
-            </button>
-          ) : null}
+        <div className="card">
+          <div className="card-head">
+            <h2>确认</h2>
+          </div>
+          <div className="card-pad stack" style={{ gap: 10 }}>
+            {isAdmin ? (
+              <button
+                className="btn btn-accent"
+                type="button"
+                disabled={confirmPending}
+                onClick={onConfirm}
+              >
+                {confirmPending ? '确认中…' : '确认盘点'}
+              </button>
+            ) : (
+              <span className="hint">确认需管理员权限</span>
+            )}
+            {canWrite ? (
+              <button className="btn" type="button" disabled={cancelPending} onClick={onCancel}>
+                取消盘点
+              </button>
+            ) : null}
+            <p className="hint" style={{ margin: 0 }}>
+              确认在单事务内应用全部差异；任一项失败整体回滚，盘点单保持 open。
+            </p>
+          </div>
         </div>
       ) : null}
-
-      <p className="field-hint">确认在单事务内应用全部差异；任一项失败整体回滚，盘点单保持 open。</p>
     </aside>
   )
 }
@@ -160,11 +187,15 @@ export function CheckExpectedTable({
   )
 
   if (rows.length === 0) {
-    return <div className="empty">该筛选下没有应盘管子。</div>
+    return (
+      <div className="card-pad">
+        <Empty hint="切换上方的结论筛选">该筛选下没有应盘管子</Empty>
+      </div>
+    )
   }
 
   return (
-    <div className="grid-scroll">
+    <div className="table-wrap is-plain" style={{ border: 0, borderRadius: 0 }}>
       <table className="table">
         <thead>
           <tr>
@@ -180,7 +211,7 @@ export function CheckExpectedTable({
           {rows.map((tube) => {
             const item = items.find((row) => row.pipe_id === tube.pipe_id)
             return (
-              <tr key={tube.pipe_id}>
+              <tr key={tube.pipe_id} className={!item ? undefined : undefined}>
                 <td className="mono">{tube.pipe_id}</td>
                 <td>{tube.steel_grade}</td>
                 <td className="mono">
@@ -190,13 +221,13 @@ export function CheckExpectedTable({
                   <StatusBadge value={tube.quality_mark} />
                 </td>
                 <td>
-                  {item ? <StatusBadge value={item.result} /> : <span className="muted">未核对</span>}
+                  {item ? <StatusBadge value={item.result} /> : <span className="badge is-none">未核对</span>}
                 </td>
                 {canWrite && open ? (
                   <td className="col-actions">
                     <div className="row-actions">
                       <button
-                        className="btn btn-subtle btn-sm"
+                        className="btn btn-sm"
                         type="button"
                         disabled={pending}
                         onClick={() => onMark({ pipe_id: tube.pipe_id, result: 'ok' })}
@@ -204,7 +235,7 @@ export function CheckExpectedTable({
                         一致
                       </button>
                       <button
-                        className="btn btn-danger-subtle btn-sm"
+                        className="btn btn-danger btn-sm"
                         type="button"
                         disabled={pending}
                         onClick={() => onMark({ pipe_id: tube.pipe_id, result: 'missing' })}
@@ -213,6 +244,8 @@ export function CheckExpectedTable({
                       </button>
                       <select
                         className="select select-sm"
+                        style={{ width: 102 }}
+                        aria-label="移库目标"
                         value={movedTo[tube.pipe_id] ?? ''}
                         onChange={(event) => onMovedTo(tube.pipe_id, event.target.value)}
                       >
@@ -226,7 +259,7 @@ export function CheckExpectedTable({
                           ))}
                       </select>
                       <button
-                        className="btn btn-subtle btn-sm"
+                        className="btn btn-sm"
                         type="button"
                         disabled={!movedTo[tube.pipe_id] || pending}
                         onClick={() =>

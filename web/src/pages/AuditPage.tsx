@@ -3,11 +3,12 @@ import { useMutation } from '@tanstack/react-query'
 
 import { api, type Schemas } from '../api/client'
 import { AuditTable, type AuditEntry } from '../components/audit-table'
-import { PageHead, Problem } from '../components/ui'
+import { Loader, Notice, PageHead, Problem, useToast } from '../components/ui'
 
 const PAGE = 200
 
 export default function AuditPage() {
+  const { push } = useToast()
   const [action, setAction] = useState('')
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [total, setTotal] = useState(0)
@@ -59,13 +60,14 @@ export default function AuditPage() {
       api<Schemas['VerifyResponse']>('/api/audit/verify', { method: 'POST', body: { batch: 1000 } }),
     onSuccess: (summary) => {
       setError(null)
-      setVerifyResult(
-        `校验通过：${summary.entries} 条 / ${summary.batches} 批 / tip=${summary.tip.slice(0, 16)}…`,
-      )
+      const text = `校验通过：${summary.entries} 条 / ${summary.batches} 批 / tip=${summary.tip.slice(0, 16)}…`
+      setVerifyResult(text)
+      push('ok', '审计链校验通过')
     },
     onError: (cause) => {
       setVerifyResult(null)
       setError(cause)
+      push('danger', '审计链校验失败')
     },
   })
 
@@ -75,9 +77,10 @@ export default function AuditPage() {
     <section>
       <PageHead
         title="审计链"
+        sub="sha256(prev‖action‖detail‖ts) · 同事务写入 · 分批校验"
         actions={
           <button
-            className="btn btn-subtle"
+            className="btn btn-accent"
             type="button"
             disabled={verify.isPending}
             onClick={() => verify.mutate()}
@@ -87,35 +90,39 @@ export default function AuditPage() {
         }
       />
       <Problem error={error ?? verify.error} />
-      {verifyResult ? <div className="notice">{verifyResult}</div> : null}
+      {verifyResult ? <Notice>{verifyResult}</Notice> : null}
 
-      <div className="toolbar">
-        <input
-          className="input input-sm"
-          placeholder="按 action 过滤（如 stock_in）"
-          value={action}
-          onChange={(event) => setAction(event.target.value.trim())}
-        />
-        <span className="spacer" />
-        <span className="muted">
-          已加载 {entries.length} / {total} 条
-        </span>
-        {!exhausted ? (
-          <button
-            className="btn btn-subtle btn-sm"
-            type="button"
-            disabled={loading}
-            onClick={() => void loadMore()}
-          >
-            {loading ? '加载中…' : '加载更多'}
-          </button>
-        ) : null}
+      <div className="card">
+        <div className="card-head">
+          <h2>事件流</h2>
+          <span className="sub">
+            已加载 <b className="num">{entries.length}</b> / {total} 条
+          </span>
+          <span className="right">
+            <input
+              className="input"
+              style={{ width: 220 }}
+              placeholder="按 action 过滤（如 stock_in）"
+              value={action}
+              onChange={(event) => setAction(event.target.value.trim())}
+            />
+            {!exhausted ? (
+              <button
+                className="btn btn-sm"
+                type="button"
+                disabled={loading}
+                onClick={() => void loadMore()}
+              >
+                {loading ? '加载中…' : '加载更多'}
+              </button>
+            ) : null}
+          </span>
+        </div>
+        {loading && entries.length === 0 ? <Loader /> : <AuditTable entries={entries} />}
       </div>
 
-      <AuditTable entries={entries} />
-
-      <p className="field-hint">
-        虚拟滚动：只渲染视口内的行，滚动时不重排整表；行高随密度切换自动适配。
+      <p className="hint" style={{ marginTop: 12 }}>
+        虚拟滚动：只渲染视口内的行，滚动时不重排整表；行高随密度切换自动适配。哈希列截断显示，悬停可看全文。
       </p>
     </section>
   )

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { Schemas } from '../api/client'
+import { Empty } from './ui'
 
 type Entry = Schemas['AuditEntryDto']
 
@@ -11,7 +12,7 @@ function useRowHeight(): number {
   const read = () => {
     const raw = getComputedStyle(document.documentElement).getPropertyValue('--row-h').trim()
     const px = Number.parseFloat(raw)
-    return Number.isFinite(px) ? px : 34
+    return Number.isFinite(px) ? px : 42
   }
   const [rowHeight, setRowHeight] = useState(read)
 
@@ -47,10 +48,19 @@ export function AuditTable({ entries }: { entries: Entry[] }) {
   const bottomPad = Math.max(0, (entries.length - end) * rowHeight)
   const visible = entries.slice(start, end)
 
+  if (entries.length === 0) {
+    return (
+      <div className="card-pad">
+        <Empty hint="入库、出库、盘点等操作会写入审计链">没有审计记录</Empty>
+      </div>
+    )
+  }
+
   return (
     <div
       ref={viewportRef}
       className="grid-scroll"
+      style={{ maxHeight: 'calc(100vh - 300px)' }}
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
     >
       <table className="table">
@@ -76,12 +86,14 @@ export function AuditTable({ entries }: { entries: Entry[] }) {
               <td className="mono">{entry.ts.replace('T', ' ').slice(0, 19)}</td>
               <td className="mono">{entry.user_id ?? '—'}</td>
               <td>
-                <code>{entry.action}</code>
+                <code className="action-code">{entry.action}</code>
               </td>
-              <td className="detail-cell">
+              <td className="detail-cell" title={entry.detail ?? ''}>
                 <code>{entry.detail ?? '—'}</code>
               </td>
-              <td className="hash-cell mono">{entry.current_hash.slice(0, 12)}…</td>
+              <td className="hash-cell mono" title={entry.current_hash}>
+                {entry.current_hash.slice(0, 12)}…
+              </td>
             </tr>
           ))}
           {bottomPad > 0 ? (
@@ -91,8 +103,6 @@ export function AuditTable({ entries }: { entries: Entry[] }) {
           ) : null}
         </tbody>
       </table>
-      {entries.length === 0 ? <div className="empty">没有审计记录。</div> : null}
-      <span hidden>{visibleCount}</span>
     </div>
   )
 }

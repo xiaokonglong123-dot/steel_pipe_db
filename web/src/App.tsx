@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
-import { CommandPalette, SideNav, Topbar, useStats } from './components/shell'
+import { CommandPalette, SideRail, Topbar, useStats } from './components/shell'
 import { Loader } from './components/ui'
 import AuditPage from './pages/AuditPage'
 import CheckDetailPage from './pages/CheckDetailPage'
@@ -59,11 +59,11 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
-      <Topbar onCommand={() => setCommandOpen(true)} />
-      <div className="shell-body">
-        <SideNav stats={stats} onCommand={() => setCommandOpen(true)} />
-        <main className="page">
+    <div className="app">
+      <SideRail stats={stats} />
+      <div className="main">
+        <Topbar onCommand={() => setCommandOpen(true)} />
+        <main className="content">
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/login" element={<Navigate to="/" replace />} />

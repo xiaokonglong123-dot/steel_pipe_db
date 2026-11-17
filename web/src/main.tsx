@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 
 import App from './App'
+import { ToastProvider } from './components/ui'
 import { SessionProvider } from './session'
 import './styles.css'
 
@@ -25,7 +26,9 @@ createRoot(container).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <SessionProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </SessionProvider>
       </BrowserRouter>
     </QueryClientProvider>

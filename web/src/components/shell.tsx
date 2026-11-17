@@ -1,93 +1,115 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { api, type Schemas } from '../api/client'
 import { useSession } from '../session'
+import {
+  IconAudit,
+  IconBox,
+  IconCheck,
+  IconGauge,
+  IconImport,
+  IconInbound,
+  IconPin,
+  IconPipe,
+  IconSearch,
+  IconStandard,
+  IconUsers,
+} from './icons'
+import { ROLE_LABEL, useToast } from './ui'
 
 type Stats = Schemas['DashboardDto']
 
 /* ------------------------------------------------------------------ */
-/* 顶栏 + 侧栏                                                         */
+/* 左侧图标轨                                                          */
 /* ------------------------------------------------------------------ */
 
-type NavItem = { to: string; label: string; write?: boolean; admin?: boolean; count?: (s: Stats | undefined) => number; tone?: 'danger' | 'warn' }
+type NavItem = {
+  to: string
+  label: string
+  icon: typeof IconGauge
+  write?: boolean
+  admin?: boolean
+  count?: (stats: Stats | undefined) => number
+}
 
-const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
+const NAV_GROUPS: { items: NavItem[] }[] = [
   {
-    title: '库存',
     items: [
-      { to: '/tubes', label: '管子' },
-      { to: '/stock-in', label: '入库', write: true },
-      { to: '/import', label: '批量导入', write: true },
+      { to: '/', label: '仪表盘', icon: IconGauge },
+      { to: '/tubes', label: '管子', icon: IconPipe },
+      { to: '/stock-in', label: '入库', icon: IconInbound, write: true },
+      { to: '/import', label: '导入', icon: IconImport, write: true },
     ],
   },
   {
-    title: '主数据',
     items: [
-      { to: '/locations', label: '库位' },
-      { to: '/standards', label: '标准规格' },
+      { to: '/locations', label: '库位', icon: IconPin },
+      { to: '/standards', label: '规格', icon: IconStandard },
     ],
   },
   {
-    title: '作业',
     items: [
       {
         to: '/checks',
         label: '盘点',
+        icon: IconCheck,
         count: (stats) => stats?.tubes.missing ?? 0,
-        tone: 'danger',
       },
     ],
   },
   {
-    title: '系统',
     items: [
-      { to: '/users', label: '用户', admin: true },
-      { to: '/audit', label: '审计链', admin: true },
+      { to: '/users', label: '用户', icon: IconUsers, admin: true },
+      { to: '/audit', label: '审计', icon: IconAudit, admin: true },
     ],
   },
 ]
 
-export function SideNav({ stats, onCommand }: { stats: Stats | undefined; onCommand: () => void }) {
-  const { isAdmin, canWrite, user } = useSession()
+export function SideRail({ stats }: { stats: Stats | undefined }) {
+  const { isAdmin, canWrite } = useSession()
 
   return (
-    <aside className="sider">
-      <button className="sider-item" onClick={onCommand} type="button">
-        <span>⌘K</span>
-        <span className="count">命令</span>
-      </button>
-      {NAV_GROUPS.map((group) => {
-        const items = group.items.filter((item) => (!item.admin || isAdmin) && (!item.write || canWrite) )
+    <nav className="rail" aria-label="主导航">
+      <div className="rail-brand" title="SteelPipe">
+        <IconBox size={22} />
+      </div>
+      {NAV_GROUPS.map((group, index) => {
+        const items = group.items.filter(
+          (item) => (!item.admin || isAdmin) && (!item.write || canWrite),
+        )
         if (items.length === 0) return null
         return (
-          <div key={group.title}>
-            <div className="sider-group">{group.title}</div>
+          <div className="rail-group" key={index}>
             {items.map((item) => {
               const count = item.count?.(stats) ?? 0
+              const Icon = item.icon
               return (
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  className={({ isActive }) => (isActive ? 'sider-item is-active' : 'sider-item')}
+                  end={item.to === '/'}
+                  className={({ isActive }) => (isActive ? 'rail-item is-active' : 'rail-item')}
+                  title={item.label}
                 >
+                  <Icon size={20} />
                   <span>{item.label}</span>
-                  {count > 0 ? (
-                    <span className={`count ${item.tone === 'danger' ? 'is-danger' : item.tone === 'warn' ? 'is-warn' : ''}`}>
-                      {count}
-                    </span>
-                  ) : null}
+                  {count > 0 ? <span className="rail-count">{count}</span> : null}
                 </NavLink>
               )
             })}
           </div>
         )
       })}
-      {user ? <div className="sider-group">v0.1 · SQLite</div> : null}
-    </aside>
+      <div className="rail-foot">v0.1</div>
+    </nav>
   )
 }
+
+/* ------------------------------------------------------------------ */
+/* 密度                                                                */
+/* ------------------------------------------------------------------ */
 
 const DENSITY_KEY = 'steelpipe.density'
 
@@ -111,20 +133,21 @@ export function useDensity(): [Density, (next: Density) => void] {
 }
 
 const DENSITY_LABELS: { value: Density; label: string; title: string }[] = [
-  { value: 'compact', label: '密', title: '紧凑：28px 行高' },
-  { value: 'comfortable', label: '适', title: '舒适：34px 行高（默认）' },
-  { value: 'roomy', label: '宽', title: '宽松：40px 行高' },
+  { value: 'compact', label: '密', title: '紧凑：36px 行高' },
+  { value: 'comfortable', label: '适', title: '舒适：42px 行高（默认）' },
+  { value: 'roomy', label: '宽', title: '宽松：48px 行高' },
 ]
 
 function DensitySwitch() {
   const [density, setDensity] = useDensity()
   return (
-    <div className="density-switch" role="group" aria-label="表格密度">
+    <div className="seg" role="group" aria-label="表格密度">
       {DENSITY_LABELS.map((option) => (
         <button
           key={option.value}
           type="button"
           title={option.title}
+          aria-pressed={density === option.value}
           className={density === option.value ? 'is-active' : undefined}
           onClick={() => setDensity(option.value)}
         >
@@ -135,30 +158,46 @@ function DensitySwitch() {
   )
 }
 
+/* ------------------------------------------------------------------ */
+/* 顶栏                                                                */
+/* ------------------------------------------------------------------ */
+
 export function Topbar({ onCommand }: { onCommand: () => void }) {
   const { user, logout } = useSession()
+  const { push } = useToast()
+
   return (
     <header className="topbar">
-      <span className="brand">
-        SteelPipe<span className="brand-sub">钢管与筛管库存</span>
-      </span>
-      <button className="topbar-search" type="button" onClick={onCommand}>
+      <div className="brand">
+        <strong>SteelPipe</strong>
+        <span>钢管与筛管库存</span>
+      </div>
+      <button className="cmd-trigger" type="button" onClick={onCommand}>
+        <IconSearch size={15} />
         <span>搜索编号 / 跳转页面</span>
         <kbd>⌘K</kbd>
       </button>
-      <span className="topbar-user">
+      <div className="top-right">
         <DensitySwitch />
         {user ? (
-          <>
-            <span>
-              {user.display_name} · {user.role === 'admin' ? '管理员' : user.role === 'operator' ? '操作员' : '查看者'}
-            </span>
-            <button className="btn btn-ghost btn-sm" onClick={() => void logout()}>
+          <div className="user">
+            <span className="avatar">{user.display_name.slice(0, 1).toUpperCase()}</span>
+            <span>{user.display_name}</span>
+            <span className="user-role">{ROLE_LABEL(user.role)}</span>
+            <button
+              className="btn btn-ghost btn-sm"
+              type="button"
+              onClick={() => {
+                void logout()
+                  .then(() => push('ok', '已退出登录'))
+                  .catch(() => push('danger', '退出失败'))
+              }}
+            >
               退出
             </button>
-          </>
+          </div>
         ) : null}
-      </span>
+      </div>
     </header>
   )
 }
@@ -170,28 +209,53 @@ export function Topbar({ onCommand }: { onCommand: () => void }) {
 export function Kpi({
   label,
   value,
+  unit,
   sub,
   tone,
+  hero,
+  meter,
 }: {
-  label: string
+  label: ReactNode
   value: number | string
-  sub?: string
+  unit?: string
+  sub?: ReactNode
   tone?: 'ok' | 'warn' | 'danger' | 'accent'
+  hero?: boolean
+  meter?: { value: number; max: number }
 }) {
   return (
-    <div className={`kpi${tone ? ` is-${tone}` : ''}`}>
+    <div className={`kpi${hero ? ' kpi-hero' : ''}${tone ? ` is-${tone}` : ''}`}>
       <div className="kpi-label">{label}</div>
-      <div className="kpi-value">{value}</div>
+      <div className="kpi-value">
+        <span>{value}</span>
+        {unit ? <span className="unit">{unit}</span> : null}
+      </div>
+      {meter ? <Meter value={meter.value} max={meter.max} /> : null}
       {sub ? <div className="kpi-sub">{sub}</div> : null}
     </div>
   )
 }
 
-export function Meter({ value, max }: { value: number; max: number }) {
+export function Meter({
+  value,
+  max,
+  tone,
+}: {
+  value: number
+  max: number
+  tone?: 'ok' | 'warn' | 'danger'
+}) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
   return (
-    <div className="meter" title={`${value} / ${max || '∞'}（${pct}%）`}>
-      <span style={{ width: `${pct}%` }} />
+    <div
+      className={`meter${tone ? ` is-${tone}` : ''}`}
+      role="progressbar"
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={max || undefined}
+      title={`${value} / ${max || '∞'}（${pct}%）`}
+    >
+      <i style={{ width: `${pct}%` }} />
     </div>
   )
 }
@@ -200,7 +264,7 @@ export function Meter({ value, max }: { value: number; max: number }) {
 /* 命令面板                                                            */
 /* ------------------------------------------------------------------ */
 
-type Command = { id: string; label: string; hint?: string; run: () => void }
+type Command = { id: string; label: string; hint?: string; icon: typeof IconGauge; run: () => void }
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate()
@@ -211,19 +275,19 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const commands = useMemo<Command[]>(() => {
     const pages: Command[] = [
-      { id: 'dash', label: '仪表盘', hint: '/', run: () => navigate('/') },
-      { id: 'tubes', label: '管子列表', run: () => navigate('/tubes') },
-      { id: 'checks', label: '盘点', run: () => navigate('/checks') },
-      { id: 'locations', label: '库位', run: () => navigate('/locations') },
-      { id: 'standards', label: '标准规格', run: () => navigate('/standards') },
+      { id: 'dash', label: '仪表盘', hint: '页面', icon: IconGauge, run: () => navigate('/') },
+      { id: 'tubes', label: '管子列表', hint: '页面', icon: IconPipe, run: () => navigate('/tubes') },
+      { id: 'checks', label: '盘点', hint: '页面', icon: IconCheck, run: () => navigate('/checks') },
+      { id: 'locations', label: '库位', hint: '页面', icon: IconPin, run: () => navigate('/locations') },
+      { id: 'standards', label: '标准规格', hint: '页面', icon: IconStandard, run: () => navigate('/standards') },
     ]
     if (canWrite) {
-      pages.push({ id: 'stock-in', label: '入库', run: () => navigate('/stock-in') })
-      pages.push({ id: 'import', label: '批量导入', run: () => navigate('/import') })
+      pages.push({ id: 'stock-in', label: '入库', hint: '页面', icon: IconInbound, run: () => navigate('/stock-in') })
+      pages.push({ id: 'import', label: '批量导入', hint: '页面', icon: IconImport, run: () => navigate('/import') })
     }
     if (isAdmin) {
-      pages.push({ id: 'users', label: '用户管理', run: () => navigate('/users') })
-      pages.push({ id: 'audit', label: '审计链', run: () => navigate('/audit') })
+      pages.push({ id: 'users', label: '用户管理', hint: '页面', icon: IconUsers, run: () => navigate('/users') })
+      pages.push({ id: 'audit', label: '审计链', hint: '页面', icon: IconAudit, run: () => navigate('/audit') })
     }
     return pages
   }, [navigate, canWrite, isAdmin])
@@ -232,11 +296,14 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const filtered = useMemo(() => {
     if (!trimmed) return commands
     const lower = trimmed.toLowerCase()
-    const hits = commands.filter((command) => command.label.toLowerCase().includes(lower) || command.id.includes(lower))
+    const hits = commands.filter(
+      (command) => command.label.toLowerCase().includes(lower) || command.id.includes(lower),
+    )
     const tube: Command = {
       id: 'tube-query',
       label: `打开管子「${trimmed}」`,
       hint: '编号',
+      icon: IconPipe,
       run: () => navigate(`/tubes/${encodeURIComponent(trimmed)}`),
     }
     return [tube, ...hits]
@@ -260,7 +327,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <div className="cmd-backdrop" onMouseDown={onClose}>
-      <div className="cmd-panel" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="cmd-panel" role="dialog" aria-modal="true" aria-label="命令面板" onMouseDown={(event) => event.stopPropagation()}>
         <input
           ref={inputRef}
           className="cmd-input"
@@ -288,17 +355,21 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         />
         <div className="cmd-list">
           {filtered.length === 0 ? <div className="cmd-empty">没有匹配项</div> : null}
-          {filtered.map((command, index) => (
-            <div
-              key={command.id}
-              className={index === active ? 'cmd-item is-active' : 'cmd-item'}
-              onMouseEnter={() => setActive(index)}
-              onMouseDown={() => run(command)}
-            >
-              <span>{command.label}</span>
-              {command.hint ? <span className="hint">{command.hint}</span> : null}
-            </div>
-          ))}
+          {filtered.map((command, index) => {
+            const Icon = command.icon
+            return (
+              <div
+                key={command.id}
+                className={index === active ? 'cmd-item is-active' : 'cmd-item'}
+                onMouseEnter={() => setActive(index)}
+                onMouseDown={() => run(command)}
+              >
+                <Icon size={16} />
+                <span>{command.label}</span>
+                {command.hint ? <span className="hint">{command.hint}</span> : null}
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
