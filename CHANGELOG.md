@@ -1,32 +1,26 @@
 # CHANGELOG
 
-本项目版本号跟随 `pyproject.toml` 的 `version`，设计权威见 `docs/2026-07-13-api5ct-inventory-design.md`。
+当前版本线为 Rust 单二进制实现。旧 Python（FastAPI + PyO3）版本记录见
+[`docs/archive/CHANGELOG-python.md`](docs/archive/CHANGELOG-python.md)。
 
-## v0.8.0 — 2026-10-24
+## v0.1.0 — 2026-11-17
 
-### 前端重写
+### Rust 重写
 
-全部 20 个模板（19 个页面 + `base.html`）从零重写，废弃旧页面代码。后端路由与业务语义未变，唯一后端改动是新增静态资源挂载。
+- 全部业务迁入 Rust workspace（domain / compliance / audit / auth / infra / service / api / server）
+- 单二进制（内嵌前端）+ 单 SQLite 文件；无 Python、无 Node 运行时
+- 审计链、API 5CT 合规、argon2id + HS256 与旧实现行为一致（黄金向量逐字节校验）
+- 118 项测试；CI 覆盖 fmt / clippy / 分层断言 / 契约漂移
 
-- 新增 `src/static/`：`app.css`（token 层 + 组件）、`app.js`（条件编辑器 / 密度 / 批量选择）、`vendor/`（Bootstrap 5.3.3 + Bootstrap Icons 1.11.3 本地拷贝）
-- 新增 `src/templates/_macros.html`：状态 / 类型 / 质量 / 合规 / 角色 / 盘点 / 审计动作徽章 + 分页宏。所有状态展示统一走宏，**图标 + 文字 + 颜色**三重编码（色盲模式下颜色不是唯一信息载体）
-- 设计方向「工业数据网格」：高密度表格、粘性表头、行左状态轨（形状 + 颜色双重编码）、条件芯片筛选、显式批量模式与操作坞；深色优先
-- `main.py` 挂载 `/static`，**不再依赖 jsdelivr CDN**（应用部署在无外网的局域网）
-- 模板内不再写 `<style>`，样式只进 `app.css`；`standards/` 拆为独立模板目录
-- 修复 `standards/list.html` 分页链接丢失 `grade` 筛选参数
-- 清理 `app.css` 中迁移期的兼容别名（`.surface` / `.card` / `.badge.bg-*` / `.btn-secondary` / `.form-text` / `.input-group-text` / `.form-check-label` / `.form-section` / `.chip` / `.text-accent` / `.page-sub`），模板已零引用
-- 新增 820px / 560px 响应式断点，390px 视口无横向溢出
+### 前端
 
-### 修复
+- SPA：Vite 8 + React 19 + TanStack Query + react-router
+- UI v2：高密度暗色数据网格、三档密度、后端白名单排序、审计虚拟滚动
+- UI v3：石墨指挥台（68px 图标轨 + 命令条、主次 KPI、确认对话框与 Toast、全站状态三重编码）
+  - 见 [`docs/2026-11-17-ui-redesign-v3.md`](docs/2026-11-17-ui-redesign-v3.md)
 
-- **未认证浏览器导航返回裸 JSON**：直接打开 `/` 或 `/tubes` 得到 `{"detail":"not authenticated"}`。新增 `StarletteHTTPException` 处理器，**仅当 `Accept` 含 `text/html`** 时 303 重定向到 `/login`；API / XHR（`fetch` 的 `*/*`、curl）仍返回 401 原文，路由契约与既有测试不变。新增 2 项测试。
+### 仓库整理
 
-### 校验
-
-- `pytest -m "not slow"`：167 passed, 3 deselected；`pytest -m slow`：3 passed
-- `ruff check`：零报错
-- 端到端冒烟（真实浏览器走完整表单）：未登录重定向 → 登录 → 建标准 J55 → 入库 → 列表 / 详情 → 审计页 → 哈希链校验（完整，2 条）→ 出库，20 项断言全通过，零 console 错误
-
-## v0.7.0 及更早
-
-见 `docs/2026-07-13-api5ct-inventory-design.md` §0.2–§0.10 的历史修订记录。
+- 归档旧 Python 栈文档与阶段计划至 `docs/archive/`
+- 移除旧构建产物（egg-info、rust-core/target）与本地缓存
+- 补充 `docs/screenshots/` 界面截图

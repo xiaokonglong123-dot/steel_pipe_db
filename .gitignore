@@ -11,6 +11,7 @@
 # 环境
 .env
 .env.*
+dev.env
 
 # 编辑器 / 系统
 .idea/
@@ -27,3 +28,10 @@ __pycache__/
 .pytest_cache/
 .cortexkit/
 .superpowers/
+
+# 旧 Python 栈目录（已移除；防止误建回仓库）
+/rust-core/
+/ayanami_rei.egg-info/
+/src/
+/migrations/
+/tests/

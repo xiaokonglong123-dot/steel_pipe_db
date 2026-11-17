@@ -19,8 +19,28 @@
 - **RBAC**：`admin` / `operator` / `viewer`，写路径按路由组挂载
 - **导入**：CSV 流式、行级部分成功、上限 10 000 行、BOM 容错
 - **仪表盘**：KPI（在库/调拨/盘亏/问题管/今日出入库）+ 库位占用 + 最近审计
-- **界面**：高密度暗色数据网格（字号 14px/行高 34px，顶栏可切密/适/宽三档），状态三重编码（字形+中文+颜色），表头点击排序（后端白名单），`⌘K` 命令面板
+- **界面**：石墨指挥台（68px 图标轨 + 命令条，行高 42px、三档密度、钢蓝强调），状态三重编码（字形+中文+颜色），表头排序（后端白名单），确认对话框与 Toast 替代原生弹窗，`⌘K` 命令面板
 - **运维**：`audit verify` / `reconcile` / `seed-standards` 子命令，备份/恢复脚本
+
+## 界面预览
+
+| 仪表盘 | 管子列表 |
+| --- | --- |
+| ![仪表盘](docs/screenshots/dashboard.png) | ![管子列表](docs/screenshots/tubes.png) |
+
+| 管子详情 | 盘点 |
+| --- | --- |
+| ![管子详情](docs/screenshots/tube-detail.png) | ![盘点](docs/screenshots/check-detail.png) |
+
+| 审计链 | 入库 |
+| --- | --- |
+| ![审计链](docs/screenshots/audit.png) | ![入库](docs/screenshots/stock-in.png) |
+
+<p align="center">
+  <img src="docs/screenshots/login.png" alt="登录" width="760">
+</p>
+
+<sub>截图为本地测试数据（A1 库位、3 根演示管），不含生产数据。</sub>
 
 ## 快速开始
 
@@ -82,6 +102,8 @@ web/             Vite + React SPA（nginx 式 SPA 回退由 axum 兜底）
 scripts/ci/      分层断言（依赖图即架构约束）
 deploy/          systemd 单元
 docs/            设计权威、重构参考、规格索引、里程碑记录
+  archive/       旧 Python 栈文档、UI v2 记录、阶段计划（只读历史）
+  screenshots/   README 界面截图
 ```text
 
 分层由 CI 断言，不靠自觉：`crates/api` 直接依赖里出现 `sqlx` 或 `steelpipe-infra` 即失败。
@@ -105,9 +127,11 @@ bash scripts/ci/layering.sh
 | [`docs/2026-11-17-rewrite-reference.md`](docs/2026-11-17-rewrite-reference.md) | 重写方案：选型、架构、里程碑、风险 |
 | [`docs/spec/`](docs/spec/) | 从旧测试提取的行为规格（A–H 域，编号可追溯） |
 | [`docs/milestones/`](docs/milestones/) | M0–M7 交付记录与实测结果 |
-| [`docs/2026-11-17-ui-redesign.md`](docs/2026-11-17-ui-redesign.md) | 前端重设计：GitHub 调研、设计规范、验收 |
+| [`docs/2026-11-17-ui-redesign-v3.md`](docs/2026-11-17-ui-redesign-v3.md) | 前端重设计 v3：石墨指挥台、token、组件与验收 |
+| [`docs/archive/`](docs/archive/) | 归档：旧 Python 栈 AGENTS/CHANGELOG、UI v2 记录、阶段计划 |
 
 ## 历史
 
 本项目由 FastAPI + PyO3 + SQLite + Jinja2 的旧实现重写而来；旧栈代码已移除，
-其行为规格保留在 `docs/spec/`，设计意图保留在设计文档中。
+其行为规格保留在 `docs/spec/`，设计意图保留在设计文档中。旧栈的 AGENTS、CHANGELOG
+与阶段计划归档在 `docs/archive/`，仅作历史参考，不代表当前实现。
