@@ -1,0 +1,23 @@
+//! 审计 action 词表。集中定义，避免各处拼写漂移（链会因 action 不同而分叉）。
+
+pub const LOGIN_LOCKOUT: &str = "login_lockout";
+pub const STOCK_IN: &str = "stock_in";
+pub const STOCK_OUT: &str = "stock_out";
+pub const TRANSFER: &str = "transfer";
+pub const BATCH_STOCK_OUT: &str = "batch_stock_out";
+pub const IMPORT: &str = "import";
+pub const QUALITY_MARK: &str = "quality_mark";
+pub const CREATE_LOCATION: &str = "create_location";
+pub const UPDATE_LOCATION: &str = "update_location";
+pub const DEACTIVATE_LOCATION: &str = "deactivate_location";
+pub const CREATE_STANDARD: &str = "create_standard";
+pub const UPDATE_STANDARD: &str = "update_standard";
+pub const DELETE_STANDARD: &str = "delete_standard";
+pub const CREATE_USER: &str = "create_user";
+pub const UPDATE_USER: &str = "update_user";
+pub const TOGGLE_USER: &str = "toggle_user";
+pub const REVOKE_SESSIONS: &str = "revoke_sessions";
+pub const CHECK_CREATE: &str = "check_create";
+pub const CHECK_CONFIRM: &str = "check_confirm";
+pub const CHECK_RECOVER: &str = "check_recover";
+pub const FORCED_INTAKE: &str = "forced_intake";

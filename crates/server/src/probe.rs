@@ -1,9 +1,9 @@
-//! [`steelpipe_api::DbProbe`] 的 SQLite 实现。
+//! [`steelpipe_api::Probe`] 的 SQLite 实现。
 
 use std::time::Instant;
 
 use async_trait::async_trait;
-use steelpipe_api::DbProbe;
+use steelpipe_api::Probe;
 use steelpipe_infra::{DbPool, InfraError};
 
 pub struct DbPingProbe {
@@ -17,7 +17,7 @@ impl DbPingProbe {
 }
 
 #[async_trait]
-impl DbProbe for DbPingProbe {
+impl Probe for DbPingProbe {
     async fn ping(&self) -> Result<u64, String> {
         let started = Instant::now();
         steelpipe_infra::ping(&self.pool)

@@ -8,6 +8,8 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+steelpipe-domain.workspace = true
+steelpipe-service.workspace = true
 axum.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -15,3 +17,11 @@ utoipa.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
+rand_core.workspace = true
+
+[dev-dependencies]
+steelpipe-auth.workspace = true
+steelpipe-infra.workspace = true
+tokio.workspace = true
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

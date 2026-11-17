@@ -1,0 +1,23 @@
+[package]
+name = "steelpipe-service"
+description = "应用层：登录、刷新、用户与库存用例"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+steelpipe-domain.workspace = true
+steelpipe-auth.workspace = true
+steelpipe-audit.workspace = true
+steelpipe-infra.workspace = true
+chrono.workspace = true
+rand_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]

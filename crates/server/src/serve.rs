@@ -1,4 +1,4 @@
-//! `steelpipe serve`：装配中间件、连接池、路由与优雅退出。
+//! `steelpipe serve`：装配配置、连接池、用例、中间件与优雅退出。
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,6 +10,8 @@ use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
 use steelpipe_api::{AppState, router};
+use steelpipe_auth::Keys;
+use steelpipe_service::{AuthService, UserService, bootstrap};
 
 use crate::config::Config;
 use crate::probe::DbPingProbe;
@@ -17,24 +19,35 @@ use crate::probe::DbPingProbe;
 pub async fn run() -> anyhow::Result<()> {
     let config = Config::from_env()?;
     init_tracing();
+    tracing::debug!(?config, "运行时配置");
 
-    let probe = match config.database_url.as_deref() {
-        Some(url) => {
-            let pool = steelpipe_infra::connect(url, config.max_connections)
-                .await
-                .context("连接数据库失败")?;
-            steelpipe_infra::migrate(&pool)
-                .await
-                .context("应用迁移失败")?;
-            Some(Arc::new(DbPingProbe::new(pool)) as Arc<dyn steelpipe_api::DbProbe>)
-        }
-        None => {
-            tracing::warn!("STEELPIPE_DATABASE_URL 未设置：/api/health/db 将返回 503");
-            None
-        }
-    };
+    let pool = steelpipe_infra::connect(&config.database_url, config.max_connections)
+        .await
+        .context("打开数据库失败")?;
+    steelpipe_infra::migrate(&pool)
+        .await
+        .context("应用迁移失败")?;
 
-    let state = AppState::new(env!("CARGO_PKG_VERSION"), probe);
+    if let Some((username, password)) = &config.admin_seed {
+        match bootstrap::ensure_admin(&pool, username, password).await {
+            Ok(seed) => tracing::info!(?seed, username = %username, "管理员引导完成"),
+            Err(error) => tracing::error!(%error, "管理员引导失败"),
+        }
+    }
+
+    let keys = Keys::from_secret(config.jwt_secret.as_bytes());
+    let auth = Arc::new(AuthService::new(pool.clone(), keys));
+    let users = Arc::new(UserService::new(pool.clone()));
+    let probe: Option<steelpipe_api::DbProbe> = Some(Arc::new(DbPingProbe::new(pool.clone())));
+
+    let state = AppState::new(
+        auth,
+        users,
+        probe,
+        config.cookie_secure,
+        env!("CARGO_PKG_VERSION"),
+    );
+
     let app = router(state)
         .fallback(crate::assets::static_handler)
         .layer(TraceLayer::new_for_http())
@@ -50,17 +63,22 @@ pub async fn run() -> anyhow::Result<()> {
 
     tracing::info!(addr = %config.bind_addr, "SteelPipe 已启动");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .context("HTTP 服务异常退出")
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .context("HTTP 服务异常退出")
 }
 
 fn init_tracing() {
     use tracing_subscriber::EnvFilter;
 
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new("steelpipe_server=info,steelpipe_api=info,tower_http=info")
+        EnvFilter::new(
+            "steelpipe_server=info,steelpipe_api=info,steelpipe_service=info,tower_http=info",
+        )
     });
 
     let _ = tracing_subscriber::fmt()

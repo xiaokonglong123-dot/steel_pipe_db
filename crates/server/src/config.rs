@@ -11,13 +11,15 @@ const MIN_SECRET_LEN: usize = 32;
 #[derive(Clone)]
 pub struct Config {
     pub bind_addr: SocketAddr,
-    pub database_url: Option<String>,
+    pub database_url: String,
     pub jwt_secret: String,
+    pub cookie_secure: bool,
     pub max_connections: u32,
     pub max_body_bytes: usize,
+    pub admin_seed: Option<(String, String)>,
 }
 
-// Debug 手写：jwt_secret 永不进日志。同时让字段有读者，避免 dead_code。
+// Debug 手写：jwt_secret / admin 口令永不进日志。
 impl std::fmt::Debug for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Config")
@@ -27,8 +29,10 @@ impl std::fmt::Debug for Config {
                 "jwt_secret",
                 &format_args!("<redacted, {} bytes>", self.jwt_secret.len()),
             )
+            .field("cookie_secure", &self.cookie_secure)
             .field("max_connections", &self.max_connections)
             .field("max_body_bytes", &self.max_body_bytes)
+            .field("admin_seed", &self.admin_seed.as_ref().map(|(u, _)| u))
             .finish()
     }
 }
@@ -42,7 +46,8 @@ impl Config {
 
         let database_url = env::var("STEELPIPE_DATABASE_URL")
             .ok()
-            .filter(|v| !v.trim().is_empty());
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "sqlite://data/steelpipe.db".to_owned());
 
         let jwt_secret = env::var("STEELPIPE_JWT_SECRET").unwrap_or_default();
         if jwt_secret.is_empty() {
@@ -55,9 +60,14 @@ impl Config {
             );
         }
 
+        let cookie_secure = env::var("STEELPIPE_COOKIE_SECURE")
+            .ok()
+            .map(|value| matches!(value.trim(), "1" | "true" | "yes" | "on"))
+            .unwrap_or(false);
+
         let max_connections = env::var("STEELPIPE_MAX_CONNECTIONS")
             .ok()
-            .map(|v| v.parse::<u32>())
+            .map(|value| value.parse::<u32>())
             .transpose()
             .context("STEELPIPE_MAX_CONNECTIONS 必须是整数")?
             .unwrap_or(10)
@@ -65,17 +75,30 @@ impl Config {
 
         let max_body_bytes = env::var("STEELPIPE_MAX_BODY_BYTES")
             .ok()
-            .map(|v| v.parse::<usize>())
+            .map(|value| value.parse::<usize>())
             .transpose()
             .context("STEELPIPE_MAX_BODY_BYTES 必须是整数")?
             .unwrap_or(20 * 1024 * 1024);
+
+        let admin_username = env::var("STEELPIPE_ADMIN_USERNAME").ok();
+        let admin_password = env::var("STEELPIPE_ADMIN_PASSWORD").ok();
+        let admin_seed = match (admin_username, admin_password) {
+            (Some(username), Some(password))
+                if !username.trim().is_empty() && !password.is_empty() =>
+            {
+                Some((username, password))
+            }
+            _ => None,
+        };
 
         Ok(Self {
             bind_addr,
             database_url,
             jwt_secret,
+            cookie_secure,
             max_connections,
             max_body_bytes,
+            admin_seed,
         })
     }
 }

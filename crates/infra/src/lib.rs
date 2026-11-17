@@ -1,13 +1,20 @@
-//! 持久层：连接池、迁移、事务与（M3 起）审计链写入协议。
+//! 持久层：连接池、迁移、写事务、审计链写入、仓储。
 //!
 //! 数据库为 SQLite（WAL，单写者）。写入串行化沿用设计 §12.1 的
-//! `BEGIN IMMEDIATE` 语义：sqlx 的 [`Pool::begin_with`] 允许显式指定
-//! 事务起始语句，因此不需要"单进程独占"之外的额外机制。
+//! `BEGIN IMMEDIATE` 语义：sqlx 的 `Pool::begin_with` 允许显式指定事务起始
+//! 语句，因此不需要"单进程独占"之外的额外机制。
 //!
 //! 分层约束：本 crate 允许依赖 sqlx/tokio，但不得依赖 axum；
 //! `crates/api` 不得依赖本 crate（见 CI 的分层断言）。
 
 #![forbid(unsafe_code)]
+
+pub mod repo;
+pub mod time;
+pub mod uow;
+
+#[cfg(test)]
+mod test_support;
 
 use std::time::Duration;
 
@@ -15,16 +22,11 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 
 /// 连接池别名：更换驱动时只改这一行，上层不受影响。
 pub type DbPool = sqlx::SqlitePool;
+
 pub use sqlx::migrate::Migrator;
+pub use steelpipe_audit::GENESIS_HASH as AUDIT_GENESIS_HASH;
 
-/// 创世哈希：sha256("AYANAMI_REI_GENESIS")。
-///
-/// 与旧 Python 实现 bit 级一致，否则迁移过来的审计链会断在第一条。
-pub const AUDIT_GENESIS_HASH: &str =
-    "2e3874e8f41f106cc35d41312497bf350acebadc6ab2ebf6728631a9c180cd40";
-
-/// 审计链写入的事务起始语句。等价于旧实现的 `BEGIN IMMEDIATE`：
-/// 取写锁再读链尾，杜绝两个写者拿到同一个 tip。
+/// 审计链写入的事务起始语句（等价旧实现的 `BEGIN IMMEDIATE`）。
 pub const WRITE_TXN_BEGIN: &str = "BEGIN IMMEDIATE";
 
 /// 编译期嵌入的迁移集（`crates/infra/migrations`）。
@@ -38,6 +40,26 @@ pub enum InfraError {
     Url(String),
     #[error("迁移失败：{0}")]
     Migrate(#[from] sqlx::migrate::MigrateError),
+    #[error("{0}不存在")]
+    NotFound(&'static str),
+    #[error("{0}已存在")]
+    Conflict(&'static str),
+    #[error("{0}")]
+    Other(String),
+}
+
+impl InfraError {
+    /// 唯一约束冲突映射为 [\`InfraError::Conflict\`]，其余原样包装。
+    pub fn from_unique(error: sqlx::Error, what: &'static str) -> Self {
+        if error
+            .as_database_error()
+            .is_some_and(|db_error| db_error.is_unique_violation())
+        {
+            Self::Conflict(what)
+        } else {
+            Self::Connect(error)
+        }
+    }
 }
 
 /// 打开（必要时创建）数据库并建立连接池。
@@ -81,15 +103,8 @@ pub async fn ping(pool: &DbPool) -> Result<(), sqlx::Error> {
 
 #[cfg(test)]
 mod tests {
+    use super::test_support::temp_pool;
     use super::*;
-
-    fn temp_db_path(tag: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("系统时钟早于 1970")
-            .as_nanos();
-        std::env::temp_dir().join(format!("steelpipe-{tag}-{nanos}.db"))
-    }
 
     /// 创世哈希常量必须与参考实现一致。
     #[test]
@@ -100,14 +115,10 @@ mod tests {
         assert_eq!(format!("{:x}", hasher.finalize()), AUDIT_GENESIS_HASH);
     }
 
-    /// 迁移可执行，且链尾表恰好一行、初值等于创世哈希。
+    /// 全部迁移可执行；链尾初值等于创世哈希；11 张业务表齐全。
     #[tokio::test]
-    async fn migrations_apply_and_seed_chain_tip() {
-        let path = temp_db_path("migrate");
-        let url = format!("sqlite://{}", path.display());
-
-        let pool = connect(&url, 4).await.expect("打开数据库失败");
-        migrate(&pool).await.expect("迁移失败");
+    async fn migrations_apply_and_seed_schema() {
+        let (pool, path) = temp_pool("migrate").await;
 
         let (seq, hash): (i64, String) =
             sqlx::query_as("SELECT last_seq, last_hash FROM audit_chain_tip")
@@ -136,6 +147,30 @@ mod tests {
             .await
             .expect("读取 busy_timeout 失败");
         assert_eq!(busy_timeout, 5000);
+
+        let mut tables: Vec<String> =
+            sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '\\_sqlx%' ESCAPE '\\' ORDER BY name")
+                .fetch_all(&pool)
+                .await
+                .expect("读取表清单失败");
+        tables.retain(|t| t != "_sqlx_migrations");
+
+        let expected = [
+            "audit_chain_tip",
+            "audit_logs",
+            "check_items",
+            "check_sessions",
+            "locations",
+            "login_attempts",
+            "screen_pipe_specs",
+            "seamless_pipe_specs",
+            "standard_specs",
+            "transaction_items",
+            "transactions",
+            "tubes",
+            "users",
+        ];
+        assert_eq!(tables, expected);
 
         pool.close().await;
         let _ = std::fs::remove_file(&path);

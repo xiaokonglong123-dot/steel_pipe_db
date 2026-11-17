@@ -28,7 +28,7 @@
 
 | 文件 | 条目 | 已提取 | 已实现 |
 | --- | --- | --- | --- |
-| [`A-auth.md`](A-auth.md) | A1–A18 | 18 | 6（A16–A18 及 argon2 参数由 `crates/auth` 覆盖） |
+| [`A-auth.md`](A-auth.md) | A1–A24 | 24 | 23（仅 A13 待前端，M6） |
 | `B-authz.md` | B1–B10 | 待提取 | 0 |
 | `C-users.md` | C1–C9 | 待提取 | 0 |
 | `D-inventory.md` | D1–D16 | 待提取 | 0 |

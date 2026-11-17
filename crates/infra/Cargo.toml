@@ -1,6 +1,6 @@
 [package]
 name = "steelpipe-infra"
-description = "持久层：连接池、迁移、事务与审计链写入协议"
+description = "持久层：连接池、迁移、事务、审计链写入、仓储"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,10 +8,15 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+steelpipe-audit.workspace = true
+steelpipe-domain.workspace = true
 sqlx.workspace = true
+chrono.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tokio.workspace = true
+serde.workspace = true
 
 [dev-dependencies]
 sha2.workspace = true
+serde_json.workspace = true

@@ -42,14 +42,17 @@ jsonwebtoken = "9"
 sha2 = "0.10"
 rand_core = { version = "0.6", features = ["getrandom"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
 
 # OpenAPI
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 # 内部 crate
 steelpipe-api = { path = "crates/api" }
+steelpipe-audit = { path = "crates/audit" }
 steelpipe-auth = { path = "crates/auth" }
 steelpipe-domain = { path = "crates/domain" }
 steelpipe-infra = { path = "crates/infra" }
+steelpipe-service = { path = "crates/service" }
 
 [profile.release]
 lto = "thin"
