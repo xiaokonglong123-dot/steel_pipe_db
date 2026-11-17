@@ -29,7 +29,7 @@
 
 **密度刻度**（`styles.css` 顶部变量）
 
-```
+```text
 --row-h: 28px     表格行高
 --ctrl-h: 26px    输入/按钮
 --r: 2px          圆角
@@ -94,7 +94,7 @@ clippy -D warnings                  零告警
 ## 6. 后续可做（未实现，按需）
 
 1. 表格列排序（TanStack Table 或手写 comparator）
-2 . 行密度切换（紧凑 24px / 舒适 32px）
+2. 行密度切换（紧凑 24px / 舒适 32px）
 3. 盘点页也用 split 布局（当前为纵向流）
 4. 审计页虚拟滚动（> 10k 行时）
 5. 深色/浅色主题切换（token 已分层，加 `[data-theme=light]` 即可）
