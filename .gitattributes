@@ -1,0 +1,6 @@
+* text=auto eol=lf
+
+# GitHub 语言统计：文档与截图不计入代码占比
+docs/** linguist-documentation
+docs/screenshots/** binary
+*.png binary
