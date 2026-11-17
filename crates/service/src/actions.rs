@@ -21,3 +21,4 @@ pub const CHECK_CREATE: &str = "check_create";
 pub const CHECK_CONFIRM: &str = "check_confirm";
 pub const CHECK_RECOVER: &str = "check_recover";
 pub const FORCED_INTAKE: &str = "forced_intake";
+pub const DELETE_TUBE: &str = "delete_tube";

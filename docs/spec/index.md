@@ -31,9 +31,9 @@
 | [`A-auth.md`](A-auth.md) | A1–A24 | 24 | 23（仅 A13 待前端，M6） |
 | `B-authz.md` | B1–B10 | 待提取 | 0 |
 | `C-users.md` | C1–C9 | 待提取 | 0 |
-| `D-inventory.md` | D1–D16 | 待提取 | 0 |
-| `E-compliance.md` | E1–E6 | 待提取 | 0 |
-| `F-audit.md` | F1–F10 | 待提取 | 0 |
+| [`D-inventory.md`](D-inventory.md) | D1–D16 | 16 | 16（M3） |
+| [`E-compliance.md`](E-compliance.md) | E1–E8 | 8 | 8（M2/M3） |
+| [`F-audit.md`](F-audit.md) | F1–F11 | 11 | 9（F10/F11 待 M5） |
 | `G-check.md` | G1–G8 | 待提取 | 0 |
 | `H-import.md` | H1–H7 | 待提取 | 0 |
 | `I-quality.md` | I1–I5 | 待提取 | 0 |

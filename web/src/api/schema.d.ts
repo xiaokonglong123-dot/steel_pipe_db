@@ -123,6 +123,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 库位列表 */
+        get: operations["list_locations"];
+        put?: never;
+        /** 新建库位（admin） */
+        post: operations["create_location"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/locations/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 改名/改容量（admin） */
+        post: operations["update_location"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/locations/{code}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 停用/启用库位（admin） */
+        post: operations["set_location_active"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/openapi.json": {
         parameters: {
             query?: never;
@@ -134,6 +186,179 @@ export interface paths {
         get: operations["openapi_json"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/standards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 标准规格列表 */
+        get: operations["list_standards"];
+        put?: never;
+        /** 新建标准规格（admin） */
+        post: operations["create_standard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/standards/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 修改标准规格（admin） */
+        put: operations["update_standard"];
+        post?: never;
+        /** 删除标准规格（admin，硬删+审计快照） */
+        delete: operations["delete_standard"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tubes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 管子列表（登录可见） */
+        get: operations["list_tubes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tubes/stock-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 入库（operator+，强制需 admin） */
+        post: operations["stock_in"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tubes/stock-out/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批量出库（单事务原子） */
+        post: operations["batch_stock_out"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tubes/{pipe_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 管子详情（含扩展参数与流转历史） */
+        get: operations["tube_detail"];
+        put?: never;
+        post?: never;
+        /** 软删管子（admin） */
+        delete: operations["soft_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tubes/{pipe_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 管子流转历史 */
+        get: operations["tube_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tubes/{pipe_id}/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 质量标注（operator+） */
+        post: operations["set_quality"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tubes/{pipe_id}/stock-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 单根出库（operator+，问题管需 admin） */
+        post: operations["stock_out"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tubes/{pipe_id}/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 调拨（单根） */
+        post: operations["transfer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -213,6 +438,26 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        BatchStockOutRequest: {
+            pipe_ids: string[];
+            remark?: string | null;
+        };
+        BatchStockOutResponse: {
+            pipe_ids: string[];
+            /** Format: int64 */
+            transaction_id: number;
+        };
+        ComplianceCheckDto: {
+            check_name: string;
+            passed: boolean;
+            reason?: string | null;
+        };
+        CreateLocationRequest: {
+            /** Format: int64 */
+            capacity?: number | null;
+            code: string;
+            name?: string | null;
+        };
         CreateUserRequest: {
             display_name: string;
             password: string;
@@ -244,6 +489,17 @@ export interface components {
             /** @description 构建版本。 */
             version: string;
         };
+        HistoryEntryDto: {
+            created_at: string;
+            kind: string;
+            /** Format: int64 */
+            operator_id: number;
+            remark?: string | null;
+            source_location?: string | null;
+            target_location?: string | null;
+            /** Format: int64 */
+            transaction_id: number;
+        };
         IdentityDto: {
             display_name: string;
             role: string;
@@ -252,6 +508,19 @@ export interface components {
             /** Format: int64 */
             user_id: number;
             username: string;
+        };
+        LocationDto: {
+            /** Format: int64 */
+            capacity?: number | null;
+            code: string;
+            is_active: boolean;
+            name?: string | null;
+            /** Format: int64 */
+            used_count: number;
+        };
+        LocationListResponse: {
+            locations: components["schemas"]["LocationDto"][];
+            total: number;
         };
         LoginRequest: {
             password: string;
@@ -280,15 +549,175 @@ export interface components {
             /** @description 稳定的问题类型 URI，客户端据此分支。 */
             type: string;
         };
+        QualityRequest: {
+            note?: string | null;
+            quality_mark: string;
+        };
         RevokeResponse: {
             /** Format: int64 */
             token_version: number;
         };
+        ScreenInput: {
+            base_pipe_grade?: string | null;
+            /** Format: double */
+            filtration_rating_um: number;
+            screen_type?: string | null;
+            /** Format: double */
+            slot_density?: number | null;
+            slot_pattern?: string | null;
+            /** Format: double */
+            slot_width_mm: number;
+        };
+        ScreenSpecDto: {
+            base_pipe_grade?: string | null;
+            /** Format: double */
+            filtration_rating_um?: number | null;
+            screen_type?: string | null;
+            /** Format: double */
+            slot_density?: number | null;
+            slot_pattern?: string | null;
+            /** Format: double */
+            slot_width_mm?: number | null;
+        };
+        SeamlessInput: {
+            end_protector?: string | null;
+            surface_treatment?: string | null;
+        };
+        SeamlessSpecDto: {
+            end_protector?: string | null;
+            surface_treatment?: string | null;
+        };
         SetActiveRequest: {
+            active: boolean;
+        };
+        SetLocationActiveRequest: {
             active: boolean;
         };
         SetPasswordRequest: {
             password: string;
+        };
+        StandardDto: {
+            grade: string;
+            /** Format: int64 */
+            id: number;
+            /** Format: double */
+            length_tolerance_mm?: number | null;
+            /** Format: double */
+            max_wall_thickness_mm?: number | null;
+            /** Format: double */
+            min_wall_thickness_mm?: number | null;
+            /** Format: double */
+            outer_diameter_mm?: number | null;
+            source?: string | null;
+        };
+        StandardListResponse: {
+            standards: components["schemas"]["StandardDto"][];
+            total: number;
+        };
+        StandardRequest: {
+            grade: string;
+            /** Format: double */
+            length_tolerance_mm?: number | null;
+            /** Format: double */
+            max_wall_thickness_mm?: number | null;
+            /** Format: double */
+            min_wall_thickness_mm?: number | null;
+            /** Format: double */
+            outer_diameter_mm?: number | null;
+            source?: string | null;
+        };
+        StockInRequest: {
+            api_5ct_cert?: string | null;
+            batch_no?: string | null;
+            /** @description 合规未通过时的强制入库（需 admin，写 forced_intake 审计） */
+            force?: boolean;
+            heat_no?: string | null;
+            heat_treat_method?: string | null;
+            /** Format: double */
+            length_m: number;
+            location: string;
+            manufacturer: string;
+            /** Format: double */
+            outer_diameter_mm: number;
+            pipe_id: string;
+            pipe_type: string;
+            quality_mark: string;
+            quality_note?: string | null;
+            screen?: null | components["schemas"]["ScreenInput"];
+            seamless?: null | components["schemas"]["SeamlessInput"];
+            steel_grade: string;
+            thread_type?: string | null;
+            /** Format: double */
+            wall_thickness_mm: number;
+        };
+        StockInResponse: {
+            compliance_pass: boolean;
+            forced: boolean;
+            location: string;
+            pipe_id: string;
+        };
+        StockOutRequest: {
+            remark?: string | null;
+        };
+        StockOutResponse: {
+            location?: string | null;
+            pipe_id: string;
+        };
+        TransferRequest: {
+            remark?: string | null;
+            target_location: string;
+        };
+        TransferResponse: {
+            from?: string | null;
+            pipe_id: string;
+            to: string;
+        };
+        TubeDetailResponse: {
+            history: components["schemas"]["HistoryEntryDto"][];
+            screen?: null | components["schemas"]["ScreenSpecDto"];
+            seamless?: null | components["schemas"]["SeamlessSpecDto"];
+            tube: components["schemas"]["TubeDto"];
+        };
+        TubeDto: {
+            api_5ct_cert?: string | null;
+            batch_no?: string | null;
+            compliance_pass?: boolean | null;
+            created_at: string;
+            deleted: boolean;
+            heat_no?: string | null;
+            heat_treat_method?: string | null;
+            /** Format: double */
+            length_m: number;
+            location?: string | null;
+            manufacturer: string;
+            /** Format: double */
+            outer_diameter_mm: number;
+            pipe_id: string;
+            pipe_type: string;
+            quality_mark: string;
+            quality_note?: string | null;
+            status: string;
+            steel_grade: string;
+            stock_in_time?: string | null;
+            stock_out_time?: string | null;
+            thread_type?: string | null;
+            updated_at: string;
+            /** Format: double */
+            wall_thickness_mm: number;
+        };
+        TubeListResponse: {
+            /** Format: int64 */
+            page: number;
+            /** Format: int64 */
+            page_size: number;
+            /** Format: int64 */
+            total: number;
+            tubes: components["schemas"]["TubeDto"][];
+        };
+        UpdateLocationRequest: {
+            /** Format: int64 */
+            capacity?: number | null;
+            name?: string | null;
         };
         UserDto: {
             active: boolean;
@@ -521,6 +950,122 @@ export interface operations {
             };
         };
     };
+    list_locations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationListResponse"];
+                };
+            };
+        };
+    };
+    create_location: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLocationRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    update_location: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLocationRequest"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    set_location_active: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetLocationActiveRequest"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     openapi_json: {
         parameters: {
             query?: never;
@@ -536,6 +1081,428 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_standards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandardListResponse"];
+                };
+            };
+        };
+    };
+    create_standard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StandardRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandardDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    update_standard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StandardRequest"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_standard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_tubes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description in_stock / in_transfer / out_stock */
+                status: string | null;
+                location: string | null;
+                steel_grade: string | null;
+                /** @description normal / problematic / scrapped */
+                quality_mark: string | null;
+                /** @description 是否包含已软删（默认 false） */
+                include_deleted: boolean | null;
+                page: number | null;
+                page_size: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TubeListResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    stock_in: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockInRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockInResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    batch_stock_out: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchStockOutRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchStockOutResponse"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    tube_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TubeDetailResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    soft_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    tube_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryEntryDto"][];
+                };
+            };
+        };
+    };
+    set_quality: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QualityRequest"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    stock_out: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockOutRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockOutResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    transfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };

@@ -333,6 +333,51 @@ pub async fn soft_delete(
 }
 
 /// 交接单历史（详情页用）。
+
+#[derive(Debug, Clone, FromRow)]
+pub struct SeamlessSpecRow {
+    pub surface_treatment: Option<String>,
+    pub end_protector: Option<String>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct ScreenSpecRow {
+    pub screen_type: Option<String>,
+    pub slot_width_mm: Option<f64>,
+    pub slot_density: Option<f64>,
+    pub filtration_rating_um: Option<f64>,
+    pub base_pipe_grade: Option<String>,
+    pub slot_pattern: Option<String>,
+}
+
+pub async fn seamless_spec(
+    pool: &DbPool,
+    pipe_id: &str,
+) -> Result<Option<SeamlessSpecRow>, InfraError> {
+    sqlx::query_as(
+        "SELECT surface_treatment, end_protector FROM seamless_pipe_specs WHERE pipe_id = ?",
+    )
+    .bind(pipe_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(InfraError::Connect)
+}
+
+pub async fn screen_spec(
+    pool: &DbPool,
+    pipe_id: &str,
+) -> Result<Option<ScreenSpecRow>, InfraError> {
+    sqlx::query_as(
+        "SELECT screen_type, slot_width_mm, slot_density, filtration_rating_um,
+                base_pipe_grade, slot_pattern
+         FROM screen_pipe_specs WHERE pipe_id = ?",
+    )
+    .bind(pipe_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(InfraError::Connect)
+}
+
 #[derive(Debug, Clone, FromRow)]
 pub struct TubeHistoryRow {
     pub transaction_id: i64,

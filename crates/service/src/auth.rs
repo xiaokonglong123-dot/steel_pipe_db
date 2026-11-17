@@ -103,6 +103,10 @@ impl AuthService {
         &self.keys
     }
 
+    pub fn pool(&self) -> &DbPool {
+        &self.pool
+    }
+
     fn issue_session(
         &self,
         user_id: i64,

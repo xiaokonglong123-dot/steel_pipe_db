@@ -37,6 +37,10 @@ pub enum ApiError {
     Conflict(&'static str),
     #[error("尝试过于频繁")]
     TooManyRequests { retry_after_secs: i64 },
+    #[error("{0}")]
+    Unprocessable(String),
+    #[error("{0}")]
+    StateConflict(String),
     #[error(transparent)]
     Internal(#[from] anyhow_lite::BoxedError),
 }
@@ -64,6 +68,8 @@ impl ApiError {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
+            Self::Unprocessable(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::StateConflict(_) => StatusCode::CONFLICT,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -77,6 +83,8 @@ impl ApiError {
             Self::NotFound(_) => "not-found",
             Self::Conflict(_) => "conflict",
             Self::TooManyRequests { .. } => "too-many-requests",
+            Self::Unprocessable(_) => "unprocessable",
+            Self::StateConflict(_) => "state-conflict",
             Self::Internal(_) => "internal-error",
         }
     }
@@ -108,6 +116,53 @@ impl From<crate::error::InfraError> for ApiError {
             crate::error::InfraError::NotFound(what) => Self::NotFound(what),
             crate::error::InfraError::Conflict(what) => Self::Conflict(what),
             other => Self::Internal(Box::new(other)),
+        }
+    }
+}
+
+impl From<steelpipe_service::InventoryError> for ApiError {
+    fn from(error: steelpipe_service::InventoryError) -> Self {
+        use steelpipe_service::InventoryError as E;
+        match error {
+            E::ComplianceRejected(checks) => {
+                let detail = checks
+                    .iter()
+                    .filter(|check| !check.passed)
+                    .map(|check| {
+                        format!(
+                            "{}: {}",
+                            check.check_name,
+                            check.reason.clone().unwrap_or_else(|| "未通过".into())
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                Self::Unprocessable(format!("API 5CT 合规校验未通过 —— {detail}"))
+            }
+            E::NoStandardSpec(grade) => {
+                Self::Unprocessable(format!("没有钢级 {grade} 的标准规格，无法校验合规"))
+            }
+            E::ForceRequiresAdmin => Self::Forbidden,
+            E::EmptyBatch => Self::Invalid("批量出库列表为空".into()),
+            E::SameLocation => Self::Invalid("源库位与目标库位相同".into()),
+            E::LocationNotFound(code) => Self::Invalid(format!("库位 {code} 不存在")),
+            E::LocationInactive(code) => Self::Invalid(format!("库位 {code} 已停用")),
+            E::TubeNotFound(pipe_id) => Self::Invalid(format!("管子 {pipe_id} 不存在或已删除")),
+            E::Conflict(message) => Self::StateConflict(message),
+            E::Domain(domain) => Self::StateConflict(domain.to_string()),
+            E::Infra(infra) => Self::from(infra),
+        }
+    }
+}
+
+impl From<steelpipe_service::CatalogError> for ApiError {
+    fn from(error: steelpipe_service::CatalogError) -> Self {
+        use steelpipe_service::CatalogError as E;
+        match error {
+            E::NotFound(what) => Self::NotFound(what),
+            E::Conflict(what) => Self::Conflict(what),
+            E::Invalid(message) => Self::Invalid(message),
+            E::Infra(infra) => Self::from(infra),
         }
     }
 }
@@ -176,6 +231,25 @@ pub struct ApiReject(Box<Response>);
 impl ApiReject {
     pub fn into_response(self) -> Response {
         *self.0
+    }
+}
+
+impl From<ApiError> for ApiReject {
+    /// 没有请求头上下文时退化为 JSON 响应（浏览器导航的 302 由 handler 显式调用 `fail`）。
+    fn from(error: ApiError) -> Self {
+        ApiReject(Box::new(error.render(&HeaderMap::new())))
+    }
+}
+
+impl From<steelpipe_service::CatalogError> for ApiReject {
+    fn from(error: steelpipe_service::CatalogError) -> Self {
+        ApiError::from(error).into()
+    }
+}
+
+impl From<steelpipe_service::InventoryError> for ApiReject {
+    fn from(error: steelpipe_service::InventoryError) -> Self {
+        ApiError::from(error).into()
     }
 }
 

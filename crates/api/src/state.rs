@@ -5,6 +5,9 @@ use std::time::Instant;
 
 use steelpipe_service::{AuthService, UserService};
 
+/// 连接池类型经 service 重新导出，api 不直接依赖 sqlx。
+pub use steelpipe_service::DbPool;
+
 /// 数据库探针：API 层只关心“能不能用”，不关心驱动。
 #[async_trait::async_trait]
 pub trait Probe: Send + Sync {
@@ -19,6 +22,7 @@ pub struct AppState {
     pub(crate) users: Arc<UserService>,
     pub(crate) probe: Option<DbProbe>,
     pub(crate) cookie_secure: bool,
+    pub(crate) pool: DbPool,
     version: &'static str,
     commit: &'static str,
     started_at: Instant,
@@ -32,15 +36,22 @@ impl AppState {
         cookie_secure: bool,
         version: &'static str,
     ) -> Self {
+        let pool = auth.pool().clone();
         Self {
             auth,
             users,
             probe,
             cookie_secure,
+            pool,
             version,
             commit: option_env!("STEELPIPE_GIT_SHA").unwrap_or("unknown"),
             started_at: Instant::now(),
         }
+    }
+
+    /// 路由用它构造领域服务；api 不直接接触 sqlx 类型。
+    pub fn pool(&self) -> &DbPool {
+        &self.pool
     }
 
     pub(crate) fn version(&self) -> &'static str {

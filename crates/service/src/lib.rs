@@ -7,8 +7,15 @@
 pub mod actions;
 pub mod auth;
 pub mod bootstrap;
+pub mod catalog;
+pub mod inventory;
 pub mod users;
 
 pub use auth::{AuthService, AuthServiceError, Identity, LimitScope, LoginSuccess, Session};
-pub use steelpipe_infra::InfraError;
+pub use catalog::{CatalogError, CatalogService, LocationView, StandardInput, StandardView};
+pub use inventory::{
+    HistoryView, InventoryError, InventoryService, ScreenSpecView, SeamlessSpecView, StockInInput,
+    TubeDetailView, TubePage, TubeQuery, TubeView,
+};
+pub use steelpipe_infra::{DbPool, InfraError};
 pub use users::{NewUser, UserError, UserService, UserView};
