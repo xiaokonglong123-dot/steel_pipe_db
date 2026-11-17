@@ -236,6 +236,14 @@ impl From<steelpipe_service::OpsError> for ApiError {
     }
 }
 
+impl From<steelpipe_service::StatsError> for ApiError {
+    fn from(error: steelpipe_service::StatsError) -> Self {
+        match error {
+            steelpipe_service::StatsError::Infra(infra) => Self::from(infra),
+        }
+    }
+}
+
 impl From<UserError> for ApiError {
     fn from(error: UserError) -> Self {
         match error {
@@ -336,6 +344,12 @@ impl From<steelpipe_service::ImportError> for ApiReject {
 
 impl From<steelpipe_service::OpsError> for ApiReject {
     fn from(error: steelpipe_service::OpsError) -> Self {
+        ApiError::from(error).into()
+    }
+}
+
+impl From<steelpipe_service::StatsError> for ApiReject {
+    fn from(error: steelpipe_service::StatsError) -> Self {
         ApiError::from(error).into()
     }
 }

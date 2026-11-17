@@ -52,6 +52,20 @@ pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<AuditRow>, Infr
     .map_err(InfraError::Connect)
 }
 
+/// 最近 n 条（倒序取，再翻成升序，便于表格展示）。
+pub async fn last_n(pool: &DbPool, n: i64) -> Result<Vec<AuditRow>, InfraError> {
+    let mut rows: Vec<AuditRow> = sqlx::query_as(
+        "SELECT id, user_id, action, detail, prev_hash, current_hash, ts
+         FROM audit_logs ORDER BY id DESC LIMIT ?",
+    )
+    .bind(n.clamp(1, 200))
+    .fetch_all(pool)
+    .await
+    .map_err(InfraError::Connect)?;
+    rows.reverse();
+    Ok(rows)
+}
+
 pub async fn count(pool: &DbPool) -> Result<i64, InfraError> {
     sqlx::query_scalar("SELECT count(*) FROM audit_logs")
         .fetch_one(pool)
@@ -83,6 +97,14 @@ pub async fn page_filtered(
     query
         .bind(limit)
         .fetch_all(pool)
+        .await
+        .map_err(InfraError::Connect)
+}
+
+/// 链尾（seq, hash）。
+pub async fn chain_tip(pool: &DbPool) -> Result<(i64, String), InfraError> {
+    sqlx::query_as("SELECT last_seq, last_hash FROM audit_chain_tip WHERE id = 1")
+        .fetch_one(pool)
         .await
         .map_err(InfraError::Connect)
 }

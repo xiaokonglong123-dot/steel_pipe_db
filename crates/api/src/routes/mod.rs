@@ -7,6 +7,7 @@ pub mod auth;
 pub mod catalog;
 pub mod checks;
 pub mod meta;
+pub mod stats;
 pub mod tubes;
 pub mod users;
 
@@ -32,6 +33,7 @@ pub fn router() -> Router<AppState> {
         .merge(tubes::router())
         .merge(catalog::router())
         .merge(checks::router())
+        .merge(stats::router())
 }
 
 /// 统一失败出口：带上请求头，让 401 能按 Accept 分流成登录页跳转（A11）。
@@ -59,7 +61,7 @@ pub(crate) fn fail(error: impl Into<ApiError>, headers: &HeaderMap) -> ApiReject
         catalog::update_standard, catalog::delete_standard,
         checks::list_checks, checks::create_check, checks::check_detail, checks::mark_item,
         checks::add_surplus, checks::remove_item, checks::confirm, checks::cancel, checks::recover,
-        audit::list_audit, audit::verify_chain
+        audit::list_audit, audit::verify_chain, stats::dashboard
     ),
     components(schemas(
         crate::ProblemDetails,
@@ -80,7 +82,9 @@ pub(crate) fn fail(error: impl Into<ApiError>, headers: &HeaderMap) -> ApiReject
         checks::ExpectedTubeDto, checks::CheckListResponse, checks::CreateCheckRequest,
         checks::MarkItemRequest, checks::ConfirmResponse,
         audit::AuditQuery, audit::AuditEntryDto, audit::AuditListResponse,
-        audit::VerifyRequest, audit::VerifyResponse
+        audit::VerifyRequest, audit::VerifyResponse,
+        stats::DashboardDto, stats::TubeCountsDto, stats::LocationStatsDto,
+        stats::TodayStatsDto, stats::AuditBriefDto, stats::AuditStatsDto
     ))
 )]
 pub struct ApiDoc;

@@ -5,6 +5,7 @@ pub mod checks;
 pub mod locations;
 pub mod login;
 pub mod standards;
+pub mod stats;
 pub mod transactions;
 pub mod tubes;
 pub mod users;

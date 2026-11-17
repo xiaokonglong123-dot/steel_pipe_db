@@ -12,6 +12,7 @@ pub mod checks;
 pub mod import;
 pub mod inventory;
 pub mod ops;
+pub mod stats;
 pub mod users;
 
 pub use auth::{AuthService, AuthServiceError, Identity, LimitScope, LoginSuccess, Session};
@@ -25,5 +26,6 @@ pub use inventory::{
 pub use ops::{
     AuditEntryView, AuditPageView, DriftFix, OpsError, OpsService, SeedSummary, VerifySummary,
 };
+pub use stats::{DashboardView, StatsError, StatsService};
 pub use steelpipe_infra::{DbPool, InfraError};
 pub use users::{NewUser, UserError, UserService, UserView};

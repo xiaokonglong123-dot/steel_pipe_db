@@ -1,9 +1,12 @@
-import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
-import { Loader, ROLE_LABEL } from './components/ui'
+import { CommandPalette, SideNav, Topbar, useStats } from './components/shell'
+import { Loader } from './components/ui'
 import AuditPage from './pages/AuditPage'
 import CheckDetailPage from './pages/CheckDetailPage'
 import ChecksPage from './pages/ChecksPage'
+import DashboardPage from './pages/DashboardPage'
 import ImportPage from './pages/ImportPage'
 import LocationsPage from './pages/LocationsPage'
 import LoginPage from './pages/LoginPage'
@@ -14,20 +17,35 @@ import TubesPage from './pages/TubesPage'
 import UsersPage from './pages/UsersPage'
 import { useSession } from './session'
 
-const NAV = [
-  { to: '/tubes', label: '管子' },
-  { to: '/stock-in', label: '入库', write: true },
-  { to: '/import', label: '导入', write: true },
-  { to: '/locations', label: '库位' },
-  { to: '/standards', label: '标准' },
-  { to: '/checks', label: '盘点' },
-  { to: '/users', label: '用户', admin: true },
-  { to: '/audit', label: '审计', admin: true },
-]
+function isTyping(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
+}
 
 export default function App() {
-  const { user, loading, isAdmin, canWrite, logout } = useSession()
+  const { user, loading, isAdmin, canWrite } = useSession()
   const location = useLocation()
+  const stats = useStats()
+  const [commandOpen, setCommandOpen] = useState(false)
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandOpen((open) => !open)
+        return
+      }
+      if (event.key === '/' && !isTyping(event.target)) {
+        event.preventDefault()
+        setCommandOpen(true)
+        return
+      }
+      if (event.key === 'Escape') setCommandOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   if (loading) return <Loader label="读取会话…" />
 
@@ -42,44 +60,28 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <span className="brand">SteelPipe</span>
-        <nav className="nav">
-          {NAV.filter((item) => (!item.admin || isAdmin) && (!item.write || canWrite)).map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => (isActive ? 'nav-item is-active' : 'nav-item')}
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <span className="topbar-user">
-          {user.display_name} · {ROLE_LABEL(user.role)}
-          <button className="btn btn-ghost btn-sm" onClick={() => void logout()}>
-            退出
-          </button>
-        </span>
-      </header>
-
-      <main className="page">
-        <Routes>
-          <Route path="/" element={<Navigate to="/tubes" replace />} />
-          <Route path="/login" element={<Navigate to="/tubes" replace />} />
-          <Route path="/tubes" element={<TubesPage />} />
-          <Route path="/tubes/:pipeId" element={<TubeDetailPage />} />
-          <Route path="/stock-in" element={canWrite ? <StockInPage /> : <Navigate to="/tubes" replace />} />
-          <Route path="/import" element={canWrite ? <ImportPage /> : <Navigate to="/tubes" replace />} />
-          <Route path="/locations" element={<LocationsPage />} />
-          <Route path="/standards" element={<StandardsPage />} />
-          <Route path="/checks" element={<ChecksPage />} />
-          <Route path="/checks/:id" element={<CheckDetailPage />} />
-          <Route path="/users" element={isAdmin ? <UsersPage /> : <Navigate to="/tubes" replace />} />
-          <Route path="/audit" element={isAdmin ? <AuditPage /> : <Navigate to="/tubes" replace />} />
-          <Route path="*" element={<Navigate to="/tubes" replace />} />
-        </Routes>
-      </main>
+      <Topbar onCommand={() => setCommandOpen(true)} />
+      <div className="shell-body">
+        <SideNav stats={stats} onCommand={() => setCommandOpen(true)} />
+        <main className="page">
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="/tubes" element={<TubesPage />} />
+            <Route path="/tubes/:pipeId" element={<TubeDetailPage />} />
+            <Route path="/stock-in" element={canWrite ? <StockInPage /> : <Navigate to="/tubes" replace />} />
+            <Route path="/import" element={canWrite ? <ImportPage /> : <Navigate to="/tubes" replace />} />
+            <Route path="/locations" element={<LocationsPage />} />
+            <Route path="/standards" element={<StandardsPage />} />
+            <Route path="/checks" element={<ChecksPage />} />
+            <Route path="/checks/:id" element={<CheckDetailPage />} />
+            <Route path="/users" element={isAdmin ? <UsersPage /> : <Navigate to="/tubes" replace />} />
+            <Route path="/audit" element={isAdmin ? <AuditPage /> : <Navigate to="/tubes" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
+      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} />
     </div>
   )
 }

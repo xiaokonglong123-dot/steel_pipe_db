@@ -382,6 +382,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 仪表盘聚合（登录可见） */
+        get: operations["dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tubes": {
         parameters: {
             query?: never;
@@ -626,6 +643,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AuditBriefDto: {
+            action: string;
+            /** Format: int64 */
+            id: number;
+            ts: string;
+            /** Format: int64 */
+            user_id?: number | null;
+        };
         AuditEntryDto: {
             action: string;
             current_hash: string;
@@ -650,6 +675,13 @@ export interface components {
             after_id?: number | null;
             /** Format: int64 */
             limit?: number | null;
+        };
+        AuditStatsDto: {
+            /** Format: int64 */
+            entries: number;
+            /** Format: int64 */
+            seq: number;
+            tip: string;
         };
         BatchStockOutRequest: {
             pipe_ids: string[];
@@ -728,6 +760,13 @@ export interface components {
         CsrfResponse: {
             csrf_token: string;
         };
+        DashboardDto: {
+            audit: components["schemas"]["AuditStatsDto"];
+            locations: components["schemas"]["LocationStatsDto"];
+            recent_audit: components["schemas"]["AuditBriefDto"][];
+            today: components["schemas"]["TodayStatsDto"];
+            tubes: components["schemas"]["TubeCountsDto"];
+        };
         DbHealth: {
             /**
              * Format: int64
@@ -803,6 +842,16 @@ export interface components {
         LocationListResponse: {
             locations: components["schemas"]["LocationDto"][];
             total: number;
+        };
+        LocationStatsDto: {
+            /** Format: int64 */
+            active: number;
+            /** Format: int64 */
+            capacity: number;
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            used: number;
         };
         LoginRequest: {
             password: string;
@@ -950,6 +999,16 @@ export interface components {
             location?: string | null;
             pipe_id: string;
         };
+        TodayStatsDto: {
+            /** Format: int64 */
+            checks: number;
+            /** Format: int64 */
+            inbound: number;
+            /** Format: int64 */
+            outbound: number;
+            /** Format: int64 */
+            transfers: number;
+        };
         TransferRequest: {
             remark?: string | null;
             target_location: string;
@@ -958,6 +1017,22 @@ export interface components {
             from?: string | null;
             pipe_id: string;
             to: string;
+        };
+        TubeCountsDto: {
+            /** Format: int64 */
+            in_stock: number;
+            /** Format: int64 */
+            in_transfer: number;
+            /** Format: int64 */
+            missing: number;
+            /** Format: int64 */
+            out_stock: number;
+            /** Format: int64 */
+            problematic: number;
+            /** Format: int64 */
+            scrapped: number;
+            /** Format: int64 */
+            total: number;
         };
         TubeDetailResponse: {
             history: components["schemas"]["HistoryEntryDto"][];
@@ -1792,6 +1867,33 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardDto"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

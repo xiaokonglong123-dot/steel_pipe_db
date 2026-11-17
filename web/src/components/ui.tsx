@@ -13,19 +13,6 @@ export function Badge({
   return <span className={`badge is-${tone}`}>{children}</span>
 }
 
-const STATUS_TONE: Record<string, 'ok' | 'warn' | 'danger' | 'none' | 'info'> = {
-  in_stock: 'ok',
-  in_transfer: 'warn',
-  out_stock: 'none',
-  missing: 'danger',
-  normal: 'ok',
-  problematic: 'warn',
-  scrapped: 'danger',
-  open: 'info',
-  confirmed: 'ok',
-  cancelled: 'none',
-}
-
 const STATUS_LABEL: Record<string, string> = {
   in_stock: '在库',
   in_transfer: '调拨中',
@@ -37,10 +24,15 @@ const STATUS_LABEL: Record<string, string> = {
   open: '进行中',
   confirmed: '已确认',
   cancelled: '已取消',
+  ok: '一致',
+  moved: '位置异常',
+  surplus: '盘盈',
 }
 
+/** 状态三重编码：字形 + 中文 + 颜色（颜色不单独承载语义）。 */
 export function StatusBadge({ value }: { value: string }) {
-  return <Badge tone={STATUS_TONE[value] ?? 'none'}>{STATUS_LABEL[value] ?? value}</Badge>
+  const label = STATUS_LABEL[value] ?? value
+  return <span className={`mark is-${value}`}>{label}</span>
 }
 
 export function ROLE_LABEL(role: string): string {

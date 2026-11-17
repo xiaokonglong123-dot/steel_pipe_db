@@ -18,6 +18,8 @@
 - **审计链**：`sha256(prev‖action‖detail‖ts)`，`BEGIN IMMEDIATE` 同事务写入，分批校验
 - **RBAC**：`admin` / `operator` / `viewer`，写路径按路由组挂载
 - **导入**：CSV 流式、行级部分成功、上限 10 000 行、BOM 容错
+- **仪表盘**：KPI（在库/调拨/盘亏/问题管/今日出入库）+ 库位占用 + 最近审计
+- **界面**：高密度暗色数据网格，状态三重编码（字形+中文+颜色），`⌘K` 命令面板
 - **运维**：`audit verify` / `reconcile` / `seed-standards` 子命令，备份/恢复脚本
 
 ## 快速开始
@@ -103,6 +105,7 @@ bash scripts/ci/layering.sh
 | [`docs/2026-11-17-rewrite-reference.md`](docs/2026-11-17-rewrite-reference.md) | 重写方案：选型、架构、里程碑、风险 |
 | [`docs/spec/`](docs/spec/) | 从旧测试提取的行为规格（A–H 域，编号可追溯） |
 | [`docs/milestones/`](docs/milestones/) | M0–M7 交付记录与实测结果 |
+| [`docs/2026-11-17-ui-redesign.md`](docs/2026-11-17-ui-redesign.md) | 前端重设计：GitHub 调研、设计规范、验收 |
 
 ## 历史
 
