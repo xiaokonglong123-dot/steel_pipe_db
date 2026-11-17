@@ -1,0 +1,26 @@
+[package]
+name = "steelpipe-server"
+description = "SteelPipe 单二进制：HTTP 服务、CLI 子命令、嵌入式前端"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "steelpipe"
+path = "src/main.rs"
+
+[dependencies]
+steelpipe-api.workspace = true
+steelpipe-infra.workspace = true
+axum.workspace = true
+tower-http.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+clap.workspace = true
+rust-embed.workspace = true
+mime_guess.workspace = true

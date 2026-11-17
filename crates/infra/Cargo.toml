@@ -1,0 +1,17 @@
+[package]
+name = "steelpipe-infra"
+description = "持久层：连接池、迁移、事务与审计链写入协议"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+sqlx.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true

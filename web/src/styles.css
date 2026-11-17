@@ -1,0 +1,137 @@
+/* SteelPipe · 设计系统 token（移植自 Ayanami_Rei 方向 B：工业数据网格）
+   ------------------------------------------------------------------
+   深色优先；状态一律三重编码（图标 + 文字 + 形状），颜色不是唯一信息载体。
+   Bootstrap bridge 变量（--bs-*）不移植：SPA 不再依赖 Bootstrap。 */
+
+:root {
+  --bg-base: #0a0e14;
+  --bg-panel: #111721;
+  --bg-head: #0d131b;
+  --bg-hover: #172130;
+  --bg-sel: #10202c;
+
+  --border: #1e2731;
+  --border-strong: #2b3a4d;
+
+  --text: #dbe6f2;
+  --text-muted: #7d8ea3;
+  --text-dim: #5c6b7d;
+
+  --accent: #22d3ee;
+  --accent-soft: #0d2b33;
+  --accent-ink: #06222a;
+
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --none: #8896a8;
+
+  --ok-soft: #10291c;
+  --warn-soft: #2c2410;
+  --danger-soft: #2a1418;
+  --none-soft: #1a2029;
+  --info: #93c5fd;
+  --info-soft: #12243d;
+  --violet: #c4b5fd;
+  --violet-soft: #241f3d;
+
+  --font: system-ui, -apple-system, "Noto Sans SC", "Source Han Sans SC", sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+
+  --topbar-h: 44px;
+  --r: 3px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge.is-ok {
+  background: var(--ok-soft);
+  border-color: #1d4a33;
+  color: var(--ok);
+}
+
+.badge.is-danger {
+  background: var(--danger-soft);
+  border-color: #4a1d24;
+  color: var(--danger);
+}
+
+.badge.is-none {
+  background: var(--none-soft);
+  border-color: var(--border-strong);
+  color: var(--none);
+}
+
+.boot {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+.boot h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.boot-sub {
+  margin: 0 0 28px;
+  color: var(--text-muted);
+}
+
+.boot-grid {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 10px 16px;
+  margin: 0 0 28px;
+  padding: 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+.boot-grid dt {
+  color: var(--text-muted);
+}
+
+.boot-grid dd {
+  margin: 0;
+}
+
+.boot-note {
+  color: var(--text-dim);
+  line-height: 1.7;
+}

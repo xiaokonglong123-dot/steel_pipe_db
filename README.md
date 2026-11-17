@@ -1,5 +1,15 @@
 # Ayanami_Rei
 
+> **重构进行中（2026-11-17 起）**：本项目正在按“推倒重写”迁移到 **Rust 单体（axum + sqlx + PostgreSQL） + SPA 前端**。
+> 方案与路线见 [`docs/2026-11-17-rewrite-reference.md`](docs/2026-11-17-rewrite-reference.md)，进度见 [`docs/milestones/`](docs/milestones/)。
+>
+> 当前仓库同时存在两套实现：
+>
+> - **新栈**（生效中）：`Cargo.toml`、`crates/`、`web/`、`crates/infra/migrations/`
+> - **旧栈**（仅作行为规格与迁移参考，M7 删除）：`src/`、`tests/`、`rust-core/`、`migrations/versions/`、`pyproject.toml`
+>
+> 下文描述的是**旧栈**。
+
 API 5CT 无缝钢管与筛管库存管理系统。FastAPI + Rust (PyO3) + SQLite，Jinja2 服务端渲染，无前端构建链。
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)

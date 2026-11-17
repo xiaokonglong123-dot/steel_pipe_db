@@ -1,0 +1,17 @@
+[package]
+name = "steelpipe-api"
+description = "HTTP 层：路由、DTO、错误映射、OpenAPI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+utoipa.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+tracing.workspace = true

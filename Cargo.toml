@@ -1,0 +1,52 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+# rust-core/ 是旧的 PyO3 扩展模块；其代码在 M2 迁入 crates/{auth,audit,compliance} 后删除。
+exclude = ["rust-core"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+# HTTP
+axum = "0.8"
+tower-http = { version = "0.6", features = ["trace", "timeout", "limit"] }
+# 持久层
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+    "migrate",
+    "macros",
+] }
+# 序列化与校验
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 错误、异步、日志
+thiserror = "2"
+anyhow = "1"
+async-trait = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+# CLI 与静态资源
+clap = { version = "4", features = ["derive", "env"] }
+rust-embed = "8"
+mime_guess = "2"
+# 安全核心（M1/M2 起启用：argon2 / jsonwebtoken / rand_core / uuid / chrono）
+# 先声明会在 clippy 的 unused_dependencies 上报错，故按里程碑逐步加入。
+sha2 = "0.10"
+
+# OpenAPI
+utoipa = { version = "5", features = ["chrono", "uuid"] }
+# 内部 crate
+steelpipe-api = { path = "crates/api" }
+steelpipe-infra = { path = "crates/infra" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
