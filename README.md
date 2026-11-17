@@ -1,5 +1,9 @@
 # SteelPipe
 
+[![CI](https://github.com/xiaokonglong123-dot/steel_pipe_db/actions/workflows/ci.yml/badge.svg)](https://github.com/xiaokonglong123-dot/steel_pipe_db/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/xiaokonglong123-dot/steel_pipe_db?label=release&color=5b9dff)](https://github.com/xiaokonglong123-dot/steel_pipe_db/releases)
+[![Rust](https://img.shields.io/badge/rust-2024_edition-orange)](https://www.rust-lang.org/)
+
 面向局域网的无缝钢管与筛管（API 5CT）单根级库存管理系统。**单个二进制**（内嵌前端）+ **SQLite**，无 Python、无 Node 运行时依赖。
 
 | 项 | 值 |
