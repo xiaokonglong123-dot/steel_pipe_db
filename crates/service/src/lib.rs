@@ -9,15 +9,19 @@ pub mod auth;
 pub mod bootstrap;
 pub mod catalog;
 pub mod checks;
+pub mod import;
 pub mod inventory;
+pub mod ops;
 pub mod users;
 
 pub use auth::{AuthService, AuthServiceError, Identity, LimitScope, LoginSuccess, Session};
 pub use catalog::{CatalogError, CatalogService, LocationView, StandardInput, StandardView};
 pub use checks::{CheckDetailView, CheckError, CheckService, CheckSessionView, ConfirmOutcome};
+pub use import::{ImportError, ImportReport, ImportService, RowFailure};
 pub use inventory::{
     HistoryView, InventoryError, InventoryService, ScreenSpecView, SeamlessSpecView, StockInInput,
     TubeDetailView, TubePage, TubeQuery, TubeView,
 };
+pub use ops::{DriftFix, OpsError, OpsService, SeedSummary, VerifySummary};
 pub use steelpipe_infra::{DbPool, InfraError};
 pub use users::{NewUser, UserError, UserService, UserView};

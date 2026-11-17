@@ -6,9 +6,13 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "steelpipe",
     version,
-    about = "无缝钢管与筛管库存系统（单二进制 + PostgreSQL）"
+    about = "无缝钢管与筛管库存系统（单二进制 + SQLite）"
 )]
 pub struct Cli {
+    /// 数据库地址（默认读 STEELPIPE_DATABASE_URL，再退到 sqlite://data/steelpipe.db）
+    #[arg(long, global = true, env = "STEELPIPE_DATABASE_URL")]
+    pub database: Option<String>,
+
     #[command(subcommand)]
     pub command: Command,
 }
@@ -24,8 +28,14 @@ pub enum Command {
         #[command(subcommand)]
         cmd: AuditCmd,
     },
-    /// 库存派生列（used_count）对账
+    /// 库存派生列（used_count）对账并修复
     Reconcile,
+    /// 从 CSV 种子化标准规格
+    SeedStandards {
+        /// CSV 路径（列：grade,outer_diameter_mm,min_wall_thickness_mm,max_wall_thickness_mm,length_tolerance_mm,source）
+        #[arg(long)]
+        path: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]

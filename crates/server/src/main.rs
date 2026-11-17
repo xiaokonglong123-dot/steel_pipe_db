@@ -2,6 +2,7 @@
 
 mod assets;
 mod cli;
+mod cli_ops;
 mod config;
 mod probe;
 mod serve;
@@ -23,10 +24,11 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Command::Audit { cmd } => match cmd {
-            AuditCmd::Verify { batch } => anyhow::bail!(
-                "M5 实现：审计链分批校验（batch = {batch}）。当前仅有 `/api` 健康检查可用。"
-            ),
+            AuditCmd::Verify { batch } => cli_ops::verify(cli.database.as_deref(), batch).await,
         },
-        Command::Reconcile => anyhow::bail!("M5 实现：used_count 对账"),
+        Command::Reconcile => cli_ops::reconcile(cli.database.as_deref()).await,
+        Command::SeedStandards { path } => {
+            cli_ops::seed_standards(cli.database.as_deref(), &path).await
+        }
     }
 }

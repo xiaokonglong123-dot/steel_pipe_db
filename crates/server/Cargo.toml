@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 steelpipe-api.workspace = true
+steelpipe-domain.workspace = true
 steelpipe-auth.workspace = true
 steelpipe-infra.workspace = true
 steelpipe-service.workspace = true

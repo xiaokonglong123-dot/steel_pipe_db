@@ -35,7 +35,7 @@
 | [`E-compliance.md`](E-compliance.md) | E1–E8 | 8 | 8（M2/M3） |
 | [`F-audit.md`](F-audit.md) | F1–F11 | 11 | 9（F10/F11 待 M5） |
 | [`G-check.md`](G-check.md) | G1–G12 | 12 | 12（M4） |
-| `H-import.md` | H1–H7 | 待提取 | 0 |
-| `I-quality.md` | I1–I5 | 待提取 | 0 |
+| [`H-import.md`](H-import.md) | H1–H9 | 9 | 9（M0/M5） |
+| `I-quality.md` | I1–I5 | 待提取 | 4（质量与库位已并入 D 域） |
 
 优先级：A + B（M1）→ C（M1）→ D + E + F（M2/M3）→ G + H + I（M4/M5）。

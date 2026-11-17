@@ -684,3 +684,75 @@ async fn catalog_write_paths_require_admin() {
 
     fx.cleanup().await;
 }
+
+fn post_csv(path: &str, csv: &str) -> Request<Body> {
+    Request::builder()
+        .method("POST")
+        .uri(path)
+        .header(header::CONTENT_TYPE, "text/csv")
+        .body(Body::from(csv.to_owned()))
+        .unwrap()
+}
+
+#[tokio::test]
+async fn csv_import_is_row_level_partial_success() {
+    let fx = Harness::new("import").await;
+    let csv = "pipe_id,pipe_type,outer_diameter_mm,wall_thickness_mm,length_m,steel_grade,manufacturer,location\n\
+               P-200,seamless_pipe,88.9,7.0,9.5,L80,宝钢,A1\n\
+               P-201,seamless_pipe,88.9,3.0,9.5,L80,宝钢,A1\n\
+               P-202,seamless_pipe,88.9,7.0,9.5,X99,宝钢,A1\n";
+    let reply = fx
+        .call(
+            post_csv("/api/tubes/import", csv),
+            &fx.operator_cookies,
+            Some(&fx.operator_csrf),
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "body: {}", reply.body);
+    assert_eq!(reply.json()["total"], 3);
+    assert_eq!(reply.json()["inserted"], 1);
+    assert_eq!(reply.json()["failed"].as_array().unwrap().len(), 2);
+
+    let list = fx.call(get("/api/tubes"), &fx.operator_cookies, None).await;
+    assert_eq!(list.json()["total"], 1);
+
+    // 缺列 → 400，且不写任何行
+    let bad = fx
+        .call(
+            post_csv("/api/tubes/import", "pipe_id\nP-300\n"),
+            &fx.operator_cookies,
+            Some(&fx.operator_csrf),
+        )
+        .await;
+    assert_eq!(bad.status, StatusCode::BAD_REQUEST);
+    let list = fx.call(get("/api/tubes"), &fx.operator_cookies, None).await;
+    assert_eq!(list.json()["total"], 1, "失败导入不得新增");
+
+    fx.cleanup().await;
+}
+
+#[tokio::test]
+async fn import_requires_csrf_and_operator() {
+    let fx = Harness::new("import-rbac").await;
+    let csv = "pipe_id,pipe_type,outer_diameter_mm,wall_thickness_mm,length_m,steel_grade,manufacturer,location\nP-300,seamless_pipe,88.9,7.0,9.5,L80,宝钢,A1\n";
+
+    let no_csrf = fx
+        .call(
+            post_csv("/api/tubes/import", csv),
+            &fx.operator_cookies,
+            None,
+        )
+        .await;
+    assert_eq!(no_csrf.status, StatusCode::FORBIDDEN);
+
+    let no_auth = fx
+        .call(
+            post_csv("/api/tubes/import", csv),
+            "",
+            Some(&fx.operator_csrf),
+        )
+        .await;
+    assert_eq!(no_auth.status, StatusCode::UNAUTHORIZED);
+
+    fx.cleanup().await;
+}

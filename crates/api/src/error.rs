@@ -204,6 +204,21 @@ impl From<steelpipe_service::CheckError> for ApiError {
     }
 }
 
+impl From<steelpipe_service::ImportError> for ApiError {
+    fn from(error: steelpipe_service::ImportError) -> Self {
+        use steelpipe_service::ImportError as E;
+        match error {
+            E::MissingColumns(columns) => Self::Invalid(format!("CSV 缺少列：{columns}")),
+            E::TooManyRows(rows) => Self::Invalid(format!(
+                "行数 {rows} 超过单次上限 {}，请分批导入",
+                steelpipe_service::import::MAX_IMPORT_ROWS
+            )),
+            E::Parse(message) => Self::Invalid(format!("CSV 解析失败：{message}")),
+            E::Inventory(inventory) => Self::from(inventory),
+        }
+    }
+}
+
 impl From<UserError> for ApiError {
     fn from(error: UserError) -> Self {
         match error {
@@ -292,6 +307,12 @@ impl From<steelpipe_service::InventoryError> for ApiReject {
 
 impl From<steelpipe_service::CheckError> for ApiReject {
     fn from(error: steelpipe_service::CheckError) -> Self {
+        ApiError::from(error).into()
+    }
+}
+
+impl From<steelpipe_service::ImportError> for ApiReject {
+    fn from(error: steelpipe_service::ImportError) -> Self {
         ApiError::from(error).into()
     }
 }

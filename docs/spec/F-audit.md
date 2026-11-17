@@ -14,8 +14,8 @@
 | F7 | 断链（缺条目 / prev 不衔接）→ `Discontinuous` | ✅ M1 |
 | F8 | 每种写操作写**恰好一条**审计：入库、出库、批量出库（每根一条）、调拨、质量标注、软删、库位、标准、用户 | ✅ M1–M3 |
 | F9 | `detail` 必须由 `audit::detail()` 生成（紧凑 JSON，字段顺序固定） | ✅ M1 |
-| F10 | `steelpipe audit verify` CLI 分批校验全链 | ⏳ M5 |
-| F11 | `steelpipe reconcile` 检测并修复 `used_count` 漂移 | ⏳ M5 |
+| F10 | `steelpipe audit verify [--batch N]` 分批校验全链，尾与链尾表比对 | ✅ M5 |
+| F11 | `steelpipe reconcile` 检测并修复 `used_count` 漂移（修复写审计） | ✅ M5 |
 
 ## 与旧实现的差异
 

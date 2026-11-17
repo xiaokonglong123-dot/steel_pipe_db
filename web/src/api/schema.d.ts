@@ -365,6 +365,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tubes/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CSV 批量导入（operator+，行级部分成功，上限 10000 行） */
+        post: operations["import_tubes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tubes/stock-in": {
         parameters: {
             query?: never;
@@ -704,6 +721,16 @@ export interface components {
             /** Format: int64 */
             user_id: number;
             username: string;
+        };
+        ImportResponse: {
+            failed: components["schemas"]["ImportRowFailureDto"][];
+            inserted: number;
+            total: number;
+        };
+        ImportRowFailureDto: {
+            error: string;
+            pipe_id: string;
+            row: number;
         };
         LocationDto: {
             /** Format: int64 */
@@ -1668,6 +1695,44 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
+            };
+        };
+    };
+    import_tubes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/csv": string;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description 请求体超过 STEELPIPE_MAX_BODY_BYTES */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

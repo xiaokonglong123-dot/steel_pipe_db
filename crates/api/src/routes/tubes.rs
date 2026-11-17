@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use steelpipe_domain::{QualityMark, TubeStatus, TubeType};
 use steelpipe_service::inventory::{ScreenPipeInput, SeamlessPipeInput, StockInInput};
 use steelpipe_service::{
-    HistoryView, InventoryService, ScreenSpecView, SeamlessSpecView, TubeDetailView, TubeQuery,
-    TubeView,
+    HistoryView, ImportService, InventoryService, ScreenSpecView, SeamlessSpecView, TubeDetailView,
+    TubeQuery, TubeView,
 };
 use utoipa::{IntoParams, ToSchema};
 
@@ -24,6 +24,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/tubes", get(list_tubes))
         .route("/api/tubes/stock-in", post(stock_in))
+        .route("/api/tubes/import", post(import_tubes))
         .route("/api/tubes/stock-out/batch", post(batch_stock_out))
         .route("/api/tubes/{pipe_id}", get(tube_detail).delete(soft_delete))
         .route("/api/tubes/{pipe_id}/stock-out", post(stock_out))
@@ -581,4 +582,60 @@ pub async fn soft_delete(
 
     service(&state).soft_delete(&actor.0, &pipe_id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT.into_response())
+}
+
+// ---------------------------------------------------------------------------
+// CSV 导入
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ImportRowFailureDto {
+    pub row: usize,
+    pub pipe_id: String,
+    pub error: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ImportResponse {
+    pub total: usize,
+    pub inserted: usize,
+    pub failed: Vec<ImportRowFailureDto>,
+}
+
+#[utoipa::path(post, path = "/api/tubes/import", tag = TUBES_TAG, summary = "CSV 批量导入（operator+，行级部分成功，上限 10000 行）",
+    request_body(content = String, content_type = "text/csv"),
+    responses(
+        (status = 200, body = ImportResponse),
+        (status = 400, body = ProblemDetails),
+        (status = 413, description = "请求体超过 STEELPIPE_MAX_BODY_BYTES")
+    ))]
+pub async fn import_tubes(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: String,
+) -> Result<Response, ApiReject> {
+    let actor = AuthUser::from_headers(&headers, &state).await?;
+    actor
+        .require_operator()
+        .map_err(|error| fail(error, &headers))?;
+    crate::auth::check_csrf(&headers).map_err(|error| fail(error, &headers))?;
+
+    let report = ImportService::new(state.pool().clone())
+        .import_csv(&actor.0, &body)
+        .await?;
+
+    Ok(Json(ImportResponse {
+        total: report.total,
+        inserted: report.inserted,
+        failed: report
+            .failed
+            .into_iter()
+            .map(|row| ImportRowFailureDto {
+                row: row.row,
+                pipe_id: row.pipe_id,
+                error: row.error,
+            })
+            .collect(),
+    })
+    .into_response())
 }
