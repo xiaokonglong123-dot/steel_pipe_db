@@ -37,6 +37,11 @@ fn service(state: &AppState) -> InventoryService {
     InventoryService::new(state.pool().clone())
 }
 
+/// 排序字段白名单，未知值按默认（id）处理，不报错。
+fn sort_of(raw: Option<&str>) -> Option<steelpipe_service::TubeSort> {
+    raw.and_then(steelpipe_service::TubeSort::parse)
+}
+
 // ---------------------------------------------------------------------------
 // DTO
 // ---------------------------------------------------------------------------
@@ -53,6 +58,10 @@ pub struct ListQuery {
     pub include_deleted: Option<bool>,
     pub page: Option<i64>,
     pub page_size: Option<i64>,
+    /// 排序字段：pipe_id / steel_grade / location / status / quality / updated_at
+    pub sort: Option<String>,
+    /// asc（默认）/ desc
+    pub order: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -239,6 +248,8 @@ pub async fn list_tubes(
                 .as_deref()
                 .and_then(|value| value.parse().ok()),
             include_deleted: query.include_deleted.unwrap_or(false),
+            sort: sort_of(query.sort.as_deref()),
+            descending: query.order.as_deref() == Some("desc"),
             page: query.page.unwrap_or(1),
             page_size: query.page_size.unwrap_or(50),
         })

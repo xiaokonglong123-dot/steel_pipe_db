@@ -339,3 +339,121 @@ async fn screen_and_seamless_specs_attach_to_tube() {
 
     fx.cleanup().await;
 }
+
+#[tokio::test]
+async fn sorting_follows_whitelist_with_stable_id_tiebreak() {
+    use steelpipe_infra::repo::tubes::TubeSort;
+
+    let fx = fixture("sort").await;
+    {
+        let mut uow = Uow::begin(&fx.pool).await.unwrap();
+        locations::insert(uow.conn(), "A1", None, None)
+            .await
+            .unwrap();
+        uow.commit().await.unwrap();
+    }
+    for (pipe_id, grade) in [("P-1", "L80"), ("P-2", "N80"), ("P-3", "P110")] {
+        let mut uow = Uow::begin(&fx.pool).await.unwrap();
+        let mut d = draft(pipe_id, "A1");
+        d.steel_grade = grade.into();
+        tubes::insert(
+            uow.conn(),
+            pipe_id,
+            &d,
+            true,
+            "2026-11-17T00:00:00.000000+00:00",
+            "2026-11-17T00:00:00.000000+00:00",
+        )
+        .await
+        .unwrap();
+        uow.commit().await.unwrap();
+    }
+
+    let grade_asc = tubes::list(
+        &fx.pool,
+        &tubes::TubeFilter {
+            sort: Some(TubeSort::SteelGrade),
+            limit: 10,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        grade_asc
+            .iter()
+            .map(|row| row.steel_grade.as_str())
+            .collect::<Vec<_>>(),
+        ["L80", "N80", "P110"]
+    );
+
+    let grade_desc = tubes::list(
+        &fx.pool,
+        &tubes::TubeFilter {
+            sort: Some(TubeSort::SteelGrade),
+            descending: true,
+            limit: 10,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        grade_desc
+            .iter()
+            .map(|row| row.steel_grade.as_str())
+            .collect::<Vec<_>>(),
+        ["P110", "N80", "L80"]
+    );
+
+    // 无排序 → 按 id 升序（稳定）
+    let by_id = tubes::list(
+        &fx.pool,
+        &tubes::TubeFilter {
+            limit: 10,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        by_id
+            .iter()
+            .map(|row| row.pipe_id.as_str())
+            .collect::<Vec<_>>(),
+        ["P-1", "P-2", "P-3"]
+    );
+
+    // 分页稳定：同值字段（location 全相同）按 id 兜底，两页拼接无重复
+    let page1 = tubes::list(
+        &fx.pool,
+        &tubes::TubeFilter {
+            sort: Some(TubeSort::Location),
+            limit: 2,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let page2 = tubes::list(
+        &fx.pool,
+        &tubes::TubeFilter {
+            sort: Some(TubeSort::Location),
+            limit: 2,
+            offset: 2,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let mut ids: Vec<&str> = page1
+        .iter()
+        .chain(page2.iter())
+        .map(|row| row.pipe_id.as_str())
+        .collect();
+    assert_eq!(ids, ["P-1", "P-2", "P-3"]);
+    ids.dedup();
+    assert_eq!(ids.len(), 3, "分页拼接不得重复");
+
+    fx.cleanup().await;
+}

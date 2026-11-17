@@ -5,10 +5,36 @@ import { StatusBadge } from './ui'
 
 type Tube = Schemas['TubeDto']
 
+export type SortKey = 'pipe_id' | 'steel_grade' | 'location' | 'status' | 'quality' | 'updated_at'
+
+export type SortState = { key: SortKey | ''; desc: boolean }
+
+function SortHeader({
+  label,
+  column,
+  sort,
+  onSort,
+}: {
+  label: string
+  column: SortKey
+  sort: SortState
+  onSort: (key: SortKey) => void
+}) {
+  const active = sort.key === column
+  return (
+    <button className="th-sort" type="button" onClick={() => onSort(column)}>
+      <span>{label}</span>
+      {active ? <span className="arrow">{sort.desc ? '▼' : '▲'}</span> : null}
+    </button>
+  )
+}
+
 export function TubeTable({
   rows,
   canWrite,
   selected,
+  sort,
+  onSort,
   onToggle,
   onToggleAll,
   onStockOut,
@@ -17,6 +43,8 @@ export function TubeTable({
   rows: Tube[]
   canWrite: boolean
   selected: string[]
+  sort: SortState
+  onSort: (key: SortKey) => void
   onToggle: (pipeId: string) => void
   onToggleAll: () => void
   onStockOut: (pipeId: string) => void
@@ -32,21 +60,26 @@ export function TubeTable({
           <tr>
             {canWrite ? (
               <th className="col-check">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={onToggleAll}
-                  aria-label="全选本页"
-                />
+                <input type="checkbox" checked={allSelected} onChange={onToggleAll} aria-label="全选本页" />
               </th>
             ) : null}
-            <th>编号</th>
+            <th>
+              <SortHeader label="编号" column="pipe_id" sort={sort} onSort={onSort} />
+            </th>
             <th>类型</th>
-            <th>钢级</th>
+            <th>
+              <SortHeader label="钢级" column="steel_grade" sort={sort} onSort={onSort} />
+            </th>
             <th>规格</th>
-            <th>库位</th>
-            <th>状态</th>
-            <th>质量</th>
+            <th>
+              <SortHeader label="库位" column="location" sort={sort} onSort={onSort} />
+            </th>
+            <th>
+              <SortHeader label="状态" column="status" sort={sort} onSort={onSort} />
+            </th>
+            <th>
+              <SortHeader label="质量" column="quality" sort={sort} onSort={onSort} />
+            </th>
             <th>合规</th>
             <th className="col-actions" />
           </tr>

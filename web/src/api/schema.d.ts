@@ -1918,6 +1918,10 @@ export interface operations {
                 include_deleted: boolean | null;
                 page: number | null;
                 page_size: number | null;
+                /** @description 排序字段：pipe_id / steel_grade / location / status / quality / updated_at */
+                sort: string | null;
+                /** @description asc（默认）/ desc */
+                order: string | null;
             };
             cookie?: never;
         };

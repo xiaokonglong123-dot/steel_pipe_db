@@ -98,3 +98,30 @@ clippy -D warnings                  零告警
 3. 盘点页也用 split 布局（当前为纵向流）
 4. 审计页虚拟滚动（> 10k 行时）
 5. 深色/浅色主题切换（token 已分层，加 `[data-theme=light]` 即可）
+
+## 7. v2.1 增补（同日，按"字太小 + 三项都做"）
+
+| 项 | 变化 |
+| --- | --- |
+| 字号 | 正文 12.5 → **14px**；表格 11.5 → **13px**；表头/标签 10.5 → **12px**；KPI 数值 20 → **24px**；行高 28 → **34px**；控件 26 → **30px** |
+| 密度三档 | 紧凑 28 / 舒适 34（默认）/ 宽松 40，写入 `<html data-density>`，localStorage 持久化，顶栏「密 适 宽」切换 |
+| 列排序 | 后端白名单（`pipe_id` / `steel_grade` / `location` / `status` / `quality` / `updated_at`）；非法字段回落 `id`；`id` 作为稳定次序，翻页不抖 |
+| 盘点页 | 改 `split`：左侧会话信息 + 结论筛选（带计数）+ 确认/取消，右侧应盘清单（按结论过滤）+ 盘盈登记 + 已登记差异 |
+| 审计页 | 虚拟滚动（只渲染视口内行，上下用等高空行占位）+ 游标「加载更多」；行高随密度切换自动适配 |
+
+### 验收
+
+```text
+GET /api/tubes?sort=steel_grade&order=asc    → P-0001/L80, P-9002/N80, P-9001/P110
+GET /api/tubes?sort=steel_grade&order=desc   → P-9001/P110, P-9002/N80, P-0001/L80
+GET /api/tubes?sort=drop_table&order=desc    → 回落 id 顺序（白名单生效）
+GET /api/audit?limit=3                        → id 1,2,3
+GET /api/audit?limit=3&after_id=4             → id 5,6（游标分页）
+CSS 14.07 kB（gzip 3.43） · JS 353.84 kB（gzip 106.8） · RSS 13.7 MB
+cargo test --workspace 118 passed（新增 1 项排序白名单 + 分页稳定性）
+```
+
+### 一个实现坑（留档）
+
+`ORDER BY` 最初只改了 `format!` 的多行版本，但 `cargo fmt` 已把它压成单行，替换静默失败——编译照样通过（`sort` 字段正确传入但 SQL 仍是 `ORDER BY id`），直到接口实测发现"升序降序结果一样"才暴露。
+教训：**排序/分页这类语义必须用接口断言验证**，类型系统查不出"参数传了但没用"。

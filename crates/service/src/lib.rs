@@ -21,7 +21,7 @@ pub use checks::{CheckDetailView, CheckError, CheckService, CheckSessionView, Co
 pub use import::{ImportError, ImportReport, ImportService, RowFailure};
 pub use inventory::{
     HistoryView, InventoryError, InventoryService, ScreenSpecView, SeamlessSpecView, StockInInput,
-    TubeDetailView, TubePage, TubeQuery, TubeView,
+    TubeDetailView, TubePage, TubeQuery, TubeSort, TubeView,
 };
 pub use ops::{
     AuditEntryView, AuditPageView, DriftFix, OpsError, OpsService, SeedSummary, VerifySummary,

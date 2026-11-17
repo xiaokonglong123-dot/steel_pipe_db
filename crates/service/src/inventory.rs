@@ -125,6 +125,43 @@ pub struct TransferOutcome {
     pub to: String,
 }
 
+/// 可排序字段（service 视野内的枚举，不暴露仓储类型）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TubeSort {
+    PipeId,
+    SteelGrade,
+    Location,
+    Status,
+    Quality,
+    UpdatedAt,
+}
+
+impl TubeSort {
+    /// 未知值返回 `None`（按默认 id 排序），不报错。
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "pipe_id" => Some(Self::PipeId),
+            "steel_grade" => Some(Self::SteelGrade),
+            "location" => Some(Self::Location),
+            "status" => Some(Self::Status),
+            "quality" => Some(Self::Quality),
+            "updated_at" => Some(Self::UpdatedAt),
+            _ => None,
+        }
+    }
+
+    fn to_repo(self) -> tubes::TubeSort {
+        match self {
+            Self::PipeId => tubes::TubeSort::PipeId,
+            Self::SteelGrade => tubes::TubeSort::SteelGrade,
+            Self::Location => tubes::TubeSort::Location,
+            Self::Status => tubes::TubeSort::Status,
+            Self::Quality => tubes::TubeSort::Quality,
+            Self::UpdatedAt => tubes::TubeSort::UpdatedAt,
+        }
+    }
+}
+
 /// 列表查询参数（service 层，不暴露仓储类型）。
 #[derive(Debug, Clone)]
 pub struct TubeQuery {
@@ -133,6 +170,8 @@ pub struct TubeQuery {
     pub steel_grade: Option<String>,
     pub quality_mark: Option<QualityMark>,
     pub include_deleted: bool,
+    pub sort: Option<TubeSort>,
+    pub descending: bool,
     pub page: i64,
     pub page_size: i64,
 }
@@ -145,6 +184,8 @@ impl Default for TubeQuery {
             steel_grade: None,
             quality_mark: None,
             include_deleted: false,
+            sort: None,
+            descending: false,
             page: 1,
             page_size: 50,
         }
@@ -351,6 +392,8 @@ impl InventoryService {
             steel_grade: query.steel_grade,
             quality_mark: query.quality_mark,
             include_deleted: query.include_deleted,
+            sort: query.sort.map(TubeSort::to_repo),
+            descending: query.descending,
             limit: page_size,
             offset: (page - 1) * page_size,
         };

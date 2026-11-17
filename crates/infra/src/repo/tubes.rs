@@ -57,6 +57,30 @@ const COLUMNS: &str =
     status, quality_mark, quality_note, stock_in_time, stock_out_time, compliance_pass,
     deleted_at, created_at, updated_at";
 
+/// 可排序字段（白名单，防注入；未列出的一律按 id）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TubeSort {
+    PipeId,
+    SteelGrade,
+    Location,
+    Status,
+    Quality,
+    UpdatedAt,
+}
+
+impl TubeSort {
+    pub fn column(self) -> &'static str {
+        match self {
+            Self::PipeId => "pipe_id",
+            Self::SteelGrade => "steel_grade",
+            Self::Location => "location",
+            Self::Status => "status",
+            Self::Quality => "quality_mark",
+            Self::UpdatedAt => "updated_at",
+        }
+    }
+}
+
 /// 列表筛选条件。
 #[derive(Debug, Clone, Default)]
 pub struct TubeFilter {
@@ -65,6 +89,8 @@ pub struct TubeFilter {
     pub steel_grade: Option<String>,
     pub quality_mark: Option<QualityMark>,
     pub include_deleted: bool,
+    pub sort: Option<TubeSort>,
+    pub descending: bool,
     pub limit: i64,
     pub offset: i64,
 }
@@ -103,7 +129,16 @@ impl TubeFilter {
 
 pub async fn list(pool: &DbPool, filter: &TubeFilter) -> Result<Vec<TubeRow>, InfraError> {
     let (clause, binds) = filter.where_clause();
-    let sql = format!("SELECT {COLUMNS} FROM tubes{clause} ORDER BY id LIMIT ? OFFSET ?");
+    // 排序字段只来自白名单；id 作为稳定次序兜底，避免同值行在翻页时抖动
+    let order = match filter.sort {
+        Some(sort) => format!(
+            "{} {}, id",
+            sort.column(),
+            if filter.descending { "DESC" } else { "ASC" }
+        ),
+        None => "id".to_owned(),
+    };
+    let sql = format!("SELECT {COLUMNS} FROM tubes{clause} ORDER BY {order} LIMIT ? OFFSET ?");
     let mut query = sqlx::query_as::<_, TubeRow>(&sql);
     for bind in &binds {
         query = query.bind(bind);

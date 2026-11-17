@@ -1,85 +1,122 @@
-import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 
 import { api, type Schemas } from '../api/client'
-import { Loader, PageHead, Problem } from '../components/ui'
-import { useSession } from '../session'
+import { AuditTable, type AuditEntry } from '../components/audit-table'
+import { PageHead, Problem } from '../components/ui'
 
-type Entry = Schemas['AuditEntryDto']
+const PAGE = 200
 
 export default function AuditPage() {
-  const { isAdmin } = useSession()
   const [action, setAction] = useState('')
+  const [entries, setEntries] = useState<AuditEntry[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<unknown>(null)
-  const [result, setResult] = useState<string | null>(null)
+  const [verifyResult, setVerifyResult] = useState<string | null>(null)
 
-  const params = new URLSearchParams({ limit: '200' })
-  if (action) params.set('action', action)
+  const filterParam = action ? `&action=${encodeURIComponent(action)}` : ''
 
-  const list = useQuery({
-    queryKey: ['audit', params.toString()],
-    queryFn: () => api<Schemas['AuditListResponse']>(`/api/audit?${params.toString()}`),
-    enabled: isAdmin,
-  })
+  const loadFirst = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    setEntries([])
+    setTotal(0)
+    try {
+      const page = await api<Schemas['AuditListResponse']>(`/api/audit?limit=${PAGE}${filterParam}`)
+      setEntries(page.entries)
+      setTotal(page.total)
+    } catch (cause) {
+      setError(cause)
+    } finally {
+      setLoading(false)
+    }
+  }, [filterParam])
+
+  useEffect(() => {
+    void loadFirst()
+  }, [loadFirst])
+
+  async function loadMore() {
+    const cursor = entries.at(-1)?.id ?? 0
+    setLoading(true)
+    setError(null)
+    try {
+      const page = await api<Schemas['AuditListResponse']>(
+        `/api/audit?limit=${PAGE}&after_id=${cursor}${filterParam}`,
+      )
+      setEntries((current) => [...current, ...page.entries])
+      setTotal(page.total)
+    } catch (cause) {
+      setError(cause)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const verify = useMutation({
-    mutationFn: () => api<Schemas['VerifyResponse']>('/api/audit/verify', { method: 'POST', body: { batch: 1000 } }),
+    mutationFn: () =>
+      api<Schemas['VerifyResponse']>('/api/audit/verify', { method: 'POST', body: { batch: 1000 } }),
     onSuccess: (summary) => {
       setError(null)
-      setResult(`校验通过：${summary.entries} 条 / ${summary.batches} 批 / tip=${summary.tip.slice(0, 12)}…`)
+      setVerifyResult(
+        `校验通过：${summary.entries} 条 / ${summary.batches} 批 / tip=${summary.tip.slice(0, 16)}…`,
+      )
     },
     onError: (cause) => {
-      setResult(null)
+      setVerifyResult(null)
       setError(cause)
     },
   })
 
-  if (!isAdmin) return <Problem error={new Error('仅管理员可访问')} />
+  const exhausted = entries.length >= total
 
   return (
     <section>
       <PageHead
-        title="审计日志"
+        title="审计链"
         actions={
-          <button className="btn btn-subtle" disabled={verify.isPending} onClick={() => verify.mutate()}>
-            校验哈希链
+          <button
+            className="btn btn-subtle"
+            type="button"
+            disabled={verify.isPending}
+            onClick={() => verify.mutate()}
+          >
+            {verify.isPending ? '校验中…' : '校验哈希链'}
           </button>
         }
       />
-      <Problem error={error ?? list.error} />
-      {result ? <div className="notice">{result}</div> : null}
+      <Problem error={error ?? verify.error} />
+      {verifyResult ? <div className="notice">{verifyResult}</div> : null}
 
       <div className="toolbar">
         <input
           className="input input-sm"
           placeholder="按 action 过滤（如 stock_in）"
           value={action}
-          onChange={(event) => setAction(event.target.value)}
+          onChange={(event) => setAction(event.target.value.trim())}
         />
+        <span className="spacer" />
+        <span className="muted">
+          已加载 {entries.length} / {total} 条
+        </span>
+        {!exhausted ? (
+          <button
+            className="btn btn-subtle btn-sm"
+            type="button"
+            disabled={loading}
+            onClick={() => void loadMore()}
+          >
+            {loading ? '加载中…' : '加载更多'}
+          </button>
+        ) : null}
       </div>
 
-      {list.isLoading ? (
-        <Loader />
-      ) : (
-        <div className="grid-scroll">
-          <table className="table">
-            <thead><tr><th>#</th><th>时间</th><th>操作人</th><th>动作</th><th>详情</th><th>哈希</th></tr></thead>
-            <tbody>
-              {(list.data?.entries ?? []).map((entry: Entry) => (
-                <tr key={entry.id}>
-                  <td className="mono">{entry.id}</td>
-                  <td className="mono">{entry.ts}</td>
-                  <td className="mono">{entry.user_id ?? '—'}</td>
-                  <td>{entry.action}</td>
-                  <td className="detail-cell"><code>{entry.detail}</code></td>
-                  <td className="mono hash-cell">{entry.current_hash.slice(0, 12)}…</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="field-hint">共 {list.data?.total ?? 0} 条；列表按 id 升序，取最近 200 条。</p>
+      <AuditTable entries={entries} />
+
+      <p className="field-hint">
+        虚拟滚动：只渲染视口内的行，滚动时不重排整表；行高随密度切换自动适配。
+      </p>
     </section>
   )
 }

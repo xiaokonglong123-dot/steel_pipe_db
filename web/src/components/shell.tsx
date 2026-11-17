@@ -89,6 +89,52 @@ export function SideNav({ stats, onCommand }: { stats: Stats | undefined; onComm
   )
 }
 
+const DENSITY_KEY = 'steelpipe.density'
+
+export type Density = 'compact' | 'comfortable' | 'roomy'
+
+/** 阅读密度偏好：写入 <html data-density> 并持久化。 */
+export function useDensity(): [Density, (next: Density) => void] {
+  const [density, setDensity] = useState<Density>(() => {
+    const stored = window.localStorage.getItem(DENSITY_KEY)
+    return stored === 'compact' || stored === 'roomy' ? stored : 'comfortable'
+  })
+
+  useEffect(() => {
+    const html = document.documentElement
+    if (density === 'comfortable') delete html.dataset.density
+    else html.dataset.density = density
+    window.localStorage.setItem(DENSITY_KEY, density)
+  }, [density])
+
+  return [density, setDensity]
+}
+
+const DENSITY_LABELS: { value: Density; label: string; title: string }[] = [
+  { value: 'compact', label: '密', title: '紧凑：28px 行高' },
+  { value: 'comfortable', label: '适', title: '舒适：34px 行高（默认）' },
+  { value: 'roomy', label: '宽', title: '宽松：40px 行高' },
+]
+
+function DensitySwitch() {
+  const [density, setDensity] = useDensity()
+  return (
+    <div className="density-switch" role="group" aria-label="表格密度">
+      {DENSITY_LABELS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          title={option.title}
+          className={density === option.value ? 'is-active' : undefined}
+          onClick={() => setDensity(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function Topbar({ onCommand }: { onCommand: () => void }) {
   const { user, logout } = useSession()
   return (
@@ -101,6 +147,7 @@ export function Topbar({ onCommand }: { onCommand: () => void }) {
         <kbd>⌘K</kbd>
       </button>
       <span className="topbar-user">
+        <DensitySwitch />
         {user ? (
           <>
             <span>
