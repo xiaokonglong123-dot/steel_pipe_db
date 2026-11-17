@@ -2,6 +2,7 @@
 //!
 //! 拆分原则：一个领域一个文件；本文件只做 merge、共享失败出口与 OpenAPI 汇总。
 
+pub mod audit;
 pub mod auth;
 pub mod catalog;
 pub mod checks;
@@ -26,6 +27,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .merge(meta::router())
         .merge(auth::router())
+        .merge(audit::router())
         .merge(users::router())
         .merge(tubes::router())
         .merge(catalog::router())
@@ -56,7 +58,8 @@ pub(crate) fn fail(error: impl Into<ApiError>, headers: &HeaderMap) -> ApiReject
         catalog::set_location_active, catalog::list_standards, catalog::create_standard,
         catalog::update_standard, catalog::delete_standard,
         checks::list_checks, checks::create_check, checks::check_detail, checks::mark_item,
-        checks::add_surplus, checks::remove_item, checks::confirm, checks::cancel, checks::recover
+        checks::add_surplus, checks::remove_item, checks::confirm, checks::cancel, checks::recover,
+        audit::list_audit, audit::verify_chain
     ),
     components(schemas(
         crate::ProblemDetails,
@@ -75,7 +78,9 @@ pub(crate) fn fail(error: impl Into<ApiError>, headers: &HeaderMap) -> ApiReject
         catalog::StandardDto, catalog::StandardListResponse, catalog::StandardRequest,
         checks::CheckSessionDto, checks::CheckItemDto, checks::CheckDetailDto,
         checks::ExpectedTubeDto, checks::CheckListResponse, checks::CreateCheckRequest,
-        checks::MarkItemRequest, checks::ConfirmResponse
+        checks::MarkItemRequest, checks::ConfirmResponse,
+        audit::AuditQuery, audit::AuditEntryDto, audit::AuditListResponse,
+        audit::VerifyRequest, audit::VerifyResponse
     ))
 )]
 pub struct ApiDoc;

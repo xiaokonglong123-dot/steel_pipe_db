@@ -1,114 +1,110 @@
-# Ayanami_Rei
+# SteelPipe
 
-> **重构进行中（2026-11-17 起）**：本项目正在按“推倒重写”迁移到 **Rust 单体（axum + sqlx + PostgreSQL） + SPA 前端**。
-> 方案与路线见 [`docs/2026-11-17-rewrite-reference.md`](docs/2026-11-17-rewrite-reference.md)，进度见 [`docs/milestones/`](docs/milestones/)。
->
-> 当前仓库同时存在两套实现：
->
-> - **新栈**（生效中）：`Cargo.toml`、`crates/`、`web/`、`crates/infra/migrations/`
-> - **旧栈**（仅作行为规格与迁移参考，M7 删除）：`src/`、`tests/`、`rust-core/`、`migrations/versions/`、`pyproject.toml`
->
-> 下文描述的是**旧栈**。
+面向局域网的无缝钢管与筛管（API 5CT）单根级库存管理系统。**单个二进制**（内嵌前端）+ **SQLite**，无 Python、无 Node 运行时依赖。
 
-API 5CT 无缝钢管与筛管库存管理系统。FastAPI + Rust (PyO3) + SQLite，Jinja2 服务端渲染，无前端构建链。
-
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white)
-![Rust](https://img.shields.io/badge/Rust-PyO3-000000?style=flat-square&logo=rust&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?style=flat-square&logo=sqlite&logoColor=white)
-
----
+| 项 | 值 |
+| --- | --- |
+| 后端 | Rust 2024 / axum 0.8 / sqlx 0.8 / SQLite（WAL） |
+| 前端 | Vite 8 + React 19 + TypeScript（构建期内嵌进二进制） |
+| 安全核心 | argon2id、HS256 JWT、SHA-256 审计哈希链 —— 全部同进程，无 FFI |
+| 部署 | 一个 `steelpipe` 可执行文件 + 一个 `.db` 文件 |
+| 测试 | 114 个（Rust 单元/集成 + HTTP e2e） |
 
 ## 功能
 
-- **库存流转**：单管/批量入库、出库、调拨；CSV 批量导入（20MB 上限，逐行部分成功）
-- **盘点**：盘点单持久化、差异应用（一致 / 缺失 / 位置异常 / 盘盈）、找回
-- **API 5CT 合规**：标准规格 CRUD，入库前按钢级/外径/壁厚校验，盘盈同样强制合规
-- **防篡改审计链**：SHA-256 链式哈希，`BEGIN IMMEDIATE` 同事务写入，20K 分块校验
-- **RBAC**：`admin` / `operator` / `viewer` 三级角色
-- **库位管理**：创建 / 重命名 / 停用，全部入审计链
-
-## 技术栈
-
-| 层 | 选型 |
-|---|---|
-| Web | FastAPI + Uvicorn（**必须单 worker**） |
-| 模板 | Jinja2 SSR（`CompatTemplates` 兼容 Starlette 0.x/1.x） |
-| 样式 | 本地 vendor Bootstrap 5.3.3 + 自有 token 层（`src/static/app.css`），无 CDN |
-| 数据库 | SQLite（WAL，`BEGIN IMMEDIATE` 单写者） |
-| ORM / 迁移 | SQLAlchemy 2.0 async + Alembic |
-| 安全核心 | Rust PyO3：Argon2 密码哈希、JWT HS256、合规计算、审计哈希（全部纯函数、零状态） |
+- **库存流转**：入库（API 5CT 五项校验）、单根/批量出库（原子）、调拨、软删；全部单事务
+- **盘点**：盘点单持久化、逐根结论（一致/盘亏/位置异常/盘盈）、原子确认、找回
+- **合规**：钢级精确匹配、壁厚区间、外径 ±1%、长度、筛管参数；不合规可管理员强制入库（留审计）
+- **审计链**：`sha256(prev‖action‖detail‖ts)`，`BEGIN IMMEDIATE` 同事务写入，分批校验
+- **RBAC**：`admin` / `operator` / `viewer`，写路径按路由组挂载
+- **导入**：CSV 流式、行级部分成功、上限 10 000 行、BOM 容错
+- **运维**：`audit verify` / `reconcile` / `seed-standards` 子命令，备份/恢复脚本
 
 ## 快速开始
 
 ```bash
-# 1. 依赖
-uv sync                      # 或 pip install -e ".[imports]"
+# 1. 构建（首次会拉依赖）
+cargo build --release --workspace --bins     # 产出 target/release/steelpipe
+(cd web && npm ci && npm run build)          # 产出 web/dist（被 rust-embed 内嵌）
+# 注意：改前端后必须重新 cargo build 才会嵌入新产物
 
-# 2. 构建 Rust 扩展
-uv run maturin develop --release
+# 2. 配置
+export STEELPIPE_JWT_SECRET="$(openssl rand -base64 48)"
+export STEELPIPE_DATABASE_URL="sqlite://data/steelpipe.db"
+export STEELPIPE_BIND="127.0.0.1:8080"
+# 首次引导管理员（同名用户存在则重置口令）
+export STEELPIPE_ADMIN_USERNAME=root
+export STEELPIPE_ADMIN_PASSWORD='请换成至少 8 位的口令'
 
-# 3. 配置
-cat > .env <<'EOF'
-JWT_SECRET_KEY=<至少 32 字符的随机串>
-DATABASE_URL=sqlite+aiosqlite:///./data/inventory.db
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=<首次启动用的管理员密码>
-EOF
+# 3. 启动
+./target/release/steelpipe serve
+# → http://127.0.0.1:8080
+```bash
 
-# 4. 建表
-uv run alembic upgrade head
+完整环境变量见 `.env.example`。`STEELPIPE_JWT_SECRET` 为空或短于 32 字节时**拒绝启动**。
 
-# 5. 启动（单 worker 是硬性要求）
-uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 1
-```
-
-首次启动会从 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 幂等创建管理员。**已存在同名用户时会重置其密码哈希**，所以首次登录后应移除这两个环境变量。
-
-## 测试与检查
+## 命令行
 
 ```bash
-uv run --inexact pytest -m "not slow" -q   # 167 passed, 3 deselected
-uv run --inexact pytest -m slow            # 20K 审计链压测
-uv run --inexact ruff check                # 必须零报错
-```
+steelpipe serve                                  # 启动 HTTP 服务
+steelpipe openapi > openapi.json                 # 导出 OpenAPI（前端类型生成的来源）
+steelpipe audit verify [--batch 1000]            # 分批校验审计链，并比对链尾表
+steelpipe reconcile                              # 检测并修复 used_count 漂移（写审计）
+steelpipe seed-standards --path standards.csv    # 种子化标准规格（幂等）
+# 全局 --database / STEELPIPE_DATABASE_URL 覆盖数据库地址
+```bash
 
-`--inexact` 是必需的：`rust_core` 由 maturin 安装、不在 `uv.lock` 中，普通 `uv sync` 会把它删掉。
+## 部署
+
+```bash
+see deploy/README.md      # systemd 单元、目录布局、升级与回滚
+scripts/backup.sh         # sqlite3 .backup，日备 7 份 + 周快照 4 份
+scripts/restore.sh        # 恢复前先保留现场，恢复后跑 integrity_check
+```bash
+
+单写者约束：**只起一个实例**。这是 SQLite 的文件级特性，也是审计链 `BEGIN IMMEDIATE` 串行化的前提。
 
 ## 项目结构
 
-```
-src/
-├── main.py              # app factory、lifespan、异常处理器
-├── config.py            # pydantic-settings
-├── models.py            # SQLAlchemy ORM
-├── security.py          # JWT cookie 认证、RBAC、CSRF、登录限流
-├── modules/
-│   ├── auth/            # 登录 / 登出 / refresh 轮换
-│   ├── warehouse/       # 管子、库位、盘点、标准规格、审计
-│   └── users/           # 用户 CRUD
-├── templates/           # Jinja2，按模块分组；_macros.html 放共享徽章宏
-└── static/              # app.css / app.js / vendor（Bootstrap + Icons）
-rust-core/src/           # auth.rs / compliance.rs / audit.rs（纯函数）
-migrations/versions/     # Alembic
-docs/                    # 设计文档（权威：2026-07-13-api5ct-inventory-design.md）
-```
+```text
+crates/
+  domain/        角色与业务枚举、管子状态机（无 IO）
+  compliance/    API 5CT 五项校验（纯函数）
+  audit/         哈希链计算与分批校验（纯函数）
+  auth/          argon2id + HS256（Keys 显式持有，无全局状态）
+  infra/         SQLite 连接池、PRAGMA、sqlx 迁移、Uow（写事务+审计）、仓储
+  service/       用例：认证/用户/库存/目录/盘点/导入/运维
+  api/           axum 路由、DTO、RFC 9457 错误、OpenAPI（不依赖 sqlx）
+  server/        单二进制装配、CLI 子命令、rust-embed 静态资源
+web/             Vite + React SPA（nginx 式 SPA 回退由 axum 兜底）
+scripts/ci/      分层断言（依赖图即架构约束）
+deploy/          systemd 单元
+docs/            设计权威、重构参考、规格索引、里程碑记录
+```text
 
-## 关键约束
+分层由 CI 断言，不靠自觉：`crates/api` 直接依赖里出现 `sqlx` 或 `steelpipe-infra` 即失败。
 
-部署与改动前请先读 [`AGENTS.md`](AGENTS.md) 的 CONVENTIONS 与 ANTI-PATTERNS。最容易被忽略的几条：
+## 测试
 
-- **`--workers 1`**：SQLite 单写者，多 worker 会写坏数据
-- **所有写操作走 `BEGIN IMMEDIATE`**，审计行与业务操作同事务
-- **TOCTOU 守卫**：`WHERE status='in_stock' AND quality_mark != 'scrapped'` + 校验 `rows_affected == 1`
-- **软删除**：管子用 `deleted_at`、库位用 `is_active`，不做物理删除
-- **备份用 `sqlite3 .backup`**，不要 `cp`
-- **状态展示一律走 `_macros.html`**：图标 + 文字 + 颜色三重编码，颜色不得是唯一信息载体
+```bash
+cargo test --workspace                  # 114 个
+cargo clippy --workspace --all-targets -- -D warnings
+bash scripts/ci/layering.sh
+(cd web && npm run build)               # 含 tsc --noEmit
+```bash
+
+测试覆盖重点：审计链黄金向量（与旧实现逐字节一致）、TOCTOU 守卫、批量原子性、盘盈合规门、登录锁定审计、软删可见性、`used_count` 漂移与修复。
 
 ## 文档
 
 | 文档 | 内容 |
-|---|---|
-| [`docs/2026-07-13-api5ct-inventory-design.md`](docs/2026-07-13-api5ct-inventory-design.md) | 设计权威：schema、TOCTOU、审计链、API 总表、异常映射、运维脚本 |
-| [`AGENTS.md`](AGENTS.md) | 工程约定、反模式、命令速查 |
-| [`CHANGELOG.md`](CHANGELOG.md) | 版本变更 |
+| --- | --- |
+| [`docs/2026-07-13-api5ct-inventory-design.md`](docs/2026-07-13-api5ct-inventory-design.md) | 业务与架构的设计权威（v0.8.0） |
+| [`docs/2026-11-17-rewrite-reference.md`](docs/2026-11-17-rewrite-reference.md) | 重写方案：选型、架构、里程碑、风险 |
+| [`docs/spec/`](docs/spec/) | 从旧测试提取的行为规格（A–H 域，编号可追溯） |
+| [`docs/milestones/`](docs/milestones/) | M0–M7 交付记录与实测结果 |
+
+## 历史
+
+本项目由 FastAPI + PyO3 + SQLite + Jinja2 的旧实现重写而来；旧栈代码已移除，
+其行为规格保留在 `docs/spec/`，设计意图保留在设计文档中。

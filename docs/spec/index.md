@@ -28,7 +28,7 @@
 
 | 文件 | 条目 | 已提取 | 已实现 |
 | --- | --- | --- | --- |
-| [`A-auth.md`](A-auth.md) | A1–A24 | 24 | 23（仅 A13 待前端，M6） |
+| [`A-auth.md`](A-auth.md) | A1–A24 | 24 | 24（A13 已在 M6 补齐） |
 | `B-authz.md` | B1–B10 | 待提取 | 0 |
 | `C-users.md` | C1–C9 | 待提取 | 0 |
 | [`D-inventory.md`](D-inventory.md) | D1–D16 | 16 | 16（M3） |

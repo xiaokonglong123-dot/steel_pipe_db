@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 审计日志（admin，按 id 升序分页） */
+        get: operations["list_audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 分批校验审计链（admin） */
+        post: operations["verify_chain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/csrf": {
         parameters: {
             query?: never;
@@ -592,6 +626,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AuditEntryDto: {
+            action: string;
+            current_hash: string;
+            detail?: string | null;
+            /** Format: int64 */
+            id: number;
+            ts: string;
+            /** Format: int64 */
+            user_id?: number | null;
+        };
+        AuditListResponse: {
+            entries: components["schemas"]["AuditEntryDto"][];
+            /** Format: int64 */
+            total: number;
+        };
+        AuditQuery: {
+            action?: string | null;
+            /**
+             * Format: int64
+             * @description 上一页最后一条的 id（首页传 0）
+             */
+            after_id?: number | null;
+            /** Format: int64 */
+            limit?: number | null;
+        };
         BatchStockOutRequest: {
             pipe_ids: string[];
             remark?: string | null;
@@ -960,6 +1019,17 @@ export interface components {
             total: number;
             users: components["schemas"]["UserDto"][];
         };
+        VerifyRequest: {
+            /** @description 每批条数（默认 1000，上限 20000） */
+            batch?: number | null;
+        };
+        VerifyResponse: {
+            /** Format: int64 */
+            batches: number;
+            /** Format: int64 */
+            entries: number;
+            tip: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -969,6 +1039,77 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_audit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string | null;
+                /** @description 上一页最后一条的 id（首页传 0） */
+                after_id: number | null;
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditListResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    verify_chain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifyResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     issue_csrf: {
         parameters: {
             query?: never;

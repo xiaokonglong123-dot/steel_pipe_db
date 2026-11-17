@@ -31,6 +31,22 @@ pub enum OpsError {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct AuditEntryView {
+    pub id: i64,
+    pub user_id: Option<i64>,
+    pub action: String,
+    pub detail: Option<String>,
+    pub ts: String,
+    pub current_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AuditPageView {
+    pub entries: Vec<AuditEntryView>,
+    pub total: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct VerifySummary {
     pub entries: i64,
     pub batches: i64,
@@ -57,6 +73,31 @@ pub struct OpsService {
 impl OpsService {
     pub fn new(pool: DbPool) -> Self {
         Self { pool }
+    }
+
+    /// 审计列表（admin 页面用）：按 id 升序游标分页，可按 action 过滤。
+    pub async fn list_audit(
+        &self,
+        action: Option<&str>,
+        after_id: i64,
+        limit: i64,
+    ) -> Result<AuditPageView, OpsError> {
+        let rows = audit_repo::page_filtered(&self.pool, action, after_id, limit).await?;
+        let total = audit_repo::count(&self.pool).await?;
+        Ok(AuditPageView {
+            entries: rows
+                .into_iter()
+                .map(|row| AuditEntryView {
+                    id: row.id,
+                    user_id: row.user_id,
+                    action: row.action,
+                    detail: Some(row.detail),
+                    ts: row.ts,
+                    current_hash: row.current_hash,
+                })
+                .collect(),
+            total,
+        })
     }
 
     /// 分批校验全链：跨批用上一批 tip 续接；最后与链尾表比对。

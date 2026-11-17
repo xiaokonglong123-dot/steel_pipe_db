@@ -1,0 +1,26 @@
+# systemd 单元示例。安装：见 deploy/README.md
+[Unit]
+Description=SteelPipe 钢管与筛管库存系统
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=steelpipe
+Group=steelpipe
+WorkingDirectory=/srv/steelpipe
+EnvironmentFile=/etc/steelpipe/env
+ExecStart=/srv/steelpipe/steelpipe serve
+Restart=on-failure
+RestartSec=3
+# 单写者：不要起多个实例
+# SQLite WAL 需要可写目录
+ReadWritePaths=/srv/steelpipe/data
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target

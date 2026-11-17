@@ -22,6 +22,8 @@ pub use inventory::{
     HistoryView, InventoryError, InventoryService, ScreenSpecView, SeamlessSpecView, StockInInput,
     TubeDetailView, TubePage, TubeQuery, TubeView,
 };
-pub use ops::{DriftFix, OpsError, OpsService, SeedSummary, VerifySummary};
+pub use ops::{
+    AuditEntryView, AuditPageView, DriftFix, OpsError, OpsService, SeedSummary, VerifySummary,
+};
 pub use steelpipe_infra::{DbPool, InfraError};
 pub use users::{NewUser, UserError, UserService, UserView};

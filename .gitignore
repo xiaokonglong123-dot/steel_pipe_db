@@ -1,59 +1,29 @@
-# Python
-__pycache__/
-*.py[cod]
-*.so
-*.egg-info/
-dist/
-build/
-*.egg
-.venv/
-venv/
+# 构建产物
+/target
+/web/node_modules/
+/web/dist/
+/openapi.json
 
-# Rust
-rust-core/target/
+# 运行时数据（含备份与旧库导出）
+/data/
+/docs/legacy/
 
-# SQLite
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
-
-# Alembic
-migrations/versions/__pycache__/
-
-# Environment
+# 环境
 .env
 .env.*
-!.env.example
 
-# IDE
+# 编辑器 / 系统
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Data
-data/
-
-# Al
-.omo
-.omo/*
-.cortexkit
-.cortexkit/*
-
-# Agent-workflow scratch trees (local absolute paths, raw pytest output)
+# 历史遗留（旧 Python 栈残留，未跟踪）
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cortexkit/
 .superpowers/
-
-# Rust workspace（新栈，2026-11 起）
-/target
-# 前端（新栈）
-web/node_modules/
-web/dist/
-# 生成的 OpenAPI 快照（CI 现场生成，不入库）
-/openapi.json
-# 旧库导出（含用户口令哈希，仅本地留档）
-docs/legacy/

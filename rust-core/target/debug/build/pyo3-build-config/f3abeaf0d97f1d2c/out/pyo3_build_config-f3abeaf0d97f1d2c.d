@@ -1,0 +1,14 @@
+/home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/f3abeaf0d97f1d2c/out/pyo3_build_config-f3abeaf0d97f1d2c.d: /home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/lib.rs /home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/errors.rs /home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/impl_.rs /home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/c7ec121e00cbd655/out/pyo3-build-config-file.txt /home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/c7ec121e00cbd655/out/pyo3-build-config.txt
+
+/home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/f3abeaf0d97f1d2c/out/libpyo3_build_config-f3abeaf0d97f1d2c.rlib: /home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/lib.rs /home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/errors.rs /home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/impl_.rs /home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/c7ec121e00cbd655/out/pyo3-build-config-file.txt /home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/c7ec121e00cbd655/out/pyo3-build-config.txt
+
+/home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/f3abeaf0d97f1d2c/out/libpyo3_build_config-f3abeaf0d97f1d2c.rmeta: /home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/lib.rs /home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/errors.rs /home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/impl_.rs /home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/c7ec121e00cbd655/out/pyo3-build-config-file.txt /home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/c7ec121e00cbd655/out/pyo3-build-config.txt
+
+/home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/lib.rs:
+/home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/errors.rs:
+/home/yzp/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/impl_.rs:
+/home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/c7ec121e00cbd655/out/pyo3-build-config-file.txt:
+/home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/c7ec121e00cbd655/out/pyo3-build-config.txt:
+
+# env-dep:CARGO_PKG_VERSION=0.23.5
+# env-dep:OUT_DIR=/home/yzp/Projects/active/Ayanami_Rei/rust-core/target/debug/build/pyo3-build-config/c7ec121e00cbd655/out

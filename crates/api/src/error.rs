@@ -219,6 +219,23 @@ impl From<steelpipe_service::ImportError> for ApiError {
     }
 }
 
+impl From<steelpipe_service::OpsError> for ApiError {
+    fn from(error: steelpipe_service::OpsError) -> Self {
+        use steelpipe_service::OpsError as E;
+        match error {
+            E::BadBatch(batch) => Self::Invalid(format!("批次大小 {batch} 非法")),
+            E::ChainBroken { at_id, reason } => {
+                Self::StateConflict(format!("审计链在第 {at_id} 条断裂：{reason}"))
+            }
+            E::TipMismatch { log_tip, table_tip } => {
+                Self::StateConflict(format!("审计链尾不一致：日志 {log_tip} / 表 {table_tip}"))
+            }
+            E::Parse(message) => Self::Invalid(message),
+            E::Infra(infra) => Self::from(infra),
+        }
+    }
+}
+
 impl From<UserError> for ApiError {
     fn from(error: UserError) -> Self {
         match error {
@@ -313,6 +330,12 @@ impl From<steelpipe_service::CheckError> for ApiReject {
 
 impl From<steelpipe_service::ImportError> for ApiReject {
     fn from(error: steelpipe_service::ImportError) -> Self {
+        ApiError::from(error).into()
+    }
+}
+
+impl From<steelpipe_service::OpsError> for ApiReject {
+    fn from(error: steelpipe_service::OpsError) -> Self {
         ApiError::from(error).into()
     }
 }
