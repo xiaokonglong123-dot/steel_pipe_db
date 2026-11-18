@@ -3,7 +3,7 @@
 //! 关键语义：状态推进用**带条件的 UPDATE**（`WHERE status = ?`），
 //! 影响行数为 0 就是 TOCTOU 冲突 —— 等价旧实现 `guarded_update` 的守卫。
 
-use sqlx::{FromRow, SqliteConnection};
+use sqlx::{FromRow, Sqlite, SqliteConnection};
 use steelpipe_domain::tube::TubeDraft;
 use steelpipe_domain::{QualityMark, TubeStatus, TubeType};
 
@@ -161,11 +161,14 @@ pub async fn count(pool: &DbPool, filter: &TubeFilter) -> Result<i64, InfraError
     query.fetch_one(pool).await.map_err(InfraError::Connect)
 }
 
-pub async fn find(pool: &DbPool, pipe_id: &str) -> Result<Option<TubeRow>, InfraError> {
+pub async fn find<'e, E>(executor: E, pipe_id: &str) -> Result<Option<TubeRow>, InfraError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
     let sql = format!("SELECT {COLUMNS} FROM tubes WHERE pipe_id = ?");
     sqlx::query_as::<_, TubeRow>(&sql)
         .bind(pipe_id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await
         .map_err(InfraError::Connect)
 }
@@ -238,6 +241,7 @@ pub async fn insert_screen_spec(
     conn: &mut SqliteConnection,
     pipe_id: &str,
     specs: &steelpipe_compliance::ScreenPipeParams,
+    screen_type: Option<&str>,
     base_pipe_grade: Option<&str>,
 ) -> Result<(), InfraError> {
     sqlx::query(
@@ -245,7 +249,7 @@ pub async fn insert_screen_spec(
             filtration_rating_um, base_pipe_grade, slot_pattern) VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(pipe_id)
-    .bind(None::<String>)
+    .bind(screen_type)
     .bind(specs.slot_width_mm)
     .bind(specs.slot_density)
     .bind(specs.filtration_rating_um)
@@ -289,7 +293,8 @@ pub async fn mark_out_stock(
 ) -> Result<(), InfraError> {
     let rows = sqlx::query(
         "UPDATE tubes SET status = 'out_stock', stock_out_time = ?, updated_at = ?
-         WHERE pipe_id = ? AND status IN ('in_stock', 'in_transfer')",
+         WHERE pipe_id = ? AND status IN ('in_stock', 'in_transfer')
+           AND deleted_at IS NULL AND quality_mark != 'scrapped'",
     )
     .bind(now)
     .bind(now)
@@ -307,16 +312,25 @@ pub async fn mark_out_stock(
 pub async fn set_location(
     conn: &mut SqliteConnection,
     pipe_id: &str,
-    location: &str,
+    source_location: Option<&str>,
+    target_location: &str,
     now: &str,
 ) -> Result<(), InfraError> {
-    sqlx::query("UPDATE tubes SET location = ?, updated_at = ? WHERE pipe_id = ?")
-        .bind(location)
-        .bind(now)
-        .bind(pipe_id)
-        .execute(conn)
-        .await
-        .map_err(InfraError::Connect)?;
+    let rows = sqlx::query(
+        "UPDATE tubes SET location = ?, updated_at = ?
+         WHERE pipe_id = ? AND location IS ? AND status = 'in_stock' AND deleted_at IS NULL",
+    )
+    .bind(target_location)
+    .bind(now)
+    .bind(pipe_id)
+    .bind(source_location)
+    .execute(conn)
+    .await
+    .map_err(InfraError::Connect)?
+    .rows_affected();
+    if rows != 1 {
+        return Err(InfraError::Conflict("管子状态或库位已被并发修改"));
+    }
     Ok(())
 }
 

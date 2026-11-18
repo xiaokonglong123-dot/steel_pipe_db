@@ -317,7 +317,7 @@ async fn screen_and_seamless_specs_attach_to_tube() {
         .unwrap();
     let screen = ScreenPipeParams::new(0.4, 40.0, 120.0, Some("直缝".into()));
     // 筛管参数表对任意管子都建立了 1:1 记录（业务上由调用方决定是否写）
-    tubes::insert_screen_spec(uow.conn(), "P-20", &screen, Some("L80"))
+    tubes::insert_screen_spec(uow.conn(), "P-20", &screen, Some("slotted"), Some("L80"))
         .await
         .unwrap();
     uow.commit().await.unwrap();

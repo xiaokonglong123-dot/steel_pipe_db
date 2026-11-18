@@ -190,8 +190,17 @@ pub fn new_csrf_token() -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// 取客户端 IP：优先 `X-Forwarded-For` 第一段，否则用连接信息。
-pub fn client_ip(headers: &HeaderMap, peer: Option<std::net::SocketAddr>) -> String {
+/// 默认使用 socket 对端；只有部署方显式信任反代覆盖转发头后才读取 XFF。
+pub fn client_ip(
+    headers: &HeaderMap,
+    peer: Option<std::net::SocketAddr>,
+    trust_forwarded_headers: bool,
+) -> String {
+    if !trust_forwarded_headers {
+        return peer
+            .map(|addr| addr.ip().to_string())
+            .unwrap_or_else(|| "unknown".to_owned());
+    }
     headers
         .get("x-forwarded-for")
         .and_then(|value| value.to_str().ok())

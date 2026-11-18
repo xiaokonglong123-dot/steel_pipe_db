@@ -1,6 +1,6 @@
 //! 盘点单仓储（`check_sessions` / `check_items`）。
 
-use sqlx::{FromRow, SqliteConnection};
+use sqlx::{FromRow, Sqlite, SqliteConnection};
 
 use crate::{DbPool, InfraError};
 
@@ -50,11 +50,17 @@ pub async fn insert_session(
     .map_err(InfraError::Connect)
 }
 
-pub async fn find_session(pool: &DbPool, id: i64) -> Result<Option<CheckSessionRow>, InfraError> {
+pub async fn find_session<'e, E>(
+    executor: E,
+    id: i64,
+) -> Result<Option<CheckSessionRow>, InfraError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
     let sql = format!("SELECT {SESSION_COLUMNS} FROM check_sessions WHERE id = ?");
     sqlx::query_as::<_, CheckSessionRow>(&sql)
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await
         .map_err(InfraError::Connect)
 }
@@ -74,13 +80,16 @@ pub async fn list_sessions(
         .map_err(InfraError::Connect)
 }
 
-pub async fn items(pool: &DbPool, check_id: i64) -> Result<Vec<CheckItemRow>, InfraError> {
+pub async fn items<'e, E>(executor: E, check_id: i64) -> Result<Vec<CheckItemRow>, InfraError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
     sqlx::query_as(
         "SELECT id, check_id, pipe_id, result, actual_location, surplus_data, created_at
          FROM check_items WHERE check_id = ? ORDER BY id",
     )
     .bind(check_id)
-    .fetch_all(pool)
+    .fetch_all(executor)
     .await
     .map_err(InfraError::Connect)
 }
@@ -105,31 +114,43 @@ pub async fn upsert_item(
 
     match existing {
         Some(id) => {
-            sqlx::query(
-                "UPDATE check_items SET result = ?, actual_location = ?, surplus_data = ? WHERE id = ?",
+            let rows = sqlx::query(
+                "UPDATE check_items SET result = ?, actual_location = ?, surplus_data = ?
+                 WHERE id = ? AND check_id = ?
+                   AND EXISTS (SELECT 1 FROM check_sessions WHERE id = ? AND status = 'open')",
             )
             .bind(result)
             .bind(actual_location)
             .bind(surplus_data)
             .bind(id)
+            .bind(check_id)
+            .bind(check_id)
             .execute(conn)
             .await
-            .map_err(InfraError::Connect)?;
+            .map_err(InfraError::Connect)?
+            .rows_affected();
+            if rows != 1 {
+                return Err(InfraError::NotOpen);
+            }
             Ok(id)
         }
-        None => sqlx::query_scalar(
-            "INSERT INTO check_items (check_id, pipe_id, result, actual_location, surplus_data, created_at)
-             VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
-        )
-        .bind(check_id)
-        .bind(pipe_id)
-        .bind(result)
-        .bind(actual_location)
-        .bind(surplus_data)
-        .bind(now)
-        .fetch_one(conn)
-        .await
-        .map_err(InfraError::Connect),
+        None => {
+            let inserted = sqlx::query_scalar::<_, i64>(
+                "INSERT INTO check_items (check_id, pipe_id, result, actual_location, surplus_data, created_at)
+                 SELECT id, ?, ?, ?, ?, ? FROM check_sessions WHERE id = ? AND status = 'open'
+                 RETURNING id",
+            )
+            .bind(pipe_id)
+            .bind(result)
+            .bind(actual_location)
+            .bind(surplus_data)
+            .bind(now)
+            .bind(check_id)
+            .fetch_optional(conn)
+            .await
+            .map_err(InfraError::Connect)?;
+            inserted.ok_or(InfraError::NotOpen)
+        }
     }
 }
 
@@ -138,17 +159,35 @@ pub async fn delete_item(
     check_id: i64,
     item_id: i64,
 ) -> Result<(), InfraError> {
-    let rows = sqlx::query("DELETE FROM check_items WHERE id = ? AND check_id = ?")
-        .bind(item_id)
-        .bind(check_id)
-        .execute(conn)
-        .await
-        .map_err(InfraError::Connect)?
-        .rows_affected();
+    let rows = sqlx::query(
+        "DELETE FROM check_items WHERE id = ? AND check_id = ?
+         AND EXISTS (SELECT 1 FROM check_sessions WHERE id = ? AND status = 'open')",
+    )
+    .bind(item_id)
+    .bind(check_id)
+    .bind(check_id)
+    .execute(conn)
+    .await
+    .map_err(InfraError::Connect)?
+    .rows_affected();
     if rows == 0 {
         return Err(InfraError::NotFound("盘点明细"));
     }
     Ok(())
+}
+
+/// 在写事务内区分不存在与已关闭，避免将已处理单据误报成 404/500。
+pub async fn require_open(
+    conn: &mut SqliteConnection,
+    check_id: i64,
+) -> Result<CheckSessionRow, InfraError> {
+    let session = find_session(conn, check_id)
+        .await?
+        .ok_or(InfraError::NotFound("盘点单"))?;
+    if session.status != "open" {
+        return Err(InfraError::NotOpen);
+    }
+    Ok(session)
 }
 
 /// 状态推进：只有 `open` 能被确认/取消（条件 UPDATE，0 行 = 已被处理）。
@@ -172,7 +211,57 @@ pub async fn close_session(
     .map_err(InfraError::Connect)?
     .rows_affected();
     if rows == 0 {
-        return Err(InfraError::Conflict("盘点单已被处理"));
+        return Err(InfraError::NotOpen);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{test_support::temp_pool, uow::Uow};
+
+    #[tokio::test]
+    async fn closed_session_rejects_new_items_and_keeps_existing_results() {
+        let (pool, path) = temp_pool("check-closed-guard").await;
+        let mut uow = Uow::begin(&pool).await.unwrap();
+        let check_id = insert_session(uow.conn(), "A1", 1, None, "2026-01-01T00:00:00Z")
+            .await
+            .unwrap();
+        upsert_item(
+            uow.conn(),
+            check_id,
+            "P-1",
+            "missing",
+            None,
+            None,
+            "2026-01-01T00:00:00Z",
+        )
+        .await
+        .unwrap();
+        close_session(uow.conn(), check_id, "cancelled", 1, "2026-01-01T00:00:01Z")
+            .await
+            .unwrap();
+
+        for pipe_id in ["P-1", "P-2"] {
+            let error = upsert_item(
+                uow.conn(),
+                check_id,
+                pipe_id,
+                "ok",
+                None,
+                None,
+                "2026-01-01T00:00:02Z",
+            )
+            .await
+            .unwrap_err();
+            assert!(matches!(error, InfraError::NotOpen));
+        }
+        let stored = items(uow.conn(), check_id).await.unwrap();
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].result, "missing");
+        drop(uow);
+        pool.close().await;
+        let _ = std::fs::remove_file(path);
+    }
 }

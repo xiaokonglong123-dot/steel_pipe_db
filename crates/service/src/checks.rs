@@ -33,6 +33,8 @@ pub enum CheckError {
     LocationUnavailable(String),
     #[error("管子 {0} 不在该库位的在库清单中")]
     TubeNotInScope(String),
+    #[error("盘点明细 {0} 不存在")]
+    ItemNotFound(i64),
     #[error("`moved` 结论必须给出与盘点库位不同的实际位置")]
     InvalidMoved,
     #[error("没有钢级 {0} 的标准规格，无法校验盘盈合规")]
@@ -51,7 +53,10 @@ impl CheckError {
     fn from_infra(error: InfraError) -> Self {
         match error {
             InfraError::Conflict(message) => Self::Conflict(message.to_owned()),
-            InfraError::NotFound(_) => Self::NotFound(0),
+            InfraError::NotOpen => Self::NotOpen,
+            InfraError::NotFound("盘点明细") => Self::ItemNotFound(-1),
+            InfraError::NotFound("盘点单") => Self::NotFound(0),
+            InfraError::NotFound(_) => Self::Conflict("业务对象不存在或已变化".into()),
             other => Self::Infra(other),
         }
     }
@@ -241,8 +246,9 @@ impl CheckService {
         result: CheckResult,
         actual_location: Option<&str>,
     ) -> Result<(), CheckError> {
-        let session = self.require_open(check_id).await?;
-        let tube = tubes::find(&self.pool, pipe_id)
+        let mut uow = Uow::begin(&self.pool).await?;
+        let session = Self::require_open_in_tx(&mut uow, check_id).await?;
+        let tube = tubes::find(uow.conn(), pipe_id)
             .await?
             .ok_or_else(|| CheckError::TubeNotInScope(pipe_id.to_owned()))?;
         if tube.deleted_at.is_some()
@@ -262,7 +268,7 @@ impl CheckService {
             if target == session.location {
                 return Err(CheckError::InvalidMoved);
             }
-            let target_row = locations::find(&self.pool, target)
+            let target_row = locations::find(uow.conn(), target)
                 .await?
                 .ok_or_else(|| CheckError::LocationUnavailable(target.to_owned()))?;
             if !target_row.is_active {
@@ -271,7 +277,6 @@ impl CheckService {
         }
 
         let now = time::now_rfc3339();
-        let mut uow = Uow::begin(&self.pool).await?;
         checks::upsert_item(
             uow.conn(),
             check_id,
@@ -298,12 +303,13 @@ impl CheckService {
         check_id: i64,
         input: StockInInput,
     ) -> Result<(), CheckError> {
-        let session = self.require_open(check_id).await?;
+        let mut uow = Uow::begin(&self.pool).await?;
+        let session = Self::require_open_in_tx(&mut uow, check_id).await?;
         let pipe_id = input.pipe_id.trim().to_owned();
         if pipe_id.is_empty() {
             return Err(CheckError::TubeNotInScope(String::new()));
         }
-        if tubes::find(&self.pool, &pipe_id).await?.is_some() {
+        if tubes::find(uow.conn(), &pipe_id).await?.is_some() {
             return Err(CheckError::Conflict("该编号的管子已存在".into()));
         }
 
@@ -313,7 +319,6 @@ impl CheckService {
             .map_err(|error| CheckError::Conflict(error.to_string()))?;
 
         let now = time::now_rfc3339();
-        let mut uow = Uow::begin(&self.pool).await?;
         checks::upsert_item(
             uow.conn(),
             check_id,
@@ -329,8 +334,12 @@ impl CheckService {
     }
 
     pub async fn remove_item(&self, check_id: i64, item_id: i64) -> Result<(), CheckError> {
-        self.require_open(check_id).await?;
         let mut uow = Uow::begin(&self.pool).await?;
+        Self::require_open_in_tx(&mut uow, check_id).await?;
+        let stored_items = checks::items(uow.conn(), check_id).await?;
+        if !stored_items.iter().any(|item| item.id == item_id) {
+            return Err(CheckError::ItemNotFound(item_id));
+        }
         checks::delete_item(uow.conn(), check_id, item_id)
             .await
             .map_err(CheckError::from_infra)?;
@@ -341,6 +350,7 @@ impl CheckService {
     pub async fn cancel(&self, actor: &Identity, check_id: i64) -> Result<(), CheckError> {
         let now = time::now_rfc3339();
         let mut uow = Uow::begin(&self.pool).await?;
+        Self::require_open_in_tx(&mut uow, check_id).await?;
         checks::close_session(
             uow.conn(),
             check_id,
@@ -360,9 +370,10 @@ impl CheckService {
         actor: &Identity,
         check_id: i64,
     ) -> Result<ConfirmOutcome, CheckError> {
-        let session = self.require_open(check_id).await?;
+        let mut uow = Uow::begin(&self.pool).await?;
+        let session = Self::require_open_in_tx(&mut uow, check_id).await?;
         let location = session.location.clone();
-        let items = checks::items(&self.pool, check_id).await?;
+        let items = checks::items(uow.conn(), check_id).await?;
 
         // 盘盈的合规校验必须先做完，避免写了一半才失败
         let mut surplus_inputs: Vec<(String, StockInInput)> = Vec::new();
@@ -376,12 +387,11 @@ impl CheckService {
                 .ok_or_else(|| CheckError::Conflict("盘盈缺少实际信息".into()))?;
             let input: StockInInput = serde_json::from_str(raw)
                 .map_err(|error| CheckError::Conflict(format!("盘盈数据损坏：{error}")))?;
-            self.validate_surplus(&input).await?;
+            Self::validate_surplus(&mut uow, &input).await?;
             surplus_inputs.push((item.pipe_id.clone(), input));
         }
 
         let now = time::now_rfc3339();
-        let mut uow = Uow::begin(&self.pool).await?;
 
         let mut missing_n = 0i64;
         let mut moved_n = 0i64;
@@ -408,6 +418,12 @@ impl CheckService {
                         .actual_location
                         .as_deref()
                         .ok_or(CheckError::InvalidMoved)?;
+                    let target_row = locations::find(uow.conn(), target)
+                        .await?
+                        .ok_or_else(|| CheckError::LocationUnavailable(target.to_owned()))?;
+                    if !target_row.is_active {
+                        return Err(CheckError::LocationUnavailable(target_row.code));
+                    }
                     tubes::move_location_guarded(
                         uow.conn(),
                         &item.pipe_id,
@@ -420,9 +436,14 @@ impl CheckService {
                     locations::adjust_used_count(uow.conn(), &location, -1)
                         .await
                         .map_err(CheckError::from_infra)?;
-                    locations::adjust_used_count(uow.conn(), target, 1)
+                    locations::adjust_used_count_checked(uow.conn(), target, 1, true)
                         .await
-                        .map_err(CheckError::from_infra)?;
+                        .map_err(|error| match error {
+                            InfraError::NotFound("库位") => {
+                                CheckError::LocationUnavailable(target.to_owned())
+                            }
+                            other => CheckError::from_infra(other),
+                        })?;
                     moved_n += 1;
                 }
                 CheckResult::Surplus => {
@@ -433,7 +454,7 @@ impl CheckService {
                     write_tube_rows(&mut uow, pipe_id, input, true, &now)
                         .await
                         .map_err(|error| CheckError::Conflict(error.to_string()))?;
-                    locations::adjust_used_count(uow.conn(), &location, 1)
+                    locations::adjust_used_count_checked(uow.conn(), &location, 1, true)
                         .await
                         .map_err(CheckError::from_infra)?;
                     surplus_n += 1;
@@ -531,17 +552,16 @@ impl CheckService {
         Ok(())
     }
 
-    async fn require_open(&self, check_id: i64) -> Result<checks::CheckSessionRow, CheckError> {
-        let session = checks::find_session(&self.pool, check_id)
-            .await?
-            .ok_or(CheckError::NotFound(check_id))?;
-        if session.status != CheckStatus::Open.as_str() {
-            return Err(CheckError::NotOpen);
-        }
-        Ok(session)
+    async fn require_open_in_tx(
+        uow: &mut Uow,
+        check_id: i64,
+    ) -> Result<checks::CheckSessionRow, CheckError> {
+        checks::require_open(uow.conn(), check_id)
+            .await
+            .map_err(CheckError::from_infra)
     }
 
-    async fn validate_surplus(&self, input: &StockInInput) -> Result<(), CheckError> {
+    async fn validate_surplus(uow: &mut Uow, input: &StockInInput) -> Result<(), CheckError> {
         let draft = TubeDraft {
             pipe_id: input.pipe_id.clone(),
             pipe_type: input.pipe_type,
@@ -561,7 +581,7 @@ impl CheckService {
         };
         draft.validate()?;
 
-        let spec = standards::find_by_grade(&self.pool, input.steel_grade.trim())
+        let spec = standards::find_by_grade(uow.conn(), input.steel_grade.trim())
             .await?
             .ok_or_else(|| CheckError::NoStandardSpec(input.steel_grade.clone()))?;
         let params = TubeParams {

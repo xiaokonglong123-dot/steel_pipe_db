@@ -546,6 +546,94 @@ async fn lockout_returns_429_with_retry_after() {
 }
 
 #[tokio::test]
+async fn untrusted_forwarded_header_cannot_bypass_ip_limit() {
+    let fx = Harness::new("untrusted-forwarded").await;
+    fx.seed("dave", "correct-pw-123", Role::Operator).await;
+    let (token, csrf_cookie) = csrf(&fx).await;
+    for i in 0..5 {
+        let mut request = with_csrf(
+            with_cookies(
+                post_json(
+                    "/api/auth/login",
+                    serde_json::json!({"username": "dave", "password": "wrong"}),
+                ),
+                &csrf_cookie,
+            ),
+            &token,
+        );
+        request.headers_mut().insert(
+            "x-forwarded-for",
+            format!("198.51.100.{i}").parse().unwrap(),
+        );
+        assert_eq!(fx.send(request).await.status, StatusCode::UNAUTHORIZED);
+    }
+    let mut request = with_csrf(
+        with_cookies(
+            post_json(
+                "/api/auth/login",
+                serde_json::json!({"username": "dave", "password": "wrong"}),
+            ),
+            &csrf_cookie,
+        ),
+        &token,
+    );
+    request
+        .headers_mut()
+        .insert("x-forwarded-for", "198.51.100.200".parse().unwrap());
+    assert_eq!(fx.send(request).await.status, StatusCode::TOO_MANY_REQUESTS);
+    fx.cleanup().await;
+}
+
+#[tokio::test]
+async fn audit_total_uses_the_action_filter() {
+    let fx = Harness::new("audit-filter").await;
+    fx.seed("root", "root-pw-123", Role::Admin).await;
+    let (token, csrf_cookie) = csrf(&fx).await;
+    let login = fx
+        .send(with_csrf(
+            with_cookies(
+                post_json(
+                    "/api/auth/login",
+                    serde_json::json!({"username": "root", "password": "root-pw-123"}),
+                ),
+                &csrf_cookie,
+            ),
+            &token,
+        ))
+        .await;
+    let cookies = login.cookie_header(&["access_token", "refresh_token", "csrf_token"]);
+    let csrf = login.cookies["csrf_token"].clone();
+    let created = fx
+        .send(with_csrf(
+            with_cookies(
+                post_json(
+                    "/api/locations",
+                    serde_json::json!({"code": "AUDIT-FILTER"}),
+                ),
+                &cookies,
+            ),
+            &csrf,
+        ))
+        .await;
+    assert_eq!(
+        created.status,
+        StatusCode::CREATED,
+        "body: {}",
+        created.body
+    );
+    let filtered = fx
+        .send(with_cookies(
+            get("/api/audit?action=create_location"),
+            &cookies,
+        ))
+        .await;
+    assert_eq!(filtered.status, StatusCode::OK);
+    assert_eq!(filtered.json()["total"], 1);
+    assert_eq!(filtered.json()["entries"].as_array().unwrap().len(), 1);
+    fx.cleanup().await;
+}
+
+#[tokio::test]
 async fn db_health_is_503_when_probe_missing() {
     let fx = Harness::new("probe").await;
     let reply = fx.send(get("/api/health/db")).await;

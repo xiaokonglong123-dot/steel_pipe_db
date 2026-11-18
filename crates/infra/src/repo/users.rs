@@ -1,6 +1,6 @@
 //! 用户仓储。写操作接 `&mut SqliteConnection`（由 [`crate::uow::Uow`] 提供）。
 
-use sqlx::{FromRow, SqliteConnection};
+use sqlx::{FromRow, Sqlite, SqliteConnection};
 use steelpipe_domain::Role;
 
 use crate::{DbPool, InfraError};
@@ -39,11 +39,14 @@ pub async fn find_by_username(
         .map_err(InfraError::Connect)
 }
 
-pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<UserRow>, InfraError> {
+pub async fn find_by_id<'e, E>(executor: E, id: i64) -> Result<Option<UserRow>, InfraError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
     let sql = format!("SELECT {COLUMNS} FROM users WHERE id = ?");
     sqlx::query_as::<_, UserRow>(&sql)
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await
         .map_err(InfraError::Connect)
 }
@@ -56,10 +59,13 @@ pub async fn list(pool: &DbPool) -> Result<Vec<UserRow>, InfraError> {
         .map_err(InfraError::Connect)
 }
 
-pub async fn count_admins(pool: &DbPool, excluding_id: Option<i64>) -> Result<i64, InfraError> {
+pub async fn count_admins<'e, E>(executor: E, excluding_id: Option<i64>) -> Result<i64, InfraError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
     sqlx::query_scalar("SELECT count(*) FROM users WHERE role = 'admin' AND active = 1 AND id != ?")
         .bind(excluding_id.unwrap_or(-1))
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
         .map_err(InfraError::Connect)
 }

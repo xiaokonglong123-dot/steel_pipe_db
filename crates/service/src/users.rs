@@ -132,17 +132,16 @@ impl UserService {
         if id == actor.user_id && !active {
             return Err(UserError::Invalid("不能停用自己的账号".into()));
         }
-        let target = users::find_by_id(&self.pool, id)
+        let mut uow = Uow::begin(&self.pool).await?;
+        let target = users::find_by_id(uow.conn(), id)
             .await?
             .ok_or(UserError::NotFound)?;
         if !active
             && target.role().is_some_and(Role::is_admin)
-            && users::count_admins(&self.pool, Some(id)).await? == 0
+            && users::count_admins(uow.conn(), Some(id)).await? == 0
         {
             return Err(UserError::LastAdmin);
         }
-
-        let mut uow = Uow::begin(&self.pool).await?;
         users::set_active(uow.conn(), id, active).await?;
         let payload = ToggleUserDetail {
             user_id: id,
@@ -216,17 +215,16 @@ impl UserService {
     }
 
     pub async fn set_role(&self, actor: &Identity, id: i64, role: Role) -> Result<(), UserError> {
-        let target = users::find_by_id(&self.pool, id)
+        let mut uow = Uow::begin(&self.pool).await?;
+        let target = users::find_by_id(uow.conn(), id)
             .await?
             .ok_or(UserError::NotFound)?;
         if !role.is_admin()
             && target.role().is_some_and(Role::is_admin)
-            && users::count_admins(&self.pool, Some(id)).await? == 0
+            && users::count_admins(uow.conn(), Some(id)).await? == 0
         {
             return Err(UserError::LastAdmin);
         }
-
-        let mut uow = Uow::begin(&self.pool).await?;
         users::set_role(uow.conn(), id, role).await?;
         let payload = SetRoleDetail {
             user_id: id,

@@ -174,6 +174,7 @@ impl From<steelpipe_service::CheckError> for ApiError {
         use steelpipe_service::CheckError as E;
         match error {
             E::NotFound(id) => Self::NotFound2(format!("盘点单 {id}")),
+            E::ItemNotFound(id) => Self::NotFound2(format!("盘点明细 {id}")),
             E::NotOpen => Self::StateConflict("盘点单不是 open 状态".into()),
             E::LocationUnavailable(code) => Self::Invalid(format!("库位 {code} 不存在或已停用")),
             E::TubeNotInScope(pipe_id) => {

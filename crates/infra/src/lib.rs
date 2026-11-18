@@ -44,6 +44,8 @@ pub enum InfraError {
     NotFound(&'static str),
     #[error("{0}已存在")]
     Conflict(&'static str),
+    #[error("盘点单不是 open 状态")]
+    NotOpen,
     #[error("{0}")]
     Other(String),
 }

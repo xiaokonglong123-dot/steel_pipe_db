@@ -83,7 +83,7 @@ impl OpsService {
         limit: i64,
     ) -> Result<AuditPageView, OpsError> {
         let rows = audit_repo::page_filtered(&self.pool, action, after_id, limit).await?;
-        let total = audit_repo::count(&self.pool).await?;
+        let total = audit_repo::count_filtered(&self.pool, action).await?;
         Ok(AuditPageView {
             entries: rows
                 .into_iter()
@@ -106,13 +106,18 @@ impl OpsService {
             return Err(OpsError::BadBatch(batch));
         }
 
+        let mut snapshot = self
+            .pool
+            .begin_with("BEGIN")
+            .await
+            .map_err(InfraError::Connect)?;
         let mut after_id = 0i64;
         let mut expected_prev = GENESIS_HASH.to_owned();
         let mut entries_total = 0i64;
         let mut batches = 0i64;
 
         loop {
-            let rows = audit_repo::page_after(&self.pool, after_id, batch as i64).await?;
+            let rows = audit_repo::page_after(&mut *snapshot, after_id, batch as i64).await?;
             if rows.is_empty() {
                 break;
             }
@@ -130,11 +135,7 @@ impl OpsService {
             after_id = rows.last().map(|row| row.id).unwrap_or(after_id);
         }
 
-        let table_tip: String =
-            sqlx::query_scalar("SELECT last_hash FROM audit_chain_tip WHERE id = 1")
-                .fetch_one(&self.pool)
-                .await
-                .map_err(InfraError::Connect)?;
+        let (_seq, table_tip) = audit_repo::chain_tip(&mut *snapshot).await?;
         if table_tip != expected_prev {
             return Err(OpsError::TipMismatch {
                 log_tip: expected_prev,
@@ -368,6 +369,33 @@ mod tests {
             fx.service.verify_chain(0).await.unwrap_err(),
             OpsError::BadBatch(0)
         ));
+        fx.pool.close().await;
+        let _ = std::fs::remove_file(&fx.path);
+    }
+
+    #[tokio::test]
+    async fn verify_chain_uses_a_consistent_snapshot_during_writes() {
+        let fx = fixture("verify-snapshot").await;
+        for _ in 0..8 {
+            let mut uow = Uow::begin(&fx.pool).await.unwrap();
+            uow.audit(None, "setup", "{}").await.unwrap();
+            uow.commit().await.unwrap();
+        }
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(2));
+        let task = {
+            let pool = fx.pool.clone();
+            let barrier = barrier.clone();
+            tokio::spawn(async move {
+                barrier.wait().await;
+                OpsService::new(pool).verify_chain(1).await
+            })
+        };
+        barrier.wait().await;
+        let mut uow = Uow::begin(&fx.pool).await.unwrap();
+        uow.audit(None, "concurrent", "{}").await.unwrap();
+        uow.commit().await.unwrap();
+        let summary = task.await.unwrap().expect("快照校验不应被新增日志打断");
+        assert_eq!(summary.entries, 8);
         fx.pool.close().await;
         let _ = std::fs::remove_file(&fx.path);
     }

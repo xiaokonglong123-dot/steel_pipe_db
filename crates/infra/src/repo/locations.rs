@@ -1,7 +1,7 @@
 //! 库位仓储。`used_count` 是反规范化派生列（设计 §12.2）：只做原子增减，
 //! 绝不全表 `COUNT(*)`。
 
-use sqlx::{FromRow, SqliteConnection};
+use sqlx::{FromRow, Sqlite, SqliteConnection};
 
 use crate::{DbPool, InfraError};
 
@@ -23,12 +23,15 @@ pub async fn list(pool: &DbPool) -> Result<Vec<LocationRow>, InfraError> {
     .map_err(InfraError::Connect)
 }
 
-pub async fn find(pool: &DbPool, code: &str) -> Result<Option<LocationRow>, InfraError> {
+pub async fn find<'e, E>(executor: E, code: &str) -> Result<Option<LocationRow>, InfraError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
     sqlx::query_as(
         "SELECT code, name, used_count, capacity, is_active FROM locations WHERE code = ?",
     )
     .bind(code)
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await
     .map_err(InfraError::Connect)
 }
@@ -93,11 +96,23 @@ pub async fn adjust_used_count(
     code: &str,
     delta: i64,
 ) -> Result<i64, InfraError> {
+    adjust_used_count_checked(conn, code, delta, false).await
+}
+
+/// 增加库存时可要求目标库位启用；原子条件避免校验后再被停用。
+pub async fn adjust_used_count_checked(
+    conn: &mut SqliteConnection,
+    code: &str,
+    delta: i64,
+    require_active: bool,
+) -> Result<i64, InfraError> {
     let used: Option<i64> = sqlx::query_scalar(
-        "UPDATE locations SET used_count = used_count + ? WHERE code = ? RETURNING used_count",
+        "UPDATE locations SET used_count = used_count + ?
+         WHERE code = ? AND (? = 0 OR is_active = 1) RETURNING used_count",
     )
     .bind(delta)
     .bind(code)
+    .bind(i64::from(require_active))
     .fetch_optional(conn)
     .await
     .map_err(|e| {

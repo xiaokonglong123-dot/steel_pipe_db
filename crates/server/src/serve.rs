@@ -46,7 +46,8 @@ pub async fn run() -> anyhow::Result<()> {
         probe,
         config.cookie_secure,
         env!("CARGO_PKG_VERSION"),
-    );
+    )
+    .trust_forwarded_headers(config.trust_forwarded_headers);
 
     let app = router(state)
         .fallback(crate::assets::static_handler)

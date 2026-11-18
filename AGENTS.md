@@ -30,7 +30,7 @@ deploy/          systemd 单元
 ```bash
 cargo build --release --workspace --bins     # target/release/steelpipe
 (cd web && npm ci && npm run build)          # web/dist，需重新 cargo build 才会内嵌
-cargo test --workspace                       # 118 项
+cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 bash scripts/ci/layering.sh
 (cd web && npm run typecheck && npm run build)

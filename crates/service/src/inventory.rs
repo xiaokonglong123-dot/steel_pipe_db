@@ -363,7 +363,14 @@ pub(crate) async fn write_tube_rows(
                 screen.and_then(|value| value.slot_pattern.clone()),
             );
             let base_grade = screen.and_then(|value| value.base_pipe_grade.as_deref());
-            tubes::insert_screen_spec(uow.conn(), pipe_id, &specs, base_grade).await?;
+            tubes::insert_screen_spec(
+                uow.conn(),
+                pipe_id,
+                &specs,
+                screen.and_then(|value| value.screen_type.as_deref()),
+                base_grade,
+            )
+            .await?;
         }
     }
     Ok(())
@@ -475,14 +482,15 @@ impl InventoryService {
         };
         let pipe_id = draft.validate()?;
 
-        let location = locations::find(&self.pool, input.location.trim())
+        let mut uow = Uow::begin(&self.pool).await?;
+        let location = locations::find(uow.conn(), input.location.trim())
             .await?
             .ok_or_else(|| InventoryError::LocationNotFound(input.location.clone()))?;
         if !location.is_active {
             return Err(InventoryError::LocationInactive(location.code));
         }
 
-        let spec = standards::find_by_grade(&self.pool, input.steel_grade.trim())
+        let spec = standards::find_by_grade(uow.conn(), input.steel_grade.trim())
             .await?
             .ok_or_else(|| InventoryError::NoStandardSpec(input.steel_grade.clone()))?;
 
@@ -513,7 +521,6 @@ impl InventoryService {
         }
 
         let now = time::now_rfc3339();
-        let mut uow = Uow::begin(&self.pool).await?;
 
         write_tube_rows(&mut uow, &pipe_id, &input, result.passed, &now).await?;
 
@@ -583,7 +590,9 @@ impl InventoryService {
         pipe_id: &str,
         remark: Option<&str>,
     ) -> Result<StockOutOutcome, InventoryError> {
-        let tube = tubes::find(&self.pool, pipe_id)
+        let now = time::now_rfc3339();
+        let mut uow = Uow::begin(&self.pool).await?;
+        let tube = tubes::find(uow.conn(), pipe_id)
             .await?
             .ok_or_else(|| InventoryError::TubeNotFound(pipe_id.to_owned()))?;
         if tube.deleted_at.is_some() {
@@ -592,9 +601,6 @@ impl InventoryService {
         let status = tube.status().unwrap_or(TubeStatus::OutStock);
         let quality = tube.quality().unwrap_or(QualityMark::Normal);
         steelpipe_domain::tube::ensure_stock_out_ready(status, quality, actor.role.is_admin())?;
-
-        let now = time::now_rfc3339();
-        let mut uow = Uow::begin(&self.pool).await?;
 
         tubes::mark_out_stock(uow.conn(), pipe_id, &now)
             .await
@@ -663,10 +669,11 @@ impl InventoryService {
             return Err(InventoryError::EmptyBatch);
         }
 
-        // 先全部读出来做守卫，让错误在任何写入之前暴露
+        // 状态校验与实际写入共用同一事务，避免质量标记被并发替换。
+        let mut uow = Uow::begin(&self.pool).await?;
         let mut rows = Vec::with_capacity(unique.len());
         for pipe_id in &unique {
-            let tube = tubes::find(&self.pool, pipe_id)
+            let tube = tubes::find(uow.conn(), pipe_id)
                 .await?
                 .ok_or_else(|| InventoryError::TubeNotFound(pipe_id.clone()))?;
             if tube.deleted_at.is_some() {
@@ -679,7 +686,6 @@ impl InventoryService {
         }
 
         let now = time::now_rfc3339();
-        let mut uow = Uow::begin(&self.pool).await?;
 
         let transaction_id = transactions::insert(
             uow.conn(),
@@ -737,7 +743,10 @@ impl InventoryService {
         target_location: &str,
         remark: Option<&str>,
     ) -> Result<TransferOutcome, InventoryError> {
-        let tube = tubes::find(&self.pool, pipe_id)
+        let target = target_location.trim();
+        let now = time::now_rfc3339();
+        let mut uow = Uow::begin(&self.pool).await?;
+        let tube = tubes::find(uow.conn(), pipe_id)
             .await?
             .ok_or_else(|| InventoryError::TubeNotFound(pipe_id.to_owned()))?;
         if tube.deleted_at.is_some() {
@@ -747,21 +756,17 @@ impl InventoryService {
         let quality = tube.quality().unwrap_or(QualityMark::Normal);
         steelpipe_domain::tube::ensure_transfer_ready(status, quality, actor.role.is_admin())?;
 
-        let target = target_location.trim();
         if tube.location.as_deref() == Some(target) {
             return Err(InventoryError::SameLocation);
         }
-        let target_row = locations::find(&self.pool, target)
+        let target_row = locations::find(uow.conn(), target)
             .await?
             .ok_or_else(|| InventoryError::LocationNotFound(target.to_owned()))?;
         if !target_row.is_active {
             return Err(InventoryError::LocationInactive(target_row.code));
         }
 
-        let now = time::now_rfc3339();
-        let mut uow = Uow::begin(&self.pool).await?;
-
-        tubes::set_location(uow.conn(), pipe_id, target, &now)
+        tubes::set_location(uow.conn(), pipe_id, tube.location.as_deref(), target, &now)
             .await
             .map_err(InventoryError::from_infra)?;
         if let Some(source) = tube.location.as_deref() {
@@ -769,7 +774,7 @@ impl InventoryService {
                 .await
                 .map_err(InventoryError::from_infra)?;
         }
-        locations::adjust_used_count(uow.conn(), target, 1)
+        locations::adjust_used_count_checked(uow.conn(), target, 1, true)
             .await
             .map_err(InventoryError::from_infra)?;
 
@@ -843,7 +848,7 @@ impl InventoryService {
     pub async fn soft_delete(&self, actor: &Identity, pipe_id: &str) -> Result<(), InventoryError> {
         let now = time::now_rfc3339();
         let mut uow = Uow::begin(&self.pool).await?;
-        let tube = tubes::find(&self.pool, pipe_id)
+        let tube = tubes::find(uow.conn(), pipe_id)
             .await?
             .ok_or_else(|| InventoryError::TubeNotFound(pipe_id.to_owned()))?;
         tubes::soft_delete(uow.conn(), pipe_id, &now)

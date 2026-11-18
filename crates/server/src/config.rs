@@ -14,6 +14,7 @@ pub struct Config {
     pub database_url: String,
     pub jwt_secret: String,
     pub cookie_secure: bool,
+    pub trust_forwarded_headers: bool,
     pub max_connections: u32,
     pub max_body_bytes: usize,
     pub admin_seed: Option<(String, String)>,
@@ -30,6 +31,7 @@ impl std::fmt::Debug for Config {
                 &format_args!("<redacted, {} bytes>", self.jwt_secret.len()),
             )
             .field("cookie_secure", &self.cookie_secure)
+            .field("trust_forwarded_headers", &self.trust_forwarded_headers)
             .field("max_connections", &self.max_connections)
             .field("max_body_bytes", &self.max_body_bytes)
             .field("admin_seed", &self.admin_seed.as_ref().map(|(u, _)| u))
@@ -65,6 +67,11 @@ impl Config {
             .map(|value| matches!(value.trim(), "1" | "true" | "yes" | "on"))
             .unwrap_or(false);
 
+        let trust_forwarded_headers = env::var("STEELPIPE_TRUST_FORWARDED_HEADERS")
+            .ok()
+            .map(|value| matches!(value.trim(), "1" | "true" | "yes" | "on"))
+            .unwrap_or(false);
+
         let max_connections = env::var("STEELPIPE_MAX_CONNECTIONS")
             .ok()
             .map(|value| value.parse::<u32>())
@@ -96,6 +103,7 @@ impl Config {
             database_url,
             jwt_secret,
             cookie_secure,
+            trust_forwarded_headers,
             max_connections,
             max_body_bytes,
             admin_seed,

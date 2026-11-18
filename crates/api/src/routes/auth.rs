@@ -99,7 +99,7 @@ pub async fn login(
     Json(body): Json<LoginRequest>,
 ) -> Result<Response, ApiReject> {
     check_csrf(&headers).map_err(|error| fail(error, &headers))?;
-    let ip = client_ip(&headers, Some(peer));
+    let ip = client_ip(&headers, Some(peer), state.trust_forwarded_headers);
 
     let success = state
         .auth

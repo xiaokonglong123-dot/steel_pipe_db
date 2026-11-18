@@ -1,6 +1,6 @@
 //! 标准规格仓储（`standard_specs`）。grade 唯一。
 
-use sqlx::{FromRow, SqliteConnection};
+use sqlx::{FromRow, Sqlite, SqliteConnection};
 
 use crate::{DbPool, InfraError};
 
@@ -39,20 +39,29 @@ pub async fn list(pool: &DbPool) -> Result<Vec<StandardRow>, InfraError> {
         .map_err(InfraError::Connect)
 }
 
-pub async fn find_by_grade(pool: &DbPool, grade: &str) -> Result<Option<StandardRow>, InfraError> {
+pub async fn find_by_grade<'e, E>(
+    executor: E,
+    grade: &str,
+) -> Result<Option<StandardRow>, InfraError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
     let sql = format!("SELECT {COLUMNS} FROM standard_specs WHERE grade = ?");
     sqlx::query_as::<_, StandardRow>(&sql)
         .bind(grade)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await
         .map_err(InfraError::Connect)
 }
 
-pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<StandardRow>, InfraError> {
+pub async fn find_by_id<'e, E>(executor: E, id: i64) -> Result<Option<StandardRow>, InfraError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
     let sql = format!("SELECT {COLUMNS} FROM standard_specs WHERE id = ?");
     sqlx::query_as::<_, StandardRow>(&sql)
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await
         .map_err(InfraError::Connect)
 }

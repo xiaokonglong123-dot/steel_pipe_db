@@ -22,6 +22,7 @@ pub struct AppState {
     pub(crate) users: Arc<UserService>,
     pub(crate) probe: Option<DbProbe>,
     pub(crate) cookie_secure: bool,
+    pub(crate) trust_forwarded_headers: bool,
     pub(crate) pool: DbPool,
     version: &'static str,
     commit: &'static str,
@@ -42,11 +43,18 @@ impl AppState {
             users,
             probe,
             cookie_secure,
+            trust_forwarded_headers: false,
             pool,
             version,
             commit: option_env!("STEELPIPE_GIT_SHA").unwrap_or("unknown"),
             started_at: Instant::now(),
         }
+    }
+
+    /// 部署方只有在反代会覆盖客户端转发头时才开启。
+    pub fn trust_forwarded_headers(mut self, enabled: bool) -> Self {
+        self.trust_forwarded_headers = enabled;
+        self
     }
 
     /// 路由用它构造领域服务；api 不直接接触 sqlx 类型。

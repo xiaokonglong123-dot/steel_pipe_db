@@ -298,6 +298,138 @@ fn stock_in_body(pipe_id: &str, wall: f64) -> serde_json::Value {
 }
 
 #[tokio::test]
+async fn concurrent_transfer_and_stock_out_keep_inventory_consistent() {
+    let fx = Harness::new("transfer-race").await;
+    for pipe_id in ["R-1", "R-2"] {
+        let created = fx
+            .call(
+                post_json("/api/tubes/stock-in", stock_in_body(pipe_id, 7.0)),
+                &fx.operator_cookies,
+                Some(&fx.operator_csrf),
+            )
+            .await;
+        assert_eq!(
+            created.status,
+            StatusCode::CREATED,
+            "body: {}",
+            created.body
+        );
+    }
+
+    let baseline_a1 = steelpipe_infra::repo::locations::find(&fx.pool, "A1")
+        .await
+        .unwrap()
+        .unwrap()
+        .used_count;
+    let baseline_a2 = steelpipe_infra::repo::locations::find(&fx.pool, "A2")
+        .await
+        .unwrap()
+        .unwrap()
+        .used_count;
+
+    let actor = Identity {
+        user_id: 2,
+        username: "op".into(),
+        display_name: "Op".into(),
+        role: Role::Operator,
+        token_version: 0,
+    };
+    let inventory = steelpipe_service::InventoryService::new(fx.pool.clone());
+    let barrier = Arc::new(tokio::sync::Barrier::new(2));
+    let task = {
+        let barrier = barrier.clone();
+        tokio::spawn(async move {
+            barrier.wait().await;
+            inventory.transfer(&actor, "R-1", "A2", None).await
+        })
+    };
+    barrier.wait().await;
+    let stock_out = fx
+        .call(
+            post_json("/api/tubes/R-1/stock-out", serde_json::json!({})),
+            &fx.operator_cookies,
+            Some(&fx.operator_csrf),
+        )
+        .await;
+    let transfer = task.await.unwrap();
+    let detail = fx
+        .call(get("/api/tubes/R-1"), &fx.operator_cookies, None)
+        .await
+        .json();
+    let out_succeeded = stock_out.status == StatusCode::OK;
+    let transfer_succeeded = transfer.is_ok();
+    assert_ne!(stock_out.status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        detail["tube"]["status"],
+        if out_succeeded {
+            "out_stock"
+        } else {
+            "in_stock"
+        }
+    );
+    assert_eq!(
+        detail["tube"]["location"],
+        if transfer_succeeded { "A2" } else { "A1" }
+    );
+    assert_eq!(
+        steelpipe_infra::repo::locations::find(&fx.pool, "A2")
+            .await
+            .unwrap()
+            .unwrap()
+            .used_count,
+        baseline_a2 + i64::from(transfer_succeeded)
+            - i64::from(transfer_succeeded && out_succeeded),
+        "out={} transfer={transfer:?} detail={detail}",
+        stock_out.status
+    );
+    assert_eq!(
+        steelpipe_infra::repo::locations::find(&fx.pool, "A1")
+            .await
+            .unwrap()
+            .unwrap()
+            .used_count,
+        baseline_a1 - i64::from(out_succeeded)
+    );
+    assert!(
+        steelpipe_infra::repo::locations::drift(&fx.pool)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    fx.cleanup().await;
+}
+
+#[tokio::test]
+async fn screen_type_is_persisted() {
+    let fx = Harness::new("screen-type").await;
+    let mut body = stock_in_body("SCREEN-1", 7.0);
+    body["pipe_type"] = serde_json::json!("screen_pipe");
+    body["screen"] = serde_json::json!({
+        "screen_type": "wire_wrapped",
+        "slot_width_mm": 0.3,
+        "filtration_rating_um": 150.0
+    });
+    let created = fx
+        .call(
+            post_json("/api/tubes/stock-in", body),
+            &fx.operator_cookies,
+            Some(&fx.operator_csrf),
+        )
+        .await;
+    assert_eq!(
+        created.status,
+        StatusCode::CREATED,
+        "body: {}",
+        created.body
+    );
+    let detail = fx
+        .call(get("/api/tubes/SCREEN-1"), &fx.operator_cookies, None)
+        .await;
+    assert_eq!(detail.json()["screen"]["screen_type"], "wire_wrapped");
+    fx.cleanup().await;
+}
+
+#[tokio::test]
 async fn stock_in_then_list_and_detail() {
     let fx = Harness::new("in").await;
     let reply = fx

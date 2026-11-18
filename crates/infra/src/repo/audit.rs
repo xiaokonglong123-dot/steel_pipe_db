@@ -26,18 +26,21 @@ impl AuditRow {
 }
 
 /// 按 id 升序取一页（`after_id` 为上一页最后一条的 id，首页传 0）。
-pub async fn page_after(
-    pool: &DbPool,
+pub async fn page_after<'e, E>(
+    executor: E,
     after_id: i64,
     limit: i64,
-) -> Result<Vec<AuditRow>, InfraError> {
+) -> Result<Vec<AuditRow>, InfraError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     sqlx::query_as(
         "SELECT id, user_id, action, detail, prev_hash, current_hash, ts
          FROM audit_logs WHERE id > ? ORDER BY id LIMIT ?",
     )
     .bind(after_id)
     .bind(limit)
-    .fetch_all(pool)
+    .fetch_all(executor)
     .await
     .map_err(InfraError::Connect)
 }
@@ -101,10 +104,25 @@ pub async fn page_filtered(
         .map_err(InfraError::Connect)
 }
 
+/// 按与列表相同的 action 条件统计总数。
+pub async fn count_filtered(pool: &DbPool, action: Option<&str>) -> Result<i64, InfraError> {
+    match action {
+        Some(action) => sqlx::query_scalar("SELECT count(*) FROM audit_logs WHERE action = ?")
+            .bind(action)
+            .fetch_one(pool)
+            .await
+            .map_err(InfraError::Connect),
+        None => count(pool).await,
+    }
+}
+
 /// 链尾（seq, hash）。
-pub async fn chain_tip(pool: &DbPool) -> Result<(i64, String), InfraError> {
+pub async fn chain_tip<'e, E>(executor: E) -> Result<(i64, String), InfraError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     sqlx::query_as("SELECT last_seq, last_hash FROM audit_chain_tip WHERE id = 1")
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
         .map_err(InfraError::Connect)
 }

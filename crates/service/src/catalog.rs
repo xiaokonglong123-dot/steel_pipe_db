@@ -338,11 +338,10 @@ impl CatalogService {
 
     /// 硬删 + 审计里留删前快照（旧实现同样如此）。
     pub async fn delete_standard(&self, actor: &Identity, id: i64) -> Result<(), CatalogError> {
-        let snapshot = standards::find_by_id(&self.pool, id)
+        let mut uow = Uow::begin(&self.pool).await?;
+        let snapshot = standards::find_by_id(uow.conn(), id)
             .await?
             .ok_or(CatalogError::NotFound("钢级规格"))?;
-
-        let mut uow = Uow::begin(&self.pool).await?;
         standards::delete(uow.conn(), id)
             .await
             .map_err(CatalogError::from_infra)?;

@@ -479,6 +479,84 @@ async fn surplus_is_gated_by_compliance_at_confirm_time() {
 }
 
 #[tokio::test]
+async fn cancel_and_mark_leave_a_consistent_final_state() {
+    let fx = fixture("cancel-race").await;
+    fx.seed_tube("R-C-1").await;
+    let created = fx
+        .as_operator(post_json(
+            "/api/checks",
+            serde_json::json!({"location": "A1"}),
+        ))
+        .await;
+    let check_id = created.json()["id"].as_i64().unwrap();
+
+    let pool = fx.pool.clone();
+    let barrier = Arc::new(tokio::sync::Barrier::new(2));
+    let task = {
+        let barrier = barrier.clone();
+        tokio::spawn(async move {
+            let service = steelpipe_service::CheckService::new(pool);
+            let actor = Identity {
+                user_id: 2,
+                username: "op".into(),
+                display_name: "Op".into(),
+                role: Role::Operator,
+                token_version: 0,
+            };
+            barrier.wait().await;
+            service
+                .mark_item(
+                    &actor,
+                    check_id,
+                    "R-C-1",
+                    steelpipe_domain::CheckResult::Missing,
+                    None,
+                )
+                .await
+        })
+    };
+    barrier.wait().await;
+    let cancel = fx
+        .as_operator(post_json(
+            &format!("/api/checks/{check_id}/cancel"),
+            serde_json::json!({}),
+        ))
+        .await;
+    let mark = task.await.unwrap();
+    assert_ne!(cancel.status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(
+        (cancel.status == StatusCode::NO_CONTENT && mark.is_ok())
+            || (mark.is_err() && cancel.status != StatusCode::INTERNAL_SERVER_ERROR),
+        "合法顺序是先核对后取消，或先取消后拒绝核对：cancel={} mark={mark:?}",
+        cancel.status
+    );
+    let detail = fx
+        .as_operator(get(&format!("/api/checks/{check_id}")))
+        .await;
+    if detail.json()["session"]["status"] == "cancelled" {
+        assert_eq!(
+            detail.json()["items"].as_array().unwrap().len(),
+            usize::from(mark.is_ok()),
+            "先取消后不得写入；先核对后取消保留历史明细"
+        );
+    }
+    fx.cleanup().await;
+}
+
+#[tokio::test]
+async fn cancel_missing_check_is_404() {
+    let fx = fixture("cancel-missing").await;
+    let reply = fx
+        .as_operator(post_json(
+            "/api/checks/999999/cancel",
+            serde_json::json!({}),
+        ))
+        .await;
+    assert_eq!(reply.status, StatusCode::NOT_FOUND, "body: {}", reply.body);
+    fx.cleanup().await;
+}
+
+#[tokio::test]
 async fn cancelled_check_leaves_stock_untouched() {
     let fx = fixture("cancel").await;
     fx.seed_tube("P-3").await;
