@@ -5,7 +5,7 @@
 //! - 状态推进用带条件 UPDATE；0 行 → 409（TOCTOU）
 //! - `used_count` 只随 `in_stock` 管子增减；批量出库整体原子
 //!
-//! 规格：`docs/spec/D-inventory.md`（D 域）。强制入库（`force`）需 admin，
+//! 规格：`docs/spec.md`（D 域）。强制入库（`force`）需 admin，
 //! 且额外写一条 `forced_intake` 审计（设计 §11 的缺口在这里补上）。
 
 use serde::Serialize;

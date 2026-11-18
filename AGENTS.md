@@ -2,9 +2,9 @@
 
 面向局域网的无缝钢管与筛管（API 5CT）单根级库存系统。单二进制 + SQLite，无 Python / Node 运行时依赖。
 
-- 设计权威：`docs/2026-07-13-api5ct-inventory-design.md`
-- 重写方案：`docs/2026-11-17-rewrite-reference.md`
-- 行为规格：`docs/spec/`（A–H 域，编号可追溯）
+- 架构与业务规则：`docs/architecture.md`
+- 行为规格：`docs/spec.md`（编号可追溯）
+- 前端样式与交互直接以 `web/src/styles.css`、`web/src/components/ui.tsx` 为准。
 
 ## 架构
 
@@ -28,8 +28,8 @@ deploy/          systemd 单元
 ## 命令
 
 ```bash
-cargo build --release --workspace --bins     # target/release/steelpipe
-(cd web && npm ci && npm run build)          # web/dist，需重新 cargo build 才会内嵌
+(cd web && npm ci && npm run build)          # 先构建 web/dist
+cargo build --release --workspace --bins     # 再构建后端以嵌入前端
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 bash scripts/ci/layering.sh
@@ -44,7 +44,7 @@ bash scripts/ci/layering.sh
 2. **写事务**：所有状态变更走 `BEGIN IMMEDIATE`；审计行与业务操作同事务写入。
 3. **TOCTOU 守卫**：`WHERE status='in_stock' AND quality_mark != 'scrapped'` + 校验 `rows_affected == 1`。
 4. **审计链**：`sha256(prev‖action‖detail‖ts)`；genesis = `sha256("AYANAMI_REI_GENESIS")`；校验分批（1000）。
-5. **软删**：管子与库位不做物理删除；库位 FK `ON DELETE RESTRICT`。
+5. **软删**：管子不做物理删除；库位用启停用管理，不删除库位。
 6. **合规门**：所有入库（含盘盈）必须过 API 5CT 校验；不合规只能管理员 `force` 并留审计。
 7. **盘点**：确认在单事务内原子应用全部差异，任一项失败整体回滚且盘点单保持 open。
 8. **认证**：JWT 仅 httpOnly cookie；CSRF 自实现；登录失败 IP 限流 + 账号锁定。

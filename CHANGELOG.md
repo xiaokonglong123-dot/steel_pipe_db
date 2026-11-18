@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+### 文档
+
+- 合并重复的快速开始、架构、行为和部署说明；移除旧实现计划与分域规格文件
+
 ### 修复与加固
 
 - 库存、盘点与用户管理在写事务内校验状态，补齐调拨、出库和盘点明细的原子守卫
@@ -27,7 +31,7 @@
 - SPA：Vite 8 + React 19 + TanStack Query + react-router
 - UI v2：高密度暗色数据网格、三档密度、后端白名单排序、审计虚拟滚动
 - UI v3：石墨指挥台（68px 图标轨 + 命令条、主次 KPI、确认对话框与 Toast、全站状态三重编码）
-  - 见 [`docs/2026-11-17-ui-redesign-v3.md`](docs/2026-11-17-ui-redesign-v3.md)
+  - 当前约束见 [`docs/architecture.md`](docs/architecture.md)
 
 ### 仓库整理
 

@@ -68,7 +68,7 @@ sudo systemctl restart steelpipe
 ## HTTPS 与反向代理
 
 - 对外使用 HTTPS，保持 `STEELPIPE_COOKIE_SECURE=true`。
-- 默认 `STEELPIPE_TRUST_FORWARDED_HEADERS=false`，登录限流以 socket 对端地址为准。
+- 登录限流默认只信任 socket 对端地址。
 - 若需要按真实客户端 IP 限流，反代必须覆盖外部传入的 `X-Forwarded-For`，再设置 `STEELPIPE_TRUST_FORWARDED_HEADERS=true`。
 - 开启信任后，必须限制原服务只能从反代访问，不能允许客户端绕过代理直连。
 

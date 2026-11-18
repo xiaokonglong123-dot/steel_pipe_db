@@ -1,7 +1,7 @@
 -- 0001_init —— 迁移基线：审计链尾
 --
 -- 方言：SQLite。业务表（11 张 / 88 列）在 0002 落地，见
--- docs/2026-11-17-rewrite-reference.md §4。
+-- docs/architecture.md 的数据模型章节。
 --
 -- 链尾表强制单行（id = 1）；写入协议为 BEGIN IMMEDIATE + 读链尾，
 -- 见 crates/infra 的 WRITE_TXN_BEGIN（M3 落地）。

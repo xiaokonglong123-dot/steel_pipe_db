@@ -130,44 +130,15 @@ steelpipe openapi > openapi.json
 - `reconcile`：重算存在漂移的库位 `used_count` 并写审计。
 - `seed-standards`：导入标准规格，已有钢级跳过。
 
-## 数据安全与备份恢复
+## 生产部署与备份
 
-**只运行一个 `steelpipe serve` 实例。** SQLite 写事务和审计链均以单写者为前提，数据库不要放在网络文件系统上。
+只运行一个 `steelpipe serve` 实例，数据库不要放在网络文件系统上。安装、HTTPS 反代、定时备份、升级与恢复步骤统一见 [`deploy/README.md`](deploy/README.md)。
 
-备份使用 SQLite 在线备份接口，不要直接复制数据库文件：
+备份使用 `scripts/backup.sh` 的 SQLite 在线备份接口，不要直接复制数据库文件；恢复前停止服务，并通过 `scripts/restore.sh` 执行完整性、迁移及审计链校验。
 
-```bash
-scripts/backup.sh /srv/steelpipe/data/steelpipe.db /srv/steelpipe/data/backup
-```
+## 开发与测试
 
-脚本按日期和 ISO 周生成备份，分别保留最近 7 份和 4 份。
-
-恢复前**停止服务**；不要对正在运行的数据库执行恢复：
-
-```bash
-STEELPIPE_BIN=/srv/steelpipe/steelpipe \
-  scripts/restore.sh /path/to/backup.db /srv/steelpipe/data/steelpipe.db
-```
-
-恢复脚本会先保留当前数据库，再恢复指定备份，随后执行 `PRAGMA integrity_check`、数据库迁移和审计链校验。校验失败时脚本返回非零状态。生产操作步骤见 [`deploy/README.md`](deploy/README.md)。
-
-## 架构与测试
-
-```text
-crates/
-  domain/       角色、业务枚举与状态机
-  compliance/   API 5CT 合规校验
-  audit/        审计哈希计算与分批验证
-  auth/         argon2id、JWT 签发与验证
-  infra/        SQLite、迁移、事务与仓储
-  service/      认证、库存、盘点、导入和运维用例
-  api/          axum 路由、DTO、错误映射与 OpenAPI
-  server/       可执行文件、配置、静态资源与 CLI
-web/            React SPA
-scripts/        CI 分层断言、备份与恢复
-deploy/         systemd 单元与部署手册
-docs/           设计、行为规格与界面资料
-```
+开发约定和模块边界见 [`AGENTS.md`](AGENTS.md)、[`docs/architecture.md`](docs/architecture.md)。
 
 ```bash
 cargo fmt --all -- --check
@@ -188,10 +159,9 @@ npm run gen:api  # 后端契约变化时更新 TS 类型
 | 文档 | 内容 |
 | --- | --- |
 | [`AGENTS.md`](AGENTS.md) | 开发约定、架构边界和核心不变量 |
-| [`docs/2026-07-13-api5ct-inventory-design.md`](docs/2026-07-13-api5ct-inventory-design.md) | 业务与架构设计 |
-| [`docs/2026-11-17-rewrite-reference.md`](docs/2026-11-17-rewrite-reference.md) | Rust 重写方案 |
-| [`docs/spec/`](docs/spec/) | 可追溯行为规格 |
-| [`docs/2026-11-17-ui-redesign-v3.md`](docs/2026-11-17-ui-redesign-v3.md) | 前端视觉与交互设计 |
+| [`docs/architecture.md`](docs/architecture.md) | 架构、数据模型与核心不变量 |
+| [`docs/spec.md`](docs/spec.md) | 可追溯行为规格 |
+| [`deploy/README.md`](deploy/README.md) | 生产部署、备份与恢复 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 版本变更记录 |
 
 本项目由旧 FastAPI/PyO3 实现重写而来；旧代码已移除，可在 Git 历史中追溯。

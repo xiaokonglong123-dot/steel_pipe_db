@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 分层断言：直接依赖图违反架构约束时失败（docs/2026-11-17-rewrite-reference.md §5）。
+# 分层断言：直接依赖图违反架构约束时失败（docs/architecture.md）。
 #   domain / auth / audit : 无 IO、无 Web
 #   infra                 : 只有持久化，不认识 HTTP 与用例
 #   service               : 用例编排，不认识 HTTP
